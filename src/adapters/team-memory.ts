@@ -1,9 +1,10 @@
 import { DatabaseSync } from "node:sqlite";
 
 import { DomainError, DomainErrorCode } from "../errors.ts";
-import { createObject } from "../objects.ts";
+import { createSourceRecord } from "../source-records.ts";
 import { isJsonObject } from "../types.ts";
-import type { CognitiveObject, JsonObject } from "../types.ts";
+import type { SourceRecord } from "../source-records.ts";
+import type { JsonObject } from "../types.ts";
 
 export interface TeamMemoryEventRow {
   readonly id: number;
@@ -25,11 +26,6 @@ export interface TeamMemoryQuery {
   readonly person?: string;
   readonly project?: string;
   readonly limit?: number;
-}
-
-export interface TeamMemoryEvidenceContext {
-  readonly hypothesisId: string;
-  readonly contextId: string;
 }
 
 const isoTimestampPattern =
@@ -125,9 +121,18 @@ function validateTeamMemoryEventRow(
 }
 
 function sourceIdFor(row: TeamMemoryEventRow): string {
-  return [row.person, row.source, row.hash]
+  return [row.person, row.source]
     .map((value) => encodeURIComponent(value))
     .join(":");
+}
+
+function recordIdFor(row: TeamMemoryEventRow): string {
+  return [
+    "source-record",
+    "team-memory",
+    sourceIdFor(row),
+    encodeURIComponent(row.hash),
+  ].join(":");
 }
 
 export function readTeamMemoryEvents(
@@ -171,51 +176,27 @@ export function readTeamMemoryEvents(
   }
 }
 
-export function teamMemoryEventToEvidence(
+export function teamMemoryEventToSourceRecord(
   row: TeamMemoryEventRow,
-  context: TeamMemoryEvidenceContext,
-): CognitiveObject<"evidence"> {
+): SourceRecord {
   validateTeamMemoryEventRow(row);
   const refs = parseRefs(row.refs);
-  const uri = refs.url;
-  if (uri !== undefined && typeof uri !== "string") {
-    invalidRow("refs.url", "Team-memory refs.url must be a string when present.");
-  }
-  const sourceId = sourceIdFor(row);
 
-  return createObject({
-    id: `teammem:${sourceId}:context:${encodeURIComponent(context.contextId)}:hypothesis:${encodeURIComponent(context.hypothesisId)}`,
-    type: "evidence",
-    version: 1,
-    state: "collected",
-    title: row.summary,
-    data: {
-      statement: row.summary,
-      evidenceKind: row.kind,
-      polarity: "neutral",
-      sourceActorId: `person:${row.person}`,
-      upstreamSource: row.source,
-      ...(row.project === null ? {} : { project: row.project }),
+  return createSourceRecord({
+    id: recordIdFor(row),
+    source: { system: "team-memory-agent" },
+    sourceId: sourceIdFor(row),
+    revisionId: row.hash,
+    capturedAt: row.ts,
+    observedAt: row.ts,
+    mediaType: "application/vnd.team-memory.event+json",
+    content: {
+      project: row.project,
+      kind: row.kind,
+      summary: row.summary,
+      refs,
+      raw: row.raw,
     },
-    createdAt: row.ts,
-    updatedAt: row.ts,
-    attribution: {
-      initiatorId: `person:${row.person}`,
-      executorId: "agent:team-memory-adapter",
-      accountableId: `person:${row.person}`,
-    },
-    provenance: [
-      {
-        source: "team-memory-agent",
-        sourceId,
-        capturedAt: row.ts,
-        ...(uri === undefined ? {} : { uri }),
-        contentHash: row.hash,
-      },
-    ],
-    contextId: context.contextId,
-    relationships: [
-      { type: "relates-to-hypothesis", targetId: context.hypothesisId },
-    ],
+    actorId: `person:${row.person}`,
   });
 }

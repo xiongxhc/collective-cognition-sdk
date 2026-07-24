@@ -24,10 +24,6 @@ export {
 } from "./objects.ts";
 export { evaluateAuthorization } from "./authorization.ts";
 export { transitionObject } from "./transitions.ts";
-export {
-  readTeamMemoryEvents,
-  teamMemoryEventToEvidence,
-} from "./adapters/team-memory.ts";
 export type {
   ActorKind,
   Attribution,
@@ -79,11 +75,6 @@ export type {
   EvidencePromotionRequest,
   IngestAndPromoteEvidenceResult,
 } from "./promotion.ts";
-export type {
-  TeamMemoryEvidenceContext,
-  TeamMemoryEventRow,
-  TeamMemoryQuery,
-} from "./adapters/team-memory.ts";
 export type {
   AuthorizationDecision,
   AuthorizationPolicy,

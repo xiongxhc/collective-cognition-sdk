@@ -9,10 +9,12 @@ import test from "node:test";
 import {
   DomainError,
   DomainErrorCode,
-  readTeamMemoryEvents,
-  teamMemoryEventToEvidence,
 } from "../src/index.ts";
-import type { TeamMemoryEventRow } from "../src/index.ts";
+import {
+  readTeamMemoryEvents,
+  teamMemoryEventToSourceRecord,
+} from "../src/adapters/team-memory.ts";
+import type { TeamMemoryEventRow } from "../src/adapters/team-memory.ts";
 
 const eventsSchema = `
   CREATE TABLE events (
@@ -215,147 +217,107 @@ test("accepts six-digit fractional seconds in queried ledger rows", () => {
 
   try {
     const [row] = readTeamMemoryEvents({ dbPath: ledger.path });
-    const evidence = teamMemoryEventToEvidence(row, {
-      hypothesisId: "hypothesis:adapter-safety",
-      contextId: "organization:collective-cognition",
-    });
+    const record = teamMemoryEventToSourceRecord(row);
 
     assert.equal(row.ts, timestamp);
-    assert.equal(evidence.createdAt, timestamp);
-    assert.equal(evidence.provenance[0].capturedAt, timestamp);
+    assert.equal(record.observedAt, timestamp);
+    assert.equal(record.capturedAt, timestamp);
   } finally {
     cleanupLedger(ledger.directory);
   }
 });
 
-test("maps a ledger event to neutral evidence with provenance", () => {
+test("maps a ledger event to a source-neutral immutable record", () => {
   const row: TeamMemoryEventRow = { id: 7, ...event() };
 
-  const evidence = teamMemoryEventToEvidence(row, {
-    hypothesisId: "hypothesis:adapter-safety",
-    contextId: "organization:collective-cognition",
+  const record = teamMemoryEventToSourceRecord(row);
+
+  assert.equal(
+    record.id,
+    "source-record:team-memory:alice:gitlab:hash-1",
+  );
+  assert.deepEqual(record.source, { system: "team-memory-agent" });
+  assert.equal(record.sourceId, "alice:gitlab");
+  assert.equal(record.revisionId, "hash-1");
+  assert.equal(record.observedAt, row.ts);
+  assert.equal(record.capturedAt, row.ts);
+  assert.equal(record.mediaType, "application/vnd.team-memory.event+json");
+  assert.equal(record.actorId, "person:alice");
+  assert.deepEqual(record.content, {
+    project: "collective-cognition",
+    kind: "commit",
+    summary: "Added a read-only adapter.",
+    refs: {
+      url: "https://gitlab.example/commit/1",
+      sha: "abc123",
+    },
+    raw: '{"id":"abc123"}',
+  });
+  assert.equal(Object.isFrozen(record), true);
+  assert.equal(Object.isFrozen(record.content), true);
+  assert.equal(
+    Object.isFrozen((record.content as { refs: object }).refs),
+    true,
+  );
+});
+
+test("uses person, source, and hash for collision-safe record IDs", () => {
+  const first = teamMemoryEventToSourceRecord({
+    id: 1,
+    ...event({
+      person: "alice smith",
+      source: "bundle:member",
+      hash: "hash/with?query",
+    }),
+  });
+  const second = teamMemoryEventToSourceRecord({
+    id: 2,
+    ...event({
+      person: "bob smith",
+      source: "bundle:member",
+      hash: "hash/with?query",
+    }),
   });
 
   assert.equal(
-    evidence.id,
-    "teammem:alice:gitlab:hash-1:context:organization%3Acollective-cognition:hypothesis:hypothesis%3Aadapter-safety",
-  );
-  assert.equal(evidence.state, "collected");
-  assert.equal(evidence.data.statement, "Added a read-only adapter.");
-  assert.equal(evidence.data.evidenceKind, "commit");
-  assert.equal(evidence.data.polarity, "neutral");
-  assert.equal(evidence.data.sourceActorId, "person:alice");
-  assert.equal(evidence.data.project, "collective-cognition");
-  assert.equal(evidence.data.upstreamSource, "gitlab");
-  assert.deepEqual(evidence.provenance, [
-    {
-      source: "team-memory-agent",
-      sourceId: "alice:gitlab:hash-1",
-      capturedAt: "2026-07-24T10:00:00.000Z",
-      uri: "https://gitlab.example/commit/1",
-      contentHash: "hash-1",
-    },
-  ]);
-  assert.deepEqual(evidence.relationships, [
-    { type: "relates-to-hypothesis", targetId: "hypothesis:adapter-safety" },
-  ]);
-});
-
-test("uses person, source, and hash for collision-safe evidence IDs", () => {
-  const context = {
-    hypothesisId: "hypothesis:adapter-safety",
-    contextId: "organization:collective-cognition",
-  };
-  const first = teamMemoryEventToEvidence(
-    {
-      id: 1,
-      ...event({
-        person: "alice smith",
-        source: "bundle:member",
-        hash: "hash/with?query",
-      }),
-    },
-    context,
-  );
-  const second = teamMemoryEventToEvidence(
-    {
-      id: 2,
-      ...event({
-        person: "bob smith",
-        source: "bundle:member",
-        hash: "hash/with?query",
-      }),
-    },
-    context,
-  );
-
-  assert.equal(
     first.id,
-    "teammem:alice%20smith:bundle%3Amember:hash%2Fwith%3Fquery:context:organization%3Acollective-cognition:hypothesis:hypothesis%3Aadapter-safety",
+    "source-record:team-memory:alice%20smith:bundle%3Amember:hash%2Fwith%3Fquery",
   );
   assert.equal(
     second.id,
-    "teammem:bob%20smith:bundle%3Amember:hash%2Fwith%3Fquery:context:organization%3Acollective-cognition:hypothesis:hypothesis%3Aadapter-safety",
+    "source-record:team-memory:bob%20smith:bundle%3Amember:hash%2Fwith%3Fquery",
   );
   assert.notEqual(first.id, second.id);
 });
 
-test("binds evidence identity to context and hypothesis mappings", () => {
-  const row: TeamMemoryEventRow = { id: 7, ...event() };
-  const first = teamMemoryEventToEvidence(row, {
-    hypothesisId: "hypothesis:first",
-    contextId: "organization:first",
-  });
-  const repeated = teamMemoryEventToEvidence(row, {
-    hypothesisId: "hypothesis:first",
-    contextId: "organization:first",
-  });
-  const remappedContext = teamMemoryEventToEvidence(row, {
-    hypothesisId: "hypothesis:first",
-    contextId: "organization:second",
-  });
-  const remappedHypothesis = teamMemoryEventToEvidence(row, {
-    hypothesisId: "hypothesis:second",
-    contextId: "organization:first",
-  });
-
-  assert.equal(repeated.id, first.id);
-  assert.notEqual(remappedContext.id, first.id);
-  assert.notEqual(remappedHypothesis.id, first.id);
-});
-
-test("uses the stable upstream key for provenance instead of the SQLite row id", () => {
-  const context = {
-    hypothesisId: "hypothesis:adapter-safety",
-    contextId: "organization:collective-cognition",
-  };
-  const first = teamMemoryEventToEvidence({ id: 7, ...event() }, context);
-  const reinserted = teamMemoryEventToEvidence({ id: 99, ...event() }, context);
+test("uses the stable upstream key for identity instead of the SQLite row id", () => {
+  const first = teamMemoryEventToSourceRecord({ id: 7, ...event() });
+  const reinserted = teamMemoryEventToSourceRecord({ id: 99, ...event() });
 
   assert.equal(first.id, reinserted.id);
-  assert.equal(first.provenance[0].source, "team-memory-agent");
-  assert.equal(first.provenance[0].sourceId, "alice:gitlab:hash-1");
-  assert.equal(reinserted.provenance[0].sourceId, first.provenance[0].sourceId);
-  assert.equal(first.data.upstreamSource, "gitlab");
+  assert.equal(first.sourceId, "alice:gitlab");
+  assert.equal(reinserted.sourceId, first.sourceId);
+  assert.equal(first.revisionId, "hash-1");
 });
 
-test("rejects malformed ledger refs instead of dropping provenance", () => {
+test("rejects malformed ledger refs instead of dropping source content", () => {
   const row: TeamMemoryEventRow = {
     id: 7,
     ...event({ refs: "not-json" }),
   };
 
-  assert.throws(
-    () =>
-      teamMemoryEventToEvidence(row, {
-        hypothesisId: "hypothesis:adapter-safety",
-        contextId: "organization:collective-cognition",
-      }),
-    /refs/i,
-  );
+  assert.throws(() => teamMemoryEventToSourceRecord(row), /refs/i);
 });
 
-test("CLI emits one evidence object per JSONL line", () => {
+test("root exports contain no team-memory-specific API", async () => {
+  const root = await import("../src/index.ts");
+
+  assert.equal("readTeamMemoryEvents" in root, false);
+  assert.equal("teamMemoryEventToSourceRecord" in root, false);
+  assert.equal("teamMemoryEventToEvidence" in root, false);
+});
+
+test("CLI emits one source record per JSONL line", () => {
   const ledger = createLedger([event(), event({ id: 2, person: "bob", hash: "hash-2" })]);
 
   try {
@@ -366,10 +328,6 @@ test("CLI emits one evidence object per JSONL line", () => {
         "src/teammem-cli.ts",
         "--db",
         ledger.path,
-        "--hypothesis-id",
-        "hypothesis:adapter-safety",
-        "--context-id",
-        "organization:collective-cognition",
         "--person",
         "alice",
         "--limit",
@@ -384,7 +342,7 @@ test("CLI emits one evidence object per JSONL line", () => {
     assert.equal(lines.length, 1);
     assert.equal(
       JSON.parse(lines[0]).id,
-      "teammem:alice:gitlab:hash-1:context:organization%3Acollective-cognition:hypothesis:hypothesis%3Aadapter-safety",
+      "source-record:team-memory:alice:gitlab:hash-1",
     );
   } finally {
     cleanupLedger(ledger.directory);
@@ -396,14 +354,10 @@ test("CLI writes missing or invalid argument diagnostics only to stderr", () => 
 
   try {
     for (const args of [
-      ["--db", ledger.path],
+      [],
       [
         "--db",
         ledger.path,
-        "--hypothesis-id",
-        "hypothesis:adapter-safety",
-        "--context-id",
-        "organization:collective-cognition",
         "--limit",
         "0",
       ],

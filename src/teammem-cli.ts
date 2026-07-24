@@ -1,20 +1,13 @@
 import {
   readTeamMemoryEvents,
-  teamMemoryEventToEvidence,
+  teamMemoryEventToSourceRecord,
 } from "./adapters/team-memory.ts";
-import type {
-  TeamMemoryEvidenceContext,
-  TeamMemoryQuery,
-} from "./adapters/team-memory.ts";
+import type { TeamMemoryQuery } from "./adapters/team-memory.ts";
 
-type CliOptions = TeamMemoryQuery & TeamMemoryEvidenceContext;
-
-function parseArguments(args: readonly string[]): CliOptions {
+function parseArguments(args: readonly string[]): TeamMemoryQuery {
   const values: Record<string, string> = {};
   const names = new Set([
     "db",
-    "hypothesis-id",
-    "context-id",
     "from",
     "to",
     "person",
@@ -36,8 +29,8 @@ function parseArguments(args: readonly string[]): CliOptions {
     values[name.slice(2)] = value;
   }
 
-  if (!values.db || !values["hypothesis-id"] || !values["context-id"]) {
-    throw new Error("--db, --hypothesis-id, and --context-id are required.");
+  if (!values.db) {
+    throw new Error("--db is required.");
   }
 
   const limit = values.limit === undefined ? undefined : Number(values.limit);
@@ -47,8 +40,6 @@ function parseArguments(args: readonly string[]): CliOptions {
 
   return {
     dbPath: values.db,
-    hypothesisId: values["hypothesis-id"],
-    contextId: values["context-id"],
     ...(values.from === undefined ? {} : { from: values.from }),
     ...(values.to === undefined ? {} : { to: values.to }),
     ...(values.person === undefined ? {} : { person: values.person }),
@@ -61,7 +52,9 @@ function main(): void {
   const options = parseArguments(process.argv.slice(2));
   const rows = readTeamMemoryEvents(options);
   for (const row of rows) {
-    process.stdout.write(`${JSON.stringify(teamMemoryEventToEvidence(row, options))}\n`);
+    process.stdout.write(
+      `${JSON.stringify(teamMemoryEventToSourceRecord(row))}\n`,
+    );
   }
 }
 
