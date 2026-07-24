@@ -22,10 +22,16 @@ import type { SourceRecord } from "../src/index.ts";
 
 // @ts-expect-error source-specific connector types must not leak from the root API
 import type { TeamMemoryEventRow as RootTeamMemoryEventRow } from "../src/index.ts";
+// @ts-expect-error source-specific connector types must not leak from the root API
+import type { TeamMemoryQuery as RootTeamMemoryQuery } from "../src/index.ts";
 // @ts-expect-error source-specific connector functions must not leak from the root API
 import type { teamMemoryEventToSourceRecord as rootTeamMemoryEventToSourceRecord } from "../src/index.ts";
 // @ts-expect-error source-specific connector types must not leak from the root API
 import type { GitCommitInput as RootGitCommitInput } from "../src/index.ts";
+// @ts-expect-error source-specific connector types must not leak from the root API
+import type { GitRepositoryIdentity as RootGitRepositoryIdentity } from "../src/index.ts";
+// @ts-expect-error source-specific connector types must not leak from the root API
+import type { GitCommitAuthor as RootGitCommitAuthor } from "../src/index.ts";
 // @ts-expect-error source-specific connector functions must not leak from the root API
 import type { gitCommitToSourceRecord as rootGitCommitToSourceRecord } from "../src/index.ts";
 
