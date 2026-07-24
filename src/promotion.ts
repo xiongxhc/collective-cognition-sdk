@@ -74,7 +74,7 @@ interface PromotionRequestSnapshot extends EvidencePromotionRequest {
 
 interface ValidatedPolicy {
   readonly identity: PromotionPolicySnapshot;
-  readonly map: EvidencePromotionPolicy["map"];
+  readonly receiver: EvidencePromotionPolicy;
 }
 
 const promotionRequestFields = new Set([
@@ -123,13 +123,33 @@ function isIsoTimestamp(value: unknown): value is string {
   );
 }
 
+function isPromotionMapper(
+  value: unknown,
+): value is EvidencePromotionPolicy["map"] {
+  return typeof value === "function";
+}
+
+function promotionPolicyFailed(): never {
+  throw new DomainError(
+    DomainErrorCode.PROMOTION_FAILED,
+    "Promotion policy failed.",
+  );
+}
+
 function validatePolicy(policy: EvidencePromotionPolicy): ValidatedPolicy {
   if (typeof policy !== "object" || policy === null) {
     invalidMapping("policy", "Promotion policy must be an object.");
   }
-  const id = policy.id;
-  const version = policy.version;
-  const map = policy.map;
+  let id: unknown;
+  let version: unknown;
+  let map: unknown;
+  try {
+    id = policy.id;
+    version = policy.version;
+    map = policy.map;
+  } catch {
+    promotionPolicyFailed();
+  }
   if (!isNonEmptyString(id)) {
     invalidMapping(
       "policy.id",
@@ -142,12 +162,13 @@ function validatePolicy(policy: EvidencePromotionPolicy): ValidatedPolicy {
       "Promotion policy version must be a non-empty string.",
     );
   }
-  if (typeof map !== "function") {
+  if (!isPromotionMapper(map)) {
     invalidMapping("policy.map", "Promotion policy map must be a function.");
   }
+  const identity = Object.freeze({ id, version });
   return Object.freeze({
-    identity: Object.freeze({ id, version }),
-    map,
+    identity,
+    receiver: Object.freeze({ id, version, map }),
   });
 }
 
@@ -315,16 +336,13 @@ export function promoteSourceRecordsToEvidence(
   request: EvidencePromotionRequest,
   policy: EvidencePromotionPolicy,
 ): CognitiveObject<"evidence"> {
-  const validatedPolicy = validatePolicy(policy);
   const snapshot = snapshotRequest(request);
+  const validatedPolicy = validatePolicy(policy);
   let mappingValue: unknown;
   try {
-    mappingValue = validatedPolicy.map(snapshot.records);
+    mappingValue = validatedPolicy.receiver.map(snapshot.records);
   } catch {
-    throw new DomainError(
-      DomainErrorCode.PROMOTION_FAILED,
-      "Promotion policy failed.",
-    );
+    promotionPolicyFailed();
   }
   validateMapping(mappingValue);
   const mapping = freezeJsonValue({

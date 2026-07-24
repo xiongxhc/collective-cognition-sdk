@@ -569,3 +569,183 @@ Intentional boundaries:
 5. Evidence IDs use Node's built-in SHA-256 implementation and are deterministic only for the complete validated payload.
 6. `node:sqlite` remains experimental in Node.js 24.
 7. This remains verified private reference source, not a stable published package or production service.
+
+# Third Consolidated Merge-Gate Fix Wave
+
+**Date:** 2026-07-24
+**Commit target:** `fix: close adversarial ingestion edge cases`
+
+## Third-Wave Scope
+
+This wave closes the final three adversarial merge-gate findings without adding production dependencies or reverting unrelated work:
+
+1. Unknown SDK inputs receive a bounded descriptor-based structural preflight before normalization or cloning. The preflight never invokes accessors or `toJSON`, rejects cycles, `BigInt`, functions, symbols, `undefined`, non-finite numbers, sparse or decorated arrays, custom prototypes, and other non-JSON shapes, and converts unsafe values into item-level rejections in collect-all mode.
+2. `maxRecordBytes` is enforced during that preflight, then the normalized plain deeply frozen SourceRecord is measured exactly again as defense in depth.
+3. Promotion snapshots and freezes request fields, attribution, rationale, and contributing records before reading any policy property. Policy ID, version, and mapper are captured once inside a stable secret-safe failure boundary.
+4. The mapper is invoked with a frozen captured receiver containing the captured ID and version. Methods using `this.id` or `this.version` therefore retain receiver semantics without rereading mutable policy identity.
+
+## Third-Wave Baseline
+
+The wave started from the clean second-wave commit:
+
+```text
+37fde1441a7e1b9256f6dd3e01692d6a20b55faf
+fix: harden universal ingestion boundaries
+```
+
+Baseline verification:
+
+```text
+npm test
+tests 147
+pass 147
+fail 0
+```
+
+## Third-Wave RED → GREEN Evidence
+
+### Safe Structural Preflight and Collect-All Continuation
+
+Tests were added before changing ingestion production code:
+
+```text
+node --disable-warning=ExperimentalWarning --test tests/ingestion.test.ts
+```
+
+The new cases cover:
+
+- circular source content;
+- `BigInt` source content;
+- a throwing accessor whose message contains a distinctive secret;
+- throwing and mutating `toJSON` hooks;
+- zero accessor and `toJSON` invocations;
+- secret-free item diagnostics;
+- continuation to a later valid record in collect-all mode.
+
+RED:
+
+```text
+tests 16
+pass 14
+fail 2
+```
+
+Both new tests failed because the old `JSON.stringify` size probe executed or encountered caller-controlled behavior before the collector’s item-level rejection boundary and surfaced a top-level `SERIALIZATION_ERROR`.
+
+GREEN:
+
+```text
+tests 16
+pass 16
+fail 0
+```
+
+The replacement uses an iterative stack and own-property descriptors rather than property reads or serialization hooks. It counts the exact UTF-8 JSON representation, stops as soon as the configured record limit is exceeded, and reports unsafe structures as stable `INVALID_SOURCE_RECORD` item failures. Accepted values still pass through normalization into isolated deeply frozen SourceRecords, followed by a second exact measurement.
+
+### Policy Accessor Capture and Receiver Semantics
+
+Tests were added before changing promotion production code:
+
+```text
+node --disable-warning=ExperimentalWarning --test tests/promotion.test.ts
+```
+
+The new cases cover:
+
+- a policy accessor that mutates every mutable request field before mapping;
+- throwing `id`, `version`, and `map` accessors with distinctive secrets;
+- one read only for each captured policy property;
+- a method-style mapper that reads `this.id` and `this.version`;
+- mutation of the original policy after capture without identity drift.
+
+RED:
+
+```text
+tests 15
+pass 12
+fail 3
+```
+
+The failures proved that policy access happened before request snapshotting, accessor exceptions escaped unsanitized, and the detached mapper lost its receiver so `this.id` and `this.version` were unavailable.
+
+GREEN:
+
+```text
+tests 15
+pass 15
+fail 0
+```
+
+Promotion now snapshots the request first. It then captures `id`, `version`, and `map` once inside the fail-closed policy boundary, validates the captured values, and freezes a receiver containing only those captured values. Mapping exceptions and accessor exceptions both become `PROMOTION_FAILED` with `Promotion policy failed.` and empty details.
+
+### Typed Mapper Capture
+
+The first post-runtime typecheck correctly caught that TypeScript narrowed the unknown mapper only to the broad `Function` type:
+
+```text
+npx tsc --noEmit
+exit 1
+diagnostics 1
+TS2322: receiver.map Function was not assignable to EvidencePromotionPolicy.map
+```
+
+A dedicated mapper type guard now preserves the exact public method signature.
+
+GREEN:
+
+```text
+npx tsc --noEmit
+exit 0
+diagnostics 0
+```
+
+## Third-Wave Focused Verification
+
+Fresh command against the final code state:
+
+```text
+node --disable-warning=ExperimentalWarning --test tests/ingestion.test.ts tests/promotion.test.ts
+```
+
+Result:
+
+```text
+tests 31
+pass 31
+fail 0
+```
+
+## Third-Wave Final Verification
+
+Fresh required commands against the final code state:
+
+```text
+npm test
+npx tsc --noEmit
+npm run check
+npm run example
+git diff --check
+```
+
+Results:
+
+```text
+npm test: 152 tests, 152 pass, 0 fail
+npx tsc --noEmit: exit 0, 0 diagnostics
+npm run check: exit 0
+npm run example: exit 0, 11 successful events
+git diff --check: exit 0, 0 output bytes
+```
+
+`package.json` and `package-lock.json` remain unchanged. No production dependency was added.
+
+## Third-Wave Concerns and Boundaries
+
+No blocking concern remains.
+
+Intentional boundaries:
+
+1. The structural preflight guarantees that ordinary JavaScript property accessors and serialization hooks are not invoked. JavaScript reflection over a caller-supplied `Proxy` can still execute proxy traps; any trap exception is caught and converted to a stable secret-safe item rejection.
+2. SDK object ingestion uses the caller-configured `maxRecordBytes`; the generic CLI continues to supply the finite `1048576` byte default.
+3. The captured policy receiver intentionally contains only immutable `id`, `version`, and `map`. Policy methods that depend on other mutable receiver state are outside the promotion policy contract.
+4. This remains verified private reference source, not a stable published package or production service.

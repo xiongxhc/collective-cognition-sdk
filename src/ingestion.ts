@@ -59,8 +59,23 @@ interface RetainedRecord {
 interface IngestionCollector {
   readonly items: IngestionItemResult[];
   readonly acceptedRecords: SourceRecord[];
-  ingest(value: unknown, index: number, line?: number, rawBytes?: number): void;
+  ingest(value: unknown, index: number, line?: number): void;
   reject(error: DomainError, index: number, line?: number): void;
+}
+
+type JsonMeasureFrame =
+  | { readonly kind: "value"; readonly value: unknown }
+  | { readonly kind: "leave"; readonly value: object };
+
+class UnsafeJsonStructure extends Error {}
+
+class JsonStructureLimitExceeded extends Error {
+  readonly actual: number;
+
+  constructor(actual: number) {
+    super();
+    this.actual = actual;
+  }
 }
 
 function contentKey(record: SourceRecord): string {
@@ -124,15 +139,180 @@ function enforceRecordCount(
   }
 }
 
-function serializedBytes(value: unknown): number {
-  try {
-    const serialized = JSON.stringify(value);
-    if (serialized === undefined) {
-      throw new TypeError();
+function jsonStringBytes(
+  value: string,
+  stopAfter?: number,
+): number {
+  let bytes = 2;
+  for (let index = 0; index < value.length; index += 1) {
+    const codeUnit = value.charCodeAt(index);
+    if (
+      codeUnit === 0x22 ||
+      codeUnit === 0x5c ||
+      codeUnit === 0x08 ||
+      codeUnit === 0x09 ||
+      codeUnit === 0x0a ||
+      codeUnit === 0x0c ||
+      codeUnit === 0x0d
+    ) {
+      bytes += 2;
+    } else if (codeUnit <= 0x1f) {
+      bytes += 6;
+    } else if (codeUnit <= 0x7f) {
+      bytes += 1;
+    } else if (codeUnit <= 0x7ff) {
+      bytes += 2;
+    } else if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const nextCodeUnit = value.charCodeAt(index + 1);
+      if (nextCodeUnit >= 0xdc00 && nextCodeUnit <= 0xdfff) {
+        bytes += 4;
+        index += 1;
+      } else {
+        bytes += 6;
+      }
+    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      bytes += 6;
+    } else {
+      bytes += 3;
     }
-    return Buffer.byteLength(serialized);
-  } catch {
-    throw serializationError("Source record size could not be measured.");
+    if (stopAfter !== undefined && bytes > stopAfter) {
+      return bytes;
+    }
+  }
+  return bytes;
+}
+
+function structuralJsonBytes(
+  value: unknown,
+  maximum?: number,
+): number {
+  let bytes = 0;
+  const ancestors = new Set<object>();
+  const frames: JsonMeasureFrame[] = [{ kind: "value", value }];
+
+  function add(amount: number): void {
+    bytes += amount;
+    if (maximum !== undefined && bytes > maximum) {
+      throw new JsonStructureLimitExceeded(bytes);
+    }
+  }
+
+  try {
+    while (frames.length > 0) {
+      const frame = frames.pop();
+      if (frame === undefined) {
+        break;
+      }
+      if (frame.kind === "leave") {
+        ancestors.delete(frame.value);
+        continue;
+      }
+
+      const current = frame.value;
+      if (current === null) {
+        add(4);
+      } else if (typeof current === "boolean") {
+        add(current ? 4 : 5);
+      } else if (typeof current === "number") {
+        if (!Number.isFinite(current)) {
+          throw new UnsafeJsonStructure();
+        }
+        add(Buffer.byteLength(String(current)));
+      } else if (typeof current === "string") {
+        add(jsonStringBytes(
+          current,
+          maximum === undefined ? undefined : maximum - bytes,
+        ));
+      } else if (typeof current === "object") {
+        if (ancestors.has(current)) {
+          throw new UnsafeJsonStructure();
+        }
+        const prototype = Object.getPrototypeOf(current);
+        const symbols = Object.getOwnPropertySymbols(current);
+        if (symbols.length > 0) {
+          throw new UnsafeJsonStructure();
+        }
+        ancestors.add(current);
+        frames.push({ kind: "leave", value: current });
+
+        if (Array.isArray(current)) {
+          if (prototype !== Array.prototype) {
+            throw new UnsafeJsonStructure();
+          }
+          const lengthDescriptor = Object.getOwnPropertyDescriptor(
+            current,
+            "length",
+          );
+          if (
+            lengthDescriptor === undefined ||
+            !("value" in lengthDescriptor) ||
+            typeof lengthDescriptor.value !== "number"
+          ) {
+            throw new UnsafeJsonStructure();
+          }
+          const length = lengthDescriptor.value;
+          const names = Object.getOwnPropertyNames(current);
+          if (
+            names.length !== length + 1 ||
+            !names.includes("length")
+          ) {
+            throw new UnsafeJsonStructure();
+          }
+          add(2 + Math.max(0, length - 1));
+          for (let index = length - 1; index >= 0; index -= 1) {
+            const descriptor = Object.getOwnPropertyDescriptor(
+              current,
+              String(index),
+            );
+            if (
+              descriptor === undefined ||
+              !descriptor.enumerable ||
+              !("value" in descriptor)
+            ) {
+              throw new UnsafeJsonStructure();
+            }
+            frames.push({ kind: "value", value: descriptor.value });
+          }
+        } else {
+          if (prototype !== Object.prototype && prototype !== null) {
+            throw new UnsafeJsonStructure();
+          }
+          const names = Object.getOwnPropertyNames(current);
+          add(2 + Math.max(0, names.length - 1));
+          const values: unknown[] = [];
+          for (const name of names) {
+            const descriptor = Object.getOwnPropertyDescriptor(current, name);
+            if (
+              descriptor === undefined ||
+              !descriptor.enumerable ||
+              !("value" in descriptor)
+            ) {
+              throw new UnsafeJsonStructure();
+            }
+            add(jsonStringBytes(
+              name,
+              maximum === undefined ? undefined : maximum - bytes,
+            ));
+            add(1);
+            values.push(descriptor.value);
+          }
+          for (let index = values.length - 1; index >= 0; index -= 1) {
+            frames.push({ kind: "value", value: values[index] });
+          }
+        }
+      } else {
+        throw new UnsafeJsonStructure();
+      }
+    }
+    return bytes;
+  } catch (error) {
+    if (error instanceof JsonStructureLimitExceeded) {
+      limitExceeded("maxRecordBytes", maximum as number, error.actual);
+    }
+    throw new DomainError(
+      DomainErrorCode.INVALID_SOURCE_RECORD,
+      "Source record must contain only plain JSON data.",
+    );
   }
 }
 
@@ -168,25 +348,17 @@ function createCollector(options: IngestionOptions): IngestionCollector {
     value: unknown,
     index: number,
     line?: number,
-    rawBytes?: number,
   ): void {
-    const recordBytes = rawBytes ?? serializedBytes(value);
-    if (
-      options.maxRecordBytes !== undefined &&
-      recordBytes > options.maxRecordBytes
-    ) {
-      limitExceeded(
-        "maxRecordBytes",
-        options.maxRecordBytes,
-        recordBytes,
-      );
-    }
-
     let record: SourceRecord;
     try {
+      structuralJsonBytes(value, options.maxRecordBytes);
       record = normalizeSourceRecord(value);
+      structuralJsonBytes(record, options.maxRecordBytes);
     } catch (error) {
       if (error instanceof DomainError) {
+        if (error.code === DomainErrorCode.INGESTION_LIMIT_EXCEEDED) {
+          throw error;
+        }
         reject(error, index, line);
         return;
       }
@@ -297,7 +469,6 @@ export function ingestSourceRecordText(
         JSON.parse(line),
         index,
         lineIndex + 1,
-        lineBytes,
       );
     } catch (error) {
       if (error instanceof SyntaxError) {

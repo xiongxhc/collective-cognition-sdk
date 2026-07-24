@@ -337,6 +337,131 @@ test("enforces maxRecordBytes before record validation or JSONL parsing", () => 
   );
 });
 
+test("rejects unsafe structural values per item and continues collect-all ingestion", () => {
+  const circular = structuredClone(recordFor()) as unknown as {
+    content: { summary: string; self?: unknown };
+  };
+  circular.content.self = circular.content;
+  const withBigInt = {
+    ...structuredClone(recordFor()),
+    id: "source-record:bigint",
+    sourceId: "commit:bigint",
+    revisionId: "bigint",
+    content: { value: 1n },
+  };
+  const accessorSecret = "ACCESSOR_SECRET_DO_NOT_EXPOSE";
+  let accessorCalls = 0;
+  const withAccessor = {
+    ...structuredClone(recordFor()),
+    id: "source-record:accessor",
+    sourceId: "commit:accessor",
+    revisionId: "accessor",
+    content: {},
+  };
+  Object.defineProperty(withAccessor.content, "value", {
+    enumerable: true,
+    get() {
+      accessorCalls += 1;
+      throw new Error(accessorSecret);
+    },
+  });
+  const valid = recordFor({
+    id: "source-record:after-unsafe",
+    sourceId: "commit:after-unsafe",
+    revisionId: "after-unsafe",
+  });
+
+  const result = ingestSourceRecords(
+    [circular, withBigInt, withAccessor, valid],
+    { mode: "collect-all", maxRecordBytes: 16_384 },
+  );
+
+  assert.deepEqual(
+    result.items.map((item) => item.status),
+    ["rejected", "rejected", "rejected", "accepted"],
+  );
+  for (const item of result.items.slice(0, 3)) {
+    assert.equal(item.status, "rejected");
+    assert.ok(item.status === "rejected");
+    assert.equal(item.error.code, DomainErrorCode.INVALID_SOURCE_RECORD);
+  }
+  assert.equal(accessorCalls, 0);
+  assert.deepEqual(result.acceptedRecords, [valid]);
+  const diagnostics = result.items
+    .filter((item) => item.status === "rejected")
+    .map((item) => ({
+      code: item.error.code,
+      message: item.error.message,
+      details: item.error.details,
+    }));
+  assert.equal(JSON.stringify(diagnostics).includes(accessorSecret), false);
+});
+
+test("never invokes throwing or mutating toJSON hooks on SDK input", () => {
+  const throwingSecret = "THROWING_TO_JSON_SECRET";
+  const mutationSecret = "MUTATING_TO_JSON_SECRET";
+  let throwingCalls = 0;
+  let mutatingCalls = 0;
+  const throwing = {
+    ...structuredClone(recordFor()),
+    id: "source-record:throwing-to-json",
+    sourceId: "commit:throwing-to-json",
+    revisionId: "throwing-to-json",
+  };
+  Object.defineProperty(throwing, "toJSON", {
+    enumerable: true,
+    value() {
+      throwingCalls += 1;
+      throw new Error(throwingSecret);
+    },
+  });
+  const mutating = {
+    ...structuredClone(recordFor()),
+    id: "source-record:mutating-to-json",
+    sourceId: "commit:mutating-to-json",
+    revisionId: "mutating-to-json",
+  };
+  const originalSummary = (mutating.content as { summary: string }).summary;
+  Object.defineProperty(mutating, "toJSON", {
+    enumerable: true,
+    value() {
+      mutatingCalls += 1;
+      (mutating.content as { summary: string }).summary = mutationSecret;
+      return { compact: true };
+    },
+  });
+  const valid = recordFor({
+    id: "source-record:after-to-json",
+    sourceId: "commit:after-to-json",
+    revisionId: "after-to-json",
+  });
+
+  const result = ingestSourceRecords(
+    [throwing, mutating, valid],
+    { mode: "collect-all", maxRecordBytes: 16_384 },
+  );
+
+  assert.deepEqual(
+    result.items.map((item) => item.status),
+    ["rejected", "rejected", "accepted"],
+  );
+  assert.equal(throwingCalls, 0);
+  assert.equal(mutatingCalls, 0);
+  assert.equal(
+    (mutating.content as { summary: string }).summary,
+    originalSummary,
+  );
+  const diagnostics = result.items
+    .filter((item) => item.status === "rejected")
+    .map((item) => ({
+      code: item.error.code,
+      message: item.error.message,
+      details: item.error.details,
+    }));
+  assert.equal(JSON.stringify(diagnostics).includes(throwingSecret), false);
+  assert.equal(JSON.stringify(diagnostics).includes(mutationSecret), false);
+});
+
 test("sanitizes JSON parser failures", () => {
   const secret = "LEAK42";
   const malformed = `{"value": ${secret}}`;

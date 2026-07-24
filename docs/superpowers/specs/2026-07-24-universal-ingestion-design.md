@@ -248,7 +248,7 @@ Universal adoption requires behavior that is testable outside one implementation
 
 - a versioned `SourceRecord` schema;
 - valid and invalid JSON/JSONL fixtures;
-- closed-field and namespaced-extension validation, normalization immutability, pre-parse limits, duplicate/collision classification, positive revision, full-payload promotion identity, immutable policy snapshots, secret-safe diagnostics, and fail-closed authorization coverage in the TypeScript test suite;
+- closed-field and namespaced-extension validation, non-executing bounded structural preflight, normalization immutability, pre-parse limits, duplicate/collision classification, positive revision, full-payload promotion identity, request-before-policy snapshots with captured receiver semantics, secret-safe diagnostics, and fail-closed authorization coverage in the TypeScript test suite;
 - connector tests based only on emitted records;
 - additive namespaced extension examples.
 

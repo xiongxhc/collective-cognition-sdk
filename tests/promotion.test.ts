@@ -360,6 +360,176 @@ test("snapshots validated promotion inputs before invoking a mutable policy", ()
   });
 });
 
+test("snapshots request state before reading promotion policy accessors", () => {
+  const source = recordFor();
+  const request = {
+    records: [source],
+    hypothesisId: "hypothesis:accessor-snapshot",
+    contextId: "context:accessor-snapshot",
+    rationale: "Snapshot before policy property access.",
+    promotedAt,
+    attribution: {
+      initiatorId: "human:initiator",
+      executorId: "agent:executor",
+      accountableId: "human:accountable",
+    },
+  };
+  let idReads = 0;
+  let versionReads = 0;
+  let mapReads = 0;
+  const policy = {
+    get id() {
+      idReads += 1;
+      request.records.splice(0);
+      request.hypothesisId = "";
+      request.contextId = "";
+      request.rationale = "";
+      request.promotedAt = "not-a-timestamp";
+      request.attribution.initiatorId = "";
+      return "accessor-policy";
+    },
+    get version() {
+      versionReads += 1;
+      return "5";
+    },
+    get map() {
+      mapReads += 1;
+      return (records: readonly SourceRecord[]): EvidencePromotionMapping => {
+        assert.equal(Object.isFrozen(records), true);
+        assert.equal(Object.isFrozen(records[0]), true);
+        assert.equal(records.length, 1);
+        assert.equal(records[0]?.id, source.id);
+        return {
+          title: "Accessor-safe promotion",
+          statement: "Policy access cannot mutate captured request state.",
+          evidenceKind: "source-record",
+          polarity: "neutral",
+        };
+      };
+    },
+  };
+
+  const evidence = promoteSourceRecordsToEvidence(request, policy);
+
+  assert.equal(idReads, 1);
+  assert.equal(versionReads, 1);
+  assert.equal(mapReads, 1);
+  assert.equal(evidence.contextId, "context:accessor-snapshot");
+  assert.equal(evidence.createdAt, promotedAt);
+  assert.deepEqual(evidence.attribution, {
+    initiatorId: "human:initiator",
+    executorId: "agent:executor",
+    accountableId: "human:accountable",
+  });
+  assert.deepEqual(evidence.relationships, [
+    {
+      type: "relates-to-hypothesis",
+      targetId: "hypothesis:accessor-snapshot",
+    },
+  ]);
+  assert.deepEqual(evidence.extensions, {
+    "collective-cognition:promotion": {
+      sourceRevisionKeys: [sourceRevisionKey(source)],
+      policy: { id: "accessor-policy", version: "5" },
+      rationale: "Snapshot before policy property access.",
+    },
+  });
+});
+
+test("sanitizes every promotion policy accessor failure", () => {
+  for (const field of ["id", "version", "map"] as const) {
+    const secret = `POLICY_${field.toUpperCase()}_GETTER_SECRET`;
+    const policy = {
+      id: "getter-policy",
+      version: "1",
+      map() {
+        return {
+          title: "Unused mapping",
+          statement: "Unused statement.",
+          evidenceKind: "source-record",
+          polarity: "neutral" as const,
+        };
+      },
+    };
+    Object.defineProperty(policy, field, {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error(secret);
+      },
+    });
+
+    assert.throws(
+      () =>
+        promoteSourceRecordsToEvidence(
+          requestFor([recordFor()]),
+          policy as EvidencePromotionPolicy,
+        ),
+      (error: unknown) =>
+        error instanceof DomainError &&
+        error.code === DomainErrorCode.PROMOTION_FAILED &&
+        error.message === "Promotion policy failed." &&
+        Object.keys(error.details).length === 0 &&
+        !`${error.message}${JSON.stringify(error.details)}`.includes(secret),
+      field,
+    );
+  }
+});
+
+test("preserves captured policy method receiver semantics without rereading identity", () => {
+  let idReads = 0;
+  let versionReads = 0;
+  let mapReads = 0;
+  const mutablePolicy = {
+    _id: "receiver-policy",
+    _version: "9",
+    get id() {
+      idReads += 1;
+      return this._id;
+    },
+    get version() {
+      versionReads += 1;
+      return this._version;
+    },
+    get map() {
+      mapReads += 1;
+      return function (
+        this: EvidencePromotionPolicy,
+        _records: readonly SourceRecord[],
+      ): EvidencePromotionMapping {
+        mutablePolicy._id = "mutated-policy";
+        mutablePolicy._version = "mutated-version";
+        return {
+          title: `${this.id}@${this.version}`,
+          statement: "The captured policy receiver remains coherent.",
+          evidenceKind: "source-record",
+          polarity: "supports",
+        };
+      };
+    },
+  };
+
+  const evidence = promoteSourceRecordsToEvidence(
+    requestFor([recordFor()]),
+    mutablePolicy,
+  );
+
+  assert.equal(evidence.title, "receiver-policy@9");
+  assert.deepEqual(
+    (
+      evidence.extensions?.["collective-cognition:promotion"] as {
+        policy: object;
+      }
+    ).policy,
+    { id: "receiver-policy", version: "9" },
+  );
+  assert.equal(idReads, 1);
+  assert.equal(versionReads, 1);
+  assert.equal(mapReads, 1);
+  assert.equal(mutablePolicy._id, "mutated-policy");
+  assert.equal(mutablePolicy._version, "mutated-version");
+});
+
 test("requires at least one source record and a non-empty rationale", () => {
   assert.throws(
     () =>
