@@ -6,6 +6,7 @@ import {
   DomainError,
   DomainErrorCode,
   ingestAndPromoteEvidence,
+  ingestSourceRecordText,
   neutralEvidencePolicyV1,
   promoteSourceRecordToEvidence,
   sourceRevisionKey,
@@ -236,6 +237,41 @@ test("promotes accepted records only in composed ingestion", () => {
     "duplicate",
     "rejected",
   ]);
+  assert.equal(result.promotions.length, 1);
+  assert.equal(result.promotions[0]?.provenance[0]?.sourceId, record.id);
+});
+
+test("reuses a supplied ingestion result with all item outcomes intact", () => {
+  const record = recordFor();
+  const rejected = { ...record, schemaVersion: "9.9.9" };
+  const ingestion = ingestSourceRecordText(
+    [
+      JSON.stringify(record),
+      JSON.stringify(record),
+      JSON.stringify(rejected),
+    ].join("\n"),
+    { format: "jsonl", mode: "collect-all" },
+  );
+
+  const result = ingestAndPromoteEvidence(
+    ingestion,
+    {
+      hypothesisId: "hypothesis:delivery",
+      contextId: "organization:acme",
+      promotedAt,
+      attribution: requestFor(record).attribution,
+    },
+    neutralEvidencePolicyV1,
+  );
+
+  assert.equal(result.ingestion, ingestion);
+  assert.deepEqual(result.ingestion.items.map((item) => item.status), [
+    "accepted",
+    "duplicate",
+    "rejected",
+  ]);
+  assert.deepEqual(result.ingestion.items.map((item) => item.line), [1, 2, 3]);
+  assert.deepEqual(result.ingestion.acceptedRecords, [record]);
   assert.equal(result.promotions.length, 1);
   assert.equal(result.promotions[0]?.provenance[0]?.sourceId, record.id);
 });

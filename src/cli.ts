@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { DomainError } from "./errors.ts";
 import { ingestSourceRecordText } from "./ingestion.ts";
 import {
+  ingestAndPromoteEvidence,
   neutralEvidencePolicyV1,
   promoteSourceRecordToEvidence,
 } from "./promotion.ts";
@@ -10,7 +11,10 @@ import type {
   IngestionBatchResult,
   IngestionItemResult,
 } from "./ingestion.ts";
-import type { EvidencePromotionContext } from "./promotion.ts";
+import type {
+  EvidencePromotionContext,
+  IngestAndPromoteEvidenceResult,
+} from "./promotion.ts";
 
 type Command = "validate" | "ingest" | "promote" | "ingest-promote";
 type InputFormat = "json" | "jsonl";
@@ -209,20 +213,22 @@ function main(): void {
     }
   } else {
     const promotion = requirePromotion(options);
-    let promotions: unknown[] = [];
+    let composed: IngestAndPromoteEvidenceResult = {
+      ingestion,
+      promotions: [],
+    };
     try {
-      promotions = ingestion.acceptedRecords.map((record) =>
-        promoteSourceRecordToEvidence(
-          { ...promotion, record },
-          neutralEvidencePolicyV1,
-        ),
+      composed = ingestAndPromoteEvidence(
+        ingestion,
+        promotion,
+        neutralEvidencePolicyV1,
       );
     } catch (error) {
       promotionError = serializeError(error);
     }
     writeJsonLine(process.stdout, {
-      ingestion: serializeIngestionResult(ingestion),
-      promotions,
+      ingestion: serializeIngestionResult(composed.ingestion),
+      promotions: composed.promotions,
       ...(promotionError === undefined ? {} : { promotionError }),
     });
   }

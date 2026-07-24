@@ -162,9 +162,22 @@ export function ingestAndPromoteEvidence(
   values: readonly unknown[],
   request: EvidencePromotionContext,
   policy: EvidencePromotionPolicy,
+  options?: IngestionOptions,
+): IngestAndPromoteEvidenceResult;
+export function ingestAndPromoteEvidence(
+  ingestion: IngestionBatchResult,
+  request: EvidencePromotionContext,
+  policy: EvidencePromotionPolicy,
+): IngestAndPromoteEvidenceResult;
+export function ingestAndPromoteEvidence(
+  input: readonly unknown[] | IngestionBatchResult,
+  request: EvidencePromotionContext,
+  policy: EvidencePromotionPolicy,
   options: IngestionOptions = {},
 ): IngestAndPromoteEvidenceResult {
-  const ingestion = ingestSourceRecords(values, options);
+  const ingestion = Array.isArray(input)
+    ? ingestSourceRecords(input, options)
+    : input as IngestionBatchResult;
   const promotions = ingestion.acceptedRecords.map((record) =>
     promoteSourceRecordToEvidence({ ...request, record }, policy)
   );
