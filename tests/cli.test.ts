@@ -74,12 +74,18 @@ function withInputFile(
   }
 }
 
-function promotionArguments(input: string): string[] {
+function promotionArguments(
+  input: string,
+  options: {
+    readonly format?: "json" | "jsonl";
+    readonly promotedAt?: string;
+  } = {},
+): string[] {
   return [
     "--input",
     input,
     "--format",
-    "jsonl",
+    options.format ?? "jsonl",
     "--policy",
     "neutral-evidence-v1",
     "--hypothesis-id",
@@ -93,7 +99,7 @@ function promotionArguments(input: string): string[] {
     "--accountable-id",
     "human:owner",
     "--promoted-at",
-    promotedAt,
+    options.promotedAt ?? promotedAt,
   ];
 }
 
@@ -236,6 +242,145 @@ test("ingest-promote exposes both composed workflow stages", () => {
       ["evidence"],
     );
   });
+});
+
+test("ingest-promote preserves mixed ingestion results when promotion fails", () => {
+  const accepted = sourceRecord();
+  const rejected = { ...accepted, schemaVersion: "9.9.9" };
+
+  withInputFile(
+    [
+      JSON.stringify(accepted),
+      JSON.stringify(accepted),
+      JSON.stringify(rejected),
+    ].join("\n"),
+    (path) => {
+      const result = runCli([
+        "ingest-promote",
+        ...promotionArguments(path, { promotedAt: "not-an-iso-timestamp" }),
+      ]);
+
+      assert.notEqual(result.status, 0);
+      const [composed] = jsonLines(result.stdout) as Array<{
+        ingestion: {
+          items: Array<{
+            status: string;
+            error?: { code: string; message: string };
+          }>;
+          acceptedRecords: SourceRecord[];
+        };
+        promotions: unknown[];
+        promotionError: { code: string; message: string };
+      }>;
+      assert.deepEqual(
+        composed?.ingestion.items.map((item) => item.status),
+        ["accepted", "duplicate", "rejected"],
+      );
+      assert.equal(
+        composed?.ingestion.items[2]?.error?.code,
+        "INVALID_SOURCE_RECORD",
+      );
+      assert.match(
+        composed?.ingestion.items[2]?.error?.message ?? "",
+        /schema version/i,
+      );
+      assert.deepEqual(composed?.ingestion.acceptedRecords, [accepted]);
+      assert.deepEqual(composed?.promotions, []);
+      assert.equal(composed?.promotionError.code, "INVALID_OBJECT");
+      assert.match(composed?.promotionError.message, /timestamp/i);
+
+      const diagnostics = jsonLines(result.stderr) as Array<{
+        stage?: string;
+        status?: string;
+        error: { code: string; message: string };
+      }>;
+      assert.equal(diagnostics.length, 2);
+      assert.equal(diagnostics[0]?.status, "rejected");
+      assert.equal(
+        diagnostics[0]?.error.code,
+        "INVALID_SOURCE_RECORD",
+      );
+      assert.equal(diagnostics[1]?.stage, "promotion");
+      assert.equal(diagnostics[1]?.error.code, "INVALID_OBJECT");
+    },
+  );
+});
+
+test("--format json accepts file object input across generic CLI paths", () => {
+  const record = sourceRecord();
+
+  withInputFile(JSON.stringify(record), (path) => {
+    for (const command of [
+      "validate",
+      "ingest",
+      "promote",
+      "ingest-promote",
+    ] as const) {
+      const args =
+        command === "promote" || command === "ingest-promote"
+          ? [command, ...promotionArguments(path, { format: "json" })]
+          : [command, "--input", path, "--format", "json"];
+      const result = runCli(args);
+
+      assert.equal(result.status, 0, `${command}: ${result.stderr}`);
+      assert.equal(result.stderr, "", command);
+      const output = jsonLines(result.stdout);
+      assert.equal(output.length, 1, command);
+      if (command === "ingest-promote") {
+        const [composed] = output as Array<{
+          ingestion: { items: Array<{ status: string }> };
+          promotions: unknown[];
+        }>;
+        assert.deepEqual(
+          composed?.ingestion.items.map((item) => item.status),
+          ["accepted"],
+          command,
+        );
+        assert.equal(composed?.promotions.length, 1, command);
+      }
+    }
+  });
+});
+
+test("--format json accepts stdin array input across generic CLI paths", () => {
+  const first = sourceRecord();
+  const second = sourceRecord({
+    id: "source-record:cli-2",
+    sourceId: "item:2",
+    revisionId: "revision:2",
+  });
+  const input = JSON.stringify([first, second]);
+
+  for (const command of [
+    "validate",
+    "ingest",
+    "promote",
+    "ingest-promote",
+  ] as const) {
+    const args =
+      command === "promote" || command === "ingest-promote"
+        ? [command, ...promotionArguments("-", { format: "json" })]
+        : [command, "--input", "-", "--format", "json"];
+    const result = runCli(args, input);
+
+    assert.equal(result.status, 0, `${command}: ${result.stderr}`);
+    assert.equal(result.stderr, "", command);
+    const output = jsonLines(result.stdout);
+    if (command === "ingest-promote") {
+      const [composed] = output as Array<{
+        ingestion: { items: Array<{ status: string }> };
+        promotions: unknown[];
+      }>;
+      assert.deepEqual(
+        composed?.ingestion.items.map((item) => item.status),
+        ["accepted", "accepted"],
+        command,
+      );
+      assert.equal(composed?.promotions.length, 2, command);
+    } else {
+      assert.equal(output.length, 2, command);
+    }
+  }
 });
 
 test("malformed JSONL produces item output and stderr diagnostics", () => {

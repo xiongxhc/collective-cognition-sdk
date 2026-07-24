@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { DomainError } from "./errors.ts";
 import { ingestSourceRecordText } from "./ingestion.ts";
 import {
-  ingestAndPromoteEvidence,
   neutralEvidencePolicyV1,
   promoteSourceRecordToEvidence,
 } from "./promotion.ts";
@@ -128,11 +127,28 @@ function serializeItemResult(item: IngestionItemResult): object {
   }
   return {
     ...item,
-    error: {
-      code: item.error.code,
-      message: item.error.message,
-      details: item.error.details,
-    },
+    error: serializeError(item.error),
+  };
+}
+
+function serializeError(error: unknown): object {
+  if (error instanceof DomainError) {
+    return {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+    };
+  }
+  return {
+    code: "CLI_ERROR",
+    message: error instanceof Error ? error.message : String(error),
+  };
+}
+
+function serializeIngestionResult(result: IngestionBatchResult): object {
+  return {
+    items: result.items.map(serializeItemResult),
+    acceptedRecords: result.acceptedRecords,
   };
 }
 
@@ -170,6 +186,7 @@ function main(): void {
     format: options.format,
     mode: "collect-all",
   });
+  let promotionError: object | undefined;
 
   if (options.command === "validate") {
     for (const item of ingestion.items) {
@@ -191,16 +208,33 @@ function main(): void {
       writeJsonLine(process.stdout, object);
     }
   } else {
-    const composed = ingestAndPromoteEvidence(
-      ingestion.acceptedRecords,
-      requirePromotion(options),
-      neutralEvidencePolicyV1,
-      { mode: "collect-all" },
-    );
-    writeJsonLine(process.stdout, composed);
+    const promotion = requirePromotion(options);
+    let promotions: unknown[] = [];
+    try {
+      promotions = ingestion.acceptedRecords.map((record) =>
+        promoteSourceRecordToEvidence(
+          { ...promotion, record },
+          neutralEvidencePolicyV1,
+        ),
+      );
+    } catch (error) {
+      promotionError = serializeError(error);
+    }
+    writeJsonLine(process.stdout, {
+      ingestion: serializeIngestionResult(ingestion),
+      promotions,
+      ...(promotionError === undefined ? {} : { promotionError }),
+    });
   }
 
-  if (writeDiagnostics(ingestion)) {
+  const rejected = writeDiagnostics(ingestion);
+  if (promotionError !== undefined) {
+    writeJsonLine(process.stderr, {
+      stage: "promotion",
+      error: promotionError,
+    });
+  }
+  if (rejected || promotionError !== undefined) {
     process.exitCode = 1;
   }
 }
