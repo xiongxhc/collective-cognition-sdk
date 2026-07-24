@@ -1,5 +1,7 @@
 # Universal Ingestion Implementation Plan
 
+**Status:** Complete and verified
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement the approved neutral `SourceRecord → explicit promotion → CognitiveObject` boundary with generic JSON/JSONL tooling and a migrated team-memory connector.
@@ -43,7 +45,7 @@
 - Produces: `sourceRevisionKey(record: SourceRecord): string`
 - Produces: `canonicalizeJson(value: JsonValue): string`
 
-- [ ] **Step 1: Write failing contract tests**
+- [x] **Step 1: Write failing contract tests**
 
 Cover valid creation, deep immutability, required source/revision fields, ISO timestamps, media type, JSON-only content/context/extensions, optional integrity metadata, serialization round trip, deterministic canonical object-key ordering, and collision-safe revision keys.
 
@@ -61,23 +63,23 @@ const record = createSourceRecord({
 });
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `node --test tests/source-records.test.ts`
 
 Expected: FAIL because `createSourceRecord` and related exports do not exist.
 
-- [ ] **Step 3: Implement the contract**
+- [x] **Step 3: Implement the contract**
 
 Use schema version `"0.1.0"`. Reject malformed external records with `INVALID_SOURCE_RECORD`; wrap malformed serialized JSON with `SERIALIZATION_ERROR`. Clone and deeply freeze every returned JSON-compatible value. Encode revision-key segments as a canonical JSON array rather than delimiter concatenation.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run: `node --test tests/source-records.test.ts tests/objects.test.ts`
 
 Expected: all focused tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/source-records.ts src/errors.ts src/index.ts tests/source-records.test.ts
@@ -97,7 +99,7 @@ git commit -m "feat: add neutral source record contract"
 - Produces: `ingestSourceRecordText(text, options): IngestionBatchResult`
 - Produces: `IngestionMode`, `IngestionItemResult`, and `IngestionBatchResult`
 
-- [ ] **Step 1: Write failing ingestion tests**
+- [x] **Step 1: Write failing ingestion tests**
 
 Cover accepted records, duplicate classification, collision rejection, existing-record seeding, collect-all malformed-item results, fail-fast errors, JSON object/array input, JSONL blank lines, and one malformed JSONL line that does not hide valid lines.
 
@@ -111,27 +113,27 @@ assert.deepEqual(result.items.map((item) => item.status), [
 ]);
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `node --test tests/ingestion.test.ts`
 
 Expected: FAIL because the ingestion module does not exist.
 
-- [ ] **Step 3: Implement deterministic classification**
+- [x] **Step 3: Implement deterministic classification**
 
 Use `sourceRevisionKey` for logical identity and canonicalize `{ mediaType, content }` for collision comparison. Return item-level accepted, duplicate, and rejected results. A duplicate references the retained record ID. A collision uses `SOURCE_REVISION_COLLISION`. Collect-all never throws for an item failure; fail-fast throws the matching `DomainError`.
 
-- [ ] **Step 4: Implement JSON and JSONL ingestion**
+- [x] **Step 4: Implement JSON and JSONL ingestion**
 
 `ingestSourceRecordText` accepts `format: "json" | "jsonl"`. JSON accepts one object or an array. JSONL parses non-empty lines independently and records one-based line numbers in item results.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run: `node --test tests/ingestion.test.ts tests/source-records.test.ts`
 
 Expected: all focused tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/ingestion.ts src/index.ts tests/ingestion.test.ts
@@ -153,7 +155,7 @@ git commit -m "feat: add generic source record ingestion"
 - Produces: `neutralEvidencePolicyV1`
 - Produces: `ingestAndPromoteEvidence(values, request, policy, options?)`
 
-- [ ] **Step 1: Write failing promotion tests**
+- [x] **Step 1: Write failing promotion tests**
 
 Cover explicit policy execution, deterministic Evidence IDs, source-record provenance, policy ID/version metadata, attribution and hypothesis relationships, invalid mapping rejection, and no promotion for rejected or duplicate batch items.
 
@@ -171,27 +173,27 @@ const evidence = promoteSourceRecordToEvidence({
 }, neutralEvidencePolicyV1);
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `node --test tests/promotion.test.ts`
 
 Expected: FAIL because the promotion API does not exist.
 
-- [ ] **Step 3: Implement explicit promotion**
+- [x] **Step 3: Implement explicit promotion**
 
 The policy exposes `{ id, version, map(record) }`. The mapping returns `title`, `statement`, `evidenceKind`, and `polarity`. Evidence provenance uses `source: "collective-cognition:source-record"` and `sourceId: record.id`; namespaced extensions preserve the source-revision key and policy identity.
 
-- [ ] **Step 4: Implement the built-in neutral policy and composition**
+- [x] **Step 4: Implement the built-in neutral policy and composition**
 
 `neutralEvidencePolicyV1` uses string content directly, an object `summary` string when present, and canonical JSON otherwise. It always emits `polarity: "neutral"`. `ingestAndPromoteEvidence` returns `{ ingestion, promotions }` and promotes accepted records only.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run: `node --test tests/promotion.test.ts tests/ingestion.test.ts tests/cognitive-loop.test.ts`
 
 Expected: all focused tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/promotion.ts src/index.ts tests/promotion.test.ts
@@ -216,31 +218,31 @@ git commit -m "feat: add explicit evidence promotion"
 - Produces: source-neutral `validate`, `ingest`, `promote`, and `ingest-promote` CLI commands
 - Produces: team-memory SourceRecord JSONL export
 
-- [ ] **Step 1: Write failing connector tests**
+- [x] **Step 1: Write failing connector tests**
 
 Change team-memory expectations from direct Evidence to SourceRecord. Assert source system, source item/revision identity, preserved row content, parsed refs, read-only behavior, and absence of team-memory exports from `src/index.ts`.
 
-- [ ] **Step 2: Run connector RED**
+- [x] **Step 2: Run connector RED**
 
 Run: `node --test tests/team-memory.test.ts`
 
 Expected: FAIL because `teamMemoryEventToSourceRecord` does not exist and old root exports remain.
 
-- [ ] **Step 3: Implement connector migration**
+- [x] **Step 3: Implement connector migration**
 
 Map rows to `application/vnd.team-memory.event+json` records. Use person plus upstream event source as `sourceId`, hash as `revisionId`, row timestamp as observed/captured time, and preserve project, kind, summary, refs, and raw in content. `teammem:export` requires only `--db` plus existing filters and emits SourceRecord JSONL.
 
-- [ ] **Step 4: Write failing generic CLI tests**
+- [x] **Step 4: Write failing generic CLI tests**
 
 Use temporary JSON/JSONL files and subprocess assertions. Verify machine-readable output, stdin via `--input -`, duplicate suppression for `ingest`, explicit required promotion arguments, neutral-Evidence output, malformed-line diagnostics, and zero stdout on invalid command arguments.
 
-- [ ] **Step 5: Run CLI RED**
+- [x] **Step 5: Run CLI RED**
 
 Run: `node --test tests/cli.test.ts`
 
 Expected: FAIL because `src/cli.ts` and package script `cc` do not exist.
 
-- [ ] **Step 6: Implement the generic CLI**
+- [x] **Step 6: Implement the generic CLI**
 
 Support:
 
@@ -253,17 +255,17 @@ ingest-promote <same promotion arguments>
 
 `validate` writes one item-result JSON line per input. `ingest` writes accepted normalized SourceRecords only. `promote` validates then promotes every valid unique record. `ingest-promote` uses the composed API. Diagnostics go to stderr.
 
-- [ ] **Step 7: Update the example and checks**
+- [x] **Step 7: Update the example and checks**
 
 The team-memory example imports its connector directly, creates source records, and explicitly promotes them with `neutralEvidencePolicyV1`. Add `src/source-records.ts`, `src/ingestion.ts`, `src/promotion.ts`, `src/cli.ts`, and new tests to `npm run check`.
 
-- [ ] **Step 8: Run GREEN**
+- [x] **Step 8: Run GREEN**
 
 Run: `node --test tests/team-memory.test.ts tests/cli.test.ts`
 
 Expected: all connector and CLI tests pass.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/adapters/team-memory.ts src/teammem-cli.ts src/cli.ts src/index.ts examples/team-memory-evidence.ts package.json tests/team-memory.test.ts tests/cli.test.ts
@@ -288,25 +290,25 @@ git commit -m "feat: migrate team memory to source connector"
 - Consumes: complete Phase 2 implementation
 - Produces: canonical fixtures, synchronized documentation, and fresh completion evidence
 
-- [ ] **Step 1: Write failing conformance tests**
+- [x] **Step 1: Write failing conformance tests**
 
 Assert that every valid fixture is accepted, every invalid fixture is rejected with its expected code, canonical JSON/JSONL produces equivalent records, and the root public API contains no source-specific connector exports.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `node --test tests/conformance.test.ts`
 
 Expected: FAIL because fixtures do not exist.
 
-- [ ] **Step 3: Add canonical fixtures and pass conformance**
+- [x] **Step 3: Add canonical fixtures and pass conformance**
 
 The valid fixture includes string and structured content plus optional source instance, observed time, content hash, actor, context, and namespaced extension examples. The invalid fixture includes missing revision identity, invalid timestamp, non-string media type, and unsupported schema version cases.
 
-- [ ] **Step 4: Reconcile all Markdown**
+- [x] **Step 4: Reconcile all Markdown**
 
 Mark RFC 0001 implemented, Phase 2 complete only after all acceptance checks pass, document exact current commands and migration behavior, and retain Phase 3+ as planned. Historical `.superpowers` reports remain explicitly historical.
 
-- [ ] **Step 5: Run complete verification**
+- [x] **Step 5: Run complete verification**
 
 Run:
 
@@ -320,11 +322,11 @@ git diff --check
 
 Expected: zero failures, diagnostics, or whitespace errors.
 
-- [ ] **Step 6: Run end-to-end CLI verification**
+- [x] **Step 6: Run end-to-end CLI verification**
 
 Export a bounded team-memory SourceRecord JSONL file to `/tmp`, validate it with the generic CLI, promote it with `neutral-evidence-v1`, parse every output line, and verify the source ledger size and modification time remain unchanged.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add README.md docs rfcs spec tests/conformance.test.ts package.json

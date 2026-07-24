@@ -2,9 +2,9 @@
 
 RFCs are the contribution path for changes that affect collective-cognition semantics, compatibility, governance, or more than one adapter. They turn design discussion into a reviewable decision with alternatives, consequences, and explicit deferrals.
 
-## Active RFCs
+## Implemented RFCs
 
-- [RFC 0001: Universal Source-Record Ingestion](0001-universal-source-record-ingestion.md) — accepted and being implemented on `feature/universal-ingestion`.
+- [RFC 0001: Universal Source-Record Ingestion](0001-universal-source-record-ingestion.md) — implemented in Phase 2 with canonical fixtures, conformance tests, generic CLI operations, and a migrated team-memory connector.
 
 ## When an RFC Is Required
 

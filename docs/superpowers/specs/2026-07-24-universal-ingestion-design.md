@@ -2,18 +2,18 @@
 
 **Date:** 2026-07-24  
 **Architecture direction:** Approved  
-**Written specification status:** Approved for implementation
+**Implementation status:** Implemented and locally verified in Phase 2
 
 ## Problem
 
-The current reference implementation exposes a team-memory SQLite reader and maps source rows directly into `Evidence`. That proves the core can consume real data, but it is not a universal SDK boundary:
+The Phase 1 reference implementation exposed a team-memory SQLite reader and mapped source rows directly into `Evidence`. That proved the core could consume real data, but it was not a universal SDK boundary:
 
 - a source record is not automatically evidence;
 - direct conversion embeds one team's schema and interpretation in the root API;
 - requiring every team to write TypeScript adapters creates an adoption barrier;
 - connector-specific dependencies and release cycles should not control the semantic core.
 
-The SDK needs one source-neutral entrypoint that works for files, APIs, databases, messages, commits, tickets, documents, agents, and future systems without assigning cognitive meaning during collection.
+Phase 2 implements one source-neutral entrypoint that works with canonical records from files, APIs, databases, messages, commits, tickets, documents, agents, and future systems without assigning cognitive meaning during collection.
 
 ## Decision
 
@@ -64,7 +64,7 @@ A team writes its own connector only when its source cannot emit canonical recor
 
 ## SourceRecord Boundary
 
-The first normative schema will include these concepts:
+The implemented schema version `0.1.0` includes:
 
 ```ts
 interface SourceRecord {
@@ -87,7 +87,7 @@ interface SourceRecord {
 }
 ```
 
-The exact schema remains subject to RFC review and implementation feedback. The boundary must preserve these invariants:
+The boundary preserves these invariants:
 
 - `id` is an opaque SDK record identity.
 - `source.system`, optional `source.instance`, and `sourceId` identify the upstream item.
@@ -159,33 +159,49 @@ Exact package names and exports are deferred until the package-surface compatibi
 
 ## Generic CLI Direction
 
-The future CLI supports source-neutral workflows conceptually equivalent to:
+The implemented `cc` CLI supports:
 
 ```bash
-collective-cognition ingest --input records.jsonl
-collective-cognition validate --input records.jsonl
-collective-cognition promote --input records.jsonl --policy evidence-policy.json
+npm run --silent cc -- validate --input records.jsonl --format jsonl
+npm run --silent cc -- ingest --input records.jsonl --format jsonl
+npm run --silent cc -- promote --input records.jsonl --format jsonl \
+  --policy neutral-evidence-v1 \
+  --hypothesis-id hypothesis:delivery-risk \
+  --context-id organization:team \
+  --initiator-id human:owner \
+  --executor-id agent:importer \
+  --accountable-id human:owner \
+  --promoted-at 2026-07-24T12:00:00.000Z
+npm run --silent cc -- ingest-promote --input records.jsonl --format jsonl \
+  --policy neutral-evidence-v1 \
+  --hypothesis-id hypothesis:delivery-risk \
+  --context-id organization:team \
+  --initiator-id human:owner \
+  --executor-id agent:importer \
+  --accountable-id human:owner \
+  --promoted-at 2026-07-24T12:00:00.000Z
 ```
 
-Connector commands may produce canonical JSONL:
+The team-memory connector produces canonical JSONL:
 
 ```bash
-collective-cognition connector team-memory --db ledger.db
+npm run --silent teammem:export -- --db ledger.db --limit 5
 ```
 
 The generic CLI is intended for operators, CI jobs, scheduled tasks, data migration, and teams that do not want to embed the TypeScript API. Applications, agents, connector authors, and platform teams use the SDK API directly.
 
-Command names are illustrative until the CLI contract is implemented and tested.
+`validate` emits item results, `ingest` emits accepted unique SourceRecords, `promote` emits neutral Evidence for valid unique records, and `ingest-promote` emits one result containing both stages. JSON and JSONL input may come from a file or stdin.
 
 ## Team-Memory Migration
 
-The current team-memory adapter remains a runnable compatibility experiment. It will migrate as follows:
+The team-memory experiment is migrated:
 
 1. SQLite rows map to `SourceRecord`, not directly to `Evidence`.
-2. A separate explicit promotion policy maps selected records to neutral collected evidence.
-3. The connector moves out of the root export surface.
-4. Existing direct-export behavior remains documented as experimental until replaced or deprecated.
-5. Integration with `team-memory-agent` or its LaunchAgent remains separate work; this repository currently does not modify scheduled team-vault output.
+2. The separate `neutral-evidence-v1` policy maps selected records to neutral collected evidence.
+3. The connector is imported directly from `src/adapters/team-memory.ts` and is absent from the root export surface.
+4. `teammem:export` now emits SourceRecord JSONL and no longer accepts hypothesis or context mapping arguments.
+5. `example:teammem` demonstrates explicit promotion after collection.
+6. Integration with `team-memory-agent` or its LaunchAgent remains separate work; this repository does not modify scheduled team-vault output.
 
 This migration proves the generic boundary against a real source without making team-memory a universal dependency.
 
@@ -218,22 +234,21 @@ The SDK does not treat successful parsing as consent to retain or promote data.
 
 ## Compatibility and Conformance
 
-Universal adoption requires behavior that is testable outside one implementation. The ingestion phase therefore delivers:
+Universal adoption requires behavior that is testable outside one implementation. Phase 2 delivers:
 
 - a versioned `SourceRecord` schema;
 - valid and invalid JSON/JSONL fixtures;
-- idempotency and revision fixtures;
-- promotion fixtures that preserve source links and policy identity;
-- connector conformance tests based only on emitted records;
-- compatibility rules for extensions and unknown fields.
+- duplicate, collision, revision, and promotion coverage in the TypeScript test suite;
+- connector tests based only on emitted records;
+- additive namespaced extension examples.
 
-A connector is conformant when it emits valid source records and passes connector fixtures. It does not need access to core internals.
+The canonical fixtures are in `spec/fixtures/source-records/`. A connector is conformant at this phase when its emitted records pass the same SourceRecord validation boundary; a reusable connector author harness remains Phase 4 work.
 
 ## Alternatives Considered
 
 ### Direct Source-to-Evidence Mapping
 
-This is simple for one source but assigns cognitive meaning too early, couples source integrations to the ontology, and makes neutral archival impossible. It is the current team-memory experiment, not the future root boundary.
+This is simple for one source but assigns cognitive meaning too early, couples source integrations to the ontology, and makes neutral archival impossible. It was the Phase 1 team-memory experiment, not the Phase 2 root boundary.
 
 ### Every Source Implements a Full Adapter
 
@@ -245,7 +260,7 @@ This is the selected approach. It gives every source a stable neutral boundary, 
 
 ## Success Criteria
 
-The universal-ingestion phase is complete when:
+The universal-ingestion phase completed when:
 
 1. canonical JSON and JSONL source records validate through both SDK and CLI;
 2. identical source-revision keys and content produce deterministic duplicate classification;
@@ -253,7 +268,7 @@ The universal-ingestion phase is complete when:
 4. explicit promotion produces evidence linked to source records and a policy version;
 5. a composed workflow exposes both ingestion and promotion results;
 6. team-memory operates as a connector without source-specific root exports;
-7. a second fixture connector passes the same conformance suite;
+7. a source-independent canonical fixture corpus passes the same SDK and CLI boundary as the team-memory connector output;
 8. all public documentation describes the same neutral-first architecture.
 
 ## Non-Goals

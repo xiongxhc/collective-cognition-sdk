@@ -1,13 +1,13 @@
 # RFC 0001: Universal Source-Record Ingestion
 
-**Status:** Accepted
+**Status:** Implemented
 
 **Created:** 2026-07-24  
 **Decision owner:** Project maintainer
 
 ## Problem
 
-The reference implementation maps team-memory SQLite rows directly into `Evidence` and exports the adapter from the root module. This proves real-source compatibility but makes a team-specific schema and semantic conversion look like universal SDK behavior.
+The Phase 1 reference implementation mapped team-memory SQLite rows directly into `Evidence` and exported the adapter from the root module. This proved real-source compatibility but made a team-specific schema and semantic conversion look like universal SDK behavior.
 
 The SDK needs an ingestion contract that works across organizations and source systems without requiring custom code for basic use or treating collected material as evidence automatically.
 
@@ -45,10 +45,11 @@ Rejected for ingestion because it loses a stable neutral boundary. Trusted calle
 
 ## Compatibility and Migration
 
-- The current TypeScript API remains runnable during the design phase.
-- Team-memory-specific root exports are experimental and receive no stable compatibility promise.
-- The team-memory reader will first emit source records; its current evidence mapping becomes an explicit promotion policy.
-- Deprecation timing requires a tested replacement and documented migration path.
+- The cognitive-object TypeScript API remains runnable.
+- Team-memory-specific root exports and direct row-to-Evidence mapping were removed before any stable compatibility promise.
+- The team-memory reader emits source records; neutral Evidence creation is an explicit promotion operation.
+- `teammem:export` emits SourceRecord JSONL and no longer accepts hypothesis or context mapping arguments.
+- Existing callers migrate by validating or ingesting the exported records, then invoking `promote` or `ingest-promote` with explicit policy, attribution, hypothesis, context, and promotion time arguments.
 - Existing cognitive objects remain valid because this RFC changes the ingestion path, not their stored shape.
 
 ## Security and Human Authority
@@ -61,16 +62,25 @@ Rejected for ingestion because it loses a stable neutral boundary. Trusted calle
 
 ## Acceptance Checks
 
-- Validate canonical valid and invalid `SourceRecord` fixtures.
-- Demonstrate SDK and CLI parity for JSON and JSONL.
-- Demonstrate deterministic duplicate and collision classification.
-- Demonstrate preservation of changed source revisions.
-- Promote source records into evidence while preserving source and policy links.
-- Report valid ingestion separately from failed promotion.
-- Convert the team-memory integration into a conformant connector.
-- Pass the same connector contract with a second fixture source.
-- Verify that the root export surface contains no source-specific connector API.
-- Verify that every repository Markdown file reflects the accepted architecture and current implementation status.
+- [x] Validate canonical valid and invalid `SourceRecord` fixtures.
+- [x] Demonstrate SDK and CLI parity for JSON and JSONL.
+- [x] Demonstrate deterministic duplicate and collision classification.
+- [x] Demonstrate preservation of changed source revisions without overwrite.
+- [x] Promote source records into evidence while preserving source and policy links.
+- [x] Report valid ingestion separately from failed promotion.
+- [x] Convert the team-memory integration into a conformant connector.
+- [x] Pass the same validation boundary with a source-independent canonical fixture corpus.
+- [x] Verify that the root export surface contains no source-specific connector API.
+- [x] Verify that every repository Markdown file is current or explicitly historical.
+
+Implementation evidence:
+
+- canonical fixtures: [`spec/fixtures/source-records/`](../spec/fixtures/source-records/);
+- conformance suite: [`tests/conformance.test.ts`](../tests/conformance.test.ts);
+- generic CLI: [`src/cli.ts`](../src/cli.ts);
+- migrated connector: [`src/adapters/team-memory.ts`](../src/adapters/team-memory.ts);
+- completion commands: `npm test`, `npx tsc --noEmit`, `npm run check`, and `npm run example`;
+- bounded live verification: team-memory SourceRecord export, generic validation, explicit `neutral-evidence-v1` promotion, complete JSON-line parsing, and unchanged source-ledger metadata.
 
 ## Explicit Deferrals
 

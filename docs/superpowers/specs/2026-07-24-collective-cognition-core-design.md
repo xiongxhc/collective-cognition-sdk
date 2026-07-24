@@ -4,11 +4,13 @@
 
 **Status:** Implemented as private local reference source
 
+> Historical Phase 1 design record. Phase 2 universal ingestion is now implemented; current status and commands are in the [roadmap](../../ROADMAP.md) and repository [README](../../../README.md).
+
 ## Current Relationship to Universal Ingestion
 
-This document records the implemented Phase 1 cognitive core. The later [universal ingestion design](2026-07-24-universal-ingestion-design.md) adds a neutral `SourceRecord` boundary before cognitive interpretation.
+This document records the implemented Phase 1 cognitive core. The later [universal ingestion design](2026-07-24-universal-ingestion-design.md) added a neutral `SourceRecord` boundary before cognitive interpretation.
 
-The existing team-memory adapter was added as a real-data experiment after this core design. Its direct source-row-to-`Evidence` mapping is runnable current behavior but not the future root SDK contract. RFC 0001 tracks migration to `SourceRecord → explicit promotion → Evidence`.
+The original team-memory adapter was added as a real-data experiment after this core design. Its direct source-row-to-`Evidence` mapping was replaced in Phase 2 by `SourceRecord → explicit promotion → Evidence`; [RFC 0001](../../../rfcs/0001-universal-source-record-ingestion.md) records the implemented migration.
 
 ## Purpose
 
@@ -29,7 +31,7 @@ Phase 1 is complete when a local caller can:
 7. receive an auditable event for every successful state change;
 8. run automated tests demonstrating the preceding behavior.
 
-## Repository Shape
+## Historical Phase 1 Repository Shape
 
 ```text
 collective-cognition-sdk/
@@ -226,12 +228,12 @@ Automated tests cover:
 
 Tests use deterministic IDs and timestamps supplied by the caller so assertions do not depend on wall-clock time or randomness.
 
-## Roadmap Placement
+## Historical Roadmap Placement
 
 The tracked roadmap now contains these phases:
 
 1. **Runnable cognitive core:** the implemented local object model, transitions, authorization, events, examples, and team-memory experiment.
-2. **Universal ingestion foundation:** add neutral source records, generic JSON/JSONL, explicit promotion, and connector boundaries.
+2. **Universal ingestion foundation:** the implemented neutral source records, generic JSON/JSONL, explicit promotion, and connector boundaries.
 3. **Specification and package stabilization:** publish normative schemas, conformance fixtures, stable exports, and distribution criteria.
 4. **Adapter ecosystem foundations:** migrate team-memory, add the Obsidian/Markdown adapter, and publish connector tooling.
 5. **Cross-connector interoperability:** prove independent connectors use the same generic ingestion semantics.

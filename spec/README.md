@@ -9,7 +9,7 @@ Two documents define the current direction:
 - the [implemented cognitive-core design](../docs/superpowers/specs/2026-07-24-collective-cognition-core-design.md);
 - the [approved universal-ingestion design](../docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
 
-The core design is implemented locally. Universal ingestion is an accepted written contract in [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md) and is currently being implemented.
+The core design and Phase 2 universal ingestion are implemented locally. [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md) records the implemented ingestion semantics.
 
 The governing boundary is:
 
@@ -17,23 +17,35 @@ The governing boundary is:
 external material → neutral SourceRecord → explicit promotion → CognitiveObject
 ```
 
-The current team-memory direct-to-Evidence path predates that boundary. It is an experimental implementation to migrate, not normative specification behavior.
+The historical team-memory direct-to-Evidence path was replaced. The current connector emits SourceRecords and is imported directly rather than exported from the source-neutral root API.
 
 ## Start Here
 
 - Review the [roadmap](../docs/ROADMAP.md) and distinguish completed phases from planned ones.
-- Run `npm test` and `npm run example` to observe current core behavior.
+- Run `npm test`, `npx tsc --noEmit`, `npm run check`, and `npm run example`.
+- Run `node --test tests/conformance.test.ts` for the canonical SourceRecord suite.
+- Inspect [`fixtures/source-records/valid.jsonl`](fixtures/source-records/valid.jsonl) and [`fixtures/source-records/invalid.jsonl`](fixtures/source-records/invalid.jsonl).
 - Review RFC 0001 before changing ingestion semantics or connector boundaries.
 - Use the [RFC process](../rfcs/README.md) for semantic, compatibility, or governance changes.
+
+## Current Phase 2 Fixtures
+
+`fixtures/source-records/valid.jsonl` contains canonical SourceRecords directly. It covers string and structured content plus optional source instance, observed time, content hash, actor, context, and namespaced extensions.
+
+`fixtures/source-records/invalid.jsonl` contains fixture envelopes with:
+
+- `description`: the invalid case;
+- `expectedCode`: the stable error code;
+- `record`: the SourceRecord-shaped value to validate.
+
+The invalid corpus covers missing revision identity, invalid timestamp, non-string media type, and unsupported schema version. The conformance suite verifies SDK and CLI outcomes plus equivalent canonical JSON and JSONL results.
 
 ## Planned Normative Content
 
 Specification work will add:
 
 - cognitive objects, relationships, lifecycle transitions, authorization, events, and errors;
-- neutral source records, idempotency, source revisions, promotion, and connector contracts;
 - versioned machine-readable schemas;
-- canonical valid and invalid conformance fixtures;
 - compatibility, extension, versioning, and deprecation rules;
 - a mapping from every normative rule to an executable check or explicit prose-only rationale.
 
