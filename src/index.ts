@@ -1,5 +1,14 @@
 export { DomainError, DomainErrorCode } from "./errors.ts";
 export {
+  canonicalizeJson,
+  createSourceRecord,
+  deserializeSourceRecord,
+  serializeSourceRecord,
+  sourceRevisionKey,
+  SOURCE_RECORD_SCHEMA_VERSION,
+  validateSourceRecord,
+} from "./source-records.ts";
+export {
   createObject,
   deserializeObject,
   serializeObject,
@@ -42,6 +51,11 @@ export type {
   RelationshipType,
   StateByType,
 } from "./types.ts";
+export type {
+  CreateSourceRecordInput,
+  SourceRecord,
+  SourceRecordSource,
+} from "./source-records.ts";
 export type {
   TeamMemoryEvidenceContext,
   TeamMemoryEventRow,
