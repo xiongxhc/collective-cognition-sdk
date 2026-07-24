@@ -1,6 +1,7 @@
 # RFC 0001: Universal Source-Record Ingestion
 
-**Status:** Draft  
+**Status:** Accepted
+
 **Created:** 2026-07-24  
 **Decision owner:** Project maintainer
 

@@ -4,7 +4,7 @@ RFCs are the contribution path for changes that affect collective-cognition sema
 
 ## Active RFCs
 
-- [RFC 0001: Universal Source-Record Ingestion](0001-universal-source-record-ingestion.md) — draft written contract for the approved neutral-first ingestion direction.
+- [RFC 0001: Universal Source-Record Ingestion](0001-universal-source-record-ingestion.md) — accepted and being implemented on `feature/universal-ingestion`.
 
 ## When an RFC Is Required
 

@@ -29,7 +29,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 2: Universal Ingestion Foundation
 
-**Status:** Architecture approved; draft RFC awaiting written review; implementation not started.
+**Status:** RFC accepted; implementation in progress on `feature/universal-ingestion`.
 
 **Entry criteria**
 

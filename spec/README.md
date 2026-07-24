@@ -9,7 +9,7 @@ Two documents define the current direction:
 - the [implemented cognitive-core design](../docs/superpowers/specs/2026-07-24-collective-cognition-core-design.md);
 - the [approved universal-ingestion design](../docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
 
-The core design is implemented locally. Universal ingestion is approved as an architectural direction but remains a draft written contract in [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md).
+The core design is implemented locally. Universal ingestion is an accepted written contract in [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md) and is currently being implemented.
 
 The governing boundary is:
 

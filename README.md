@@ -4,6 +4,8 @@ Collective Cognition SDK is experimental, dependency-free TypeScript reference s
 
 The project is designing a universal SDK, but the current repository is still private reference source rather than an externally packaged or production-ready SDK.
 
+Phase 2 universal-ingestion implementation is currently in progress; the current commands below retain Phase 1 behavior until that work passes its acceptance checks.
+
 ## Current Status
 
 Runnable now:
