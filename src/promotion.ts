@@ -77,6 +77,17 @@ interface ValidatedPolicy {
   readonly receiver: EvidencePromotionPolicy;
 }
 
+type MappingCaptureResult =
+  | {
+    readonly status: "captured";
+    readonly mapping: EvidencePromotionMapping;
+  }
+  | {
+    readonly status: "invalid";
+    readonly field: string;
+    readonly message: string;
+  };
+
 const promotionRequestFields = new Set([
   "records",
   "hypothesisId",
@@ -241,34 +252,117 @@ function snapshotRequest(
   return freezeJsonValue(snapshot) as unknown as PromotionRequestSnapshot;
 }
 
-function validateMapping(value: unknown): asserts value is EvidencePromotionMapping {
-  if (!isJsonObject(value)) {
-    invalidMapping("mapping", "Policy mapping must be a JSON object.");
-  }
-  for (const field of Object.keys(value)) {
-    if (!mappingFields.has(field)) {
-      invalidMapping(
-        `mapping.${field}`,
-        `Policy mapping field ${field} is not supported.`,
-      );
+function capturePolicyMapping(
+  map: () => unknown,
+): MappingCaptureResult {
+  try {
+    const value = map();
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      Array.isArray(value)
+    ) {
+      return {
+        status: "invalid",
+        field: "mapping",
+        message: "Policy mapping must be a JSON object.",
+      };
     }
-  }
-
-  for (const field of ["title", "statement", "evidenceKind"] as const) {
-    if (typeof value[field] !== "string" || value[field].trim().length === 0) {
-      invalidMapping(field, `Policy mapping ${field} must be a non-empty string.`);
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      return {
+        status: "invalid",
+        field: "mapping",
+        message: "Policy mapping must be a JSON object.",
+      };
     }
-  }
 
-  if (
-    value.polarity !== "supports" &&
-    value.polarity !== "challenges" &&
-    value.polarity !== "neutral"
-  ) {
-    invalidMapping(
-      "polarity",
-      "Policy mapping polarity must be supports, challenges, or neutral.",
-    );
+    const keys = Reflect.ownKeys(value);
+    const captured: Record<string, unknown> = {};
+    for (const key of keys) {
+      if (typeof key !== "string") {
+        return {
+          status: "invalid",
+          field: "mapping",
+          message: "Policy mapping fields must be strings.",
+        };
+      }
+      if (!mappingFields.has(key)) {
+        return {
+          status: "invalid",
+          field: `mapping.${key}`,
+          message: `Policy mapping field ${key} is not supported.`,
+        };
+      }
+      const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+      if (
+        descriptor === undefined ||
+        !descriptor.enumerable ||
+        !("value" in descriptor)
+      ) {
+        return {
+          status: "invalid",
+          field: `mapping.${key}`,
+          message: `Policy mapping field ${key} must be an enumerable data property.`,
+        };
+      }
+      Object.defineProperty(captured, key, {
+        value: descriptor.value,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    }
+
+    const title = captured.title;
+    const statement = captured.statement;
+    const evidenceKind = captured.evidenceKind;
+    if (!isNonEmptyString(title)) {
+      return {
+        status: "invalid",
+        field: "title",
+        message: "Policy mapping title must be a non-empty string.",
+      };
+    }
+    if (!isNonEmptyString(statement)) {
+      return {
+        status: "invalid",
+        field: "statement",
+        message: "Policy mapping statement must be a non-empty string.",
+      };
+    }
+    if (!isNonEmptyString(evidenceKind)) {
+      return {
+        status: "invalid",
+        field: "evidenceKind",
+        message: "Policy mapping evidenceKind must be a non-empty string.",
+      };
+    }
+    const polarity = captured.polarity;
+    if (
+      polarity !== "supports" &&
+      polarity !== "challenges" &&
+      polarity !== "neutral"
+    ) {
+      return {
+        status: "invalid",
+        field: "polarity",
+        message:
+          "Policy mapping polarity must be supports, challenges, or neutral.",
+      };
+    }
+
+    return {
+      status: "captured",
+      mapping: Object.freeze({
+        title,
+        statement,
+        evidenceKind,
+        polarity,
+      }),
+    };
+  } catch {
+    promotionPolicyFailed();
   }
 }
 
@@ -338,19 +432,13 @@ export function promoteSourceRecordsToEvidence(
 ): CognitiveObject<"evidence"> {
   const snapshot = snapshotRequest(request);
   const validatedPolicy = validatePolicy(policy);
-  let mappingValue: unknown;
-  try {
-    mappingValue = validatedPolicy.receiver.map(snapshot.records);
-  } catch {
-    promotionPolicyFailed();
+  const capturedMapping = capturePolicyMapping(
+    () => validatedPolicy.receiver.map(snapshot.records),
+  );
+  if (capturedMapping.status === "invalid") {
+    invalidMapping(capturedMapping.field, capturedMapping.message);
   }
-  validateMapping(mappingValue);
-  const mapping = freezeJsonValue({
-    title: mappingValue.title,
-    statement: mappingValue.statement,
-    evidenceKind: mappingValue.evidenceKind,
-    polarity: mappingValue.polarity,
-  }) as EvidencePromotionMapping;
+  const mapping = capturedMapping.mapping;
 
   return createObject({
     id: evidenceId(snapshot, validatedPolicy.identity, mapping),

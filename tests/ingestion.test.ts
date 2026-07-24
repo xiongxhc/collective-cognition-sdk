@@ -462,6 +462,117 @@ test("never invokes throwing or mutating toJSON hooks on SDK input", () => {
   assert.equal(JSON.stringify(diagnostics).includes(mutationSecret), false);
 });
 
+test("normalizes only the bounded descriptor snapshot from a stateful Proxy", () => {
+  const captured = {
+    ...inputFor(),
+    schemaVersion: "0.1.0",
+    source: { system: "git", instance: "github.example/acme" },
+    content: { summary: "Captured before caller mutation." },
+  };
+  const target = structuredClone(captured);
+  const secret = "STATEFUL_SOURCE_PROXY_SECRET";
+  const oversizedContent = { summary: "x".repeat(4_096) };
+  let contentDescriptorReads = 0;
+  let valueReads = 0;
+  const stateful = new Proxy(target, {
+    getOwnPropertyDescriptor(inner, key) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(inner, key);
+      if (key === "content" && contentDescriptorReads === 0) {
+        contentDescriptorReads += 1;
+        inner.content = oversizedContent;
+        return descriptor;
+      }
+      return descriptor;
+    },
+    get() {
+      valueReads += 1;
+      throw new Error(secret);
+    },
+  });
+  const valid = recordFor({
+    id: "source-record:after-stateful-proxy",
+    sourceId: "commit:after-stateful-proxy",
+    revisionId: "after-stateful-proxy",
+  });
+  const maxRecordBytes = 1_024;
+  let escaped = false;
+  let result: ReturnType<typeof ingestSourceRecords> | undefined;
+
+  try {
+    result = ingestSourceRecords([stateful, valid], {
+      mode: "collect-all",
+      maxRecordBytes,
+    });
+  } catch {
+    escaped = true;
+  }
+
+  assert.equal(escaped, false);
+  assert.ok(result);
+  assert.deepEqual(
+    result.items.map((item) => item.status),
+    ["accepted", "accepted"],
+  );
+  assert.deepEqual(result.acceptedRecords[0], captured);
+  assert.deepEqual(result.acceptedRecords[0]?.content, {
+    summary: "Captured before caller mutation.",
+  });
+  assert.equal(contentDescriptorReads, 1);
+  assert.equal(valueReads, 0);
+  assert.ok(Buffer.byteLength(JSON.stringify(target)) > maxRecordBytes);
+  assert.equal(JSON.stringify(result).includes(secret), false);
+});
+
+test("sanitizes Proxy reflection failures per item and continues collect-all", () => {
+  const ownKeysSecret = "SOURCE_PROXY_OWN_KEYS_SECRET";
+  const descriptorSecret = "SOURCE_PROXY_DESCRIPTOR_SECRET";
+  const ownKeysFailure = new Proxy(structuredClone(recordFor()), {
+    ownKeys() {
+      throw new Error(ownKeysSecret);
+    },
+  });
+  const descriptorFailure = new Proxy(
+    structuredClone(
+      recordFor({
+        id: "source-record:descriptor-proxy",
+        sourceId: "commit:descriptor-proxy",
+        revisionId: "descriptor-proxy",
+      }),
+    ),
+    {
+      getOwnPropertyDescriptor(inner, key) {
+        if (key === "id") {
+          throw new Error(descriptorSecret);
+        }
+        return Reflect.getOwnPropertyDescriptor(inner, key);
+      },
+    },
+  );
+  const valid = recordFor({
+    id: "source-record:after-reflection-failures",
+    sourceId: "commit:after-reflection-failures",
+    revisionId: "after-reflection-failures",
+  });
+
+  const result = ingestSourceRecords(
+    [ownKeysFailure, descriptorFailure, valid],
+    { mode: "collect-all", maxRecordBytes: 16_384 },
+  );
+
+  assert.deepEqual(
+    result.items.map((item) => item.status),
+    ["rejected", "rejected", "accepted"],
+  );
+  for (const item of result.items.slice(0, 2)) {
+    assert.ok(item?.status === "rejected");
+    assert.equal(item.error.code, DomainErrorCode.INVALID_SOURCE_RECORD);
+    assert.deepEqual(item.error.details, {});
+  }
+  assert.deepEqual(result.acceptedRecords, [valid]);
+  assert.equal(JSON.stringify(result).includes(ownKeysSecret), false);
+  assert.equal(JSON.stringify(result).includes(descriptorSecret), false);
+});
+
 test("sanitizes JSON parser failures", () => {
   const secret = "LEAK42";
   const malformed = `{"value": ${secret}}`;

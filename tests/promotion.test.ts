@@ -530,6 +530,128 @@ test("preserves captured policy method receiver semantics without rereading iden
   assert.equal(mutablePolicy._version, "mutated-version");
 });
 
+test("captures a stateful Proxy mapping exactly once before validation and use", () => {
+  const secret = "STATEFUL_MAPPING_PROXY_SECRET";
+  const target: {
+    title: string;
+    statement: string;
+    evidenceKind: string;
+    polarity: "supports" | "challenges" | "neutral";
+  } = {
+    title: "Captured mapping",
+    statement: "Captured before caller mutation.",
+    evidenceKind: "source-record",
+    polarity: "neutral",
+  };
+  let ownKeysReads = 0;
+  let valueReads = 0;
+  const descriptorReads = new Map<PropertyKey, number>();
+  const mapping = new Proxy(target, {
+    ownKeys(inner) {
+      ownKeysReads += 1;
+      if (ownKeysReads > 1) {
+        throw new Error(secret);
+      }
+      return Reflect.ownKeys(inner);
+    },
+    getOwnPropertyDescriptor(inner, key) {
+      const reads = (descriptorReads.get(key) ?? 0) + 1;
+      descriptorReads.set(key, reads);
+      if (reads > 1) {
+        throw new Error(secret);
+      }
+      const descriptor = Reflect.getOwnPropertyDescriptor(inner, key);
+      if (key === "polarity") {
+        inner.title = "Mutated mapping";
+        inner.statement = secret;
+        inner.evidenceKind = "mutated";
+        inner.polarity = "challenges";
+      }
+      return descriptor;
+    },
+    get() {
+      valueReads += 1;
+      throw new Error(secret);
+    },
+  });
+
+  const evidence = promoteSourceRecordsToEvidence(requestFor([recordFor()]), {
+    id: "stateful-mapping-policy",
+    version: "1",
+    map() {
+      return mapping;
+    },
+  });
+
+  assert.equal(evidence.title, "Captured mapping");
+  assert.deepEqual(evidence.data, {
+    statement: "Captured before caller mutation.",
+    evidenceKind: "source-record",
+    polarity: "neutral",
+  });
+  assert.deepEqual(target, {
+    title: "Mutated mapping",
+    statement: secret,
+    evidenceKind: "mutated",
+    polarity: "challenges",
+  });
+  assert.equal(ownKeysReads, 1);
+  assert.equal(valueReads, 0);
+  for (const field of ["title", "statement", "evidenceKind", "polarity"]) {
+    assert.equal(descriptorReads.get(field), 1);
+  }
+  assert.equal(JSON.stringify(evidence).includes(secret), false);
+});
+
+test("sanitizes Proxy mapping reflection failures", () => {
+  const validMapping = {
+    title: "Valid mapping",
+    statement: "Valid statement.",
+    evidenceKind: "source-record",
+    polarity: "neutral" as const,
+  };
+  const failures = [
+    {
+      secret: "MAPPING_PROXY_OWN_KEYS_SECRET",
+      mapping: new Proxy({ ...validMapping }, {
+        ownKeys() {
+          throw new Error("MAPPING_PROXY_OWN_KEYS_SECRET");
+        },
+      }),
+    },
+    {
+      secret: "MAPPING_PROXY_DESCRIPTOR_SECRET",
+      mapping: new Proxy({ ...validMapping }, {
+        getOwnPropertyDescriptor(inner, key) {
+          if (key === "title") {
+            throw new Error("MAPPING_PROXY_DESCRIPTOR_SECRET");
+          }
+          return Reflect.getOwnPropertyDescriptor(inner, key);
+        },
+      }),
+    },
+  ];
+
+  for (const { secret, mapping } of failures) {
+    assert.throws(
+      () =>
+        promoteSourceRecordsToEvidence(requestFor([recordFor()]), {
+          id: "reflection-failure-policy",
+          version: "1",
+          map() {
+            return mapping;
+          },
+        }),
+      (error: unknown) =>
+        error instanceof DomainError &&
+        error.code === DomainErrorCode.PROMOTION_FAILED &&
+        error.message === "Promotion policy failed." &&
+        Object.keys(error.details).length === 0 &&
+        !`${error.message}${JSON.stringify(error.details)}`.includes(secret),
+    );
+  }
+});
+
 test("requires at least one source record and a non-empty rationale", () => {
   assert.throws(
     () =>
@@ -592,6 +714,10 @@ test("rejects malformed policy mapping outputs at runtime", () => {
     polarity: "neutral",
   };
   const invalidMappings: readonly [string, string, unknown][] = [
+    ["an unknown field", "mapping.unexpected", {
+      ...validMapping,
+      unexpected: true,
+    }],
     ["an empty title", "title", { ...validMapping, title: "" }],
     ["a non-string title", "title", { ...validMapping, title: 1 }],
     ["a blank statement", "statement", { ...validMapping, statement: " " }],
@@ -619,6 +745,40 @@ test("rejects malformed policy mapping outputs at runtime", () => {
       description,
     );
   }
+});
+
+test("rejects accessor mapping fields without invoking them", () => {
+  const secret = "MAPPING_ACCESSOR_SECRET";
+  let accessorReads = 0;
+  const mapping = {
+    statement: "Valid statement.",
+    evidenceKind: "source-record",
+    polarity: "neutral",
+  };
+  Object.defineProperty(mapping, "title", {
+    enumerable: true,
+    get() {
+      accessorReads += 1;
+      throw new Error(secret);
+    },
+  });
+
+  assert.throws(
+    () =>
+      promoteSourceRecordsToEvidence(requestFor([recordFor()]), {
+        id: "accessor-mapping-policy",
+        version: "1",
+        map() {
+          return mapping as unknown as EvidencePromotionMapping;
+        },
+      }),
+    (error: unknown) =>
+      error instanceof DomainError &&
+      error.code === DomainErrorCode.INVALID_OBJECT &&
+      error.details.field === "mapping.title" &&
+      !`${error.message}${JSON.stringify(error.details)}`.includes(secret),
+  );
+  assert.equal(accessorReads, 0);
 });
 
 test("accepts every EvidenceData polarity from policy mappings", () => {

@@ -5,6 +5,7 @@ import {
   sourceRevisionKey,
 } from "./source-records.ts";
 import type { SourceRecord } from "./source-records.ts";
+import type { JsonValue } from "./types.ts";
 
 export type IngestionMode = "collect-all" | "fail-fast";
 
@@ -63,9 +64,43 @@ interface IngestionCollector {
   reject(error: DomainError, index: number, line?: number): void;
 }
 
-type JsonMeasureFrame =
-  | { readonly kind: "value"; readonly value: unknown }
-  | { readonly kind: "leave"; readonly value: object };
+type MutableJsonArray = JsonValue[];
+type MutableJsonObject = Record<string, JsonValue>;
+
+type JsonSnapshotTarget =
+  | { readonly kind: "root" }
+  | {
+    readonly kind: "array";
+    readonly parent: MutableJsonArray;
+    readonly index: number;
+  }
+  | {
+    readonly kind: "object";
+    readonly parent: MutableJsonObject;
+    readonly key: string;
+  };
+
+type JsonSnapshotFrame =
+  | {
+    readonly kind: "value";
+    readonly input: unknown;
+    readonly target: JsonSnapshotTarget;
+  }
+  | {
+    readonly kind: "array-entry";
+    readonly input: object;
+    readonly snapshot: MutableJsonArray;
+    readonly index: number;
+    readonly length: number;
+  }
+  | {
+    readonly kind: "object-entry";
+    readonly input: object;
+    readonly snapshot: MutableJsonObject;
+    readonly keys: readonly string[];
+    readonly index: number;
+  }
+  | { readonly kind: "leave"; readonly input: object };
 
 class UnsafeJsonStructure extends Error {}
 
@@ -182,19 +217,49 @@ function jsonStringBytes(
   return bytes;
 }
 
-function structuralJsonBytes(
+function snapshotBoundedJson(
   value: unknown,
   maximum?: number,
-): number {
+): JsonValue {
   let bytes = 0;
+  const unset = Symbol("unset");
+  let snapshot: JsonValue | typeof unset = unset;
   const ancestors = new Set<object>();
-  const frames: JsonMeasureFrame[] = [{ kind: "value", value }];
+  const frames: JsonSnapshotFrame[] = [
+    { kind: "value", input: value, target: { kind: "root" } },
+  ];
 
   function add(amount: number): void {
     bytes += amount;
     if (maximum !== undefined && bytes > maximum) {
       throw new JsonStructureLimitExceeded(bytes);
     }
+  }
+
+  function assign(target: JsonSnapshotTarget, captured: JsonValue): void {
+    if (target.kind === "root") {
+      snapshot = captured;
+    } else if (target.kind === "array") {
+      target.parent[target.index] = captured;
+    } else {
+      Object.defineProperty(target.parent, target.key, {
+        value: captured,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    }
+  }
+
+  function ownKeys(input: object): readonly PropertyKey[] {
+    return Reflect.ownKeys(input);
+  }
+
+  function ownDescriptor(
+    input: object,
+    key: PropertyKey,
+  ): PropertyDescriptor | undefined {
+    return Reflect.getOwnPropertyDescriptor(input, key);
   }
 
   try {
@@ -204,54 +269,110 @@ function structuralJsonBytes(
         break;
       }
       if (frame.kind === "leave") {
-        ancestors.delete(frame.value);
+        ancestors.delete(frame.input);
+        continue;
+      }
+      if (frame.kind === "array-entry") {
+        if (frame.index >= frame.length) {
+          continue;
+        }
+        const descriptor = ownDescriptor(frame.input, String(frame.index));
+        if (
+          descriptor === undefined ||
+          !descriptor.enumerable ||
+          !("value" in descriptor)
+        ) {
+          throw new UnsafeJsonStructure();
+        }
+        frames.push({
+          ...frame,
+          index: frame.index + 1,
+        });
+        frames.push({
+          kind: "value",
+          input: descriptor.value,
+          target: {
+            kind: "array",
+            parent: frame.snapshot,
+            index: frame.index,
+          },
+        });
+        continue;
+      }
+      if (frame.kind === "object-entry") {
+        if (frame.index >= frame.keys.length) {
+          continue;
+        }
+        const key = frame.keys[frame.index] as string;
+        const descriptor = ownDescriptor(frame.input, key);
+        if (
+          descriptor === undefined ||
+          !descriptor.enumerable ||
+          !("value" in descriptor)
+        ) {
+          throw new UnsafeJsonStructure();
+        }
+        frames.push({
+          ...frame,
+          index: frame.index + 1,
+        });
+        frames.push({
+          kind: "value",
+          input: descriptor.value,
+          target: {
+            kind: "object",
+            parent: frame.snapshot,
+            key,
+          },
+        });
         continue;
       }
 
-      const current = frame.value;
+      const current = frame.input;
       if (current === null) {
         add(4);
+        assign(frame.target, null);
       } else if (typeof current === "boolean") {
         add(current ? 4 : 5);
+        assign(frame.target, current);
       } else if (typeof current === "number") {
         if (!Number.isFinite(current)) {
           throw new UnsafeJsonStructure();
         }
         add(Buffer.byteLength(String(current)));
+        assign(frame.target, current);
       } else if (typeof current === "string") {
         add(jsonStringBytes(
           current,
           maximum === undefined ? undefined : maximum - bytes,
         ));
+        assign(frame.target, current);
       } else if (typeof current === "object") {
         if (ancestors.has(current)) {
           throw new UnsafeJsonStructure();
         }
         const prototype = Object.getPrototypeOf(current);
-        const symbols = Object.getOwnPropertySymbols(current);
-        if (symbols.length > 0) {
+        const keys = ownKeys(current);
+        if (keys.some((key) => typeof key !== "string")) {
           throw new UnsafeJsonStructure();
         }
-        ancestors.add(current);
-        frames.push({ kind: "leave", value: current });
+        const names = keys as readonly string[];
 
         if (Array.isArray(current)) {
           if (prototype !== Array.prototype) {
             throw new UnsafeJsonStructure();
           }
-          const lengthDescriptor = Object.getOwnPropertyDescriptor(
-            current,
-            "length",
-          );
+          const lengthDescriptor = ownDescriptor(current, "length");
           if (
             lengthDescriptor === undefined ||
+            lengthDescriptor.enumerable ||
             !("value" in lengthDescriptor) ||
-            typeof lengthDescriptor.value !== "number"
+            !Number.isSafeInteger(lengthDescriptor.value) ||
+            lengthDescriptor.value < 0
           ) {
             throw new UnsafeJsonStructure();
           }
           const length = lengthDescriptor.value;
-          const names = Object.getOwnPropertyNames(current);
           if (
             names.length !== length + 1 ||
             !names.includes("length")
@@ -259,52 +380,55 @@ function structuralJsonBytes(
             throw new UnsafeJsonStructure();
           }
           add(2 + Math.max(0, length - 1));
-          for (let index = length - 1; index >= 0; index -= 1) {
-            const descriptor = Object.getOwnPropertyDescriptor(
-              current,
-              String(index),
-            );
-            if (
-              descriptor === undefined ||
-              !descriptor.enumerable ||
-              !("value" in descriptor)
-            ) {
+          const nameSet = new Set(names);
+          for (let index = 0; index < length; index += 1) {
+            if (!nameSet.has(String(index))) {
               throw new UnsafeJsonStructure();
             }
-            frames.push({ kind: "value", value: descriptor.value });
           }
+          const captured: MutableJsonArray = [];
+          assign(frame.target, captured);
+          ancestors.add(current);
+          frames.push({ kind: "leave", input: current });
+          frames.push({
+            kind: "array-entry",
+            input: current,
+            snapshot: captured,
+            index: 0,
+            length,
+          });
         } else {
           if (prototype !== Object.prototype && prototype !== null) {
             throw new UnsafeJsonStructure();
           }
-          const names = Object.getOwnPropertyNames(current);
           add(2 + Math.max(0, names.length - 1));
-          const values: unknown[] = [];
           for (const name of names) {
-            const descriptor = Object.getOwnPropertyDescriptor(current, name);
-            if (
-              descriptor === undefined ||
-              !descriptor.enumerable ||
-              !("value" in descriptor)
-            ) {
-              throw new UnsafeJsonStructure();
-            }
             add(jsonStringBytes(
               name,
               maximum === undefined ? undefined : maximum - bytes,
             ));
             add(1);
-            values.push(descriptor.value);
           }
-          for (let index = values.length - 1; index >= 0; index -= 1) {
-            frames.push({ kind: "value", value: values[index] });
-          }
+          const captured: MutableJsonObject = {};
+          assign(frame.target, captured);
+          ancestors.add(current);
+          frames.push({ kind: "leave", input: current });
+          frames.push({
+            kind: "object-entry",
+            input: current,
+            snapshot: captured,
+            keys: names,
+            index: 0,
+          });
         }
       } else {
         throw new UnsafeJsonStructure();
       }
     }
-    return bytes;
+    if (snapshot === unset) {
+      throw new UnsafeJsonStructure();
+    }
+    return snapshot;
   } catch (error) {
     if (error instanceof JsonStructureLimitExceeded) {
       limitExceeded("maxRecordBytes", maximum as number, error.actual);
@@ -351,9 +475,9 @@ function createCollector(options: IngestionOptions): IngestionCollector {
   ): void {
     let record: SourceRecord;
     try {
-      structuralJsonBytes(value, options.maxRecordBytes);
-      record = normalizeSourceRecord(value);
-      structuralJsonBytes(record, options.maxRecordBytes);
+      const snapshot = snapshotBoundedJson(value, options.maxRecordBytes);
+      record = normalizeSourceRecord(snapshot);
+      snapshotBoundedJson(record, options.maxRecordBytes);
     } catch (error) {
       if (error instanceof DomainError) {
         if (error.code === DomainErrorCode.INGESTION_LIMIT_EXCEEDED) {

@@ -749,3 +749,186 @@ Intentional boundaries:
 2. SDK object ingestion uses the caller-configured `maxRecordBytes`; the generic CLI continues to supply the finite `1048576` byte default.
 3. The captured policy receiver intentionally contains only immutable `id`, `version`, and `map`. Policy methods that depend on other mutable receiver state are outside the promotion policy contract.
 4. This remains verified private reference source, not a stable published package or production service.
+
+# Fourth TOCTOU Review-Fix Wave
+
+**Date:** 2026-07-24
+**Commit target:** `fix: snapshot adversarial inputs once`
+
+## Fourth-Wave Scope
+
+This wave closes the final two time-of-check/time-of-use findings without adding production dependencies or reverting unrelated work:
+
+1. Ingestion preflight now builds and returns the bounded plain JSON snapshot from captured own data-property descriptors. Normalization, duplicate/collision classification, and retained output use only that snapshot and never reread the original unknown value.
+2. Stateful Proxy mutation after descriptor capture cannot replace the bounded content, bypass `maxRecordBytes`, execute a property getter, or abort a collect-all batch.
+3. Proxy `ownKeys` and `getOwnPropertyDescriptor` failures become stable secret-safe `INVALID_SOURCE_RECORD` item rejections, and later valid items continue.
+4. Promotion invokes the mapper and captures its output exactly once inside one sanitized boundary. It uses one `ownKeys` result and one own descriptor per mapping field, rejects accessors, unknown fields, and malformed fields, and builds a plain frozen mapping snapshot.
+5. Evidence validation, identity hashing, and object construction use only the mapping snapshot; later mutation or failure in the original mapping object cannot change or escape into the result.
+
+## Fourth-Wave Baseline
+
+The wave started from the clean third-wave commit:
+
+```text
+9f08ab1158e636575c524143df37bd9a0fb4f017
+fix: close adversarial ingestion edge cases
+```
+
+Baseline verification:
+
+```text
+npm test
+tests 152
+pass 152
+fail 0
+```
+
+## Fourth-Wave RED → GREEN Evidence
+
+### Descriptor-Built Ingestion Snapshot
+
+Tests were added before changing ingestion production code:
+
+```text
+node --disable-warning=ExperimentalWarning --test tests/ingestion.test.ts
+```
+
+The new cases cover:
+
+- a stateful Proxy returning bounded content from its first `content` descriptor and mutating its target to oversized content immediately afterward;
+- a throwing property-read trap that proves normalization never accesses the original Proxy;
+- exact one-time descriptor capture;
+- `maxRecordBytes` enforcement against the captured snapshot rather than mutable later state;
+- secret-throwing `ownKeys` and `getOwnPropertyDescriptor` traps;
+- item-level rejection and continuation to a later valid record in collect-all mode;
+- secret-free diagnostics and output.
+
+RED:
+
+```text
+tests 18
+pass 17
+fail 1
+```
+
+The stateful Proxy test failed because the old preflight measured descriptor values but discarded them. `normalizeSourceRecord` then reread the original Proxy, invoked caller-controlled behavior, and escaped the collect-all batch.
+
+GREEN:
+
+```text
+tests 18
+pass 18
+fail 0
+```
+
+The bounded preflight now uses an iterative depth-first frame stack. It captures one key list and each own data descriptor into an isolated plain JSON snapshot while counting the exact UTF-8 JSON representation. Child values are captured before the next sibling descriptor is requested. The collector normalizes only that snapshot and performs the defense-in-depth normalized-size check on the resulting immutable record.
+
+### Single-Capture Policy Mapping Output
+
+Tests were added before changing promotion production code:
+
+```text
+node --disable-warning=ExperimentalWarning --test tests/promotion.test.ts
+```
+
+The new cases cover:
+
+- a stateful Proxy mapping that throws if keys or descriptors are requested twice;
+- mutation of the original mapping immediately after the final descriptor is returned;
+- property-read traps that must remain uncalled;
+- secret-throwing mapping `ownKeys` and `getOwnPropertyDescriptor` traps;
+- unknown mapping fields;
+- an accessor mapping field that must be rejected without invocation;
+- preservation of the first captured title, statement, evidence kind, and polarity.
+
+RED:
+
+```text
+tests 18
+pass 15
+fail 3
+```
+
+The failures proved that the previous path repeatedly reflected over the mapping during JSON validation, returned the wrong error class for Proxy reflection failures, and collapsed accessor-specific rejection into a generic mapping error.
+
+GREEN:
+
+```text
+tests 18
+pass 18
+fail 0
+```
+
+Mapper invocation, prototype inspection, one `ownKeys` capture, one descriptor capture per field, shape checks, and snapshot construction now share one sanitized policy boundary. Arbitrary exceptions become `PROMOTION_FAILED` with `Promotion policy failed.` and empty details. Closed-field, accessor, and value-shape violations retain stable `INVALID_OBJECT` field diagnostics. All downstream work uses the frozen plain snapshot.
+
+### Typed Mapping Snapshot
+
+The first post-runtime typecheck correctly found that TypeScript did not retain string narrowing through dynamic captured-field indexing:
+
+```text
+npx tsc --noEmit
+exit 1
+diagnostics 1
+TS2322: captured mapping title remained unknown
+```
+
+Direct checks now bind and narrow the three captured string fields before constructing the typed frozen mapping.
+
+GREEN:
+
+```text
+npx tsc --noEmit
+exit 0
+diagnostics 0
+```
+
+## Fourth-Wave Focused Verification
+
+Fresh command against the final code state:
+
+```text
+node --disable-warning=ExperimentalWarning --test tests/ingestion.test.ts tests/promotion.test.ts
+```
+
+Result:
+
+```text
+tests 36
+pass 36
+fail 0
+```
+
+## Fourth-Wave Final Verification
+
+Fresh required commands against the final code state:
+
+```text
+npm test
+npx tsc --noEmit
+npm run check
+npm run example
+git diff --check
+```
+
+Results:
+
+```text
+npm test: 157 tests, 157 pass, 0 fail
+npx tsc --noEmit: exit 0, 0 diagnostics
+npm run check: exit 0
+npm run example: exit 0, 11 successful events
+git diff --check: exit 0, 0 output bytes
+```
+
+`package.json` and `package-lock.json` remain unchanged. No production dependency was added.
+
+## Fourth-Wave Concerns and Boundaries
+
+No blocking concern remains.
+
+Intentional boundaries:
+
+1. JavaScript Proxy traps necessarily execute when a caller chooses to expose an object through reflection. The SDK invokes each required key/descriptor operation once, sanitizes every thrown value, and treats the resulting plain snapshot as authoritative.
+2. SDK object ingestion uses the caller-configured `maxRecordBytes`; the generic CLI continues to supply the finite `1048576` byte default.
+3. Promotion mapping remains an exact closed four-field data contract. Accessor-backed, symbol-keyed, non-enumerable, inherited, or extra mapping state is rejected rather than copied.
+4. This remains verified private reference source, not a stable published package or production service.

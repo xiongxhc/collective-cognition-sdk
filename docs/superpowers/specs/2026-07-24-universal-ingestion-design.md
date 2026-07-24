@@ -98,7 +98,7 @@ The boundary preserves these invariants:
 - `contentHash` is opaque caller-supplied integrity metadata. The SDK does not validate digest syntax or verify that the value matches `content`; verification belongs to an external trust boundary.
 - source context and extensions remain JSON-compatible, and every extension key contains `:` or `.` with non-empty namespace and local-name sides.
 - top-level and `source` objects are closed. Direct `context` keys named `polarity`, `confidence`, or `authority` are rejected, while raw source `content` may preserve fields with those names.
-- accepted external values are cloned and deeply frozen so later mutation of caller-owned input cannot change ingestion results.
+- accepted external values are captured once through own data-property descriptors into a bounded plain JSON snapshot, then normalized and deeply frozen without rereading caller-owned input, so later mutation cannot change ingestion results.
 - the tuple `(source.system, source.instance, sourceId, revisionId)` is the logical idempotency key.
 - receiving the same key and canonical content is a duplicate, while receiving the same key with different canonical content is a collision error.
 - a changed source revision creates a distinct immutable record or version; it never silently overwrites history.
@@ -125,8 +125,9 @@ Promotion must:
 - reject empty policy IDs, empty policy versions, empty record sets, and blank rationales;
 - validate the resulting cognitive object through normal core rules;
 - preserve accountable human or organizational attribution;
-- return structured errors without partially emitting results.
+- return structured errors without partially emitting results;
 - snapshot and freeze validated policy identity, request fields, attribution, rationale, and records before invoking `map`;
+- capture mapping output exactly once through own data-property descriptors inside the secret-safe policy boundary, reject accessors and unsupported fields, and validate/use only the plain frozen snapshot;
 - derive Evidence identity from a SHA-256 hash of canonical JSON containing the complete validated payload: records, context, hypothesis, policy identity, rationale, attribution, timestamp, and mapping output.
 
 Promotion must not:
@@ -248,7 +249,7 @@ Universal adoption requires behavior that is testable outside one implementation
 
 - a versioned `SourceRecord` schema;
 - valid and invalid JSON/JSONL fixtures;
-- closed-field and namespaced-extension validation, non-executing bounded structural preflight, normalization immutability, pre-parse limits, duplicate/collision classification, positive revision, full-payload promotion identity, request-before-policy snapshots with captured receiver semantics, secret-safe diagnostics, and fail-closed authorization coverage in the TypeScript test suite;
+- closed-field and namespaced-extension validation, single-pass bounded descriptor snapshots, normalization immutability, pre-parse limits, duplicate/collision classification, positive revision, full-payload promotion identity, request-before-policy snapshots with captured receiver and mapping-output semantics, secret-safe diagnostics, and fail-closed authorization coverage in the TypeScript test suite;
 - connector tests based only on emitted records;
 - additive namespaced extension examples.
 
