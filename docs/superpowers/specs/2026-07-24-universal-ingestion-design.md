@@ -242,7 +242,9 @@ Universal adoption requires behavior that is testable outside one implementation
 - connector tests based only on emitted records;
 - additive namespaced extension examples.
 
-The canonical fixtures are in `spec/fixtures/source-records/`. A connector is conformant at this phase when its emitted records pass the same SourceRecord validation boundary; a reusable connector author harness remains Phase 4 work.
+The Phase 2 implementation fixtures are in `spec/fixtures/source-records/`. They exercise the current TypeScript SDK and CLI but are not yet normative, versioned, language-neutral specification fixtures; those remain a Phase 3 deliverable.
+
+Team-memory and the source-specific Git commit fixture connector both emit records that pass the same SourceRecord validation boundary. A reusable connector author harness remains Phase 4 work.
 
 ## Alternatives Considered
 
@@ -268,7 +270,7 @@ The universal-ingestion phase completed when:
 4. explicit promotion produces evidence linked to source records and a policy version;
 5. a composed workflow exposes both ingestion and promotion results;
 6. team-memory operates as a connector without source-specific root exports;
-7. a source-independent canonical fixture corpus passes the same SDK and CLI boundary as the team-memory connector output;
+7. a second source-specific fixture connector passes the same SourceRecord conformance contract as team-memory;
 8. all public documentation describes the same neutral-first architecture.
 
 ## Non-Goals

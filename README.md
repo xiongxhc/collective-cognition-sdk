@@ -19,7 +19,8 @@ Runnable now:
 - explicit, versioned neutral-Evidence promotion and a composed workflow that preserves both stages;
 - a source-neutral `cc` CLI for validate, ingest, promote, and ingest-promote operations;
 - canonical valid and invalid conformance fixtures;
-- an experimental read-only team-memory SQLite connector that emits SourceRecord JSONL.
+- an experimental read-only team-memory SQLite connector that emits SourceRecord JSONL;
+- a small Git commit fixture connector used to prove a second source-specific module satisfies the same SourceRecord contract.
 
 Not implemented yet:
 
@@ -28,7 +29,7 @@ Not implemented yet:
 - Obsidian/Markdown integration;
 - automatic cognition from conversations.
 
-The team-memory connector proves that real source data can enter the neutral ingestion boundary. It is imported directly from `src/adapters/team-memory.ts`; no source-specific connector is exported from the root public API.
+The team-memory connector proves that real source data can enter the neutral ingestion boundary. It is imported directly from `src/adapters/team-memory.ts`. The Git fixture connector is imported directly from `src/adapters/git-commit.ts`. Neither source-specific connector is exported from the root public API.
 
 ## Universal Architecture
 

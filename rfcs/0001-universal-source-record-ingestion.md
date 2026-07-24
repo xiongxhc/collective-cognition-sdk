@@ -69,7 +69,7 @@ Rejected for ingestion because it loses a stable neutral boundary. Trusted calle
 - [x] Promote source records into evidence while preserving source and policy links.
 - [x] Report valid ingestion separately from failed promotion.
 - [x] Convert the team-memory integration into a conformant connector.
-- [x] Pass the same validation boundary with a source-independent canonical fixture corpus.
+- [x] Pass the same SourceRecord conformance contract with a second source-specific fixture connector.
 - [x] Verify that the root export surface contains no source-specific connector API.
 - [x] Verify that every repository Markdown file is current or explicitly historical.
 
@@ -79,6 +79,7 @@ Implementation evidence:
 - conformance suite: [`tests/conformance.test.ts`](../tests/conformance.test.ts);
 - generic CLI: [`src/cli.ts`](../src/cli.ts);
 - migrated connector: [`src/adapters/team-memory.ts`](../src/adapters/team-memory.ts);
+- second fixture connector: [`src/adapters/git-commit.ts`](../src/adapters/git-commit.ts);
 - completion commands: `npm test`, `npx tsc --noEmit`, `npm run check`, and `npm run example`;
 - bounded live verification: team-memory SourceRecord export, generic validation, explicit `neutral-evidence-v1` promotion, complete JSON-line parsing, and unchanged source-ledger metadata.
 

@@ -30,7 +30,7 @@ The historical team-memory direct-to-Evidence path was replaced. The current con
 
 ## Current Phase 2 Fixtures
 
-`fixtures/source-records/valid.jsonl` contains canonical SourceRecords directly. It covers string and structured content plus optional source instance, observed time, content hash, actor, context, and namespaced extensions.
+`fixtures/source-records/valid.jsonl` contains canonical SourceRecords directly. It covers string and structured content plus optional source instance, observed time, opaque integrity metadata, actor, context, and namespaced extensions.
 
 `fixtures/source-records/invalid.jsonl` contains fixture envelopes with:
 
@@ -38,7 +38,9 @@ The historical team-memory direct-to-Evidence path was replaced. The current con
 - `expectedCode`: the stable error code;
 - `record`: the SourceRecord-shaped value to validate.
 
-The invalid corpus covers missing revision identity, invalid timestamp, non-string media type, and unsupported schema version. The conformance suite verifies SDK and CLI outcomes plus equivalent canonical JSON and JSONL results.
+The invalid corpus covers missing revision identity, invalid timestamp, non-string media type, and unsupported schema version. The conformance suite verifies SDK and CLI outcomes plus equivalent canonical JSON and JSONL results. It also proves the team-memory and Git fixture connectors emit valid records under the same SourceRecord contract.
+
+These Phase 2 files are implementation conformance fixtures for the TypeScript reference source. Phase 3 will define normative, versioned, language-neutral fixtures and schemas suitable for independent implementations.
 
 ## Planned Normative Content
 
@@ -46,6 +48,7 @@ Specification work will add:
 
 - cognitive objects, relationships, lifecycle transitions, authorization, events, and errors;
 - versioned machine-readable schemas;
+- normative, versioned, language-neutral conformance fixtures;
 - compatibility, extension, versioning, and deprecation rules;
 - a mapping from every normative rule to an executable check or explicit prose-only rationale.
 

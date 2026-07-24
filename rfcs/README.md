@@ -4,7 +4,7 @@ RFCs are the contribution path for changes that affect collective-cognition sema
 
 ## Implemented RFCs
 
-- [RFC 0001: Universal Source-Record Ingestion](0001-universal-source-record-ingestion.md) — implemented in Phase 2 with canonical fixtures, conformance tests, generic CLI operations, and a migrated team-memory connector.
+- [RFC 0001: Universal Source-Record Ingestion](0001-universal-source-record-ingestion.md) — implemented in Phase 2 with canonical fixtures, conformance tests, generic CLI operations, a migrated team-memory connector, and a second Git fixture connector.
 
 ## When an RFC Is Required
 

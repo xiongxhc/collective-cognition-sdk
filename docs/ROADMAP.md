@@ -47,6 +47,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Stable item-level batch results and errors.
 - [x] A generic CLI for validate, ingest, promote, and ingest-promote operations.
 - [x] Migration of team-memory into a connector that emits source records.
+- [x] A small Git commit fixture connector as the second source-specific conformance implementation.
 
 **Acceptance checks**
 
@@ -56,6 +57,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Promotion preserves source-record and policy links.
 - [x] Valid ingestion remains observable when promotion fails.
 - [x] Root exports contain no team-memory-specific API.
+- [x] Team-memory and a second source-specific Git fixture connector emit valid records under the same SourceRecord contract.
 - [x] Every repository Markdown file is either current or explicitly historical.
 
 **Completion evidence**
@@ -84,7 +86,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 **Deliverables**
 
 - A language-neutral charter and normative definitions for objects, source records, relationships, transitions, authorization, errors, and events.
-- Versioned machine-readable schemas and canonical conformance fixtures.
+- Versioned machine-readable schemas and normative, versioned, language-neutral conformance fixtures.
 - Compatibility, extension naming, versioning, and deprecation rules.
 - Stable package exports, build artifacts, API documentation, and external distribution readiness criteria.
 - Supported-runtime and security policy.
