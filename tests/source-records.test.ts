@@ -166,6 +166,51 @@ test("rejects malformed external records and malformed serialized JSON", () => {
   );
 });
 
+test("rejects unknown top-level and source fields outside extensions", () => {
+  const record = {
+    ...inputFor(),
+    schemaVersion: SOURCE_RECORD_SCHEMA_VERSION,
+    extensions: {
+      polarity: "supports",
+      confidence: 0.9,
+      authority: "human:owner",
+    },
+  };
+
+  for (const [field, value] of [
+    ["unexpected", true],
+    ["polarity", "supports"],
+    ["confidence", 0.9],
+    ["authority", "human:owner"],
+  ] as const) {
+    assert.throws(
+      () => validateSourceRecord({ ...record, [field]: value }),
+      (error: unknown) =>
+        error instanceof DomainError &&
+        error.code === DomainErrorCode.INVALID_SOURCE_RECORD &&
+        error.details.field === field,
+      field,
+    );
+  }
+
+  for (const field of ["unexpected", "polarity", "confidence", "authority"]) {
+    assert.throws(
+      () =>
+        validateSourceRecord({
+          ...record,
+          source: { ...record.source, [field]: "not-allowed" },
+        }),
+      (error: unknown) =>
+        error instanceof DomainError &&
+        error.code === DomainErrorCode.INVALID_SOURCE_RECORD &&
+        error.details.field === `source.${field}`,
+      `source.${field}`,
+    );
+  }
+
+  assert.doesNotThrow(() => validateSourceRecord(record));
+});
+
 test("canonicalizes JSON with deterministic object-key ordering", () => {
   assert.equal(
     canonicalizeJson({ z: [{ b: 2, a: 1 }, 3], a: { b: true, a: null } }),

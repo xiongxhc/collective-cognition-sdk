@@ -235,7 +235,7 @@ The tracked roadmap now contains these phases:
 1. **Runnable cognitive core:** the implemented local object model, transitions, authorization, events, examples, and team-memory experiment.
 2. **Universal ingestion foundation:** the implemented neutral source records, generic JSON/JSONL, explicit promotion, and connector boundaries.
 3. **Specification and package stabilization:** publish normative schemas, conformance fixtures, stable exports, and distribution criteria.
-4. **Adapter ecosystem foundations:** migrate team-memory, add the Obsidian/Markdown adapter, and publish connector tooling.
+4. **Adapter ecosystem foundations:** maintain and package the already-migrated team-memory connector, add the Obsidian/Markdown adapter, and publish connector tooling.
 5. **Cross-connector interoperability:** prove independent connectors use the same generic ingestion semantics.
 6. **Governance and evolution:** govern extensions, migrations, authorization policies, and connector maintenance.
 7. **Real-team validation:** measure usefulness, reliability, and maintenance cost in opted-in teams.

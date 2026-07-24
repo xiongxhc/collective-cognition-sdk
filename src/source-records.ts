@@ -50,6 +50,26 @@ const isoTimestampPattern =
 const mediaTypePattern =
   /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+\/[!#$%&'*+\-.^_`|~0-9A-Za-z]+(?:\s*;\s*[!#$%&'*+\-.^_`|~0-9A-Za-z]+=(?:[!#$%&'*+\-.^_`|~0-9A-Za-z]+|"(?:[^"\\\r\n]|\\.)*"))*$/;
 
+const sourceFields = new Set(["system", "instance"]);
+const sourceRecordFields = new Set([
+  "schemaVersion",
+  "id",
+  "source",
+  "sourceId",
+  "revisionId",
+  "capturedAt",
+  "observedAt",
+  "mediaType",
+  "content",
+  "contentHash",
+  "actorId",
+  "context",
+  "extensions",
+]);
+const sourceRecordInputFields = new Set(
+  [...sourceRecordFields].filter((field) => field !== "schemaVersion"),
+);
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -78,7 +98,19 @@ function invalidSourceRecord(
 }
 
 function validateSource(value: unknown): asserts value is SourceRecordSource {
-  if (!isJsonObject(value) || !isNonEmptyString(value.system)) {
+  if (!isJsonObject(value)) {
+    invalidSourceRecord("Source system must be a non-empty string.", {
+      field: "source.system",
+    });
+  }
+  for (const field of Object.keys(value)) {
+    if (!sourceFields.has(field)) {
+      invalidSourceRecord(`Source field ${field} is not supported.`, {
+        field: `source.${field}`,
+      });
+    }
+  }
+  if (!isNonEmptyString(value.system)) {
     invalidSourceRecord("Source system must be a non-empty string.", {
       field: "source.system",
     });
@@ -94,6 +126,16 @@ function validateSourceRecordFields(
   value: JsonObject,
   includeSchemaVersion: boolean,
 ): void {
+  const allowedFields = includeSchemaVersion
+    ? sourceRecordFields
+    : sourceRecordInputFields;
+  for (const field of Object.keys(value)) {
+    if (!allowedFields.has(field)) {
+      invalidSourceRecord(`Source record field ${field} is not supported.`, {
+        field,
+      });
+    }
+  }
   if (
     includeSchemaVersion &&
     value.schemaVersion !== SOURCE_RECORD_SCHEMA_VERSION
@@ -193,6 +235,11 @@ export function validateSourceRecord(value: unknown): asserts value is SourceRec
   validateSourceRecordFields(value, true);
 }
 
+export function normalizeSourceRecord(value: unknown): SourceRecord {
+  validateSourceRecord(value);
+  return freezeSourceRecord(value);
+}
+
 export function canonicalizeJson(value: JsonValue): string {
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value);
@@ -231,8 +278,7 @@ export function deserializeSourceRecord(json: string): SourceRecord {
     );
   }
 
-  validateSourceRecord(value);
-  return freezeSourceRecord(value);
+  return normalizeSourceRecord(value);
 }
 
 export function sourceRevisionKey(record: SourceRecord): string {

@@ -72,7 +72,7 @@ const neutralRuntimeExports = [
   "ingestSourceRecordText",
   "ingestSourceRecords",
   "neutralEvidencePolicyV1",
-  "promoteSourceRecordToEvidence",
+  "promoteSourceRecordsToEvidence",
   "serializeObject",
   "serializeSourceRecord",
   "sourceRevisionKey",
@@ -169,8 +169,10 @@ test("rejects every canonical invalid fixture with its expected code", () => {
     fixtures.map(() => "rejected"),
   );
   fixtures.forEach((fixture, index) => {
+    const item = sdkResult.items[index];
+    assert.ok(item?.status === "rejected", fixture.description);
     assert.equal(
-      sdkResult.items[index]?.error?.code,
+      item.error.code,
       fixture.expectedCode,
       fixture.description,
     );

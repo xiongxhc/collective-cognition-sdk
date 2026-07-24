@@ -1,11 +1,11 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 
-import { DomainError } from "./errors.ts";
+import { DomainError, DomainErrorCode } from "./errors.ts";
 import { ingestSourceRecordText } from "./ingestion.ts";
 import {
   ingestAndPromoteEvidence,
   neutralEvidencePolicyV1,
-  promoteSourceRecordToEvidence,
+  promoteSourceRecordsToEvidence,
 } from "./promotion.ts";
 import type {
   IngestionBatchResult,
@@ -14,17 +14,43 @@ import type {
 import type {
   EvidencePromotionContext,
   IngestAndPromoteEvidenceResult,
+  PromotionFailure,
 } from "./promotion.ts";
+import type { JsonObject } from "./types.ts";
 
 type Command = "validate" | "ingest" | "promote" | "ingest-promote";
 type InputFormat = "json" | "jsonl";
+type CliStage =
+  | "arguments"
+  | "input"
+  | "ingestion"
+  | "promotion"
+  | "output";
+
+interface CliLimits {
+  readonly maxInputBytes: number;
+  readonly maxRecords: number;
+  readonly maxRecordBytes: number;
+}
 
 interface CliOptions {
   readonly command: Command;
   readonly input: string;
   readonly format: InputFormat;
+  readonly limits: CliLimits;
   readonly promotion?: EvidencePromotionContext;
 }
+
+interface CliDiagnostic {
+  readonly code: string;
+  readonly message: string;
+  readonly details: JsonObject;
+  readonly stage: CliStage;
+}
+
+const DEFAULT_MAX_INPUT_BYTES = 10_485_760;
+const DEFAULT_MAX_RECORDS = 10_000;
+const DEFAULT_MAX_RECORD_BYTES = 1_048_576;
 
 const commands = new Set<Command>([
   "validate",
@@ -32,11 +58,18 @@ const commands = new Set<Command>([
   "promote",
   "ingest-promote",
 ]);
-const baseOptionNames = ["input", "format"] as const;
+const baseOptionNames = [
+  "input",
+  "format",
+  "max-input-bytes",
+  "max-records",
+  "max-record-bytes",
+] as const;
 const promotionOptionNames = [
   "policy",
   "hypothesis-id",
   "context-id",
+  "rationale",
   "initiator-id",
   "executor-id",
   "accountable-id",
@@ -47,8 +80,24 @@ const optionNames: ReadonlySet<string> = new Set([
   ...promotionOptionNames,
 ]);
 
+class CliError extends Error {
+  readonly code: string;
+  readonly details: JsonObject;
+
+  constructor(code: string, message: string, details: JsonObject = {}) {
+    super(message);
+    this.name = "CliError";
+    this.code = code;
+    this.details = details;
+  }
+}
+
 function isCommand(value: unknown): value is Command {
   return typeof value === "string" && commands.has(value as Command);
+}
+
+function invalidArgument(message: string, details: JsonObject = {}): never {
+  throw new CliError("INVALID_ARGUMENT", message, details);
 }
 
 function requiredValue(
@@ -57,7 +106,26 @@ function requiredValue(
 ): string {
   const value = values[name];
   if (value === undefined || value.trim().length === 0) {
-    throw new Error(`--${name} is required.`);
+    invalidArgument(`--${name} is required.`, { option: `--${name}` });
+  }
+  return value;
+}
+
+function positiveSafeInteger(
+  values: Readonly<Record<string, string>>,
+  name: string,
+  defaultValue: number,
+): number {
+  const rawValue = values[name];
+  if (rawValue === undefined) {
+    return defaultValue;
+  }
+  const value = Number(rawValue);
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    invalidArgument(`--${name} must be a positive safe integer.`, {
+      option: `--${name}`,
+      value: rawValue,
+    });
   }
   return value;
 }
@@ -65,8 +133,9 @@ function requiredValue(
 function parseArguments(args: readonly string[]): CliOptions {
   const command = args[0];
   if (!isCommand(command)) {
-    throw new Error(
+    invalidArgument(
       "Command must be validate, ingest, promote, or ingest-promote.",
+      { command: command ?? null },
     );
   }
 
@@ -81,7 +150,9 @@ function parseArguments(args: readonly string[]): CliOptions {
       value === undefined ||
       values[option.slice(2)] !== undefined
     ) {
-      throw new Error(`Invalid argument: ${option ?? ""}`);
+      invalidArgument(`Invalid argument: ${option ?? ""}`, {
+        argument: option ?? "",
+      });
     }
     values[option.slice(2)] = value;
   }
@@ -89,32 +160,60 @@ function parseArguments(args: readonly string[]): CliOptions {
   const input = requiredValue(values, "input");
   const format = requiredValue(values, "format");
   if (format !== "json" && format !== "jsonl") {
-    throw new Error("--format must be json or jsonl.");
+    invalidArgument("--format must be json or jsonl.", {
+      option: "--format",
+      value: format,
+    });
   }
+  const limits = {
+    maxInputBytes: positiveSafeInteger(
+      values,
+      "max-input-bytes",
+      DEFAULT_MAX_INPUT_BYTES,
+    ),
+    maxRecords: positiveSafeInteger(
+      values,
+      "max-records",
+      DEFAULT_MAX_RECORDS,
+    ),
+    maxRecordBytes: positiveSafeInteger(
+      values,
+      "max-record-bytes",
+      DEFAULT_MAX_RECORD_BYTES,
+    ),
+  };
 
   const requiresPromotion =
     command === "promote" || command === "ingest-promote";
   if (!requiresPromotion) {
     for (const name of promotionOptionNames) {
       if (values[name] !== undefined) {
-        throw new Error(`--${name} is not valid for ${command}.`);
+        invalidArgument(`--${name} is not valid for ${command}.`, {
+          option: `--${name}`,
+          command,
+        });
       }
     }
-    return { command, input, format };
+    return { command, input, format, limits };
   }
 
   const policy = requiredValue(values, "policy");
   if (policy !== "neutral-evidence-v1") {
-    throw new Error("--policy must be neutral-evidence-v1.");
+    invalidArgument("--policy must be neutral-evidence-v1.", {
+      option: "--policy",
+      value: policy,
+    });
   }
 
   return {
     command,
     input,
     format,
+    limits,
     promotion: {
       hypothesisId: requiredValue(values, "hypothesis-id"),
       contextId: requiredValue(values, "context-id"),
+      rationale: requiredValue(values, "rationale"),
       promotedAt: requiredValue(values, "promoted-at"),
       attribution: {
         initiatorId: requiredValue(values, "initiator-id"),
@@ -126,26 +225,16 @@ function parseArguments(args: readonly string[]): CliOptions {
 }
 
 function serializeItemResult(item: IngestionItemResult): object {
-  if (item.error === undefined) {
+  if (item.status !== "rejected") {
     return item;
   }
   return {
     ...item,
-    error: serializeError(item.error),
-  };
-}
-
-function serializeError(error: unknown): object {
-  if (error instanceof DomainError) {
-    return {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-    };
-  }
-  return {
-    code: "CLI_ERROR",
-    message: error instanceof Error ? error.message : String(error),
+    error: {
+      code: item.error.code,
+      message: item.error.message,
+      details: item.error.details,
+    },
   };
 }
 
@@ -156,6 +245,15 @@ function serializeIngestionResult(result: IngestionBatchResult): object {
   };
 }
 
+function serializeComposedResult(
+  result: IngestAndPromoteEvidenceResult,
+): object {
+  return {
+    ingestion: serializeIngestionResult(result.ingestion),
+    promotion: result.promotion,
+  };
+}
+
 function writeJsonLine(
   stream: NodeJS.WriteStream,
   value: unknown,
@@ -163,7 +261,7 @@ function writeJsonLine(
   stream.write(`${JSON.stringify(value)}\n`);
 }
 
-function writeDiagnostics(result: IngestionBatchResult): boolean {
+function writeItemDiagnostics(result: IngestionBatchResult): boolean {
   let rejected = false;
   for (const item of result.items) {
     if (item.status === "rejected") {
@@ -178,80 +276,173 @@ function requirePromotion(
   options: CliOptions,
 ): EvidencePromotionContext {
   if (options.promotion === undefined) {
-    throw new Error(`Promotion arguments are required for ${options.command}.`);
+    throw new CliError(
+      "INVALID_ARGUMENT",
+      `Promotion arguments are required for ${options.command}.`,
+    );
   }
   return options.promotion;
 }
 
-function main(): void {
-  const options = parseArguments(process.argv.slice(2));
-  const text = readFileSync(options.input === "-" ? 0 : options.input, "utf8");
-  const ingestion = ingestSourceRecordText(text, {
-    format: options.format,
-    mode: "collect-all",
-  });
-  let promotionError: object | undefined;
+function limitExceeded(
+  maximum: number,
+  actual: number,
+): DomainError {
+  return new DomainError(
+    DomainErrorCode.INGESTION_LIMIT_EXCEEDED,
+    "Ingestion maxInputBytes exceeded.",
+    {
+      limit: "maxInputBytes",
+      maximum,
+      actual,
+    },
+  );
+}
 
-  if (options.command === "validate") {
-    for (const item of ingestion.items) {
-      writeJsonLine(process.stdout, serializeItemResult(item));
+function inputReadError(input: string, error: unknown): CliError {
+  const causeCode =
+    typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      typeof error.code === "string"
+      ? error.code
+      : "UNKNOWN";
+  return new CliError(
+    "INPUT_READ_ERROR",
+    "Unable to read CLI input.",
+    { input, causeCode },
+  );
+}
+
+function readFileInput(path: string, maxInputBytes: number): string {
+  let size: number;
+  try {
+    size = statSync(path).size;
+  } catch (error) {
+    throw inputReadError(path, error);
+  }
+  if (size > maxInputBytes) {
+    throw limitExceeded(maxInputBytes, size);
+  }
+
+  try {
+    return readFileSync(path, "utf8");
+  } catch (error) {
+    throw inputReadError(path, error);
+  }
+}
+
+async function readStdinInput(maxInputBytes: number): Promise<string> {
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  for await (const chunk of process.stdin) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buffer.byteLength;
+    if (totalBytes > maxInputBytes) {
+      throw limitExceeded(maxInputBytes, totalBytes);
     }
-  } else if (options.command === "ingest") {
-    for (const record of ingestion.acceptedRecords) {
-      writeJsonLine(process.stdout, record);
-    }
-  } else if (options.command === "promote") {
-    const promotion = requirePromotion(options);
-    const evidence = ingestion.acceptedRecords.map((record) =>
-      promoteSourceRecordToEvidence(
-        { ...promotion, record },
-        neutralEvidencePolicyV1,
-      ),
-    );
-    for (const object of evidence) {
-      writeJsonLine(process.stdout, object);
-    }
-  } else {
-    const promotion = requirePromotion(options);
-    let composed: IngestAndPromoteEvidenceResult = {
-      ingestion,
-      promotions: [],
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks, totalBytes).toString("utf8");
+}
+
+async function readInput(options: CliOptions): Promise<string> {
+  return options.input === "-"
+    ? readStdinInput(options.limits.maxInputBytes)
+    : readFileInput(options.input, options.limits.maxInputBytes);
+}
+
+function topLevelDiagnostic(
+  error: unknown,
+  stage: CliStage,
+): CliDiagnostic {
+  if (error instanceof DomainError || error instanceof CliError) {
+    return {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      stage,
     };
-    try {
-      composed = ingestAndPromoteEvidence(
-        ingestion,
-        promotion,
+  }
+  return {
+    code: "CLI_ERROR",
+    message: error instanceof Error ? error.message : String(error),
+    details: {},
+    stage,
+  };
+}
+
+function promotionDiagnostic(error: PromotionFailure): CliDiagnostic {
+  return {
+    code: error.code,
+    message: error.message,
+    details: error.details,
+    stage: "promotion",
+  };
+}
+
+async function main(): Promise<void> {
+  let stage: CliStage = "arguments";
+  try {
+    const options = parseArguments(process.argv.slice(2));
+    stage = "input";
+    const text = await readInput(options);
+    stage = "ingestion";
+    const ingestion = ingestSourceRecordText(text, {
+      format: options.format,
+      mode: "collect-all",
+      maxInputBytes: options.limits.maxInputBytes,
+      maxRecords: options.limits.maxRecords,
+      maxRecordBytes: options.limits.maxRecordBytes,
+    });
+    let promotionFailure: PromotionFailure | undefined;
+
+    if (options.command === "validate") {
+      stage = "output";
+      for (const item of ingestion.items) {
+        writeJsonLine(process.stdout, serializeItemResult(item));
+      }
+    } else if (options.command === "ingest") {
+      stage = "output";
+      for (const record of ingestion.acceptedRecords) {
+        writeJsonLine(process.stdout, record);
+      }
+    } else if (options.command === "promote") {
+      stage = "promotion";
+      const evidence = promoteSourceRecordsToEvidence(
+        {
+          ...requirePromotion(options),
+          records: ingestion.acceptedRecords,
+        },
         neutralEvidencePolicyV1,
       );
-    } catch (error) {
-      promotionError = serializeError(error);
+      stage = "output";
+      writeJsonLine(process.stdout, evidence);
+    } else {
+      stage = "promotion";
+      const composed = ingestAndPromoteEvidence(
+        ingestion,
+        requirePromotion(options),
+        neutralEvidencePolicyV1,
+      );
+      if (composed.promotion.status === "failed") {
+        promotionFailure = composed.promotion.error;
+      }
+      stage = "output";
+      writeJsonLine(process.stdout, serializeComposedResult(composed));
     }
-    writeJsonLine(process.stdout, {
-      ingestion: serializeIngestionResult(composed.ingestion),
-      promotions: composed.promotions,
-      ...(promotionError === undefined ? {} : { promotionError }),
-    });
-  }
 
-  const rejected = writeDiagnostics(ingestion);
-  if (promotionError !== undefined) {
-    writeJsonLine(process.stderr, {
-      stage: "promotion",
-      error: promotionError,
-    });
-  }
-  if (rejected || promotionError !== undefined) {
+    const rejected = writeItemDiagnostics(ingestion);
+    if (promotionFailure !== undefined) {
+      writeJsonLine(process.stderr, promotionDiagnostic(promotionFailure));
+    }
+    if (rejected || promotionFailure !== undefined) {
+      process.exitCode = 1;
+    }
+  } catch (error) {
+    writeJsonLine(process.stderr, topLevelDiagnostic(error, stage));
     process.exitCode = 1;
   }
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(
-    error instanceof DomainError || error instanceof Error
-      ? error.message
-      : String(error),
-  );
-  process.exitCode = 1;
-}
+await main();

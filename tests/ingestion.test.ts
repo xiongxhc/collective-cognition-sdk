@@ -8,7 +8,11 @@ import {
   ingestSourceRecordText,
   ingestSourceRecords,
 } from "../src/index.ts";
-import type { CreateSourceRecordInput } from "../src/index.ts";
+import type {
+  CreateSourceRecordInput,
+  IngestionItemResult,
+  SourceRecord,
+} from "../src/index.ts";
 
 function inputFor(
   overrides: Partial<CreateSourceRecordInput> = {},
@@ -29,6 +33,36 @@ function recordFor(overrides: Partial<CreateSourceRecordInput> = {}) {
   return createSourceRecord(inputFor(overrides));
 }
 
+function itemIdentity(item: IngestionItemResult): string {
+  switch (item.status) {
+    case "accepted":
+      return item.record.id;
+    case "duplicate":
+      return item.retainedRecordId;
+    case "rejected":
+      return item.error.code;
+    default:
+      return assertNever(item);
+  }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unexpected ingestion item: ${JSON.stringify(value)}`);
+}
+
+function expectLimitExceeded(
+  action: () => unknown,
+  limit: "maxInputBytes" | "maxRecords" | "maxRecordBytes",
+): void {
+  assert.throws(
+    action,
+    (error: unknown) =>
+      error instanceof DomainError &&
+      error.code === DomainErrorCode.INGESTION_LIMIT_EXCEEDED &&
+      error.details.limit === limit,
+  );
+}
+
 test("accepts valid source records and returns retained records", () => {
   const record = recordFor();
   const result = ingestSourceRecords([record]);
@@ -37,6 +71,51 @@ test("accepts valid source records and returns retained records", () => {
     { index: 0, status: "accepted", record },
   ]);
   assert.deepEqual(result.acceptedRecords, [record]);
+});
+
+test("normalizes accepted external records into isolated deeply frozen values", () => {
+  const external = {
+    ...inputFor(),
+    schemaVersion: "0.1.0",
+    source: { system: "git", instance: "github.example/acme" },
+    content: { nested: { summary: "Original content." } },
+    context: { labels: ["external"] },
+    extensions: { "example:metadata": { retained: true } },
+  };
+  const result = ingestSourceRecords([external]);
+  const item = result.items[0];
+
+  assert.equal(item?.status, "accepted");
+  assert.ok(item?.status === "accepted");
+  assert.equal(itemIdentity(item), external.id);
+  assert.notEqual(item.record, external);
+  assert.equal(item.record, result.acceptedRecords[0]);
+
+  external.source.system = "mutated";
+  external.content.nested.summary = "Mutated content.";
+  external.context.labels.push("mutated");
+  external.extensions["example:metadata"].retained = false;
+
+  assert.deepEqual(item.record.source, {
+    system: "git",
+    instance: "github.example/acme",
+  });
+  assert.deepEqual(item.record.content, {
+    nested: { summary: "Original content." },
+  });
+  assert.deepEqual(item.record.context, { labels: ["external"] });
+  assert.deepEqual(item.record.extensions, {
+    "example:metadata": { retained: true },
+  });
+  assert.equal(Object.isFrozen(item.record), true);
+  assert.equal(Object.isFrozen(item.record.source), true);
+  assert.equal(Object.isFrozen(item.record.content), true);
+  assert.equal(
+    Object.isFrozen((item.record.content as { nested: object }).nested),
+    true,
+  );
+  assert.equal(Object.isFrozen(item.record.context), true);
+  assert.equal(Object.isFrozen(item.record.extensions), true);
 });
 
 test("classifies matching source revisions as duplicates", () => {
@@ -49,7 +128,9 @@ test("classifies matching source revisions as duplicates", () => {
     "accepted",
     "duplicate",
   ]);
-  assert.equal(result.items[1]?.retainedRecordId, record.id);
+  const duplicate = result.items[1];
+  assert.ok(duplicate?.status === "duplicate");
+  assert.equal(duplicate.retainedRecordId, record.id);
   assert.deepEqual(result.acceptedRecords, [record]);
 });
 
@@ -65,8 +146,9 @@ test("rejects different content for an existing source revision", () => {
   });
 
   assert.equal(result.items[0]?.status, "rejected");
-  const collisionError = result.items[0]?.error;
-  assert.ok(collisionError);
+  const collisionItem = result.items[0];
+  assert.ok(collisionItem?.status === "rejected");
+  const collisionError = collisionItem.error;
   assert.equal(
     collisionError.code,
     DomainErrorCode.SOURCE_REVISION_COLLISION,
@@ -92,6 +174,33 @@ test("classifies existing matching source revisions as duplicates", () => {
   assert.deepEqual(result.acceptedRecords, []);
 });
 
+test("accepts changed content under a new immutable revision", () => {
+  const retained = recordFor();
+  const incoming = JSON.parse(
+    JSON.stringify({
+      ...retained,
+      id: "source-record:new-revision",
+      revisionId: "revision:2",
+      content: { summary: "Changed content in a new revision." },
+    }),
+  ) as SourceRecord;
+  const result = ingestSourceRecords([incoming], {
+    existingRecords: [retained],
+  });
+  const item = result.items[0];
+
+  assert.equal(item?.status, "accepted");
+  assert.ok(item?.status === "accepted");
+  assert.notEqual(item.record, incoming);
+  assert.equal(item.record.revisionId, "revision:2");
+  assert.deepEqual(item.record.content, {
+    summary: "Changed content in a new revision.",
+  });
+  assert.deepEqual(result.acceptedRecords, [item.record]);
+  assert.equal(Object.isFrozen(item.record), true);
+  assert.deepEqual(retained.content, { summary: "Added source records." });
+});
+
 test("collects malformed source records without hiding valid records", () => {
   const record = recordFor();
   const result = ingestSourceRecords(
@@ -104,8 +213,9 @@ test("collects malformed source records without hiding valid records", () => {
     "rejected",
     "accepted",
   ]);
-  const malformedRecordError = result.items[1]?.error;
-  assert.ok(malformedRecordError);
+  const malformedRecord = result.items[1];
+  assert.ok(malformedRecord?.status === "rejected");
+  const malformedRecordError = malformedRecord.error;
   assert.equal(malformedRecordError.code, DomainErrorCode.INVALID_SOURCE_RECORD);
   assert.deepEqual(result.acceptedRecords.map((item) => item.id), [
     record.id,
@@ -154,6 +264,51 @@ test("ignores blank JSONL lines and reports one-based line numbers", () => {
   assert.deepEqual(result.acceptedRecords, [first, second]);
 });
 
+test("enforces caller-configured SDK ingestion limits at exact UTF-8 boundaries", () => {
+  const first = recordFor();
+  const second = recordFor({
+    id: "source-record:2",
+    sourceId: "commit:def",
+    revisionId: "def",
+  });
+  const jsonl = JSON.stringify(first);
+  const inputBytes = Buffer.byteLength(jsonl);
+  const recordBytes = Buffer.byteLength(JSON.stringify(first));
+
+  assert.equal(
+    ingestSourceRecordText(jsonl, {
+      format: "jsonl",
+      maxInputBytes: inputBytes,
+      maxRecordBytes: recordBytes,
+    }).acceptedRecords.length,
+    1,
+  );
+  assert.equal(
+    ingestSourceRecords([first], {
+      maxRecords: 1,
+      maxRecordBytes: recordBytes,
+    }).acceptedRecords.length,
+    1,
+  );
+
+  expectLimitExceeded(
+    () =>
+      ingestSourceRecordText(jsonl, {
+        format: "jsonl",
+        maxInputBytes: inputBytes - 1,
+      }),
+    "maxInputBytes",
+  );
+  expectLimitExceeded(
+    () => ingestSourceRecords([first, second], { maxRecords: 1 }),
+    "maxRecords",
+  );
+  expectLimitExceeded(
+    () => ingestSourceRecords([first], { maxRecordBytes: recordBytes - 1 }),
+    "maxRecordBytes",
+  );
+});
+
 test("collects malformed JSONL lines without hiding valid records", () => {
   const first = recordFor();
   const second = recordFor({ id: "source-record:2", sourceId: "commit:def" });
@@ -168,8 +323,9 @@ test("collects malformed JSONL lines without hiding valid records", () => {
     "accepted",
   ]);
   assert.deepEqual(result.items.map((item) => item.line), [1, 2, 3]);
-  const malformedJsonlError = result.items[1]?.error;
-  assert.ok(malformedJsonlError);
+  const malformedJsonl = result.items[1];
+  assert.ok(malformedJsonl?.status === "rejected");
+  const malformedJsonlError = malformedJsonl.error;
   assert.equal(malformedJsonlError.code, DomainErrorCode.SERIALIZATION_ERROR);
   assert.deepEqual(result.acceptedRecords, [first, second]);
 });

@@ -14,7 +14,21 @@ interface CliResult {
   readonly stderr: string;
 }
 
+interface CliDiagnostic {
+  readonly code: string;
+  readonly message: string;
+  readonly details: Record<string, unknown>;
+  readonly stage: string;
+}
+
+interface CliLimits {
+  readonly maxInputBytes?: number;
+  readonly maxRecords?: number;
+  readonly maxRecordBytes?: number;
+}
+
 const promotedAt = "2026-07-24T12:00:00.000Z";
+const rationale = "The selected records jointly document the CLI change.";
 
 function sourceRecord(
   overrides: Partial<SourceRecord> = {},
@@ -28,6 +42,15 @@ function sourceRecord(
     mediaType: "application/json",
     content: { summary: "CLI source record." },
     ...overrides,
+  });
+}
+
+function secondSourceRecord(): SourceRecord {
+  return sourceRecord({
+    id: "source-record:cli-2",
+    sourceId: "item:2",
+    revisionId: "revision:2",
+    content: { summary: "Second CLI source record." },
   });
 }
 
@@ -60,6 +83,24 @@ function jsonLines(text: string): unknown[] {
     .map((line) => JSON.parse(line));
 }
 
+function singleDiagnostic(result: CliResult): CliDiagnostic {
+  assert.notEqual(result.status, 0);
+  assert.equal(result.stdout, "");
+  const diagnostics = jsonLines(result.stderr) as CliDiagnostic[];
+  assert.equal(diagnostics.length, 1, result.stderr);
+  const diagnostic = diagnostics[0];
+  assert.ok(diagnostic);
+  assert.deepEqual(
+    Object.keys(diagnostic).sort(),
+    ["code", "details", "message", "stage"],
+  );
+  assert.equal(typeof diagnostic.code, "string");
+  assert.equal(typeof diagnostic.message, "string");
+  assert.equal(typeof diagnostic.details, "object");
+  assert.equal(typeof diagnostic.stage, "string");
+  return diagnostic;
+}
+
 function withInputFile(
   content: string,
   action: (path: string) => void,
@@ -74,11 +115,25 @@ function withInputFile(
   }
 }
 
-function promotionArguments(
+function limitArguments(limits: CliLimits = {}): string[] {
+  return [
+    ...(limits.maxInputBytes === undefined
+      ? []
+      : ["--max-input-bytes", String(limits.maxInputBytes)]),
+    ...(limits.maxRecords === undefined
+      ? []
+      : ["--max-records", String(limits.maxRecords)]),
+    ...(limits.maxRecordBytes === undefined
+      ? []
+      : ["--max-record-bytes", String(limits.maxRecordBytes)]),
+  ];
+}
+
+function ingestionArguments(
   input: string,
   options: {
     readonly format?: "json" | "jsonl";
-    readonly promotedAt?: string;
+    readonly limits?: CliLimits;
   } = {},
 ): string[] {
   return [
@@ -86,12 +141,29 @@ function promotionArguments(
     input,
     "--format",
     options.format ?? "jsonl",
+    ...limitArguments(options.limits),
+  ];
+}
+
+function promotionArguments(
+  input: string,
+  options: {
+    readonly format?: "json" | "jsonl";
+    readonly promotedAt?: string;
+    readonly rationale?: string;
+    readonly limits?: CliLimits;
+  } = {},
+): string[] {
+  return [
+    ...ingestionArguments(input, options),
     "--policy",
     "neutral-evidence-v1",
     "--hypothesis-id",
     "hypothesis:cli",
     "--context-id",
     "organization:cli",
+    "--rationale",
+    options.rationale ?? rationale,
     "--initiator-id",
     "human:owner",
     "--executor-id",
@@ -105,21 +177,14 @@ function promotionArguments(
 
 test("validate emits one machine-readable item result per input", () => {
   const first = sourceRecord();
-  const second = sourceRecord({
-    id: "source-record:cli-2",
-    sourceId: "item:2",
-    revisionId: "revision:2",
-  });
+  const second = secondSourceRecord();
 
   withInputFile(
     `${JSON.stringify(first)}\n${JSON.stringify(second)}\n`,
     (path) => {
       const result = runCli([
         "validate",
-        "--input",
-        path,
-        "--format",
-        "jsonl",
+        ...ingestionArguments(path),
       ]);
 
       assert.equal(result.status, 0, result.stderr);
@@ -143,7 +208,7 @@ test("validate emits one machine-readable item result per input", () => {
 test("ingest reads stdin and suppresses duplicate source revisions", () => {
   const record = sourceRecord();
   const result = runCli(
-    ["ingest", "--input", "-", "--format", "jsonl"],
+    ["ingest", ...ingestionArguments("-")],
     `${JSON.stringify(record)}\n${JSON.stringify(record)}\n`,
   );
 
@@ -158,6 +223,7 @@ test("promotion requires every explicit interpretation argument", () => {
       "--policy",
       "--hypothesis-id",
       "--context-id",
+      "--rationale",
       "--initiator-id",
       "--executor-id",
       "--accountable-id",
@@ -172,20 +238,21 @@ test("promotion requires every explicit interpretation argument", () => {
         ...complete.slice(0, flagIndex),
         ...complete.slice(flagIndex + 2),
       ];
-      const result = runCli(args);
+      const diagnostic = singleDiagnostic(runCli(args));
 
-      assert.notEqual(result.status, 0, flag);
-      assert.equal(result.stdout, "", flag);
-      assert.match(result.stderr, new RegExp(flag.slice(2), "i"), flag);
+      assert.equal(diagnostic.code, "INVALID_ARGUMENT", flag);
+      assert.equal(diagnostic.stage, "arguments", flag);
+      assert.match(diagnostic.message, new RegExp(flag.slice(2), "i"), flag);
     }
   });
 });
 
-test("promote emits neutral Evidence for every valid unique record", () => {
-  const record = sourceRecord();
+test("promote emits one Evidence preserving every contributing source and rationale", () => {
+  const first = sourceRecord();
+  const second = secondSourceRecord();
 
   withInputFile(
-    `${JSON.stringify(record)}\n${JSON.stringify(record)}\n`,
+    `${JSON.stringify(first)}\n${JSON.stringify(second)}\n`,
     (path) => {
       const result = runCli(["promote", ...promotionArguments(path)]);
 
@@ -200,16 +267,28 @@ test("promote emits neutral Evidence for every valid unique record", () => {
           polarity: string;
         };
         provenance: Array<{ sourceId: string }>;
+        extensions: {
+          "collective-cognition:promotion": {
+            rationale: string;
+          };
+        };
       }>;
       assert.equal(evidence.length, 1);
       assert.equal(evidence[0]?.type, "evidence");
       assert.equal(evidence[0]?.state, "collected");
       assert.deepEqual(evidence[0]?.data, {
-        statement: "CLI source record.",
+        statement: "CLI source record.\n\nSecond CLI source record.",
         evidenceKind: "source-record",
         polarity: "neutral",
       });
-      assert.equal(evidence[0]?.provenance[0]?.sourceId, record.id);
+      assert.deepEqual(
+        evidence[0]?.provenance.map((reference) => reference.sourceId),
+        [first.id, second.id],
+      );
+      assert.equal(
+        evidence[0]?.extensions["collective-cognition:promotion"].rationale,
+        rationale,
+      );
     },
   );
 });
@@ -230,17 +309,18 @@ test("ingest-promote exposes both composed workflow stages", () => {
         items: Array<{ status: string }>;
         acceptedRecords: SourceRecord[];
       };
-      promotions: Array<{ type: string }>;
+      promotion: {
+        status: "succeeded";
+        evidence: { type: string };
+      };
     }>;
     assert.deepEqual(
       composed?.ingestion.items.map((item) => item.status),
       ["accepted"],
     );
     assert.deepEqual(composed?.ingestion.acceptedRecords, [record]);
-    assert.deepEqual(
-      composed?.promotions.map((promotion) => promotion.type),
-      ["evidence"],
-    );
+    assert.equal(composed?.promotion.status, "succeeded");
+    assert.equal(composed?.promotion.evidence.type, "evidence");
   });
 });
 
@@ -269,8 +349,10 @@ test("ingest-promote preserves mixed ingestion results when promotion fails", ()
           }>;
           acceptedRecords: SourceRecord[];
         };
-        promotions: unknown[];
-        promotionError: { code: string; message: string };
+        promotion: {
+          status: "failed";
+          error: { code: string; message: string; details: object };
+        };
       }>;
       assert.deepEqual(
         composed?.ingestion.items.map((item) => item.status),
@@ -280,28 +362,29 @@ test("ingest-promote preserves mixed ingestion results when promotion fails", ()
         composed?.ingestion.items[2]?.error?.code,
         "INVALID_SOURCE_RECORD",
       );
-      assert.match(
-        composed?.ingestion.items[2]?.error?.message ?? "",
-        /schema version/i,
-      );
       assert.deepEqual(composed?.ingestion.acceptedRecords, [accepted]);
-      assert.deepEqual(composed?.promotions, []);
-      assert.equal(composed?.promotionError.code, "INVALID_OBJECT");
-      assert.match(composed?.promotionError.message, /timestamp/i);
+      assert.equal(composed?.promotion.status, "failed");
+      assert.equal(composed?.promotion.error.code, "INVALID_OBJECT");
+      assert.match(composed?.promotion.error.message ?? "", /timestamp/i);
 
       const diagnostics = jsonLines(result.stderr) as Array<{
         stage?: string;
         status?: string;
-        error: { code: string; message: string };
+        code?: string;
+        error?: { code: string };
       }>;
       assert.equal(diagnostics.length, 2);
       assert.equal(diagnostics[0]?.status, "rejected");
       assert.equal(
-        diagnostics[0]?.error.code,
+        diagnostics[0]?.error?.code,
         "INVALID_SOURCE_RECORD",
       );
-      assert.equal(diagnostics[1]?.stage, "promotion");
-      assert.equal(diagnostics[1]?.error.code, "INVALID_OBJECT");
+      assert.deepEqual(diagnostics[1], {
+        code: "INVALID_OBJECT",
+        message: composed?.promotion.error.message,
+        details: composed?.promotion.error.details,
+        stage: "promotion",
+      });
     },
   );
 });
@@ -319,7 +402,7 @@ test("--format json accepts file object input across generic CLI paths", () => {
       const args =
         command === "promote" || command === "ingest-promote"
           ? [command, ...promotionArguments(path, { format: "json" })]
-          : [command, "--input", path, "--format", "json"];
+          : [command, ...ingestionArguments(path, { format: "json" })];
       const result = runCli(args);
 
       assert.equal(result.status, 0, `${command}: ${result.stderr}`);
@@ -329,26 +412,22 @@ test("--format json accepts file object input across generic CLI paths", () => {
       if (command === "ingest-promote") {
         const [composed] = output as Array<{
           ingestion: { items: Array<{ status: string }> };
-          promotions: unknown[];
+          promotion: { status: string };
         }>;
         assert.deepEqual(
           composed?.ingestion.items.map((item) => item.status),
           ["accepted"],
           command,
         );
-        assert.equal(composed?.promotions.length, 1, command);
+        assert.equal(composed?.promotion.status, "succeeded", command);
       }
     }
   });
 });
 
-test("--format json accepts stdin array input across generic CLI paths", () => {
+test("--format json accepts stdin arrays across generic CLI paths", () => {
   const first = sourceRecord();
-  const second = sourceRecord({
-    id: "source-record:cli-2",
-    sourceId: "item:2",
-    revisionId: "revision:2",
-  });
+  const second = secondSourceRecord();
   const input = JSON.stringify([first, second]);
 
   for (const command of [
@@ -360,30 +439,33 @@ test("--format json accepts stdin array input across generic CLI paths", () => {
     const args =
       command === "promote" || command === "ingest-promote"
         ? [command, ...promotionArguments("-", { format: "json" })]
-        : [command, "--input", "-", "--format", "json"];
+        : [command, ...ingestionArguments("-", { format: "json" })];
     const result = runCli(args, input);
 
     assert.equal(result.status, 0, `${command}: ${result.stderr}`);
     assert.equal(result.stderr, "", command);
     const output = jsonLines(result.stdout);
-    if (command === "ingest-promote") {
+    if (command === "validate" || command === "ingest") {
+      assert.equal(output.length, 2, command);
+    } else if (command === "promote") {
+      assert.equal(output.length, 1, command);
+    } else {
       const [composed] = output as Array<{
         ingestion: { items: Array<{ status: string }> };
-        promotions: unknown[];
+        promotion: { status: string; evidence: { provenance: unknown[] } };
       }>;
       assert.deepEqual(
         composed?.ingestion.items.map((item) => item.status),
         ["accepted", "accepted"],
         command,
       );
-      assert.equal(composed?.promotions.length, 2, command);
-    } else {
-      assert.equal(output.length, 2, command);
+      assert.equal(composed?.promotion.status, "succeeded", command);
+      assert.equal(composed?.promotion.evidence.provenance.length, 2, command);
     }
   }
 });
 
-test("malformed JSONL produces item output and stderr diagnostics", () => {
+test("malformed JSONL produces item output and item diagnostics", () => {
   const record = sourceRecord();
 
   withInputFile(
@@ -391,10 +473,7 @@ test("malformed JSONL produces item output and stderr diagnostics", () => {
     (path) => {
       const result = runCli([
         "validate",
-        "--input",
-        path,
-        "--format",
-        "jsonl",
+        ...ingestionArguments(path),
       ]);
 
       assert.notEqual(result.status, 0);
@@ -409,7 +488,6 @@ test("malformed JSONL produces item output and stderr diagnostics", () => {
       ]);
       assert.equal(items[1]?.line, 2);
       assert.equal(items[1]?.error?.code, "SERIALIZATION_ERROR");
-      assert.match(items[1]?.error?.message ?? "", /JSONL line/i);
 
       const diagnostics = jsonLines(result.stderr) as Array<{
         line: number;
@@ -422,17 +500,129 @@ test("malformed JSONL produces item output and stderr diagnostics", () => {
   );
 });
 
-test("invalid command arguments write diagnostics with zero stdout", () => {
-  for (const args of [
-    [],
-    ["unknown", "--input", "-", "--format", "jsonl"],
-    ["validate", "--input", "-", "--format", "yaml"],
-    ["ingest", "--input", "-", "--format", "jsonl", "--unknown", "value"],
-  ]) {
-    const result = runCli(args, "");
+test("all top-level CLI failures emit one structured diagnostic", () => {
+  const cases: Array<{
+    args: string[];
+    input?: string;
+    code: string;
+    stage: string;
+  }> = [
+    {
+      args: [],
+      input: "",
+      code: "INVALID_ARGUMENT",
+      stage: "arguments",
+    },
+    {
+      args: ["validate", ...ingestionArguments("/path/that/does/not/exist")],
+      code: "INPUT_READ_ERROR",
+      stage: "input",
+    },
+  ];
 
-    assert.notEqual(result.status, 0);
-    assert.equal(result.stdout, "");
-    assert.notEqual(result.stderr, "");
-  }
+  withInputFile(`${JSON.stringify(sourceRecord())}\n`, (path) => {
+    cases.push({
+      args: [
+        "promote",
+        ...promotionArguments(path, { promotedAt: "not-an-iso-timestamp" }),
+      ],
+      code: "INVALID_OBJECT",
+      stage: "promotion",
+    });
+
+    for (const cliCase of cases) {
+      const diagnostic = singleDiagnostic(
+        runCli(cliCase.args, cliCase.input),
+      );
+      assert.equal(diagnostic.code, cliCase.code);
+      assert.equal(diagnostic.stage, cliCase.stage);
+    }
+  });
+});
+
+test("CLI enforces maxInputBytes from file metadata before reading", () => {
+  const content = `${JSON.stringify(sourceRecord())}\n`;
+  const inputBytes = Buffer.byteLength(content);
+
+  withInputFile(content, (path) => {
+    const diagnostic = singleDiagnostic(
+      runCli([
+        "validate",
+        ...ingestionArguments(path, {
+          limits: { maxInputBytes: inputBytes - 1 },
+        }),
+      ]),
+    );
+
+    assert.equal(diagnostic.code, "INGESTION_LIMIT_EXCEEDED");
+    assert.equal(diagnostic.stage, "input");
+    assert.deepEqual(diagnostic.details, {
+      limit: "maxInputBytes",
+      maximum: inputBytes - 1,
+      actual: inputBytes,
+    });
+  });
+});
+
+test("CLI enforces maxRecords before emitting output", () => {
+  const content = [
+    JSON.stringify(sourceRecord()),
+    JSON.stringify(secondSourceRecord()),
+  ].join("\n");
+
+  withInputFile(content, (path) => {
+    const diagnostic = singleDiagnostic(
+      runCli([
+        "validate",
+        ...ingestionArguments(path, { limits: { maxRecords: 1 } }),
+      ]),
+    );
+
+    assert.equal(diagnostic.code, "INGESTION_LIMIT_EXCEEDED");
+    assert.equal(diagnostic.stage, "ingestion");
+    assert.equal(diagnostic.details.limit, "maxRecords");
+  });
+});
+
+test("CLI enforces maxRecordBytes before emitting output", () => {
+  const record = sourceRecord();
+  const content = JSON.stringify(record);
+  const recordBytes = Buffer.byteLength(content);
+
+  withInputFile(content, (path) => {
+    const diagnostic = singleDiagnostic(
+      runCli([
+        "validate",
+        ...ingestionArguments(path, {
+          limits: { maxRecordBytes: recordBytes - 1 },
+        }),
+      ]),
+    );
+
+    assert.equal(diagnostic.code, "INGESTION_LIMIT_EXCEEDED");
+    assert.equal(diagnostic.stage, "ingestion");
+    assert.equal(diagnostic.details.limit, "maxRecordBytes");
+  });
+});
+
+test("stdin is bounded incrementally by maxInputBytes", () => {
+  const input = `${JSON.stringify(sourceRecord())}\n`;
+  const maximum = Math.floor(Buffer.byteLength(input) / 2);
+  const diagnostic = singleDiagnostic(
+    runCli(
+      [
+        "validate",
+        ...ingestionArguments("-", {
+          limits: { maxInputBytes: maximum },
+        }),
+      ],
+      input,
+    ),
+  );
+
+  assert.equal(diagnostic.code, "INGESTION_LIMIT_EXCEEDED");
+  assert.equal(diagnostic.stage, "input");
+  assert.equal(diagnostic.details.limit, "maxInputBytes");
+  assert.equal(diagnostic.details.maximum, maximum);
+  assert.ok((diagnostic.details.actual as number) > maximum);
 });

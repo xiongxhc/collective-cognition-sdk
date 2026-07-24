@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-24  
 **Architecture direction:** Approved  
-**Implementation status:** Implemented and locally verified in Phase 2
+**Implementation status:** Implemented and final-review verified in Phase 2
 
 ## Problem
 
@@ -26,7 +26,7 @@ external source
   → CognitiveObject
 ```
 
-Every item entering through the ingestion boundary becomes an immutable `SourceRecord` before it can become `Evidence` or another cognitive object. A convenience workflow may perform ingestion and promotion in one caller operation, but the implementation must still produce and link both artifacts.
+Every accepted item entering through the ingestion boundary becomes a cloned, deeply frozen `SourceRecord` before it can become `Evidence` or another cognitive object. A convenience workflow may perform ingestion and promotion in one caller operation, but the implementation must still produce and link both artifacts.
 
 Callers that already possess a semantically complete cognitive object may use the core object API directly. They do not need to wrap that object in a `SourceRecord`.
 
@@ -97,6 +97,8 @@ The boundary preserves these invariants:
 - `content` preserves the caller-authorized source material or a stable structured descriptor; large or restricted payloads may be represented by an integrity-bound reference.
 - `contentHash`, when supplied, verifies content rather than defining semantic truth.
 - source context and extensions remain JSON-compatible and namespaced where necessary.
+- top-level and `source` objects are closed: unknown fields are rejected, and polarity, confidence, authority, or other source-specific semantics belong only in namespaced `extensions`.
+- accepted external values are cloned and deeply frozen so later mutation of caller-owned input cannot change ingestion results.
 - the tuple `(source.system, source.instance, sourceId, revisionId)` is the logical idempotency key.
 - receiving the same key and canonical content is a duplicate, while receiving the same key with different canonical content is a collision error.
 - a changed source revision creates a distinct immutable record or version; it never silently overwrites history.
@@ -114,12 +116,13 @@ Promotion is an explicit interpretation operation. Its input includes:
 - a named, versioned mapping policy;
 - a rationale and timestamp.
 
-The first implementation promotes source records to `Evidence`. Additional target types require their own accepted semantics rather than a generic arbitrary-object mapper.
+The first implementation promotes one or more source records together into one `Evidence` object. `EvidencePromotionPolicy.map` receives the complete non-empty record array. Additional target types require their own accepted semantics rather than a generic arbitrary-object mapper.
 
 Promotion must:
 
 - preserve links to every contributing source record;
 - identify the mapping policy and version;
+- reject empty policy IDs, empty policy versions, empty record sets, and blank rationales;
 - validate the resulting cognitive object through normal core rules;
 - preserve accountable human or organizational attribution;
 - return structured errors without partially emitting results.
@@ -142,7 +145,7 @@ ingest source
   → validate and emit Evidence
 ```
 
-This is orchestration, not a collapsed data model. Output and events must make both steps observable. A failed promotion must not invalidate or conceal a valid source record.
+This is orchestration, not a collapsed data model. Output and events must make both steps observable. A failed promotion must not invalidate or conceal a valid source record. The SDK result contains the successful `ingestion` plus a discriminated `promotion` result; any exception raised after ingestion becomes a structured promotion failure instead of escaping the composed call.
 
 ## Logical Module Boundaries
 
@@ -168,6 +171,7 @@ npm run --silent cc -- promote --input records.jsonl --format jsonl \
   --policy neutral-evidence-v1 \
   --hypothesis-id hypothesis:delivery-risk \
   --context-id organization:team \
+  --rationale "These records jointly document the delivery change." \
   --initiator-id human:owner \
   --executor-id agent:importer \
   --accountable-id human:owner \
@@ -176,6 +180,7 @@ npm run --silent cc -- ingest-promote --input records.jsonl --format jsonl \
   --policy neutral-evidence-v1 \
   --hypothesis-id hypothesis:delivery-risk \
   --context-id organization:team \
+  --rationale "These records jointly document the delivery change." \
   --initiator-id human:owner \
   --executor-id agent:importer \
   --accountable-id human:owner \
@@ -190,7 +195,9 @@ npm run --silent teammem:export -- --db ledger.db --limit 5
 
 The generic CLI is intended for operators, CI jobs, scheduled tasks, data migration, and teams that do not want to embed the TypeScript API. Applications, agents, connector authors, and platform teams use the SDK API directly.
 
-`validate` emits item results, `ingest` emits accepted unique SourceRecords, `promote` emits neutral Evidence for valid unique records, and `ingest-promote` emits one result containing both stages. JSON and JSONL input may come from a file or stdin.
+`validate` emits item results, `ingest` emits accepted unique SourceRecords, `promote` emits one neutral Evidence object preserving every accepted unique record, and `ingest-promote` emits one result containing serialized ingestion plus a discriminated promotion outcome. JSON and JSONL input may come from a file or stdin.
+
+The CLI accepts `--max-input-bytes`, `--max-records`, and `--max-record-bytes`, with finite defaults `10485760`, `10000`, and `1048576`. Files are size-checked before reading and stdin is read incrementally up to the configured limit.
 
 ## Team-Memory Migration
 
@@ -215,7 +222,7 @@ Batch operations return item-level results:
 - composed ingestion and promotion report the two stages independently;
 - callers choose whether a batch is fail-fast or collect-all.
 
-Stable error codes, result envelopes, and transaction expectations will be defined in the RFC and conformance fixtures.
+`IngestionItemResult` is a discriminated union with status-specific fields. Ingestion limits fail with `INGESTION_LIMIT_EXCEEDED`. Every pre-output CLI failure is one JSON stderr diagnostic containing `code`, `message`, `details`, and `stage`; stdout remains empty.
 
 ## Security and Privacy
 
@@ -223,7 +230,7 @@ The core does not fetch arbitrary URLs, discover credentials, or obtain broad so
 
 Implementations must support:
 
-- caller-configured payload and batch limits;
+- caller-configured input, record-count, and per-record byte limits;
 - rejection of malformed or unsupported media types;
 - secret-safe diagnostics;
 - explicit handling of personally identifiable or restricted data;
@@ -238,7 +245,7 @@ Universal adoption requires behavior that is testable outside one implementation
 
 - a versioned `SourceRecord` schema;
 - valid and invalid JSON/JSONL fixtures;
-- duplicate, collision, revision, and promotion coverage in the TypeScript test suite;
+- closed-field validation, normalization immutability, limits, duplicate, collision, positive revision, and multi-source promotion coverage in the TypeScript test suite;
 - connector tests based only on emitted records;
 - additive namespaced extension examples.
 

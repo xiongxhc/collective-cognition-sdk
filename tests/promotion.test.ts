@@ -8,13 +8,15 @@ import {
   ingestAndPromoteEvidence,
   ingestSourceRecordText,
   neutralEvidencePolicyV1,
-  promoteSourceRecordToEvidence,
+  promoteSourceRecordsToEvidence,
   sourceRevisionKey,
 } from "../src/index.ts";
 import type {
+  EvidencePromotionContext,
   EvidencePromotionMapping,
   EvidencePromotionPolicy,
   EvidencePromotionRequest,
+  IngestAndPromoteEvidenceResult,
   SourceRecord,
 } from "../src/index.ts";
 
@@ -34,47 +36,84 @@ function recordFor(overrides: Partial<SourceRecord> = {}): SourceRecord {
   });
 }
 
-function requestFor(record: SourceRecord): EvidencePromotionRequest {
+function requestFor(
+  records: readonly SourceRecord[],
+  overrides: Partial<Omit<EvidencePromotionRequest, "records">> = {},
+): EvidencePromotionRequest {
   return {
-    record,
+    records,
     hypothesisId: "hypothesis:delivery",
     contextId: "organization:acme",
+    rationale: "These records jointly document the delivered change.",
     promotedAt,
     attribution: {
       initiatorId: "human:owner",
       executorId: "agent:importer",
       accountableId: "human:owner",
     },
+    ...overrides,
   };
 }
 
-test("executes explicit policies with deterministic IDs and complete provenance", () => {
-  const record = recordFor();
+function contextFor(
+  overrides: Partial<EvidencePromotionContext> = {},
+): EvidencePromotionContext {
+  const { records: _records, ...context } = requestFor([recordFor()]);
+  return { ...context, ...overrides };
+}
+
+function composedOutcome(result: IngestAndPromoteEvidenceResult): string {
+  switch (result.promotion.status) {
+    case "succeeded":
+      return result.promotion.evidence.id;
+    case "failed":
+      return result.promotion.error.code;
+    default:
+      return assertNever(result.promotion);
+  }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unexpected promotion result: ${JSON.stringify(value)}`);
+}
+
+test("promotes one or more source records with deterministic identity and complete provenance", () => {
+  const firstRecord = recordFor();
+  const secondRecord = recordFor({
+    id: "source-record:review",
+    sourceId: "review:42",
+    revisionId: "review:42:v1",
+    capturedAt: "2026-07-24T10:30:00.000Z",
+    content: { summary: "Review confirmed the delivered change." },
+    contentHash: "sha256:def",
+  });
   let mappedRecords = 0;
   const policy: EvidencePromotionPolicy = {
     id: "delivery-policy",
     version: "2",
-    map(value) {
+    map(records) {
       mappedRecords += 1;
-      assert.equal(value, record);
+      assert.deepEqual(records, [firstRecord, secondRecord]);
+      assert.equal(Object.isFrozen(records), true);
       return {
         title: "Delivery promotion",
-        statement: "Explicit promotion preserves the source record.",
+        statement: "Two independent records preserve the delivered change.",
         evidenceKind: "change",
         polarity: "supports",
       };
     },
   };
+  const request = requestFor([firstRecord, secondRecord]);
 
-  const first = promoteSourceRecordToEvidence(requestFor(record), policy);
-  const second = promoteSourceRecordToEvidence(requestFor(record), policy);
+  const first = promoteSourceRecordsToEvidence(request, policy);
+  const second = promoteSourceRecordsToEvidence(request, policy);
 
   assert.equal(mappedRecords, 2);
   assert.equal(first.id, second.id);
   assert.equal(first.type, "evidence");
   assert.equal(first.state, "collected");
   assert.deepEqual(first.data, {
-    statement: "Explicit promotion preserves the source record.",
+    statement: "Two independent records preserve the delivered change.",
     evidenceKind: "change",
     polarity: "supports",
   });
@@ -83,24 +122,34 @@ test("executes explicit policies with deterministic IDs and complete provenance"
   assert.deepEqual(first.provenance, [
     {
       source: "collective-cognition:source-record",
-      sourceId: record.id,
-      capturedAt: record.capturedAt,
-      contentHash: record.contentHash,
+      sourceId: firstRecord.id,
+      capturedAt: firstRecord.capturedAt,
+      contentHash: firstRecord.contentHash,
+    },
+    {
+      source: "collective-cognition:source-record",
+      sourceId: secondRecord.id,
+      capturedAt: secondRecord.capturedAt,
+      contentHash: secondRecord.contentHash,
     },
   ]);
-  assert.deepEqual(first.attribution, requestFor(record).attribution);
+  assert.deepEqual(first.attribution, request.attribution);
   assert.deepEqual(first.relationships, [
     { type: "relates-to-hypothesis", targetId: "hypothesis:delivery" },
   ]);
   assert.deepEqual(first.extensions, {
     "collective-cognition:promotion": {
-      sourceRevisionKey: sourceRevisionKey(record),
+      sourceRevisionKeys: [
+        sourceRevisionKey(firstRecord),
+        sourceRevisionKey(secondRecord),
+      ],
       policy: { id: "delivery-policy", version: "2" },
+      rationale: request.rationale,
     },
   });
 });
 
-test("uses neutral mappings for strings, summaries, and canonical JSON", () => {
+test("uses neutral mappings for one or multiple source records", () => {
   const stringRecord = recordFor({ content: "A plain source statement." });
   const summaryRecord = recordFor({
     id: "source-record:summary",
@@ -116,50 +165,84 @@ test("uses neutral mappings for strings, summaries, and canonical JSON", () => {
   });
 
   assert.deepEqual(
-    promoteSourceRecordToEvidence(requestFor(stringRecord), neutralEvidencePolicyV1).data,
+    promoteSourceRecordsToEvidence(
+      requestFor([stringRecord]),
+      neutralEvidencePolicyV1,
+    ).data,
     {
       statement: "A plain source statement.",
       evidenceKind: "source-record",
       polarity: "neutral",
     },
   );
-  assert.deepEqual(
-    promoteSourceRecordToEvidence(requestFor(summaryRecord), neutralEvidencePolicyV1).data,
-    {
-      statement: "A source summary.",
-      evidenceKind: "source-record",
-      polarity: "neutral",
-    },
+  const combined = promoteSourceRecordsToEvidence(
+    requestFor([summaryRecord, jsonRecord]),
+    neutralEvidencePolicyV1,
   );
+  assert.equal(combined.title, "Source records (2)");
+  assert.deepEqual(combined.data, {
+    statement: 'A source summary.\n\n{"a":[true,null],"z":1}',
+    evidenceKind: "source-record",
+    polarity: "neutral",
+  });
   assert.deepEqual(
-    promoteSourceRecordToEvidence(requestFor(jsonRecord), neutralEvidencePolicyV1).data,
-    {
-      statement: '{"a":[true,null],"z":1}',
-      evidenceKind: "source-record",
-      polarity: "neutral",
-    },
+    combined.provenance.map((reference) => reference.sourceId),
+    [summaryRecord.id, jsonRecord.id],
   );
 });
 
-test("rejects mappings that fail normal Evidence validation", () => {
-  const invalidPolicy: EvidencePromotionPolicy = {
-    id: "invalid-policy",
-    version: "1",
-    map() {
-      return {
-        title: "",
-        statement: "Invalid title.",
-        evidenceKind: "source-record",
-        polarity: "neutral",
-      };
-    },
-  };
-
+test("requires at least one source record and a non-empty rationale", () => {
   assert.throws(
-    () => promoteSourceRecordToEvidence(requestFor(recordFor()), invalidPolicy),
+    () =>
+      promoteSourceRecordsToEvidence(
+        requestFor([]),
+        neutralEvidencePolicyV1,
+      ),
     (error: unknown) =>
-      error instanceof DomainError && error.code === DomainErrorCode.INVALID_OBJECT,
+      error instanceof DomainError &&
+      error.code === DomainErrorCode.INVALID_OBJECT &&
+      error.details.field === "records",
   );
+
+  for (const rationale of ["", "   "]) {
+    assert.throws(
+      () =>
+        promoteSourceRecordsToEvidence(
+          requestFor([recordFor()], { rationale }),
+          neutralEvidencePolicyV1,
+        ),
+      (error: unknown) =>
+        error instanceof DomainError &&
+        error.code === DomainErrorCode.INVALID_OBJECT &&
+        error.details.field === "rationale",
+    );
+  }
+});
+
+test("requires non-empty promotion policy id and version", () => {
+  for (const [field, policy] of [
+    [
+      "policy.id",
+      { ...neutralEvidencePolicyV1, id: " " },
+    ],
+    [
+      "policy.version",
+      { ...neutralEvidencePolicyV1, version: "" },
+    ],
+  ] as const) {
+    assert.throws(
+      () =>
+        promoteSourceRecordsToEvidence(
+          requestFor([recordFor()]),
+          policy,
+        ),
+      (error: unknown) =>
+        error instanceof DomainError &&
+        error.code === DomainErrorCode.INVALID_OBJECT &&
+        error.details.field === field,
+      field,
+    );
+  }
 });
 
 test("rejects malformed policy mapping outputs at runtime", () => {
@@ -189,7 +272,7 @@ test("rejects malformed policy mapping outputs at runtime", () => {
     };
 
     assert.throws(
-      () => promoteSourceRecordToEvidence(requestFor(recordFor()), policy),
+      () => promoteSourceRecordsToEvidence(requestFor([recordFor()]), policy),
       (error: unknown) =>
         error instanceof DomainError &&
         error.code === DomainErrorCode.INVALID_OBJECT &&
@@ -201,7 +284,7 @@ test("rejects malformed policy mapping outputs at runtime", () => {
 
 test("accepts every EvidenceData polarity from policy mappings", () => {
   for (const polarity of ["supports", "challenges", "neutral"] as const) {
-    const evidence = promoteSourceRecordToEvidence(requestFor(recordFor()), {
+    const evidence = promoteSourceRecordsToEvidence(requestFor([recordFor()]), {
       id: `policy:${polarity}`,
       version: "1",
       map() {
@@ -218,27 +301,62 @@ test("accepts every EvidenceData polarity from policy mappings", () => {
   }
 });
 
-test("promotes accepted records only in composed ingestion", () => {
-  const record = recordFor();
-  const rejected = { ...record, schemaVersion: "9.9.9" };
+test("promotes all accepted records together in composed ingestion", () => {
+  const firstRecord = recordFor();
+  const secondRecord = recordFor({
+    id: "source-record:review",
+    sourceId: "review:42",
+    revisionId: "review:42:v1",
+  });
+  const rejected = { ...firstRecord, schemaVersion: "9.9.9" };
   const result = ingestAndPromoteEvidence(
-    [record, record, rejected],
-    {
-      hypothesisId: "hypothesis:delivery",
-      contextId: "organization:acme",
-      promotedAt,
-      attribution: requestFor(record).attribution,
-    },
+    [firstRecord, secondRecord, firstRecord, rejected],
+    contextFor(),
     neutralEvidencePolicyV1,
   );
 
   assert.deepEqual(result.ingestion.items.map((item) => item.status), [
     "accepted",
+    "accepted",
     "duplicate",
     "rejected",
   ]);
-  assert.equal(result.promotions.length, 1);
-  assert.equal(result.promotions[0]?.provenance[0]?.sourceId, record.id);
+  assert.equal(result.promotion.status, "succeeded");
+  assert.ok(result.promotion.status === "succeeded");
+  assert.equal(composedOutcome(result), result.promotion.evidence.id);
+  assert.deepEqual(
+    result.promotion.evidence.provenance.map((reference) => reference.sourceId),
+    [firstRecord.id, secondRecord.id],
+  );
+});
+
+test("returns successful ingestion plus a structured promotion failure", () => {
+  const record = recordFor();
+  const policy: EvidencePromotionPolicy = {
+    id: "unavailable-policy",
+    version: "1",
+    map() {
+      throw new Error("Policy service unavailable.");
+    },
+  };
+
+  const result = ingestAndPromoteEvidence(
+    [record],
+    contextFor(),
+    policy,
+  );
+
+  assert.equal(result.ingestion.items[0]?.status, "accepted");
+  assert.deepEqual(result.ingestion.acceptedRecords, [record]);
+  assert.deepEqual(result.promotion, {
+    status: "failed",
+    error: {
+      code: "PROMOTION_FAILED",
+      message: "Policy service unavailable.",
+      details: {},
+    },
+  });
+  assert.equal(composedOutcome(result), "PROMOTION_FAILED");
 });
 
 test("reuses a supplied ingestion result with all item outcomes intact", () => {
@@ -255,12 +373,7 @@ test("reuses a supplied ingestion result with all item outcomes intact", () => {
 
   const result = ingestAndPromoteEvidence(
     ingestion,
-    {
-      hypothesisId: "hypothesis:delivery",
-      contextId: "organization:acme",
-      promotedAt,
-      attribution: requestFor(record).attribution,
-    },
+    contextFor(),
     neutralEvidencePolicyV1,
   );
 
@@ -272,6 +385,7 @@ test("reuses a supplied ingestion result with all item outcomes intact", () => {
   ]);
   assert.deepEqual(result.ingestion.items.map((item) => item.line), [1, 2, 3]);
   assert.deepEqual(result.ingestion.acceptedRecords, [record]);
-  assert.equal(result.promotions.length, 1);
-  assert.equal(result.promotions[0]?.provenance[0]?.sourceId, record.id);
+  assert.equal(result.promotion.status, "succeeded");
+  assert.ok(result.promotion.status === "succeeded");
+  assert.equal(result.promotion.evidence.provenance[0]?.sourceId, record.id);
 });

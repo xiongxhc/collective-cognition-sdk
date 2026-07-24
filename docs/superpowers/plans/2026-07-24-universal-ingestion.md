@@ -1,12 +1,12 @@
 # Universal Ingestion Implementation Plan
 
-**Status:** Complete and verified
+**Status:** Complete and final-review verified
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement the approved neutral `SourceRecord → explicit promotion → CognitiveObject` boundary with generic JSON/JSONL tooling and a migrated team-memory connector.
 
-**Architecture:** A dependency-free ingestion layer validates immutable source records and classifies duplicate source revisions without persistence. Explicit, versioned promotion maps validated records to Evidence; a composed workflow preserves both stages. Source-specific readers emit canonical records from connector modules and never define the root API.
+**Architecture:** A dependency-free ingestion layer closes the SourceRecord shape, normalizes accepted external values into cloned deeply frozen records, enforces caller limits, and classifies duplicate source revisions without persistence. Explicit, versioned promotion maps one or more validated records to one Evidence object; a composed workflow preserves ingestion and returns an explicit promotion outcome. Source-specific readers emit canonical records from connector modules and never define the root API.
 
 **Tech Stack:** Node.js 24+, native erasable TypeScript, `node:test`, `node:assert`, `node:crypto`, `node:fs`, and `node:sqlite`.
 
@@ -16,9 +16,11 @@
 - External ingestion is neutral first; collected material never becomes Evidence implicitly.
 - `(source.system, source.instance, sourceId, revisionId)` is the logical source-revision key.
 - Equal keys and canonical content classify as duplicates; equal keys with different canonical content fail as collisions.
-- Source records are immutable JSON-compatible values.
-- Promotion is explicit, identifies a policy ID/version, preserves source-record provenance, and uses normal core object validation.
-- A composed workflow exposes ingestion and promotion separately.
+- Source records are closed immutable JSON-compatible values; interpretation fields outside namespaced extensions are rejected.
+- Promotion is explicit, requires one or more records, rationale, and policy ID/version, preserves every source-record provenance entry, and uses normal core object validation.
+- A composed workflow exposes ingestion and a discriminated promotion success/failure separately.
+- SDK and CLI ingestion limits cover input bytes, record count, and per-record bytes; limit failures use `INGESTION_LIMIT_EXCEEDED`.
+- Pre-output CLI failures emit one structured JSON stderr diagnostic and zero stdout.
 - Canonical JSON and JSONL work without connector code.
 - Team-memory becomes an optional connector and is not exported from `src/index.ts`.
 - SQLite access remains read-only.
@@ -47,7 +49,7 @@
 
 - [x] **Step 1: Write failing contract tests**
 
-Cover valid creation, deep immutability, required source/revision fields, ISO timestamps, media type, JSON-only content/context/extensions, optional integrity metadata, serialization round trip, deterministic canonical object-key ordering, and collision-safe revision keys.
+Cover valid creation, deep immutability, required source/revision fields, ISO timestamps, media type, JSON-only content/context/extensions, closed top-level/source fields, optional integrity metadata, serialization round trip, deterministic canonical object-key ordering, and collision-safe revision keys.
 
 ```ts
 const record = createSourceRecord({
@@ -71,7 +73,7 @@ Expected: FAIL because `createSourceRecord` and related exports do not exist.
 
 - [x] **Step 3: Implement the contract**
 
-Use schema version `"0.1.0"`. Reject malformed external records with `INVALID_SOURCE_RECORD`; wrap malformed serialized JSON with `SERIALIZATION_ERROR`. Clone and deeply freeze every returned JSON-compatible value. Encode revision-key segments as a canonical JSON array rather than delimiter concatenation.
+Use schema version `"0.1.0"`. Reject malformed or unknown external fields with `INVALID_SOURCE_RECORD`; wrap malformed serialized JSON with `SERIALIZATION_ERROR`. Clone and deeply freeze every returned JSON-compatible value. Encode revision-key segments as a canonical JSON array rather than delimiter concatenation.
 
 - [x] **Step 4: Run GREEN**
 
@@ -97,11 +99,12 @@ git commit -m "feat: add neutral source record contract"
 - Consumes: `SourceRecord`, `validateSourceRecord`, `sourceRevisionKey`, `canonicalizeJson`
 - Produces: `ingestSourceRecords(values, options?): IngestionBatchResult`
 - Produces: `ingestSourceRecordText(text, options): IngestionBatchResult`
-- Produces: `IngestionMode`, `IngestionItemResult`, and `IngestionBatchResult`
+- Produces: discriminated `IngestionItemResult`, `IngestionMode`, and `IngestionBatchResult`
+- Produces: `maxInputBytes`, `maxRecords`, and `maxRecordBytes` ingestion options
 
 - [x] **Step 1: Write failing ingestion tests**
 
-Cover accepted records, duplicate classification, collision rejection, existing-record seeding, collect-all malformed-item results, fail-fast errors, JSON object/array input, JSONL blank lines, and one malformed JSONL line that does not hide valid lines.
+Cover normalized accepted records, clone isolation and deep freezing, duplicate classification, collision rejection, positive changed-content/new-revision acceptance, existing-record seeding, collect-all malformed-item results, fail-fast errors, all three limits, JSON object/array input, JSONL blank lines, and one malformed JSONL line that does not hide valid lines.
 
 ```ts
 const result = ingestSourceRecords([record, record], {
@@ -121,7 +124,7 @@ Expected: FAIL because the ingestion module does not exist.
 
 - [x] **Step 3: Implement deterministic classification**
 
-Use `sourceRevisionKey` for logical identity and canonicalize `{ mediaType, content }` for collision comparison. Return item-level accepted, duplicate, and rejected results. A duplicate references the retained record ID. A collision uses `SOURCE_REVISION_COLLISION`. Collect-all never throws for an item failure; fail-fast throws the matching `DomainError`.
+Use `sourceRevisionKey` for logical identity and canonicalize `{ mediaType, content }` for collision comparison. Normalize every valid incoming record before retaining it. Return status-discriminated accepted, duplicate, and rejected results. A duplicate references the retained record ID. A collision uses `SOURCE_REVISION_COLLISION`. Collect-all never throws for an item failure; fail-fast throws the matching `DomainError`. Operation limits fail with `INGESTION_LIMIT_EXCEEDED`.
 
 - [x] **Step 4: Implement JSON and JSONL ingestion**
 
@@ -151,19 +154,20 @@ git commit -m "feat: add generic source record ingestion"
 - Consumes: `SourceRecord`, `ingestSourceRecords`, `createObject`
 - Produces: `EvidencePromotionPolicy`
 - Produces: `EvidencePromotionRequest`
-- Produces: `promoteSourceRecordToEvidence(request, policy): CognitiveObject<"evidence">`
+- Produces: `promoteSourceRecordsToEvidence(request, policy): CognitiveObject<"evidence">`
 - Produces: `neutralEvidencePolicyV1`
 - Produces: `ingestAndPromoteEvidence(values, request, policy, options?)`
 
 - [x] **Step 1: Write failing promotion tests**
 
-Cover explicit policy execution, deterministic Evidence IDs, source-record provenance, policy ID/version metadata, attribution and hypothesis relationships, invalid mapping rejection, and no promotion for rejected or duplicate batch items.
+Cover explicit policy execution over one or more records, deterministic Evidence IDs, complete source-record provenance, required rationale, non-empty policy ID/version metadata, attribution and hypothesis relationships, invalid mapping rejection, and composed promotion failure without losing ingestion.
 
 ```ts
-const evidence = promoteSourceRecordToEvidence({
-  record,
+const evidence = promoteSourceRecordsToEvidence({
+  records: [record, reviewRecord],
   hypothesisId: "hypothesis:delivery",
   contextId: "organization:acme",
+  rationale: "The records jointly document the delivered change.",
   promotedAt: "2026-07-24T11:00:00.000Z",
   attribution: {
     initiatorId: "human:owner",
@@ -181,11 +185,11 @@ Expected: FAIL because the promotion API does not exist.
 
 - [x] **Step 3: Implement explicit promotion**
 
-The policy exposes `{ id, version, map(record) }`. The mapping returns `title`, `statement`, `evidenceKind`, and `polarity`. Evidence provenance uses `source: "collective-cognition:source-record"` and `sourceId: record.id`; namespaced extensions preserve the source-revision key and policy identity.
+The policy exposes `{ id, version, map(records) }`, where `records` is a frozen non-empty array. The mapping returns `title`, `statement`, `evidenceKind`, and `polarity`. Evidence provenance includes one `source: "collective-cognition:source-record"` entry per contributor; namespaced extensions preserve every source-revision key, policy identity, and rationale.
 
 - [x] **Step 4: Implement the built-in neutral policy and composition**
 
-`neutralEvidencePolicyV1` uses string content directly, an object `summary` string when present, and canonical JSON otherwise. It always emits `polarity: "neutral"`. `ingestAndPromoteEvidence` returns `{ ingestion, promotions }` and promotes accepted records only.
+`neutralEvidencePolicyV1` uses string content directly, an object `summary` string when present, and canonical JSON otherwise, joining multiple statements in input order. It always emits `polarity: "neutral"`. `ingestAndPromoteEvidence` returns `{ ingestion, promotion }`, where promotion is `succeeded` with one Evidence object or `failed` with structured `code`, `message`, and `details`.
 
 - [x] **Step 5: Run GREEN**
 
@@ -234,7 +238,7 @@ Map rows to `application/vnd.team-memory.event+json` records. Use person plus up
 
 - [x] **Step 4: Write failing generic CLI tests**
 
-Use temporary JSON/JSONL files and subprocess assertions. Verify machine-readable output, stdin via `--input -`, duplicate suppression for `ingest`, explicit required promotion arguments, neutral-Evidence output, malformed-line diagnostics, and zero stdout on invalid command arguments.
+Use temporary JSON/JSONL files and subprocess assertions. Verify machine-readable output, incrementally bounded stdin via `--input -`, duplicate suppression for `ingest`, explicit rationale and other required promotion arguments, one multi-source neutral-Evidence output, all three limits, malformed-line diagnostics, one structured top-level diagnostic, and zero stdout on pre-output failures.
 
 - [x] **Step 5: Run CLI RED**
 
@@ -249,15 +253,15 @@ Support:
 ```text
 validate --input <path|-> --format <json|jsonl>
 ingest --input <path|-> --format <json|jsonl>
-promote --input <path|-> --format <json|jsonl> --policy neutral-evidence-v1 --hypothesis-id <id> --context-id <id> --initiator-id <id> --executor-id <id> --accountable-id <id> --promoted-at <ISO>
+promote --input <path|-> --format <json|jsonl> --policy neutral-evidence-v1 --hypothesis-id <id> --context-id <id> --rationale <text> --initiator-id <id> --executor-id <id> --accountable-id <id> --promoted-at <ISO>
 ingest-promote <same promotion arguments>
 ```
 
-`validate` writes one item-result JSON line per input. `ingest` writes accepted normalized SourceRecords only. `promote` validates then promotes every valid unique record. `ingest-promote` uses the composed API. Diagnostics go to stderr.
+Every command also accepts `--max-input-bytes`, `--max-records`, and `--max-record-bytes`; defaults are `10485760`, `10000`, and `1048576`. `validate` writes one item-result JSON line per input. `ingest` writes accepted normalized SourceRecords only. `promote` validates then promotes all valid unique records into one Evidence object. `ingest-promote` uses the composed API. Diagnostics go to stderr.
 
 - [x] **Step 7: Update the example and checks**
 
-The team-memory example imports its connector directly, creates source records, and explicitly promotes them with `neutralEvidencePolicyV1`. Add `src/source-records.ts`, `src/ingestion.ts`, `src/promotion.ts`, `src/cli.ts`, and new tests to `npm run check`.
+The team-memory example imports its connector directly, creates source records, and explicitly promotes the non-empty record set into one Evidence object with `neutralEvidencePolicyV1`. Add `src/source-records.ts`, `src/ingestion.ts`, `src/promotion.ts`, `src/cli.ts`, and new tests to `npm run check`.
 
 - [x] **Step 8: Run GREEN**
 
@@ -306,7 +310,7 @@ The valid fixture includes string and structured content plus optional source in
 
 - [x] **Step 4: Reconcile all Markdown**
 
-Mark RFC 0001 implemented, Phase 2 complete only after all acceptance checks pass, document exact current commands and migration behavior, and retain Phase 3+ as planned. Historical `.superpowers` reports remain explicitly historical.
+Mark RFC 0001 implemented and Phase 2 complete only after all acceptance checks and final-review tests pass, document exact current commands and migration behavior, and retain Phase 3+ as planned. Historical `.superpowers` reports remain explicitly historical.
 
 - [x] **Step 5: Run complete verification**
 

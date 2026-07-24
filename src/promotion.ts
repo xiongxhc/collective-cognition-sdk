@@ -1,13 +1,18 @@
 import { ingestSourceRecords } from "./ingestion.ts";
 import { DomainError, DomainErrorCode } from "./errors.ts";
 import { createObject } from "./objects.ts";
-import { canonicalizeJson, sourceRevisionKey } from "./source-records.ts";
+import {
+  canonicalizeJson,
+  normalizeSourceRecord,
+  sourceRevisionKey,
+} from "./source-records.ts";
 import type { IngestionBatchResult, IngestionOptions } from "./ingestion.ts";
 import type { SourceRecord } from "./source-records.ts";
 import type {
   Attribution,
   CognitiveObject,
   EvidenceData,
+  JsonObject,
 } from "./types.ts";
 import { isJsonObject } from "./types.ts";
 
@@ -21,26 +26,74 @@ export interface EvidencePromotionMapping {
 export interface EvidencePromotionPolicy {
   readonly id: string;
   readonly version: string;
-  map(record: SourceRecord): EvidencePromotionMapping;
+  map(records: readonly SourceRecord[]): EvidencePromotionMapping;
 }
 
 export interface EvidencePromotionRequest {
-  readonly record: SourceRecord;
+  readonly records: readonly SourceRecord[];
   readonly hypothesisId: string;
   readonly contextId: string;
+  readonly rationale: string;
   readonly promotedAt: string;
   readonly attribution: Attribution;
 }
 
-export type EvidencePromotionContext = Omit<EvidencePromotionRequest, "record">;
+export type EvidencePromotionContext = Omit<EvidencePromotionRequest, "records">;
+
+export interface PromotionFailure {
+  readonly code: DomainErrorCode;
+  readonly message: string;
+  readonly details: JsonObject;
+}
+
+export type EvidencePromotionResult =
+  | {
+    readonly status: "succeeded";
+    readonly evidence: CognitiveObject<"evidence">;
+  }
+  | {
+    readonly status: "failed";
+    readonly error: PromotionFailure;
+  };
 
 export interface IngestAndPromoteEvidenceResult {
   readonly ingestion: IngestionBatchResult;
-  readonly promotions: readonly CognitiveObject<"evidence">[];
+  readonly promotion: EvidencePromotionResult;
 }
 
 function invalidMapping(field: string, message: string): never {
   throw new DomainError(DomainErrorCode.INVALID_OBJECT, message, { field });
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function validatePolicy(policy: EvidencePromotionPolicy): void {
+  if (!isNonEmptyString(policy?.id)) {
+    invalidMapping(
+      "policy.id",
+      "Promotion policy id must be a non-empty string.",
+    );
+  }
+  if (!isNonEmptyString(policy.version)) {
+    invalidMapping(
+      "policy.version",
+      "Promotion policy version must be a non-empty string.",
+    );
+  }
+  if (typeof policy.map !== "function") {
+    invalidMapping("policy.map", "Promotion policy map must be a function.");
+  }
+}
+
+function normalizeRecords(
+  records: readonly SourceRecord[],
+): readonly SourceRecord[] {
+  if (!Array.isArray(records) || records.length === 0) {
+    invalidMapping("records", "At least one source record is required.");
+  }
+  return Object.freeze(records.map(normalizeSourceRecord));
 }
 
 function validateMapping(value: unknown): asserts value is EvidencePromotionMapping {
@@ -67,12 +120,15 @@ function validateMapping(value: unknown): asserts value is EvidencePromotionMapp
 }
 
 function evidenceId(
+  records: readonly SourceRecord[],
   request: EvidencePromotionRequest,
   policy: EvidencePromotionPolicy,
 ): string {
   return [
-    "evidence:source-record",
-    encodeURIComponent(request.record.id),
+    "evidence:source-records",
+    encodeURIComponent(
+      canonicalizeJson(records.map((record) => sourceRevisionKey(record))),
+    ),
     "context",
     encodeURIComponent(request.contextId),
     "hypothesis",
@@ -84,17 +140,15 @@ function evidenceId(
   ].join(":");
 }
 
-function sourceProvenance(record: SourceRecord) {
-  return [
-    {
-      source: "collective-cognition:source-record",
-      sourceId: record.id,
-      capturedAt: record.capturedAt,
-      ...(record.contentHash === undefined
-        ? {}
-        : { contentHash: record.contentHash }),
-    },
-  ];
+function sourceProvenance(records: readonly SourceRecord[]) {
+  return records.map((record) => ({
+    source: "collective-cognition:source-record",
+    sourceId: record.id,
+    capturedAt: record.capturedAt,
+    ...(record.contentHash === undefined
+      ? {}
+      : { contentHash: record.contentHash }),
+  }));
 }
 
 function statementFor(record: SourceRecord): string {
@@ -113,25 +167,35 @@ function statementFor(record: SourceRecord): string {
 export const neutralEvidencePolicyV1: EvidencePromotionPolicy = {
   id: "neutral-evidence",
   version: "1",
-  map(record) {
+  map(records) {
     return {
-      title: `Source record ${record.id}`,
-      statement: statementFor(record),
+      title: records.length === 1
+        ? `Source record ${records[0]?.id}`
+        : `Source records (${records.length})`,
+      statement: records.map(statementFor).join("\n\n"),
       evidenceKind: "source-record",
       polarity: "neutral",
     };
   },
 };
 
-export function promoteSourceRecordToEvidence(
+export function promoteSourceRecordsToEvidence(
   request: EvidencePromotionRequest,
   policy: EvidencePromotionPolicy,
 ): CognitiveObject<"evidence"> {
-  const mapping = policy.map(request.record);
+  validatePolicy(policy);
+  const records = normalizeRecords(request.records);
+  if (!isNonEmptyString(request.rationale)) {
+    invalidMapping(
+      "rationale",
+      "Promotion rationale must be a non-empty string.",
+    );
+  }
+  const mapping = policy.map(records);
   validateMapping(mapping);
 
   return createObject({
-    id: evidenceId(request, policy),
+    id: evidenceId(records, request, policy),
     type: "evidence",
     version: 1,
     state: "collected",
@@ -144,18 +208,34 @@ export function promoteSourceRecordToEvidence(
     createdAt: request.promotedAt,
     updatedAt: request.promotedAt,
     attribution: request.attribution,
-    provenance: sourceProvenance(request.record),
+    provenance: sourceProvenance(records),
     contextId: request.contextId,
     relationships: [
       { type: "relates-to-hypothesis", targetId: request.hypothesisId },
     ],
     extensions: {
       "collective-cognition:promotion": {
-        sourceRevisionKey: sourceRevisionKey(request.record),
+        sourceRevisionKeys: records.map(sourceRevisionKey),
         policy: { id: policy.id, version: policy.version },
+        rationale: request.rationale,
       },
     },
   });
+}
+
+function promotionFailure(error: unknown): PromotionFailure {
+  if (error instanceof DomainError) {
+    return {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+    };
+  }
+  return {
+    code: DomainErrorCode.PROMOTION_FAILED,
+    message: error instanceof Error ? error.message : String(error),
+    details: {},
+  };
 }
 
 export function ingestAndPromoteEvidence(
@@ -178,9 +258,19 @@ export function ingestAndPromoteEvidence(
   const ingestion = Array.isArray(input)
     ? ingestSourceRecords(input, options)
     : input as IngestionBatchResult;
-  const promotions = ingestion.acceptedRecords.map((record) =>
-    promoteSourceRecordToEvidence({ ...request, record }, policy)
-  );
-
-  return { ingestion, promotions };
+  try {
+    const evidence = promoteSourceRecordsToEvidence(
+      { ...request, records: ingestion.acceptedRecords },
+      policy,
+    );
+    return {
+      ingestion,
+      promotion: { status: "succeeded", evidence },
+    };
+  } catch (error) {
+    return {
+      ingestion,
+      promotion: { status: "failed", error: promotionFailure(error) },
+    };
+  }
 }

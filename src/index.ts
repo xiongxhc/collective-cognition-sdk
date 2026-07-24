@@ -15,7 +15,7 @@ export {
 export {
   ingestAndPromoteEvidence,
   neutralEvidencePolicyV1,
-  promoteSourceRecordToEvidence,
+  promoteSourceRecordsToEvidence,
 } from "./promotion.ts";
 export {
   createObject,
@@ -73,7 +73,9 @@ export type {
   EvidencePromotionMapping,
   EvidencePromotionPolicy,
   EvidencePromotionRequest,
+  EvidencePromotionResult,
   IngestAndPromoteEvidenceResult,
+  PromotionFailure,
 } from "./promotion.ts";
 export type {
   AuthorizationDecision,

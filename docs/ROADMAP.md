@@ -29,7 +29,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 2: Universal Ingestion Foundation
 
-**Status:** Complete as private local reference source.
+**Status:** Complete and final-review verified as private local reference source.
 
 **Entry criteria**
 
@@ -39,13 +39,13 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 **Deliverables**
 
-- [x] A versioned, source-neutral `SourceRecord` contract.
+- [x] A closed, versioned, source-neutral `SourceRecord` contract that clones and deeply freezes accepted external values.
 - [x] SDK validation plus canonical JSON and JSONL codecs.
 - [x] Deterministic duplicate/collision classification and immutable source-revision semantics.
-- [x] Explicit, versioned promotion from source records to Evidence.
-- [x] A composed ingest-and-promote workflow that exposes both stages.
-- [x] Stable item-level batch results and errors.
-- [x] A generic CLI for validate, ingest, promote, and ingest-promote operations.
+- [x] Explicit, versioned promotion from one or more source records to one Evidence object with required rationale and complete provenance.
+- [x] A composed ingest-and-promote workflow that preserves ingestion and returns a discriminated promotion outcome.
+- [x] Discriminated item-level batch results, stable errors, and configurable SDK input/record limits.
+- [x] A generic bounded CLI for validate, ingest, promote, and ingest-promote operations with structured top-level diagnostics.
 - [x] Migration of team-memory into a connector that emits source records.
 - [x] A small Git commit fixture connector as the second source-specific conformance implementation.
 
@@ -54,8 +54,12 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Valid and invalid canonical fixtures behave identically through SDK and CLI.
 - [x] Identical source-revision keys and content classify as duplicates; key reuse with different content fails as a collision.
 - [x] Changed content uses a new immutable revision identity; key reuse with changed content is rejected without overwriting retained records.
-- [x] Promotion preserves source-record and policy links.
-- [x] Valid ingestion remains observable when promotion fails.
+- [x] Unknown top-level and source fields are rejected, including polarity, confidence, and authority outside extensions.
+- [x] Mutation of original inputs cannot change accepted ingestion results.
+- [x] Promotion preserves every source-record link, policy identity, and non-empty rationale.
+- [x] Valid ingestion remains observable as an explicit result when promotion fails.
+- [x] SDK and CLI enforce input-byte, record-count, and record-byte limits with `INGESTION_LIMIT_EXCEEDED`.
+- [x] File input is size-checked before reading, stdin is bounded incrementally, and top-level CLI failures emit one structured JSON diagnostic with zero pre-output stdout.
 - [x] Root exports contain no team-memory-specific API.
 - [x] Team-memory and a second source-specific Git fixture connector emit valid records under the same SourceRecord contract.
 - [x] Every repository Markdown file is either current or explicitly historical.

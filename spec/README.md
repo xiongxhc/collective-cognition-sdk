@@ -9,7 +9,7 @@ Two documents define the current direction:
 - the [implemented cognitive-core design](../docs/superpowers/specs/2026-07-24-collective-cognition-core-design.md);
 - the [approved universal-ingestion design](../docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
 
-The core design and Phase 2 universal ingestion are implemented locally. [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md) records the implemented ingestion semantics.
+The core design and Phase 2 universal ingestion are implemented and final-review verified locally. [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md) records the implemented ingestion semantics.
 
 The governing boundary is:
 
@@ -38,7 +38,7 @@ The historical team-memory direct-to-Evidence path was replaced. The current con
 - `expectedCode`: the stable error code;
 - `record`: the SourceRecord-shaped value to validate.
 
-The invalid corpus covers missing revision identity, invalid timestamp, non-string media type, and unsupported schema version. The conformance suite verifies SDK and CLI outcomes plus equivalent canonical JSON and JSONL results. It also proves the team-memory and Git fixture connectors emit valid records under the same SourceRecord contract.
+The invalid corpus covers missing revision identity, invalid timestamp, non-string media type, and unsupported schema version. The conformance suite verifies SDK and CLI outcomes plus equivalent canonical JSON and JSONL results. Focused runtime suites additionally reject unknown top-level/source fields, prove accepted-record clone isolation and deep freezing, accept changed content under a new revision, enforce all ingestion limits, and cover one-or-more-record promotion with structured failure. The connector conformance test proves the team-memory and Git fixture connectors emit valid records under the same SourceRecord contract.
 
 These Phase 2 files are implementation conformance fixtures for the TypeScript reference source. Phase 3 will define normative, versioned, language-neutral fixtures and schemas suitable for independent implementations.
 

@@ -61,11 +61,11 @@ The final two APIs and CLI command were explicitly experimental and source-speci
 
 The [universal ingestion design](../specs/2026-07-24-universal-ingestion-design.md) and [RFC 0001](../../../rfcs/0001-universal-source-record-ingestion.md) supersede the idea that a source-specific direct-to-Evidence adapter belongs in the root public SDK.
 
-The completed Phase 2 implementation:
+The completed and final-review-verified Phase 2 implementation:
 
-1. introduced neutral `SourceRecord` validation and JSON/JSONL codecs;
-2. added explicit, versioned promotion to Evidence;
+1. introduced closed neutral `SourceRecord` validation, cloned deep-frozen ingestion, and bounded JSON/JSONL codecs;
+2. added explicit, versioned one-or-more-record promotion to Evidence with required rationale and complete provenance;
 3. moved team-memory behind the connector boundary;
-4. replaced source-specific root exports with generic ingestion contracts;
+4. replaced source-specific root exports with generic ingestion contracts and a bounded structured-diagnostic CLI;
 5. documented the migration of experimental commands;
 6. synchronized current Markdown while retaining this file as a historical Phase 1 record.

@@ -4,7 +4,7 @@ Collective Cognition SDK is experimental, dependency-free TypeScript reference s
 
 The project is designing a universal SDK, but the current repository remains private reference source rather than an externally packaged or production-ready SDK.
 
-Phase 2 universal ingestion is implemented and locally verified. Phase 3 specification and package stabilization remains planned.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 specification and package stabilization remains planned.
 
 ## Current Status
 
@@ -14,9 +14,11 @@ Runnable now:
 - validated lifecycle transitions with an auditable event for every successful transition;
 - structural human-confirmation checks for configured consequential transitions;
 - JSON serialization and a complete cognitive-loop example;
-- a versioned, immutable `SourceRecord` contract with canonical JSON/JSONL ingestion;
+- a closed, versioned `SourceRecord` contract with canonical JSON/JSONL ingestion that clones and deeply freezes accepted external records;
 - deterministic duplicate and source-revision collision classification;
-- explicit, versioned neutral-Evidence promotion and a composed workflow that preserves both stages;
+- explicit, versioned one-or-more-record neutral-Evidence promotion with required rationale and complete provenance;
+- caller-configurable SDK ingestion limits and finite CLI input, record-count, and record-size limits;
+- a composed workflow that preserves ingestion and returns a discriminated promotion success or structured failure;
 - a source-neutral `cc` CLI for validate, ingest, promote, and ingest-promote operations;
 - canonical valid and invalid conformance fixtures;
 - an experimental read-only team-memory SQLite connector that emits SourceRecord JSONL;
@@ -37,12 +39,14 @@ The approved architecture separates collection from interpretation:
 
 ```text
 any external source
-  → immutable SourceRecord
-  → explicit, versioned promotion policy
+  → cloned, deeply frozen SourceRecord
+  → explicit, versioned promotion policy over one or more records
   → Evidence or another supported CognitiveObject
 ```
 
 Canonical JSON and JSONL are the minimum no-code integration path. Reusable connectors remain planned for common systems. A team needs custom connector code only when its source cannot emit canonical records and no shared connector exists.
+
+A `SourceRecord` accepts only the documented top-level and `source` fields. Unknown fields—including polarity, confidence, and authority—are rejected outside namespaced `extensions`.
 
 A convenience workflow may ingest and promote in one operation, but it must preserve and expose both artifacts. Successful parsing never means that material is true, accepted evidence, or authorized for a consequential decision.
 
@@ -75,7 +79,7 @@ node --test tests/conformance.test.ts
 
 The migrated team-memory commands are experimental connector tools:
 
-- `example:teammem` reads at most five ledger rows, creates SourceRecords, and explicitly promotes them with `neutral-evidence-v1`.
+- `example:teammem` reads at most five ledger rows, creates SourceRecords, and explicitly promotes the non-empty record set into one Evidence object with `neutral-evidence-v1`.
 - `teammem:export` writes SourceRecord JSONL and supports `--from`, `--to`, `--person`, `--project`, and `--limit`.
 - `--silent` prevents npm banners from contaminating stdout.
 
@@ -88,19 +92,24 @@ npm run --silent cc -- promote --input records.jsonl --format jsonl \
   --policy neutral-evidence-v1 \
   --hypothesis-id hypothesis:delivery-risk \
   --context-id organization:team \
+  --rationale "These records jointly document the delivery change." \
   --initiator-id human:owner \
   --executor-id agent:importer \
   --accountable-id human:owner \
   --promoted-at 2026-07-24T12:00:00.000Z
 ```
 
-`validate` emits one item-result JSON line per input item. `ingest` emits accepted unique SourceRecords. `promote` validates and promotes valid unique records. `ingest-promote` emits one composed result containing the separate ingestion and promotion stages. Rejected batch items are written as structured diagnostics to stderr and produce a nonzero exit.
+`validate` emits one item-result JSON line per input item. `ingest` emits accepted unique SourceRecords. `promote` creates one Evidence object from all accepted unique records. `ingest-promote` emits one composed result whose `promotion` is a discriminated `succeeded` or `failed` result; promotion failure never conceals successful ingestion.
+
+The generic CLI accepts `--max-input-bytes`, `--max-records`, and `--max-record-bytes`. Defaults are `10485760`, `10000`, and `1048576` respectively. File size is checked before reading, stdin is accumulated incrementally only up to the configured input limit, and SDK callers can configure the corresponding ingestion options. Limit breaches use `INGESTION_LIMIT_EXCEEDED`.
+
+Pre-output CLI failures write exactly one JSON diagnostic to stderr with `code`, `message`, `details`, and `stage`, and write nothing to stdout. Rejected collect-all items remain item diagnostics because they are batch outcomes rather than top-level failures.
 
 ## Current Team-Memory Safety
 
 - SQLite is opened read-only and queried with `SELECT` only.
-- Every selected row maps to an immutable SourceRecord before any interpretation.
-- Promotion is a separate caller-selected operation; the built-in policy emits new `collected`, neutral Evidence linked to a caller-supplied hypothesis.
+- Every selected row maps to a cloned, deeply frozen SourceRecord before any interpretation.
+- Promotion is a separate caller-selected operation; the built-in policy emits new `collected`, neutral Evidence linked to a caller-supplied hypothesis, every contributing SourceRecord, and a non-empty rationale.
 - The connector does not infer support, challenge, truth, confidence, decisions, or evidence quality.
 - The provided ledger path is the only external source.
 - The personal Obsidian vault is not read or written.
