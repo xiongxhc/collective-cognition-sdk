@@ -1,4 +1,5 @@
 import { ingestSourceRecords } from "./ingestion.ts";
+import { DomainError, DomainErrorCode } from "./errors.ts";
 import { createObject } from "./objects.ts";
 import { canonicalizeJson, sourceRevisionKey } from "./source-records.ts";
 import type { IngestionBatchResult, IngestionOptions } from "./ingestion.ts";
@@ -36,6 +37,33 @@ export type EvidencePromotionContext = Omit<EvidencePromotionRequest, "record">;
 export interface IngestAndPromoteEvidenceResult {
   readonly ingestion: IngestionBatchResult;
   readonly promotions: readonly CognitiveObject<"evidence">[];
+}
+
+function invalidMapping(field: string, message: string): never {
+  throw new DomainError(DomainErrorCode.INVALID_OBJECT, message, { field });
+}
+
+function validateMapping(value: unknown): asserts value is EvidencePromotionMapping {
+  if (!isJsonObject(value)) {
+    invalidMapping("mapping", "Policy mapping must be a JSON object.");
+  }
+
+  for (const field of ["title", "statement", "evidenceKind"] as const) {
+    if (typeof value[field] !== "string" || value[field].trim().length === 0) {
+      invalidMapping(field, `Policy mapping ${field} must be a non-empty string.`);
+    }
+  }
+
+  if (
+    value.polarity !== "supports" &&
+    value.polarity !== "challenges" &&
+    value.polarity !== "neutral"
+  ) {
+    invalidMapping(
+      "polarity",
+      "Policy mapping polarity must be supports, challenges, or neutral.",
+    );
+  }
 }
 
 function evidenceId(
@@ -100,6 +128,7 @@ export function promoteSourceRecordToEvidence(
   policy: EvidencePromotionPolicy,
 ): CognitiveObject<"evidence"> {
   const mapping = policy.map(request.record);
+  validateMapping(mapping);
 
   return createObject({
     id: evidenceId(request, policy),

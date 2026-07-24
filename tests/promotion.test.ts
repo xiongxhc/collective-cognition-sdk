@@ -11,6 +11,7 @@ import {
   sourceRevisionKey,
 } from "../src/index.ts";
 import type {
+  EvidencePromotionMapping,
   EvidencePromotionPolicy,
   EvidencePromotionRequest,
   SourceRecord,
@@ -158,6 +159,62 @@ test("rejects mappings that fail normal Evidence validation", () => {
     (error: unknown) =>
       error instanceof DomainError && error.code === DomainErrorCode.INVALID_OBJECT,
   );
+});
+
+test("rejects malformed policy mapping outputs at runtime", () => {
+  const validMapping = {
+    title: "Valid title",
+    statement: "Valid statement.",
+    evidenceKind: "source-record",
+    polarity: "neutral",
+  };
+  const invalidMappings: readonly [string, string, unknown][] = [
+    ["an empty title", "title", { ...validMapping, title: "" }],
+    ["a non-string title", "title", { ...validMapping, title: 1 }],
+    ["a blank statement", "statement", { ...validMapping, statement: " " }],
+    ["a non-string statement", "statement", { ...validMapping, statement: null }],
+    ["an empty evidence kind", "evidenceKind", { ...validMapping, evidenceKind: "" }],
+    ["a non-string evidence kind", "evidenceKind", { ...validMapping, evidenceKind: false }],
+    ["an unsupported polarity", "polarity", { ...validMapping, polarity: "unknown" }],
+  ];
+
+  for (const [description, field, mapping] of invalidMappings) {
+    const policy: EvidencePromotionPolicy = {
+      id: "invalid-policy",
+      version: "1",
+      map() {
+        return mapping as EvidencePromotionMapping;
+      },
+    };
+
+    assert.throws(
+      () => promoteSourceRecordToEvidence(requestFor(recordFor()), policy),
+      (error: unknown) =>
+        error instanceof DomainError &&
+        error.code === DomainErrorCode.INVALID_OBJECT &&
+        error.details.field === field,
+      description,
+    );
+  }
+});
+
+test("accepts every EvidenceData polarity from policy mappings", () => {
+  for (const polarity of ["supports", "challenges", "neutral"] as const) {
+    const evidence = promoteSourceRecordToEvidence(requestFor(recordFor()), {
+      id: `policy:${polarity}`,
+      version: "1",
+      map() {
+        return {
+          title: `${polarity} mapping`,
+          statement: "Valid statement.",
+          evidenceKind: "source-record",
+          polarity,
+        };
+      },
+    });
+
+    assert.equal(evidence.data.polarity, polarity);
+  }
 });
 
 test("promotes accepted records only in composed ingestion", () => {
