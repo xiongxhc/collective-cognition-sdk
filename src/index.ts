@@ -13,6 +13,11 @@ export {
   ingestSourceRecords,
 } from "./ingestion.ts";
 export {
+  ingestAndPromoteEvidence,
+  neutralEvidencePolicyV1,
+  promoteSourceRecordToEvidence,
+} from "./promotion.ts";
+export {
   createObject,
   deserializeObject,
   serializeObject,
@@ -67,6 +72,13 @@ export type {
   IngestionOptions,
   IngestionTextOptions,
 } from "./ingestion.ts";
+export type {
+  EvidencePromotionContext,
+  EvidencePromotionMapping,
+  EvidencePromotionPolicy,
+  EvidencePromotionRequest,
+  IngestAndPromoteEvidenceResult,
+} from "./promotion.ts";
 export type {
   TeamMemoryEvidenceContext,
   TeamMemoryEventRow,
