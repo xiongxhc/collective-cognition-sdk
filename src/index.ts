@@ -9,6 +9,10 @@ export {
   validateSourceRecord,
 } from "./source-records.ts";
 export {
+  ingestSourceRecordText,
+  ingestSourceRecords,
+} from "./ingestion.ts";
+export {
   createObject,
   deserializeObject,
   serializeObject,
@@ -56,6 +60,13 @@ export type {
   SourceRecord,
   SourceRecordSource,
 } from "./source-records.ts";
+export type {
+  IngestionBatchResult,
+  IngestionItemResult,
+  IngestionMode,
+  IngestionOptions,
+  IngestionTextOptions,
+} from "./ingestion.ts";
 export type {
   TeamMemoryEvidenceContext,
   TeamMemoryEventRow,
