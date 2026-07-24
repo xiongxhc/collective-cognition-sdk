@@ -2,6 +2,14 @@
 
 **Date:** 2026-07-24
 
+**Status:** Implemented as private local reference source
+
+## Current Relationship to Universal Ingestion
+
+This document records the implemented Phase 1 cognitive core. The later [universal ingestion design](2026-07-24-universal-ingestion-design.md) adds a neutral `SourceRecord` boundary before cognitive interpretation.
+
+The existing team-memory adapter was added as a real-data experiment after this core design. Its direct source-row-to-`Evidence` mapping is runnable current behavior but not the future root SDK contract. RFC 0001 tracks migration to `SourceRecord → explicit promotion → Evidence`.
+
 ## Purpose
 
 Collective Cognition SDK gives humans, agents, teams, and organizations a shared, portable model for long-lived collaborative reasoning. The first release validates a minimal cognitive loop without prescribing storage, user interface, agent runtime, or organizational beliefs.
@@ -31,22 +39,27 @@ collective-cognition-sdk/
 │       ├── plans/
 │       └── specs/
 ├── examples/
-│   └── cognitive-loop.ts
+│   ├── cognitive-loop.ts
+│   └── team-memory-evidence.ts
 ├── rfcs/
 │   └── README.md
 ├── spec/
 │   └── README.md
 ├── src/
 │   ├── authorization.ts
+│   ├── adapters/
+│   │   └── team-memory.ts
 │   ├── errors.ts
 │   ├── events.ts
 │   ├── index.ts
 │   ├── objects.ts
+│   ├── teammem-cli.ts
 │   ├── transitions.ts
 │   └── types.ts
 ├── tests/
 │   ├── cognitive-loop.test.ts
-│   ├── serialization.test.ts
+│   ├── objects.test.ts
+│   ├── team-memory.test.ts
 │   └── transitions.test.ts
 ├── package.json
 ├── tsconfig.json
@@ -56,7 +69,7 @@ collective-cognition-sdk/
 Each source file has one responsibility:
 
 - `types.ts` defines shared identifiers, attribution, version, lifecycle, provenance, and confirmation types.
-- `objects.ts` defines the eight Phase 1 object shapes and their creation rules.
+- `objects.ts` defines the seven Phase 1 cognitive object shapes and their creation rules.
 - `authorization.ts` evaluates whether a requested transition is automatic, human-confirmed, or denied.
 - `transitions.ts` validates lifecycle changes and creates updated immutable object versions.
 - `events.ts` defines and creates the common event envelope.
@@ -65,7 +78,7 @@ Each source file has one responsibility:
 
 ## Core Objects
 
-Phase 1 contains eight object categories:
+Phase 1 contains seven cognitive object categories plus events:
 
 - `Identity` attributes actions to a human, agent, team, or organization.
 - `Goal` expresses an owned objective with success criteria.
@@ -215,14 +228,15 @@ Tests use deterministic IDs and timestamps supplied by the caller so assertions 
 
 ## Roadmap Placement
 
-The tracked roadmap contains these phases:
+The tracked roadmap now contains these phases:
 
-1. **Runnable core:** implement and validate the Phase 1 object model, transitions, authorization, serialization, events, and example.
-2. **Specification stabilization:** write the core charter and object RFCs, harden type-specific payload semantics, publish machine-readable schemas, define stable package exports/distribution, and add compatibility and conformance rules.
-3. **Obsidian/Markdown adapter:** map cognitive objects to human-readable Markdown, preserve IDs and versions, and prove bidirectional round trips.
-4. **Interoperability proof:** add a second adapter and demonstrate that two implementations interpret objects, transitions, and events consistently.
-5. **Governance and evolution:** add proposals, approvals, conflicts, learning, policy promotion, extension governance, and migration tooling.
-6. **Real-team validation:** operate the model continuously and measure decision traceability, repeated-debate reduction, evidence reuse, and review responsiveness.
+1. **Runnable cognitive core:** the implemented local object model, transitions, authorization, events, examples, and team-memory experiment.
+2. **Universal ingestion foundation:** add neutral source records, generic JSON/JSONL, explicit promotion, and connector boundaries.
+3. **Specification and package stabilization:** publish normative schemas, conformance fixtures, stable exports, and distribution criteria.
+4. **Adapter ecosystem foundations:** migrate team-memory, add the Obsidian/Markdown adapter, and publish connector tooling.
+5. **Cross-connector interoperability:** prove independent connectors use the same generic ingestion semantics.
+6. **Governance and evolution:** govern extensions, migrations, authorization policies, and connector maintenance.
+7. **Real-team validation:** measure usefulness, reliability, and maintenance cost in opted-in teams.
 
 Each phase has explicit entry criteria, deliverables, acceptance checks, and deferred items in `docs/ROADMAP.md`.
 
@@ -232,6 +246,7 @@ Phase 1 does not:
 
 - implement a database, event bus, web service, or user interface;
 - implement an Obsidian adapter;
+- implement the approved universal source-record ingestion boundary;
 - define every object from the six-layer vision;
 - infer cognitive objects from raw conversations;
 - assign universal evidence scores;
@@ -248,3 +263,4 @@ Phase 1 does not:
 - Storage, event delivery, identity providers, and organizational policy integrations are adapter concerns.
 - The first complete example is one cognitive chain, not a broad ontology.
 - Specification and Obsidian work remain first-class roadmap phases rather than optional future ideas.
+- Source-specific adapters are experiments or optional connectors; they do not define the universal root API.

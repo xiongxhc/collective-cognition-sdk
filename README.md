@@ -1,30 +1,52 @@
 # Collective Cognition SDK
 
-This repository contains experimental, dependency-free TypeScript reference SDK source and a CLI for local testing of attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, or organizational beliefs.
+Collective Cognition SDK is experimental, dependency-free TypeScript reference source for attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, source system, or organizational beliefs.
+
+The project is designing a universal SDK, but the current repository is still private reference source rather than an externally packaged or production-ready SDK.
+
+## Current Status
+
+Runnable now:
+
+- immutable identities, goals, hypotheses, experiments, evidence, decisions, and principles;
+- validated lifecycle transitions with an auditable event for every successful transition;
+- structural human-confirmation checks for configured consequential transitions;
+- JSON serialization and a complete cognitive-loop example;
+- an experimental read-only team-memory SQLite adapter and JSONL exporter.
+
+Not implemented yet:
+
+- the approved neutral `SourceRecord` ingestion boundary;
+- generic JSON/JSONL ingestion and explicit promotion policies;
+- stable package exports or external distribution;
+- persistence, services, UI, synchronization, or connector ecosystem;
+- Obsidian/Markdown integration;
+- automatic cognition from conversations.
+
+The team-memory adapter proves that real source data can enter the model. Its direct row-to-`Evidence` mapping is an experimental compatibility path, not the future universal root API.
+
+## Universal Architecture
+
+The approved architecture separates collection from interpretation:
+
+```text
+any external source
+  → immutable SourceRecord
+  → explicit, versioned promotion policy
+  → Evidence or another supported CognitiveObject
+```
+
+Canonical JSON and JSONL will be the minimum no-code integration path. Reusable connectors will be optional packages for common systems. A team will need custom connector code only when its source cannot emit canonical records and no shared connector exists.
+
+A convenience workflow may ingest and promote in one operation, but it must preserve and expose both artifacts. Successful parsing never means that material is true, accepted evidence, or authorized for a consequential decision.
+
+Read the [universal ingestion design](docs/superpowers/specs/2026-07-24-universal-ingestion-design.md), [draft RFC](rfcs/0001-universal-source-record-ingestion.md), and [roadmap](docs/ROADMAP.md).
 
 ## Requirements
 
 - Node.js 24 or newer. The examples rely on Node 24 native TypeScript execution.
-- `npm install` to install development-only TypeScript and Node type packages.
+- `npm install` for development-only TypeScript and Node type packages.
 - No production dependencies.
-
-## Runnable Locally
-
-- Create and JSON-round-trip immutable identities, goals, hypotheses, experiments, evidence, decisions, and principles.
-- Validate lifecycle transitions and receive one auditable event for every successful transition.
-- Structurally validate asserted human-confirmation metadata for configured consequential transitions.
-- Read selected team-memory ledger rows as neutral, collected evidence through a read-only SQLite adapter.
-- Run a complete cognitive-loop example and a bounded team-memory evidence example.
-
-The current implementation is private runnable reference source, not an externally packaged SDK or a language-neutral standard. Packaging, a stable exports map, and external distribution are deferred in the roadmap. It does not provide persistence, cross-store relationship existence checks, a service, UI, Obsidian adapter, or automatic cognition from conversations.
-
-Type-specific `data` payloads remain permissive JSON-compatible structures. Required semantic fields and stricter per-type validation are specification-stabilization work, not guarantees of the current reference source.
-
-## Authorization Boundary
-
-`transitionObject` accepts an optional public `AuthorizationPolicy`; without one it uses the built-in structural evaluator. The default evaluator validates the shape, chronology, human actor assertion, and `objectId`/`targetState`/`eventId` binding of supplied confirmation metadata. It does not authenticate the actor, prove consent, or verify that an approval record exists.
-
-Integrated or production callers must inject a policy backed by authenticated identity and trusted approval records. A caller must not treat acceptance by the default evaluator as proof that a person actually approved the transition.
 
 ## Commands
 
@@ -42,28 +64,49 @@ npx tsc --noEmit
 npm run check
 ```
 
-`npm run example` prints an attributed complete chain, the rejected unconfirmed decision approval, the successful human-confirmed approval, and the successful event count.
+`npm run example` prints an attributed complete chain, a rejected unconfirmed decision approval, a successful human-confirmed approval, and the successful event count.
 
-`npm run --silent example:teammem` reads at most five rows from the provided ledger and writes one count line followed by Evidence JSON lines. `npm run --silent teammem:export` writes pure JSONL, emits all matching rows by default, and supports `--from`, `--to`, `--person`, `--project`, and `--limit`. The `--silent` flag prevents npm banners from contaminating stdout.
+The team-memory commands are current experimental tools:
 
-## Team-Memory Semantics
+- `example:teammem` reads at most five ledger rows and prints a count plus Evidence JSON.
+- `teammem:export` writes Evidence JSONL and supports `--from`, `--to`, `--person`, `--project`, and `--limit`.
+- `--silent` prevents npm banners from contaminating stdout.
 
-- SQLite is opened read-only. The adapter performs `SELECT` queries only and never creates, updates, or deletes ledger data.
-- Each row maps to a new `collected` Evidence object linked to the named hypothesis.
-- Evidence object identity includes the upstream `(person, source, hash)` key plus the selected context and hypothesis mapping. Provenance uses `source: "team-memory-agent"` and keeps the stable upstream key as `sourceId`; the upstream event source remains in Evidence data.
-- The mapping is deliberately neutral: `polarity` is `neutral`, and the adapter does not infer support, challenge, decisions, truth, confidence, or evidence quality.
-- The provided ledger path is the only external data source. The personal Obsidian vault is untouched; these commands do not read or write it.
-- Time filters and ordering follow team-memory-agent's stored timestamp text. Mixed UTC offsets can differ from absolute-time ordering near a filter boundary; normalization is deferred to adapter hardening.
-- `node:sqlite` is experimental in Node 24 and may print an `ExperimentalWarning` when invoked directly. The npm scripts suppress that warning for readable output; suppression does not make the API stable.
+These commands will migrate behind the neutral ingestion and connector boundaries described in RFC 0001.
+
+## Current Team-Memory Safety
+
+- SQLite is opened read-only and queried with `SELECT` only.
+- Every selected row maps to new `collected`, neutral Evidence linked to a caller-supplied hypothesis.
+- The adapter does not infer support, challenge, truth, confidence, decisions, or evidence quality.
+- The provided ledger path is the only external source.
+- The personal Obsidian vault is not read or written.
+- This repository does not modify the `team-memory-agent` LaunchAgent or scheduled team-vault output.
+- Time filtering follows stored timestamp text; mixed offsets can differ from absolute-time ordering near a boundary.
+- `node:sqlite` is experimental in Node 24 and may emit an `ExperimentalWarning`; npm scripts suppress the warning only for readable output.
+
+## Authorization Boundary
+
+`transitionObject` accepts an optional public `AuthorizationPolicy`; without one it uses the built-in structural evaluator. The default evaluator validates shape, chronology, human actor assertion, and `objectId`/`targetState`/`eventId` binding. It does not authenticate the actor, prove consent, or verify that an approval record exists.
+
+Production callers must inject a policy backed by authenticated identity and trusted approval records. Acceptance by the default evaluator is not proof that a person actually approved a transition.
+
+## Semantic Limits
+
+Type-specific `data` payloads remain permissive JSON-compatible structures. Required semantic fields, language-neutral schemas, and stricter per-type validation remain roadmap work.
+
+The project does not claim universal compatibility, production readiness, or broad adoption yet. Those claims require a stable package, conformance fixtures, independently implemented connectors, and real-team evidence.
 
 ## Roadmap
 
-What is runnable now is limited to local execution of the TypeScript reference source, CLI, and read-only evidence import described above. The tracked [roadmap](docs/ROADMAP.md) keeps separate phases for:
+The tracked [roadmap](docs/ROADMAP.md) separates:
 
-1. specification stabilization;
-2. an Obsidian/Markdown adapter;
-3. second-adapter interoperability;
-4. governance and evolution;
-5. real-team validation.
+1. the completed runnable core;
+2. universal neutral-first ingestion;
+3. specification and package stabilization;
+4. adapter ecosystem foundations;
+5. cross-connector interoperability;
+6. governance and evolution;
+7. real-team validation.
 
-Each phase has entry criteria, deliverables, acceptance checks, and explicit deferrals. Proposed semantic changes start in [RFCs](rfcs/README.md); future language-neutral specification contributions start in [spec](spec/README.md).
+Semantic changes use [RFCs](rfcs/README.md). Language-neutral specification contributions start in [spec](spec/README.md).

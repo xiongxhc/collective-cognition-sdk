@@ -2,6 +2,10 @@
 
 RFCs are the contribution path for changes that affect collective-cognition semantics, compatibility, governance, or more than one adapter. They turn design discussion into a reviewable decision with alternatives, consequences, and explicit deferrals.
 
+## Active RFCs
+
+- [RFC 0001: Universal Source-Record Ingestion](0001-universal-source-record-ingestion.md) — draft written contract for the approved neutral-first ingestion direction.
+
 ## When an RFC Is Required
 
 Write an RFC before changing:
@@ -9,10 +13,11 @@ Write an RFC before changing:
 - core object fields, relationships, or lifecycle transitions;
 - authorization or human-confirmation boundaries;
 - event, serialization, schema, or compatibility contracts;
+- source-record, ingestion, promotion, or connector boundaries;
 - adapter interoperability requirements;
 - extension governance, migrations, or deprecation policy.
 
-Documentation corrections, examples that preserve existing semantics, and implementation bug fixes do not require an RFC.
+Documentation corrections, examples that preserve existing semantics, and implementation bug fixes do not require an RFC. Every accepted RFC must identify all repository Markdown files that need reconciliation.
 
 ## Proposal Format
 
