@@ -30,7 +30,7 @@ The historical team-memory direct-to-Evidence path was replaced. The current con
 
 ## Current Phase 2 Fixtures
 
-`fixtures/source-records/valid.jsonl` contains canonical SourceRecords directly. It covers string and structured content plus optional source instance, observed time, opaque integrity metadata, actor, context, and namespaced extensions.
+`fixtures/source-records/valid.jsonl` contains canonical SourceRecords directly. It covers string and structured content plus optional source instance, observed time, opaque caller-supplied integrity metadata, actor, context, and namespaced extensions. The SDK does not verify `contentHash` syntax or bind it to `content`; an external trust boundary must perform any such verification.
 
 `fixtures/source-records/invalid.jsonl` contains fixture envelopes with:
 
@@ -38,7 +38,7 @@ The historical team-memory direct-to-Evidence path was replaced. The current con
 - `expectedCode`: the stable error code;
 - `record`: the SourceRecord-shaped value to validate.
 
-The invalid corpus covers missing revision identity, invalid timestamp, non-string media type, and unsupported schema version. The conformance suite verifies SDK and CLI outcomes plus equivalent canonical JSON and JSONL results. Focused runtime suites additionally reject unknown top-level/source fields, prove accepted-record clone isolation and deep freezing, accept changed content under a new revision, enforce all ingestion limits, and cover one-or-more-record promotion with structured failure. The connector conformance test proves the team-memory and Git fixture connectors emit valid records under the same SourceRecord contract.
+The invalid corpus covers missing revision identity, invalid timestamp, non-string media type, and unsupported schema version. The conformance suite verifies SDK and CLI outcomes plus equivalent canonical JSON and JSONL results. Focused runtime suites additionally enforce namespaced extensions and neutral context, prove accepted-record clone isolation and deep freezing, accept changed content under a new revision, apply limits before parsing/normalization, classify direct promotion inputs, hash complete promotion payloads, sanitize diagnostics, and fail authorization closed. Connector tests prove team-memory defaults to raw omission and that team-memory and Git emit valid records under the same SourceRecord contract.
 
 These Phase 2 files are implementation conformance fixtures for the TypeScript reference source. Phase 3 will define normative, versioned, language-neutral fixtures and schemas suitable for independent implementations.
 

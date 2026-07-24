@@ -69,6 +69,13 @@ const sourceRecordFields = new Set([
 const sourceRecordInputFields = new Set(
   [...sourceRecordFields].filter((field) => field !== "schemaVersion"),
 );
+const interpretationFields = new Set([
+  "polarity",
+  "confidence",
+  "authority",
+]);
+const namespacedExtensionKeyPattern =
+  /^[^:.\s]+(?:[:.][^:.\s]+)+$/;
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -185,12 +192,38 @@ function validateSourceRecordFields(
       );
     }
   }
-  for (const field of ["context", "extensions"] as const) {
-    if (value[field] !== undefined && !isJsonObject(value[field])) {
+  const context = value.context;
+  if (context !== undefined) {
+    if (!isJsonObject(context)) {
       invalidSourceRecord(
-        `Source record ${field} must be a JSON object.`,
-        { field },
+        "Source record context must be a JSON object.",
+        { field: "context" },
       );
+    }
+    for (const field of Object.keys(context)) {
+      if (interpretationFields.has(field)) {
+        invalidSourceRecord(
+          `Source record context field ${field} is not supported.`,
+          { field: `context.${field}` },
+        );
+      }
+    }
+  }
+  const extensions = value.extensions;
+  if (extensions !== undefined) {
+    if (!isJsonObject(extensions)) {
+      invalidSourceRecord(
+        "Source record extensions must be a JSON object.",
+        { field: "extensions" },
+      );
+    }
+    for (const field of Object.keys(extensions)) {
+      if (!namespacedExtensionKeyPattern.test(field)) {
+        invalidSourceRecord(
+          `Source record extension key ${field} must be namespaced.`,
+          { field: `extensions.${field}` },
+        );
+      }
     }
   }
 }
@@ -270,11 +303,10 @@ export function deserializeSourceRecord(json: string): SourceRecord {
   let value: unknown;
   try {
     value = JSON.parse(json);
-  } catch (error) {
+  } catch {
     throw new DomainError(
       DomainErrorCode.SERIALIZATION_ERROR,
       "Serialized source record is not valid JSON.",
-      { cause: error instanceof Error ? error.message : String(error) },
     );
   }
 

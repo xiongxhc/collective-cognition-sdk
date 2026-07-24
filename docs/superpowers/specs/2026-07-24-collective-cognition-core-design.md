@@ -158,7 +158,7 @@ The default structural evaluator permits humans and agents to create drafts and 
 
 Agents may recommend these transitions but cannot structurally satisfy the human-confirmation requirement themselves. `HumanConfirmation` binds the asserted approval to `objectId`, `targetState`, and `eventId`, and confirmation chronology cannot follow the event.
 
-The default evaluator validates only asserted metadata: shape, chronology, human actor kind, and transition binding. It does not authenticate identity, prove consent, or verify an approval record. `transitionObject` accepts a public `AuthorizationPolicy` function so integrated or production callers can inject a policy backed by authenticated identity and trusted approval records. Such callers must not treat acceptance by the default evaluator as proof of actual human approval.
+The default evaluator validates only asserted metadata: shape, chronology, human actor kind, and transition binding. It does not authenticate identity, prove consent, or verify an approval record. `transitionObject` accepts a public `AuthorizationPolicy` function so integrated or production callers can inject a policy backed by authenticated identity and trusted approval records. Before policy invocation, the transition context is cloned, validated, and deeply frozen. Runtime policy output must be one exact closed decision shape, and only `allowed` proceeds; policy exceptions, mutation attempts, invalid statuses, extra fields, and malformed decisions fail closed with `AUTHORIZATION_DENIED`. Such callers must not treat acceptance by the default evaluator as proof of actual human approval.
 
 ## Event Flow
 
@@ -167,6 +167,7 @@ A caller submits an object, target state, transition context, and policy:
 ```text
 request
   → validate object and target transition
+  → snapshot and freeze transition context
   → evaluate authorization
   → require confirmation when applicable
   → create next immutable object version

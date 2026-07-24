@@ -16,7 +16,7 @@ Runnable now:
 - JSON serialization and a complete cognitive-loop example;
 - a closed, versioned `SourceRecord` contract with canonical JSON/JSONL ingestion that clones and deeply freezes accepted external records;
 - deterministic duplicate and source-revision collision classification;
-- explicit, versioned one-or-more-record neutral-Evidence promotion with required rationale and complete provenance;
+- explicit, versioned one-or-more-record neutral-Evidence promotion with duplicate/collision classification, required rationale, complete provenance, immutable input snapshots, and canonical payload-hash identity;
 - caller-configurable SDK ingestion limits and finite CLI input, record-count, and record-size limits;
 - a composed workflow that preserves ingestion and returns a discriminated promotion success or structured failure;
 - a source-neutral `cc` CLI for validate, ingest, promote, and ingest-promote operations;
@@ -46,7 +46,7 @@ any external source
 
 Canonical JSON and JSONL are the minimum no-code integration path. Reusable connectors remain planned for common systems. A team needs custom connector code only when its source cannot emit canonical records and no shared connector exists.
 
-A `SourceRecord` accepts only the documented top-level and `source` fields. Unknown fields—including polarity, confidence, and authority—are rejected outside namespaced `extensions`.
+A `SourceRecord` accepts only the documented top-level and `source` fields. Every `extensions` key must contain a namespace separator (`:` or `.`) with non-empty sides. The interpretation keys `polarity`, `confidence`, and `authority` are also rejected directly in `context`; source-authored raw `content` may preserve fields with those names. `contentHash` is opaque caller-supplied integrity metadata, and this SDK does not verify that it is a digest or that it matches `content`.
 
 A convenience workflow may ingest and promote in one operation, but it must preserve and expose both artifacts. Successful parsing never means that material is true, accepted evidence, or authorized for a consequential decision.
 
@@ -67,6 +67,7 @@ npm run check
 npm run example
 npm run --silent example:teammem -- /path/to/team-memory-agent/ledger.db
 npm run --silent teammem:export -- --db /path/to/ledger.db --limit 5
+npm run --silent teammem:export -- --db /path/to/ledger.db --limit 5 --include-raw
 ```
 
 Run the canonical conformance suite directly:
@@ -80,7 +81,7 @@ node --test tests/conformance.test.ts
 The migrated team-memory commands are experimental connector tools:
 
 - `example:teammem` reads at most five ledger rows, creates SourceRecords, and explicitly promotes the non-empty record set into one Evidence object with `neutral-evidence-v1`.
-- `teammem:export` writes SourceRecord JSONL and supports `--from`, `--to`, `--person`, `--project`, and `--limit`.
+- `teammem:export` writes SourceRecord JSONL and supports `--from`, `--to`, `--person`, `--project`, and `--limit`. It omits the ledger `raw` column by default; `--include-raw` is the explicit privacy-sensitive opt-in.
 - `--silent` prevents npm banners from contaminating stdout.
 
 The former experimental `--hypothesis-id` and `--context-id` export arguments were removed because export no longer creates Evidence. Use the generic CLI for source-neutral operations:
@@ -99,16 +100,17 @@ npm run --silent cc -- promote --input records.jsonl --format jsonl \
   --promoted-at 2026-07-24T12:00:00.000Z
 ```
 
-`validate` emits one item-result JSON line per input item. `ingest` emits accepted unique SourceRecords. `promote` creates one Evidence object from all accepted unique records. `ingest-promote` emits one composed result whose `promotion` is a discriminated `succeeded` or `failed` result; promotion failure never conceals successful ingestion.
+`validate` emits one item-result JSON line per input item. `ingest` emits accepted unique SourceRecords. `promote` reclassifies its direct inputs, rejects source-revision collisions, and creates one Evidence object from the accepted unique records. Its ID is a SHA-256 hash over the complete canonical validated promotion payload: records, context, hypothesis, policy identity, rationale, attribution, timestamp, and mapping output. `ingest-promote` emits one composed result whose `promotion` is a discriminated `succeeded` or `failed` result; promotion failure never conceals successful ingestion.
 
-The generic CLI accepts `--max-input-bytes`, `--max-records`, and `--max-record-bytes`. Defaults are `10485760`, `10000`, and `1048576` respectively. File size is checked before reading, stdin is accumulated incrementally only up to the configured input limit, and SDK callers can configure the corresponding ingestion options. Limit breaches use `INGESTION_LIMIT_EXCEEDED`.
+The generic CLI accepts `--max-input-bytes`, `--max-records`, and `--max-record-bytes`. Defaults are `10485760`, `10000`, and `1048576` respectively. File and stdin input use the same incremental bounded reader. JSONL line size is checked before parsing, and record size is checked before normalization or cloning. SDK callers can configure the corresponding ingestion options. Limit breaches use `INGESTION_LIMIT_EXCEEDED`.
 
-Pre-output CLI failures write exactly one JSON diagnostic to stderr with `code`, `message`, `details`, and `stage`, and write nothing to stdout. Rejected collect-all items remain item diagnostics because they are batch outcomes rather than top-level failures.
+Pre-output generic CLI failures write exactly one JSON diagnostic to stderr with `code`, `message`, `details`, and `stage`, and write nothing to stdout. Parser details, arbitrary promotion-policy exceptions, input paths, and non-domain exception messages are not exposed. Rejected collect-all items remain item diagnostics because they are batch outcomes rather than top-level failures. `teammem:export` uses `{ "stage": "...", "error": { "code": "...", "message": "...", "details": {} } }` for every failure.
 
 ## Current Team-Memory Safety
 
 - SQLite is opened read-only and queried with `SELECT` only.
 - Every selected row maps to a cloned, deeply frozen SourceRecord before any interpretation.
+- Ledger `raw` content is omitted by default. Callers must pass connector option `{ includeRaw: true }` or CLI flag `--include-raw` to include it.
 - Promotion is a separate caller-selected operation; the built-in policy emits new `collected`, neutral Evidence linked to a caller-supplied hypothesis, every contributing SourceRecord, and a non-empty rationale.
 - The connector does not infer support, challenge, truth, confidence, decisions, or evidence quality.
 - The provided ledger path is the only external source.
@@ -119,7 +121,7 @@ Pre-output CLI failures write exactly one JSON diagnostic to stderr with `code`,
 
 ## Authorization Boundary
 
-`transitionObject` accepts an optional public `AuthorizationPolicy`; without one it uses the built-in structural evaluator. The default evaluator validates shape, chronology, human actor assertion, and `objectId`/`targetState`/`eventId` binding. It does not authenticate the actor, prove consent, or verify that an approval record exists.
+`transitionObject` accepts an optional public `AuthorizationPolicy`; without one it uses the built-in structural evaluator. Before invoking any policy, it clones, validates, and deeply freezes the `TransitionContext`. Only exact closed `AuthorizationDecision` objects are accepted, and execution proceeds only for `{ status: "allowed" }`; policy exceptions, mutation attempts, invalid statuses, extra fields, and malformed decisions fail closed with a stable `AUTHORIZATION_DENIED` error. The default evaluator validates shape, chronology, human actor assertion, and `objectId`/`targetState`/`eventId` binding. It does not authenticate the actor, prove consent, or verify that an approval record exists.
 
 Production callers must inject a policy backed by authenticated identity and trusted approval records. Acceptance by the default evaluator is not proof that a person actually approved a transition.
 

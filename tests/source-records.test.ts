@@ -39,10 +39,10 @@ function expectInvalidSourceRecord(action: () => unknown): void {
   );
 }
 
-test("creates a versioned source record with optional integrity metadata", () => {
+test("creates a versioned source record with opaque integrity metadata", () => {
   const record = createSourceRecord({
     ...inputFor(),
-    contentHash: "sha256:abc",
+    contentHash: "sha256:not-a-verified-digest",
     actorId: "agent:collector",
     context: { project: "collective-cognition-sdk" },
     extensions: { "example:source": { retained: true } },
@@ -51,7 +51,7 @@ test("creates a versioned source record with optional integrity metadata", () =>
   assert.equal(record.schemaVersion, SOURCE_RECORD_SCHEMA_VERSION);
   assert.equal(SOURCE_RECORD_SCHEMA_VERSION, "0.1.0");
   assert.equal(record.source.system, "git");
-  assert.equal(record.contentHash, "sha256:abc");
+  assert.equal(record.contentHash, "sha256:not-a-verified-digest");
   assert.equal(record.actorId, "agent:collector");
   assert.deepEqual(record.context, { project: "collective-cognition-sdk" });
 });
@@ -171,9 +171,9 @@ test("rejects unknown top-level and source fields outside extensions", () => {
     ...inputFor(),
     schemaVersion: SOURCE_RECORD_SCHEMA_VERSION,
     extensions: {
-      polarity: "supports",
-      confidence: 0.9,
-      authority: "human:owner",
+      "example:polarity": "supports",
+      "example.confidence": 0.9,
+      "example:authority": "human:owner",
     },
   };
 
@@ -209,6 +209,70 @@ test("rejects unknown top-level and source fields outside extensions", () => {
   }
 
   assert.doesNotThrow(() => validateSourceRecord(record));
+});
+
+test("requires namespaced extension keys with non-empty separator sides", () => {
+  for (const key of [
+    "plain",
+    ":missing-prefix",
+    "missing-suffix:",
+    ".missing-prefix",
+    "missing-suffix.",
+  ]) {
+    assert.throws(
+      () =>
+        createSourceRecord(
+          inputFor({ extensions: { [key]: true } }),
+        ),
+      (error: unknown) =>
+        error instanceof DomainError &&
+        error.code === DomainErrorCode.INVALID_SOURCE_RECORD &&
+        error.details.field === `extensions.${key}`,
+      key,
+    );
+  }
+
+  assert.doesNotThrow(() =>
+    createSourceRecord(
+      inputFor({
+        extensions: {
+          "example:field": true,
+          "example.org.field": true,
+        },
+      }),
+    )
+  );
+});
+
+test("rejects interpretation fields in context while preserving raw content", () => {
+  for (const field of ["polarity", "confidence", "authority"]) {
+    assert.throws(
+      () =>
+        createSourceRecord(
+          inputFor({ context: { [field]: "source-claim" } }),
+        ),
+      (error: unknown) =>
+        error instanceof DomainError &&
+        error.code === DomainErrorCode.INVALID_SOURCE_RECORD &&
+        error.details.field === `context.${field}`,
+      field,
+    );
+  }
+
+  const record = createSourceRecord(
+    inputFor({
+      content: {
+        polarity: "source-authored",
+        confidence: 0.91,
+        authority: "source-field",
+      },
+    }),
+  );
+  assert.deepEqual(record.content, {
+    polarity: "source-authored",
+    confidence: 0.91,
+    authority: "source-field",
+  });
 });
 
 test("canonicalizes JSON with deterministic object-key ordering", () => {

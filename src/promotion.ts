@@ -1,9 +1,10 @@
+import { createHash } from "node:crypto";
+
 import { ingestSourceRecords } from "./ingestion.ts";
 import { DomainError, DomainErrorCode } from "./errors.ts";
 import { createObject } from "./objects.ts";
 import {
   canonicalizeJson,
-  normalizeSourceRecord,
   sourceRevisionKey,
 } from "./source-records.ts";
 import type { IngestionBatchResult, IngestionOptions } from "./ingestion.ts";
@@ -13,8 +14,9 @@ import type {
   CognitiveObject,
   EvidenceData,
   JsonObject,
+  JsonValue,
 } from "./types.ts";
-import { isJsonObject } from "./types.ts";
+import { freezeJsonValue, isJsonObject } from "./types.ts";
 
 export interface EvidencePromotionMapping {
   readonly title: string;
@@ -61,6 +63,42 @@ export interface IngestAndPromoteEvidenceResult {
   readonly promotion: EvidencePromotionResult;
 }
 
+interface PromotionPolicySnapshot {
+  readonly id: string;
+  readonly version: string;
+}
+
+interface PromotionRequestSnapshot extends EvidencePromotionRequest {
+  readonly records: readonly SourceRecord[];
+}
+
+interface ValidatedPolicy {
+  readonly identity: PromotionPolicySnapshot;
+  readonly map: EvidencePromotionPolicy["map"];
+}
+
+const promotionRequestFields = new Set([
+  "records",
+  "hypothesisId",
+  "contextId",
+  "rationale",
+  "promotedAt",
+  "attribution",
+]);
+const attributionFields = new Set([
+  "initiatorId",
+  "executorId",
+  "accountableId",
+]);
+const mappingFields = new Set([
+  "title",
+  "statement",
+  "evidenceKind",
+  "polarity",
+]);
+const isoTimestampPattern =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
+
 function invalidMapping(field: string, message: string): never {
   throw new DomainError(DomainErrorCode.INVALID_OBJECT, message, { field });
 }
@@ -69,36 +107,130 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function validatePolicy(policy: EvidencePromotionPolicy): void {
-  if (!isNonEmptyString(policy?.id)) {
+function isIsoTimestamp(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    !isoTimestampPattern.test(value) ||
+    Number.isNaN(Date.parse(value))
+  ) {
+    return false;
+  }
+  const datePart = value.slice(0, 10);
+  const calendarDate = new Date(`${datePart}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(calendarDate.getTime()) &&
+    calendarDate.toISOString().slice(0, 10) === datePart
+  );
+}
+
+function validatePolicy(policy: EvidencePromotionPolicy): ValidatedPolicy {
+  if (typeof policy !== "object" || policy === null) {
+    invalidMapping("policy", "Promotion policy must be an object.");
+  }
+  const id = policy.id;
+  const version = policy.version;
+  const map = policy.map;
+  if (!isNonEmptyString(id)) {
     invalidMapping(
       "policy.id",
       "Promotion policy id must be a non-empty string.",
     );
   }
-  if (!isNonEmptyString(policy.version)) {
+  if (!isNonEmptyString(version)) {
     invalidMapping(
       "policy.version",
       "Promotion policy version must be a non-empty string.",
     );
   }
-  if (typeof policy.map !== "function") {
+  if (typeof map !== "function") {
     invalidMapping("policy.map", "Promotion policy map must be a function.");
+  }
+  return Object.freeze({
+    identity: Object.freeze({ id, version }),
+    map,
+  });
+}
+
+function validateAttribution(value: unknown): asserts value is Attribution {
+  if (!isJsonObject(value)) {
+    invalidMapping("attribution", "Promotion attribution must be an object.");
+  }
+  for (const field of Object.keys(value)) {
+    if (!attributionFields.has(field)) {
+      invalidMapping(
+        `attribution.${field}`,
+        `Promotion attribution field ${field} is not supported.`,
+      );
+    }
+  }
+  for (const field of attributionFields) {
+    if (!isNonEmptyString(value[field])) {
+      invalidMapping(
+        `attribution.${field}`,
+        `Promotion attribution ${field} must be a non-empty string.`,
+      );
+    }
   }
 }
 
-function normalizeRecords(
-  records: readonly SourceRecord[],
-): readonly SourceRecord[] {
-  if (!Array.isArray(records) || records.length === 0) {
+function snapshotRequest(
+  request: EvidencePromotionRequest,
+): PromotionRequestSnapshot {
+  if (!isJsonObject(request)) {
+    invalidMapping("request", "Promotion request must be a JSON object.");
+  }
+  for (const field of Object.keys(request)) {
+    if (!promotionRequestFields.has(field)) {
+      invalidMapping(
+        field,
+        `Promotion request field ${field} is not supported.`,
+      );
+    }
+  }
+  if (!Array.isArray(request.records) || request.records.length === 0) {
     invalidMapping("records", "At least one source record is required.");
   }
-  return Object.freeze(records.map(normalizeSourceRecord));
+  for (const field of ["hypothesisId", "contextId", "rationale"] as const) {
+    if (!isNonEmptyString(request[field])) {
+      invalidMapping(
+        field,
+        `Promotion ${field} must be a non-empty string.`,
+      );
+    }
+  }
+  if (!isIsoTimestamp(request.promotedAt)) {
+    invalidMapping(
+      "promotedAt",
+      "Promotion promotedAt must be an ISO timestamp.",
+    );
+  }
+  validateAttribution(request.attribution);
+
+  const ingestion = ingestSourceRecords(request.records, {
+    mode: "fail-fast",
+  });
+  const snapshot = structuredClone({
+    records: ingestion.acceptedRecords,
+    hypothesisId: request.hypothesisId,
+    contextId: request.contextId,
+    rationale: request.rationale,
+    promotedAt: request.promotedAt,
+    attribution: request.attribution,
+  }) as unknown as JsonValue;
+  return freezeJsonValue(snapshot) as unknown as PromotionRequestSnapshot;
 }
 
 function validateMapping(value: unknown): asserts value is EvidencePromotionMapping {
   if (!isJsonObject(value)) {
     invalidMapping("mapping", "Policy mapping must be a JSON object.");
+  }
+  for (const field of Object.keys(value)) {
+    if (!mappingFields.has(field)) {
+      invalidMapping(
+        `mapping.${field}`,
+        `Policy mapping field ${field} is not supported.`,
+      );
+    }
   }
 
   for (const field of ["title", "statement", "evidenceKind"] as const) {
@@ -120,24 +252,24 @@ function validateMapping(value: unknown): asserts value is EvidencePromotionMapp
 }
 
 function evidenceId(
-  records: readonly SourceRecord[],
-  request: EvidencePromotionRequest,
-  policy: EvidencePromotionPolicy,
+  request: PromotionRequestSnapshot,
+  policy: PromotionPolicySnapshot,
+  mapping: EvidencePromotionMapping,
 ): string {
-  return [
-    "evidence:source-records",
-    encodeURIComponent(
-      canonicalizeJson(records.map((record) => sourceRevisionKey(record))),
-    ),
-    "context",
-    encodeURIComponent(request.contextId),
-    "hypothesis",
-    encodeURIComponent(request.hypothesisId),
-    "policy",
-    encodeURIComponent(policy.id),
-    "version",
-    encodeURIComponent(policy.version),
-  ].join(":");
+  const payload = {
+    records: request.records,
+    contextId: request.contextId,
+    hypothesisId: request.hypothesisId,
+    policy,
+    rationale: request.rationale,
+    attribution: request.attribution,
+    promotedAt: request.promotedAt,
+    mapping,
+  } as unknown as JsonValue;
+  const hash = createHash("sha256")
+    .update(canonicalizeJson(payload))
+    .digest("hex");
+  return `evidence:promotion:sha256:${hash}`;
 }
 
 function sourceProvenance(records: readonly SourceRecord[]) {
@@ -183,19 +315,27 @@ export function promoteSourceRecordsToEvidence(
   request: EvidencePromotionRequest,
   policy: EvidencePromotionPolicy,
 ): CognitiveObject<"evidence"> {
-  validatePolicy(policy);
-  const records = normalizeRecords(request.records);
-  if (!isNonEmptyString(request.rationale)) {
-    invalidMapping(
-      "rationale",
-      "Promotion rationale must be a non-empty string.",
+  const validatedPolicy = validatePolicy(policy);
+  const snapshot = snapshotRequest(request);
+  let mappingValue: unknown;
+  try {
+    mappingValue = validatedPolicy.map(snapshot.records);
+  } catch {
+    throw new DomainError(
+      DomainErrorCode.PROMOTION_FAILED,
+      "Promotion policy failed.",
     );
   }
-  const mapping = policy.map(records);
-  validateMapping(mapping);
+  validateMapping(mappingValue);
+  const mapping = freezeJsonValue({
+    title: mappingValue.title,
+    statement: mappingValue.statement,
+    evidenceKind: mappingValue.evidenceKind,
+    polarity: mappingValue.polarity,
+  }) as EvidencePromotionMapping;
 
   return createObject({
-    id: evidenceId(records, request, policy),
+    id: evidenceId(snapshot, validatedPolicy.identity, mapping),
     type: "evidence",
     version: 1,
     state: "collected",
@@ -205,19 +345,22 @@ export function promoteSourceRecordsToEvidence(
       evidenceKind: mapping.evidenceKind,
       polarity: mapping.polarity,
     },
-    createdAt: request.promotedAt,
-    updatedAt: request.promotedAt,
-    attribution: request.attribution,
-    provenance: sourceProvenance(records),
-    contextId: request.contextId,
+    createdAt: snapshot.promotedAt,
+    updatedAt: snapshot.promotedAt,
+    attribution: snapshot.attribution,
+    provenance: sourceProvenance(snapshot.records),
+    contextId: snapshot.contextId,
     relationships: [
-      { type: "relates-to-hypothesis", targetId: request.hypothesisId },
+      { type: "relates-to-hypothesis", targetId: snapshot.hypothesisId },
     ],
     extensions: {
       "collective-cognition:promotion": {
-        sourceRevisionKeys: records.map(sourceRevisionKey),
-        policy: { id: policy.id, version: policy.version },
-        rationale: request.rationale,
+        sourceRevisionKeys: snapshot.records.map(sourceRevisionKey),
+        policy: {
+          id: validatedPolicy.identity.id,
+          version: validatedPolicy.identity.version,
+        },
+        rationale: snapshot.rationale,
       },
     },
   });
@@ -233,7 +376,7 @@ function promotionFailure(error: unknown): PromotionFailure {
   }
   return {
     code: DomainErrorCode.PROMOTION_FAILED,
-    message: error instanceof Error ? error.message : String(error),
+    message: "Promotion failed.",
     details: {},
   };
 }

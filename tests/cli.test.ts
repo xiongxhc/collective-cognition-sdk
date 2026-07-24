@@ -500,6 +500,27 @@ test("malformed JSONL produces item output and item diagnostics", () => {
   );
 });
 
+test("CLI parser and input diagnostics never expose distinctive secrets", () => {
+  const parserSecret = "LEAK42";
+  const parserResult = runCli(
+    ["validate", ...ingestionArguments("-")],
+    `{"value": ${parserSecret}}\n`,
+  );
+
+  assert.notEqual(parserResult.status, 0);
+  assert.equal(parserResult.stdout.includes(parserSecret), false);
+  assert.equal(parserResult.stderr.includes(parserSecret), false);
+
+  const pathSecret = "CLI_PATH_SECRET_DO_NOT_EXPOSE";
+  const inputResult = runCli([
+    "validate",
+    ...ingestionArguments(`/missing/${pathSecret}.jsonl`),
+  ]);
+  assert.notEqual(inputResult.status, 0);
+  assert.equal(inputResult.stdout, "");
+  assert.equal(inputResult.stderr.includes(pathSecret), false);
+});
+
 test("all top-level CLI failures emit one structured diagnostic", () => {
   const cases: Array<{
     args: string[];
@@ -540,7 +561,7 @@ test("all top-level CLI failures emit one structured diagnostic", () => {
   });
 });
 
-test("CLI enforces maxInputBytes from file metadata before reading", () => {
+test("CLI bounds file input incrementally by maxInputBytes", () => {
   const content = `${JSON.stringify(sourceRecord())}\n`;
   const inputBytes = Buffer.byteLength(content);
 
@@ -562,6 +583,25 @@ test("CLI enforces maxInputBytes from file metadata before reading", () => {
       actual: inputBytes,
     });
   });
+});
+
+test("CLI rejects an oversized malformed JSONL line before parsing", () => {
+  const malformed = `{"value":"${"x".repeat(256)}"`;
+  const diagnostic = singleDiagnostic(
+    runCli(
+      [
+        "validate",
+        ...ingestionArguments("-", {
+          limits: { maxRecordBytes: 64 },
+        }),
+      ],
+      malformed,
+    ),
+  );
+
+  assert.equal(diagnostic.code, "INGESTION_LIMIT_EXCEEDED");
+  assert.equal(diagnostic.stage, "ingestion");
+  assert.equal(diagnostic.details.limit, "maxRecordBytes");
 });
 
 test("CLI enforces maxRecords before emitting output", () => {

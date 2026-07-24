@@ -191,6 +191,175 @@ test("uses neutral mappings for one or multiple source records", () => {
   );
 });
 
+test("classifies direct-promotion duplicates and rejects revision collisions", () => {
+  const firstRecord = recordFor();
+  const duplicate = structuredClone(firstRecord) as SourceRecord;
+  const secondRecord = recordFor({
+    id: "source-record:review",
+    sourceId: "review:42",
+    revisionId: "review:42:v1",
+  });
+  let mappedRecords: readonly SourceRecord[] | undefined;
+  const policy: EvidencePromotionPolicy = {
+    id: "classification-policy",
+    version: "1",
+    map(records) {
+      mappedRecords = records;
+      return {
+        title: "Classified records",
+        statement: "Only unique records are mapped.",
+        evidenceKind: "source-record",
+        polarity: "neutral",
+      };
+    },
+  };
+
+  const evidence = promoteSourceRecordsToEvidence(
+    requestFor([firstRecord, duplicate, secondRecord]),
+    policy,
+  );
+
+  assert.equal(mappedRecords?.length, 2);
+  assert.notEqual(mappedRecords?.[0], firstRecord);
+  assert.equal(Object.isFrozen(mappedRecords), true);
+  assert.equal(Object.isFrozen(mappedRecords?.[0]), true);
+  assert.deepEqual(
+    evidence.provenance.map((reference) => reference.sourceId),
+    [firstRecord.id, secondRecord.id],
+  );
+
+  const collision = {
+    ...firstRecord,
+    content: { summary: "Conflicting content under the same revision." },
+  } as SourceRecord;
+  assert.throws(
+    () =>
+      promoteSourceRecordsToEvidence(
+        requestFor([firstRecord, collision]),
+        policy,
+      ),
+    (error: unknown) =>
+      error instanceof DomainError &&
+      error.code === DomainErrorCode.SOURCE_REVISION_COLLISION,
+  );
+});
+
+test("derives Evidence IDs from the complete validated promotion payload", () => {
+  const record = recordFor();
+  const baseMapping: EvidencePromotionMapping = {
+    title: "Canonical promotion",
+    statement: "Canonical statement.",
+    evidenceKind: "source-record",
+    polarity: "neutral",
+  };
+  const policyFor = (
+    mapping: EvidencePromotionMapping = baseMapping,
+  ): EvidencePromotionPolicy => ({
+    id: "canonical-policy",
+    version: "1",
+    map() {
+      return mapping;
+    },
+  });
+  const baseRequest = requestFor([record]);
+  const base = promoteSourceRecordsToEvidence(baseRequest, policyFor());
+  const variants = [
+    promoteSourceRecordsToEvidence(
+      { ...baseRequest, rationale: "A different rationale." },
+      policyFor(),
+    ),
+    promoteSourceRecordsToEvidence(
+      {
+        ...baseRequest,
+        attribution: {
+          ...baseRequest.attribution,
+          executorId: "agent:another-importer",
+        },
+      },
+      policyFor(),
+    ),
+    promoteSourceRecordsToEvidence(
+      { ...baseRequest, promotedAt: "2026-07-24T11:00:00.001Z" },
+      policyFor(),
+    ),
+    promoteSourceRecordsToEvidence(
+      baseRequest,
+      policyFor({ ...baseMapping, statement: "Different mapping output." }),
+    ),
+  ];
+
+  assert.match(base.id, /^evidence:promotion:sha256:[a-f0-9]{64}$/);
+  assert.equal(new Set([base.id, ...variants.map((item) => item.id)]).size, 5);
+  assert.equal(
+    promoteSourceRecordsToEvidence(baseRequest, policyFor()).id,
+    base.id,
+  );
+});
+
+test("snapshots validated promotion inputs before invoking a mutable policy", () => {
+  const source = recordFor();
+  const request = {
+    records: [source],
+    hypothesisId: "hypothesis:snapshot",
+    contextId: "context:snapshot",
+    rationale: "Snapshot every validated caller value.",
+    promotedAt,
+    attribution: {
+      initiatorId: "human:initiator",
+      executorId: "agent:executor",
+      accountableId: "human:accountable",
+    },
+  };
+  const policy = {
+    id: "snapshot-policy",
+    version: "7",
+    map(records: readonly SourceRecord[]): EvidencePromotionMapping {
+      assert.equal(Object.isFrozen(records), true);
+      assert.equal(Object.isFrozen(records[0]), true);
+      assert.equal(Object.isFrozen(records[0]?.content), true);
+      assert.notEqual(records[0], source);
+
+      request.records.splice(0);
+      request.hypothesisId = "";
+      request.contextId = "";
+      request.rationale = "";
+      request.promotedAt = "not-a-timestamp";
+      request.attribution.initiatorId = "";
+      request.attribution.executorId = "";
+      request.attribution.accountableId = "";
+      policy.id = "";
+      policy.version = "";
+
+      return {
+        title: "Snapshot-safe promotion",
+        statement: "Mutation cannot bypass pre-map validation.",
+        evidenceKind: "source-record",
+        polarity: "supports",
+      };
+    },
+  };
+
+  const evidence = promoteSourceRecordsToEvidence(request, policy);
+
+  assert.equal(evidence.contextId, "context:snapshot");
+  assert.equal(evidence.createdAt, promotedAt);
+  assert.deepEqual(evidence.attribution, {
+    initiatorId: "human:initiator",
+    executorId: "agent:executor",
+    accountableId: "human:accountable",
+  });
+  assert.deepEqual(evidence.relationships, [
+    { type: "relates-to-hypothesis", targetId: "hypothesis:snapshot" },
+  ]);
+  assert.deepEqual(evidence.extensions, {
+    "collective-cognition:promotion": {
+      sourceRevisionKeys: [sourceRevisionKey(source)],
+      policy: { id: "snapshot-policy", version: "7" },
+      rationale: "Snapshot every validated caller value.",
+    },
+  });
+});
+
 test("requires at least one source record and a non-empty rationale", () => {
   assert.throws(
     () =>
@@ -332,13 +501,27 @@ test("promotes all accepted records together in composed ingestion", () => {
 
 test("returns successful ingestion plus a structured promotion failure", () => {
   const record = recordFor();
+  const secret = "POLICY_SECRET_DO_NOT_EXPOSE";
   const policy: EvidencePromotionPolicy = {
     id: "unavailable-policy",
     version: "1",
     map() {
-      throw new Error("Policy service unavailable.");
+      throw new Error(secret);
     },
   };
+
+  assert.throws(
+    () =>
+      promoteSourceRecordsToEvidence(
+        requestFor([record]),
+        policy,
+      ),
+    (error: unknown) =>
+      error instanceof DomainError &&
+      error.code === DomainErrorCode.PROMOTION_FAILED &&
+      error.message === "Promotion policy failed." &&
+      !JSON.stringify(error).includes(secret),
+  );
 
   const result = ingestAndPromoteEvidence(
     [record],
@@ -352,10 +535,11 @@ test("returns successful ingestion plus a structured promotion failure", () => {
     status: "failed",
     error: {
       code: "PROMOTION_FAILED",
-      message: "Policy service unavailable.",
+      message: "Promotion policy failed.",
       details: {},
     },
   });
+  assert.equal(JSON.stringify(result).includes(secret), false);
   assert.equal(composedOutcome(result), "PROMOTION_FAILED");
 });
 

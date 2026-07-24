@@ -70,10 +70,8 @@ function contentKey(record: SourceRecord): string {
   });
 }
 
-function serializationError(message: string, cause: unknown): DomainError {
-  return new DomainError(DomainErrorCode.SERIALIZATION_ERROR, message, {
-    cause: cause instanceof Error ? cause.message : String(cause),
-  });
+function serializationError(message: string): DomainError {
+  return new DomainError(DomainErrorCode.SERIALIZATION_ERROR, message);
 }
 
 function sourceRevisionCollision(
@@ -126,8 +124,16 @@ function enforceRecordCount(
   }
 }
 
-function serializedBytes(record: SourceRecord): number {
-  return Buffer.byteLength(JSON.stringify(record));
+function serializedBytes(value: unknown): number {
+  try {
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined) {
+      throw new TypeError();
+    }
+    return Buffer.byteLength(serialized);
+  } catch {
+    throw serializationError("Source record size could not be measured.");
+  }
 }
 
 function createCollector(options: IngestionOptions): IngestionCollector {
@@ -164,18 +170,7 @@ function createCollector(options: IngestionOptions): IngestionCollector {
     line?: number,
     rawBytes?: number,
   ): void {
-    let record: SourceRecord;
-    try {
-      record = normalizeSourceRecord(value);
-    } catch (error) {
-      if (error instanceof DomainError) {
-        reject(error, index, line);
-        return;
-      }
-      throw error;
-    }
-
-    const recordBytes = rawBytes ?? serializedBytes(record);
+    const recordBytes = rawBytes ?? serializedBytes(value);
     if (
       options.maxRecordBytes !== undefined &&
       recordBytes > options.maxRecordBytes
@@ -185,6 +180,17 @@ function createCollector(options: IngestionOptions): IngestionCollector {
         options.maxRecordBytes,
         recordBytes,
       );
+    }
+
+    let record: SourceRecord;
+    try {
+      record = normalizeSourceRecord(value);
+    } catch (error) {
+      if (error instanceof DomainError) {
+        reject(error, index, line);
+        return;
+      }
+      throw error;
     }
 
     const key = sourceRevisionKey(record);
@@ -253,7 +259,7 @@ export function ingestSourceRecordText(
       value = JSON.parse(text);
     } catch (error) {
       collector.reject(
-        serializationError("Source record text is not valid JSON.", error),
+        serializationError("Source record text is not valid JSON."),
         0,
       );
       return resultFrom(collector);
@@ -276,6 +282,16 @@ export function ingestSourceRecordText(
       continue;
     }
     const lineBytes = Buffer.byteLength(line);
+    if (
+      options.maxRecordBytes !== undefined &&
+      lineBytes > options.maxRecordBytes
+    ) {
+      limitExceeded(
+        "maxRecordBytes",
+        options.maxRecordBytes,
+        lineBytes,
+      );
+    }
     try {
       collector.ingest(
         JSON.parse(line),
@@ -286,7 +302,7 @@ export function ingestSourceRecordText(
     } catch (error) {
       if (error instanceof SyntaxError) {
         collector.reject(
-          serializationError("Source record JSONL line is not valid JSON.", error),
+          serializationError("Source record JSONL line is not valid JSON."),
           index,
           lineIndex + 1,
         );

@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from "node:fs";
+import { createReadStream } from "node:fs";
 
 import { DomainError, DomainErrorCode } from "./errors.ts";
 import { ingestSourceRecordText } from "./ingestion.ts";
@@ -299,7 +299,7 @@ function limitExceeded(
   );
 }
 
-function inputReadError(input: string, error: unknown): CliError {
+function inputReadError(error: unknown): CliError {
   const causeCode =
     typeof error === "object" &&
       error !== null &&
@@ -310,32 +310,17 @@ function inputReadError(input: string, error: unknown): CliError {
   return new CliError(
     "INPUT_READ_ERROR",
     "Unable to read CLI input.",
-    { input, causeCode },
+    { causeCode },
   );
 }
 
-function readFileInput(path: string, maxInputBytes: number): string {
-  let size: number;
-  try {
-    size = statSync(path).size;
-  } catch (error) {
-    throw inputReadError(path, error);
-  }
-  if (size > maxInputBytes) {
-    throw limitExceeded(maxInputBytes, size);
-  }
-
-  try {
-    return readFileSync(path, "utf8");
-  } catch (error) {
-    throw inputReadError(path, error);
-  }
-}
-
-async function readStdinInput(maxInputBytes: number): Promise<string> {
+async function readBoundedInput(
+  stream: AsyncIterable<Buffer | string>,
+  maxInputBytes: number,
+): Promise<string> {
   const chunks: Buffer[] = [];
   let totalBytes = 0;
-  for await (const chunk of process.stdin) {
+  for await (const chunk of stream) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     totalBytes += buffer.byteLength;
     if (totalBytes > maxInputBytes) {
@@ -344,6 +329,24 @@ async function readStdinInput(maxInputBytes: number): Promise<string> {
     chunks.push(buffer);
   }
   return Buffer.concat(chunks, totalBytes).toString("utf8");
+}
+
+async function readFileInput(
+  path: string,
+  maxInputBytes: number,
+): Promise<string> {
+  try {
+    return await readBoundedInput(createReadStream(path), maxInputBytes);
+  } catch (error) {
+    if (error instanceof DomainError) {
+      throw error;
+    }
+    throw inputReadError(error);
+  }
+}
+
+async function readStdinInput(maxInputBytes: number): Promise<string> {
+  return readBoundedInput(process.stdin, maxInputBytes);
 }
 
 async function readInput(options: CliOptions): Promise<string> {
@@ -366,7 +369,7 @@ function topLevelDiagnostic(
   }
   return {
     code: "CLI_ERROR",
-    message: error instanceof Error ? error.message : String(error),
+    message: "CLI operation failed.",
     details: {},
     stage,
   };

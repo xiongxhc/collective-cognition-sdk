@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   createSourceRecord,
+  deserializeSourceRecord,
   DomainError,
   DomainErrorCode,
   ingestSourceRecordText,
@@ -306,6 +307,58 @@ test("enforces caller-configured SDK ingestion limits at exact UTF-8 boundaries"
   expectLimitExceeded(
     () => ingestSourceRecords([first], { maxRecordBytes: recordBytes - 1 }),
     "maxRecordBytes",
+  );
+});
+
+test("enforces maxRecordBytes before record validation or JSONL parsing", () => {
+  const oversizedInvalidRecord = {
+    ...JSON.parse(JSON.stringify(recordFor())),
+    unsupported: "x".repeat(256),
+  };
+  const malformedLine = `{"value":"${"x".repeat(256)}"`;
+
+  expectLimitExceeded(
+    () =>
+      ingestSourceRecords([oversizedInvalidRecord], {
+        mode: "collect-all",
+        maxRecordBytes: 64,
+      }),
+    "maxRecordBytes",
+  );
+  expectLimitExceeded(
+    () =>
+      ingestSourceRecordText(malformedLine, {
+        format: "jsonl",
+        mode: "collect-all",
+        maxInputBytes: Buffer.byteLength(malformedLine),
+        maxRecordBytes: 64,
+      }),
+    "maxRecordBytes",
+  );
+});
+
+test("sanitizes JSON parser failures", () => {
+  const secret = "LEAK42";
+  const malformed = `{"value": ${secret}}`;
+  const result = ingestSourceRecordText(malformed, {
+    format: "jsonl",
+    mode: "collect-all",
+  });
+  const item = result.items[0];
+
+  assert.equal(item?.status, "rejected");
+  assert.ok(item?.status === "rejected");
+  assert.equal(item.error.code, DomainErrorCode.SERIALIZATION_ERROR);
+  assert.deepEqual(item.error.details, {});
+  assert.equal(JSON.stringify(result).includes(secret), false);
+
+  assert.throws(
+    () => deserializeSourceRecord(malformed),
+    (error: unknown) =>
+      error instanceof DomainError &&
+      error.code === DomainErrorCode.SERIALIZATION_ERROR &&
+      Object.keys(error.details).length === 0 &&
+      !JSON.stringify(error).includes(secret),
   );
 });
 

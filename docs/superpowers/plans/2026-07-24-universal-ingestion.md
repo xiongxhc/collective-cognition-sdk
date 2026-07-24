@@ -61,7 +61,7 @@ const record = createSourceRecord({
   observedAt: "2026-07-24T09:59:00.000Z",
   mediaType: "application/json",
   content: { summary: "Added source records." },
-  contentHash: "sha256:abc",
+  contentHash: "caller-integrity-metadata",
 });
 ```
 
@@ -234,7 +234,7 @@ Expected: FAIL because `teamMemoryEventToSourceRecord` does not exist and old ro
 
 - [x] **Step 3: Implement connector migration**
 
-Map rows to `application/vnd.team-memory.event+json` records. Use person plus upstream event source as `sourceId`, hash as `revisionId`, row timestamp as observed/captured time, and preserve project, kind, summary, refs, and raw in content. `teammem:export` requires only `--db` plus existing filters and emits SourceRecord JSONL.
+Map rows to `application/vnd.team-memory.event+json` records. Use person plus upstream event source as `sourceId`, hash as `revisionId`, row timestamp as observed/captured time, and preserve project, kind, summary, and refs in content. Omit raw by default; include it only through connector option `{ includeRaw: true }` or CLI `--include-raw`. `teammem:export` requires only `--db` plus existing filters and emits SourceRecord JSONL.
 
 - [x] **Step 4: Write failing generic CLI tests**
 
@@ -306,7 +306,7 @@ Expected: FAIL because fixtures do not exist.
 
 - [x] **Step 3: Add canonical fixtures and pass conformance**
 
-The valid fixture includes string and structured content plus optional source instance, observed time, content hash, actor, context, and namespaced extension examples. The invalid fixture includes missing revision identity, invalid timestamp, non-string media type, and unsupported schema version cases.
+The valid fixture includes string and structured content plus optional source instance, observed time, opaque caller integrity metadata, actor, context, and namespaced extension examples. The invalid fixture includes missing revision identity, invalid timestamp, non-string media type, and unsupported schema version cases.
 
 - [x] **Step 4: Reconcile all Markdown**
 

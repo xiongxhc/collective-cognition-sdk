@@ -28,6 +28,10 @@ export interface TeamMemoryQuery {
   readonly limit?: number;
 }
 
+export interface TeamMemorySourceRecordOptions {
+  readonly includeRaw?: boolean;
+}
+
 const isoTimestampPattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
 
@@ -178,8 +182,19 @@ export function readTeamMemoryEvents(
 
 export function teamMemoryEventToSourceRecord(
   row: TeamMemoryEventRow,
+  options: TeamMemorySourceRecordOptions = {},
 ): SourceRecord {
   validateTeamMemoryEventRow(row);
+  if (
+    options.includeRaw !== undefined &&
+    typeof options.includeRaw !== "boolean"
+  ) {
+    throw new DomainError(
+      DomainErrorCode.INVALID_OBJECT,
+      "Team-memory includeRaw must be a boolean.",
+      { field: "includeRaw" },
+    );
+  }
   const refs = parseRefs(row.refs);
 
   return createSourceRecord({
@@ -195,7 +210,7 @@ export function teamMemoryEventToSourceRecord(
       kind: row.kind,
       summary: row.summary,
       refs,
-      raw: row.raw,
+      ...(options.includeRaw === true ? { raw: row.raw } : {}),
     },
     actorId: `person:${row.person}`,
   });

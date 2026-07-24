@@ -14,21 +14,29 @@ The SDK needs an ingestion contract that works across organizations and source s
 ## Proposed Semantics
 
 1. The universal ingestion boundary MUST accept a versioned, source-neutral `SourceRecord`.
-2. Ingestion MUST preserve source identity, source revision identity, timestamps, media type, caller-authorized content or an integrity-bound reference, and available integrity metadata in a cloned, deeply frozen accepted record.
-3. A `SourceRecord` MUST reject unknown top-level and `source` fields. It MUST NOT assign evidence polarity, truth, confidence, decision status, or authority outside namespaced `extensions`.
+2. Ingestion MUST preserve source identity, source revision identity, timestamps, media type, caller-authorized content or a caller-designated reference, and available integrity metadata in a cloned, deeply frozen accepted record.
+3. A `SourceRecord` MUST reject unknown top-level and `source` fields. Every extension key MUST contain `:` or `.` with non-empty namespace and local-name sides. Direct `context` keys named `polarity`, `confidence`, or `authority` MUST be rejected; raw source `content` MAY preserve fields with those names.
 4. The tuple `(source.system, source.instance, sourceId, revisionId)` MUST be the logical source-revision key.
 5. The same key and canonical content MUST classify as a duplicate; the same key with different canonical content MUST fail as a collision.
 6. Changed source content MUST use a new revision identity and preserve history rather than silently overwrite a prior immutable record.
 7. Conversion from source records into cognitive objects MUST be an explicit promotion operation.
-8. Promotion MUST accept one or more source records, require a non-empty rationale and non-empty policy ID/version, and preserve provenance for every contributing record.
+8. Promotion MUST accept one or more source records, run them through duplicate/collision classification, map only accepted unique immutable records, require a non-empty rationale and non-empty policy ID/version, and preserve provenance for every contributing record.
 9. The initial promotion target MUST be `Evidence`; additional targets require accepted semantics.
 10. A composed ingest-and-promote operation MAY exist, but after successful ingestion it MUST return that ingestion result plus a discriminated promotion success or structured failure rather than throw a promotion error.
 11. Connectors MUST emit canonical source records and MUST NOT bypass core validation.
 12. Canonical JSON and JSONL ingestion MUST be available without connector code.
 13. Source-specific connectors MUST NOT define the root SDK API.
-14. SDK callers MUST be able to configure maximum input bytes, records, and serialized record bytes. The CLI MUST use finite defaults and enforce file size before reading and stdin size incrementally.
+14. SDK callers MUST be able to configure maximum input bytes, records, and serialized record bytes. The CLI MUST use finite defaults and incrementally bound both file and stdin input.
 15. A limit breach MUST use `INGESTION_LIMIT_EXCEEDED`.
 16. Every top-level CLI error MUST be one JSON stderr diagnostic with stable `code`, `message`, `details`, and `stage`; pre-output failures MUST write zero stdout.
+17. Record-byte limits MUST be enforced before normalization or cloning, and JSONL line-byte limits MUST be enforced before parsing.
+18. Evidence identity MUST be a canonical hash of the complete validated promotion payload, including records and content identity, context, hypothesis, policy identity, rationale, attribution, timestamp, and mapping output.
+19. Promotion MUST snapshot and freeze validated policy identity, request fields, attribution, rationale, and accepted records before invoking the mapping policy, and MUST NOT reread mutable caller objects afterward.
+20. Parser failures, arbitrary promotion-policy exceptions, and non-domain CLI failures MUST use stable public errors without exposing underlying exception messages.
+21. The team-memory connector MUST omit `row.raw` by default and include it only through explicit connector or CLI opt-in.
+22. `transitionObject` MUST pass an immutable validated `TransitionContext` snapshot to authorization policy, accept only exact closed `AuthorizationDecision` objects, and proceed only for status `allowed`; policy failure or mutation MUST fail closed.
+23. `contentHash` MUST be treated as opaque caller-supplied integrity metadata unless verified by an external trust boundary. This SDK does not validate digest syntax or content binding.
+24. `teammem:export` failures MUST use `{stage,error:{code,message,details}}` and MUST sanitize non-domain exception messages.
 
 The proposed record shape and complete rationale are in the [universal ingestion design](../docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
 
@@ -52,6 +60,7 @@ Rejected for ingestion because it loses a stable neutral boundary. Trusted calle
 - Team-memory-specific root exports and direct row-to-Evidence mapping were removed before any stable compatibility promise.
 - The team-memory reader emits source records; neutral Evidence creation is an explicit promotion operation.
 - `teammem:export` emits SourceRecord JSONL and no longer accepts hypothesis or context mapping arguments.
+- Team-memory SourceRecords omit the ledger `raw` column by default; callers explicitly opt in with `{ includeRaw: true }` or `--include-raw`.
 - Existing callers migrate by validating or ingesting the exported records, then invoking `promote` or `ingest-promote` with explicit policy, attribution, hypothesis, context, rationale, and promotion time arguments. One promotion consumes the complete non-empty accepted record set and produces one Evidence object.
 - Existing cognitive objects remain valid because this RFC changes the ingestion path, not their stored shape.
 
@@ -71,13 +80,19 @@ Rejected for ingestion because it loses a stable neutral boundary. Trusted calle
 - [x] Demonstrate deterministic duplicate and collision classification.
 - [x] Demonstrate preservation of changed source revisions without overwrite.
 - [x] Reject unknown top-level and source fields while permitting namespaced extensions.
+- [x] Reject unnamespaced extension keys and interpretation fields in `context` while preserving source-authored raw content.
 - [x] Normalize accepted external values into isolated deeply frozen SourceRecords.
 - [x] Promote one or more source records into one Evidence object while preserving every source, policy, and rationale link.
+- [x] Reclassify direct-promotion records, reject collisions, snapshot all validated inputs before mapping, and hash the complete canonical promotion payload.
 - [x] Reject empty source sets, rationales, and policy identities.
 - [x] Report valid ingestion separately from a structured failed promotion without throwing after ingestion.
 - [x] Enforce configurable SDK and finite CLI limits for input bytes, record count, and per-record bytes.
-- [x] Enforce file-size preflight, incremental stdin limits, stable limit codes, and structured top-level CLI errors.
+- [x] Enforce incremental file/stdin limits, pre-parse line limits, pre-normalization record limits, stable limit codes, and structured top-level CLI errors.
+- [x] Sanitize parser, policy, and non-domain CLI exceptions.
 - [x] Convert the team-memory integration into a conformant connector.
+- [x] Omit team-memory raw content by default and require explicit connector/CLI opt-in.
+- [x] Enforce immutable transition snapshots and exact fail-closed authorization decisions.
+- [x] Treat `contentHash` as opaque caller metadata without implicit digest verification.
 - [x] Pass the same SourceRecord conformance contract with a second source-specific fixture connector.
 - [x] Verify that the root export surface contains no source-specific connector API.
 - [x] Verify that every repository Markdown file is current or explicitly historical.
@@ -90,7 +105,7 @@ Implementation evidence:
 - migrated connector: [`src/adapters/team-memory.ts`](../src/adapters/team-memory.ts);
 - second fixture connector: [`src/adapters/git-commit.ts`](../src/adapters/git-commit.ts);
 - completion commands: `npm test`, `npx tsc --noEmit`, `npm run check`, and `npm run example`;
-- bounded live verification: team-memory SourceRecord export, generic validation, explicit `neutral-evidence-v1` promotion, complete JSON-line parsing, and unchanged source-ledger metadata.
+- bounded live verification: default-privacy team-memory SourceRecord export, generic validation, explicit `neutral-evidence-v1` promotion, complete JSON-line parsing, and unchanged source-ledger metadata.
 
 ## Explicit Deferrals
 

@@ -91,13 +91,13 @@ The boundary preserves these invariants:
 
 - `id` is an opaque SDK record identity.
 - `source.system`, optional `source.instance`, and `sourceId` identify the upstream item.
-- `revisionId` identifies one immutable upstream revision; an upstream version is preferred, with a canonical content digest as the fallback.
+- `revisionId` identifies one immutable upstream revision; callers choose the upstream version or other stable revision identity.
 - `capturedAt` records ingestion time; `observedAt` records source time when available.
 - `mediaType` declares how to interpret `content`.
-- `content` preserves the caller-authorized source material or a stable structured descriptor; large or restricted payloads may be represented by an integrity-bound reference.
-- `contentHash`, when supplied, verifies content rather than defining semantic truth.
-- source context and extensions remain JSON-compatible and namespaced where necessary.
-- top-level and `source` objects are closed: unknown fields are rejected, and polarity, confidence, authority, or other source-specific semantics belong only in namespaced `extensions`.
+- `content` preserves the caller-authorized source material or a stable structured descriptor; large or restricted payloads may be represented by a caller-designated reference.
+- `contentHash` is opaque caller-supplied integrity metadata. The SDK does not validate digest syntax or verify that the value matches `content`; verification belongs to an external trust boundary.
+- source context and extensions remain JSON-compatible, and every extension key contains `:` or `.` with non-empty namespace and local-name sides.
+- top-level and `source` objects are closed. Direct `context` keys named `polarity`, `confidence`, or `authority` are rejected, while raw source `content` may preserve fields with those names.
 - accepted external values are cloned and deeply frozen so later mutation of caller-owned input cannot change ingestion results.
 - the tuple `(source.system, source.instance, sourceId, revisionId)` is the logical idempotency key.
 - receiving the same key and canonical content is a duplicate, while receiving the same key with different canonical content is a collision error.
@@ -116,7 +116,7 @@ Promotion is an explicit interpretation operation. Its input includes:
 - a named, versioned mapping policy;
 - a rationale and timestamp.
 
-The first implementation promotes one or more source records together into one `Evidence` object. `EvidencePromotionPolicy.map` receives the complete non-empty record array. Additional target types require their own accepted semantics rather than a generic arbitrary-object mapper.
+The first implementation promotes one or more source records together into one `Evidence` object. Direct promotion reruns duplicate/collision classification and `EvidencePromotionPolicy.map` receives only the accepted unique, cloned, deeply frozen records. Additional target types require their own accepted semantics rather than a generic arbitrary-object mapper.
 
 Promotion must:
 
@@ -126,6 +126,8 @@ Promotion must:
 - validate the resulting cognitive object through normal core rules;
 - preserve accountable human or organizational attribution;
 - return structured errors without partially emitting results.
+- snapshot and freeze validated policy identity, request fields, attribution, rationale, and records before invoking `map`;
+- derive Evidence identity from a SHA-256 hash of canonical JSON containing the complete validated payload: records, context, hypothesis, policy identity, rationale, attribution, timestamp, and mapping output.
 
 Promotion must not:
 
@@ -197,7 +199,7 @@ The generic CLI is intended for operators, CI jobs, scheduled tasks, data migrat
 
 `validate` emits item results, `ingest` emits accepted unique SourceRecords, `promote` emits one neutral Evidence object preserving every accepted unique record, and `ingest-promote` emits one result containing serialized ingestion plus a discriminated promotion outcome. JSON and JSONL input may come from a file or stdin.
 
-The CLI accepts `--max-input-bytes`, `--max-records`, and `--max-record-bytes`, with finite defaults `10485760`, `10000`, and `1048576`. Files are size-checked before reading and stdin is read incrementally up to the configured limit.
+The CLI accepts `--max-input-bytes`, `--max-records`, and `--max-record-bytes`, with finite defaults `10485760`, `10000`, and `1048576`. Files and stdin use one incremental bounded reader. JSONL line size is enforced before `JSON.parse`, and record size is enforced before validation, normalization, or cloning.
 
 ## Team-Memory Migration
 
@@ -207,8 +209,9 @@ The team-memory experiment is migrated:
 2. The separate `neutral-evidence-v1` policy maps selected records to neutral collected evidence.
 3. The connector is imported directly from `src/adapters/team-memory.ts` and is absent from the root export surface.
 4. `teammem:export` now emits SourceRecord JSONL and no longer accepts hypothesis or context mapping arguments.
-5. `example:teammem` demonstrates explicit promotion after collection.
-6. Integration with `team-memory-agent` or its LaunchAgent remains separate work; this repository does not modify scheduled team-vault output.
+5. Team-memory SourceRecords omit `row.raw` by default. Connector callers use `{ includeRaw: true }`, and CLI callers use `--include-raw`, only when raw retention is explicitly authorized.
+6. `example:teammem` demonstrates default raw omission and explicit promotion after collection.
+7. Integration with `team-memory-agent` or its LaunchAgent remains separate work; this repository does not modify scheduled team-vault output.
 
 This migration proves the generic boundary against a real source without making team-memory a universal dependency.
 
@@ -222,7 +225,7 @@ Batch operations return item-level results:
 - composed ingestion and promotion report the two stages independently;
 - callers choose whether a batch is fail-fast or collect-all.
 
-`IngestionItemResult` is a discriminated union with status-specific fields. Ingestion limits fail with `INGESTION_LIMIT_EXCEEDED`. Every pre-output CLI failure is one JSON stderr diagnostic containing `code`, `message`, `details`, and `stage`; stdout remains empty.
+`IngestionItemResult` is a discriminated union with status-specific fields. Ingestion limits fail with `INGESTION_LIMIT_EXCEEDED`. Every pre-output generic CLI failure is one JSON stderr diagnostic containing `code`, `message`, `details`, and `stage`; stdout remains empty. Parser and arbitrary policy exception messages are replaced with stable generic errors. The team-memory CLI uses the connector contract `{stage,error:{code,message,details}}` and sanitizes non-domain exceptions.
 
 ## Security and Privacy
 
@@ -234,7 +237,7 @@ Implementations must support:
 - rejection of malformed or unsupported media types;
 - secret-safe diagnostics;
 - explicit handling of personally identifiable or restricted data;
-- provenance retention without forcing raw secret storage;
+- provenance retention without forcing raw secret storage; the team-memory connector omits raw rows by default;
 - host-defined retention, redaction, and authorization policy.
 
 The SDK does not treat successful parsing as consent to retain or promote data.
@@ -245,7 +248,7 @@ Universal adoption requires behavior that is testable outside one implementation
 
 - a versioned `SourceRecord` schema;
 - valid and invalid JSON/JSONL fixtures;
-- closed-field validation, normalization immutability, limits, duplicate, collision, positive revision, and multi-source promotion coverage in the TypeScript test suite;
+- closed-field and namespaced-extension validation, normalization immutability, pre-parse limits, duplicate/collision classification, positive revision, full-payload promotion identity, immutable policy snapshots, secret-safe diagnostics, and fail-closed authorization coverage in the TypeScript test suite;
 - connector tests based only on emitted records;
 - additive namespaced extension examples.
 

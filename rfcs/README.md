@@ -4,7 +4,7 @@ RFCs are the contribution path for changes that affect collective-cognition sema
 
 ## Implemented RFCs
 
-- [RFC 0001: Universal Source-Record Ingestion](0001-universal-source-record-ingestion.md) — implemented and final-review verified in Phase 2 with closed immutable records, bounded ingestion, multi-source promotion, structured composition/CLI failures, canonical fixtures, and two source-specific connector implementations.
+- [RFC 0001: Universal Source-Record Ingestion](0001-universal-source-record-ingestion.md) — implemented and final-review verified in Phase 2 with closed immutable records, pre-parse limits, full-payload promotion identity, secret-safe diagnostics, privacy-default connectors, fail-closed authorization, canonical fixtures, and two source-specific connector implementations.
 
 ## When an RFC Is Required
 

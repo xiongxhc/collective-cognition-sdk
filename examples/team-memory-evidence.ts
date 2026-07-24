@@ -26,7 +26,7 @@ if (args.length !== 1) {
     },
   };
   const sourceRecords = readTeamMemoryEvents({ dbPath, limit: 5 }).map(
-    teamMemoryEventToSourceRecord,
+    (row) => teamMemoryEventToSourceRecord(row),
   );
   const latestCapturedAt = sourceRecords.at(-1)?.capturedAt;
   const evidence = latestCapturedAt === undefined

@@ -251,13 +251,27 @@ test("maps a ledger event to a source-neutral immutable record", () => {
       url: "https://gitlab.example/commit/1",
       sha: "abc123",
     },
-    raw: '{"id":"abc123"}',
   });
   assert.equal(Object.isFrozen(record), true);
   assert.equal(Object.isFrozen(record.content), true);
   assert.equal(
     Object.isFrozen((record.content as { refs: object }).refs),
     true,
+  );
+});
+
+test("includes team-memory raw content only with explicit opt-in", () => {
+  const row: TeamMemoryEventRow = { id: 7, ...event() };
+
+  const defaultRecord = teamMemoryEventToSourceRecord(row);
+  const optedInRecord = teamMemoryEventToSourceRecord(row, {
+    includeRaw: true,
+  });
+
+  assert.equal("raw" in (defaultRecord.content as object), false);
+  assert.equal(
+    (optedInRecord.content as { raw?: string | null }).raw,
+    '{"id":"abc123"}',
   );
 });
 
@@ -344,24 +358,38 @@ test("CLI emits one source record per JSONL line", () => {
       JSON.parse(lines[0]).id,
       "source-record:team-memory:alice:gitlab:hash-1",
     );
+    assert.equal("raw" in JSON.parse(lines[0]).content, false);
+
+    const optedIn = spawnSync(
+      process.execPath,
+      [
+        "--disable-warning=ExperimentalWarning",
+        "src/teammem-cli.ts",
+        "--db",
+        ledger.path,
+        "--person",
+        "alice",
+        "--limit",
+        "1",
+        "--include-raw",
+      ],
+      { cwd: process.cwd(), encoding: "utf8" },
+    );
+    assert.equal(optedIn.status, 0, optedIn.stderr);
+    assert.equal(
+      JSON.parse(optedIn.stdout).content.raw,
+      '{"id":"abc123"}',
+    );
   } finally {
     cleanupLedger(ledger.directory);
   }
 });
 
-test("CLI writes missing or invalid argument diagnostics only to stderr", () => {
+test("CLI writes structured missing or invalid argument diagnostics only to stderr", () => {
   const ledger = createLedger([event()]);
 
   try {
-    for (const args of [
-      [],
-      [
-        "--db",
-        ledger.path,
-        "--limit",
-        "0",
-      ],
-    ]) {
+    for (const args of [[], ["--db", ledger.path, "--limit", "0"]]) {
       const result = spawnSync(
         process.execPath,
         ["--disable-warning=ExperimentalWarning", "src/teammem-cli.ts", ...args],
@@ -370,9 +398,44 @@ test("CLI writes missing or invalid argument diagnostics only to stderr", () => 
 
       assert.notEqual(result.status, 0);
       assert.equal(result.stdout, "");
-      assert.notEqual(result.stderr, "");
+      const diagnostic = JSON.parse(result.stderr);
+      assert.deepEqual(Object.keys(diagnostic).sort(), ["error", "stage"]);
+      assert.equal(diagnostic.stage, "arguments");
+      assert.deepEqual(
+        Object.keys(diagnostic.error).sort(),
+        ["code", "details", "message"],
+      );
+      assert.equal(diagnostic.error.code, "INVALID_ARGUMENT");
+      assert.equal(typeof diagnostic.error.message, "string");
+      assert.equal(typeof diagnostic.error.details, "object");
     }
   } finally {
     cleanupLedger(ledger.directory);
   }
+});
+
+test("CLI sanitizes non-domain team-memory read failures", () => {
+  const secret = "TEAMMEM_PATH_SECRET_DO_NOT_EXPOSE";
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--disable-warning=ExperimentalWarning",
+      "src/teammem-cli.ts",
+      "--db",
+      `/missing/${secret}.db`,
+    ],
+    { cwd: process.cwd(), encoding: "utf8" },
+  );
+
+  assert.notEqual(result.status, 0);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr.includes(secret), false);
+  assert.deepEqual(JSON.parse(result.stderr), {
+    stage: "read",
+    error: {
+      code: "TEAM_MEMORY_READ_FAILED",
+      message: "Unable to read team-memory events.",
+      details: {},
+    },
+  });
 });

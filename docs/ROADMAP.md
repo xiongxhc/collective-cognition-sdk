@@ -42,7 +42,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] A closed, versioned, source-neutral `SourceRecord` contract that clones and deeply freezes accepted external values.
 - [x] SDK validation plus canonical JSON and JSONL codecs.
 - [x] Deterministic duplicate/collision classification and immutable source-revision semantics.
-- [x] Explicit, versioned promotion from one or more source records to one Evidence object with required rationale and complete provenance.
+- [x] Explicit, versioned promotion from accepted unique source records to one Evidence object with collision rejection, immutable request/policy snapshots, required rationale, complete provenance, and canonical full-payload identity.
 - [x] A composed ingest-and-promote workflow that preserves ingestion and returns a discriminated promotion outcome.
 - [x] Discriminated item-level batch results, stable errors, and configurable SDK input/record limits.
 - [x] A generic bounded CLI for validate, ingest, promote, and ingest-promote operations with structured top-level diagnostics.
@@ -54,14 +54,17 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Valid and invalid canonical fixtures behave identically through SDK and CLI.
 - [x] Identical source-revision keys and content classify as duplicates; key reuse with different content fails as a collision.
 - [x] Changed content uses a new immutable revision identity; key reuse with changed content is rejected without overwriting retained records.
-- [x] Unknown top-level and source fields are rejected, including polarity, confidence, and authority outside extensions.
+- [x] Unknown top-level/source fields and unnamespaced extension keys are rejected; polarity, confidence, and authority are rejected in context while raw content remains source-preserving.
 - [x] Mutation of original inputs cannot change accepted ingestion results.
 - [x] Promotion preserves every source-record link, policy identity, and non-empty rationale.
 - [x] Valid ingestion remains observable as an explicit result when promotion fails.
 - [x] SDK and CLI enforce input-byte, record-count, and record-byte limits with `INGESTION_LIMIT_EXCEEDED`.
-- [x] File input is size-checked before reading, stdin is bounded incrementally, and top-level CLI failures emit one structured JSON diagnostic with zero pre-output stdout.
+- [x] File and stdin input share an incremental bounded reader; line/record limits run before parsing/normalization; parser, policy, and non-domain diagnostics are sanitized.
 - [x] Root exports contain no team-memory-specific API.
 - [x] Team-memory and a second source-specific Git fixture connector emit valid records under the same SourceRecord contract.
+- [x] Team-memory omits raw row content by default, supports explicit connector/CLI opt-in, and emits nested structured diagnostics.
+- [x] Transition authorization uses immutable context snapshots and accepts only exact closed decisions, failing policy errors and mutation closed.
+- [x] `contentHash` remains opaque caller-supplied metadata unless an external trust boundary verifies it.
 - [x] Every repository Markdown file is either current or explicitly historical.
 
 **Completion evidence**
@@ -71,7 +74,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - `npx tsc --noEmit`
 - `npm run check`
 - `npm run example`
-- A bounded live team-memory SourceRecord export validated and explicitly promoted through the generic CLI without changing source-ledger size or modification time.
+- A bounded default-privacy team-memory SourceRecord export validated and explicitly promoted through the generic CLI without raw row content or changes to source-ledger size or modification time.
 
 **Explicit deferrals**
 

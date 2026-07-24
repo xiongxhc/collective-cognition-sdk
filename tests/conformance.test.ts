@@ -146,15 +146,6 @@ test("accepts every canonical valid SourceRecord fixture through SDK and CLI", (
     cliItems.map((item) => item.record),
     sdkResult.acceptedRecords,
   );
-  for (const record of sdkResult.acceptedRecords) {
-    if (record.contentHash?.startsWith("sha256:")) {
-      assert.match(
-        record.contentHash,
-        /^sha256:[a-f0-9]{64}$/,
-        `${record.id} must contain a real SHA-256 digest`,
-      );
-    }
-  }
 });
 
 test("rejects every canonical invalid fixture with its expected code", () => {
