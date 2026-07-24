@@ -67,7 +67,10 @@ test("rejects different content for an existing source revision", () => {
   assert.equal(result.items[0]?.status, "rejected");
   const collisionError = result.items[0]?.error;
   assert.ok(collisionError);
-  assert.equal(collisionError.code, "SOURCE_REVISION_COLLISION");
+  assert.equal(
+    collisionError.code,
+    DomainErrorCode.SOURCE_REVISION_COLLISION,
+  );
   assert.deepEqual(result.acceptedRecords, []);
 });
 

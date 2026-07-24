@@ -5,7 +5,6 @@ import {
   validateSourceRecord,
 } from "./source-records.ts";
 import type { SourceRecord } from "./source-records.ts";
-import type { DomainErrorCode as DomainErrorCodeValue } from "./errors.ts";
 
 export type IngestionMode = "collect-all" | "fail-fast";
 
@@ -44,9 +43,6 @@ interface IngestionCollector {
   reject(error: DomainError, index: number, line?: number): void;
 }
 
-const sourceRevisionCollisionCode =
-  "SOURCE_REVISION_COLLISION" as DomainErrorCodeValue;
-
 function contentKey(record: SourceRecord): string {
   return canonicalizeJson({
     mediaType: record.mediaType,
@@ -66,7 +62,7 @@ function sourceRevisionCollision(
   incomingRecord: SourceRecord,
 ): DomainError {
   return new DomainError(
-    sourceRevisionCollisionCode,
+    DomainErrorCode.SOURCE_REVISION_COLLISION,
     "Source revision content conflicts with the retained record.",
     {
       sourceRevisionKey: key,
