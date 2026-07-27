@@ -1,6 +1,6 @@
 # RFC 0002: Compatibility, Versioning, and Deprecation
 
-**Status:** Accepted
+**Status:** Implemented and final-review verified
 
 **Created:** 2026-07-27
 **Decision owner:** Project maintainer

@@ -83,7 +83,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** In progress. The compatibility slice is implemented; final verification is pending.
+**Status:** In progress. The compatibility slice is delivered and verified; broader Phase 3 work remains.
 
 **Active next slice**
 
@@ -110,7 +110,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Compatibility smoke tests for built imports, runtime exports, declaration specifiers, default TypeScript consumer settings, CLI behavior, exact dry-run tarball contents, and clean temporary consumer installation.
 - [x] A retained `"private": true` publication guard.
 
-**Delivered in the compatibility, versioning, and deprecation slice — final verification pending**
+**Delivered and verified in the compatibility, versioning, and deprecation slice**
 
 - [x] Normative [compatibility, versioning, and deprecation prose](../spec/compatibility.md) and [RFC 0002](../rfcs/0002-compatibility-versioning-and-deprecation.md).
 - [x] Compatibility baseline `0.1.0`, change cases, and the stable `collective-cognition-sdk/compatibility/0.1.0` package subpath.

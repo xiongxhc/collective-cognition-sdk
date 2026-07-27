@@ -2,7 +2,7 @@
 
 **Architecture direction:** Approved.
 
-**Implementation status:** Implemented; final verification pending.
+**Implementation status:** Implemented and verified.
 
 **Date:** 2026-07-27
 

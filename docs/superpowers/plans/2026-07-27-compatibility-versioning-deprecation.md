@@ -1,6 +1,6 @@
 # Compatibility, Versioning, and Deprecation Implementation Plan
 
-**Status:** Approved for implementation.
+**Status:** Complete, verified, and integrated locally; merge and push remain intentionally out of scope.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -69,7 +69,7 @@ package.json
 - Produces: `CLI_CONTRACT`, `Command`, `InputFormat`, `CliStage`, `CliOptions`, `CLI_BASE_OPTION_NAMES`, and `CLI_PROMOTION_OPTION_NAMES` for `src/cli.ts` and compatibility tests.
 - Does not produce: any new root package export or public package subpath.
 
-- [ ] **Step 1: Write the failing registry test**
+- [x] **Step 1: Write the failing registry test**
 
 Create `tests/cli-contract.test.ts`:
 
@@ -109,7 +109,7 @@ test("CLI registry describes the complete current command boundary", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test to verify RED**
+- [x] **Step 2: Run the focused test to verify RED**
 
 Run:
 
@@ -119,7 +119,7 @@ node --disable-warning=ExperimentalWarning --test tests/cli-contract.test.ts
 
 Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `src/cli-contract.ts`.
 
-- [ ] **Step 3: Add the exact internal registry**
+- [x] **Step 3: Add the exact internal registry**
 
 Create `src/cli-contract.ts` with a JSON-compatible `CLI_CONTRACT` whose exact contract is:
 
@@ -175,7 +175,7 @@ export interface CliOptions {
 
 Import `EvidencePromotionContext` as a type from `promotion.ts`. Define `CLI_BASE_OPTION_NAMES` and `CLI_PROMOTION_OPTION_NAMES` as readonly tuples, and derive parser sets from them. Keep `CLI_CONTRACT` internal by omitting it from `src/index.ts`.
 
-- [ ] **Step 4: Refactor the parser to consume registry constants**
+- [x] **Step 4: Refactor the parser to consume registry constants**
 
 Modify `src/cli.ts` to import the new types, option tuples, defaults, command names, formats, and policy selector. Remove only the duplicated local declarations.
 
@@ -192,7 +192,7 @@ collective-cognition <command> [--option value]...
 - promotion options are required for `promote` and `ingest-promote` and forbidden for `validate` and `ingest`;
 - `neutral-evidence-v1` remains the only accepted selector.
 
-- [ ] **Step 5: Add registry files to static checks**
+- [x] **Step 5: Add registry files to static checks**
 
 Extend the `check` script in `package.json` with:
 
@@ -201,7 +201,7 @@ node --disable-warning=ExperimentalWarning --check src/cli-contract.ts
 node --disable-warning=ExperimentalWarning --check tests/cli-contract.test.ts
 ```
 
-- [ ] **Step 6: Run focused and black-box tests**
+- [x] **Step 6: Run focused and black-box tests**
 
 Run:
 
@@ -212,7 +212,7 @@ npm run check
 
 Expected: registry tests pass, all 16 existing black-box CLI tests pass, and static checks pass.
 
-- [ ] **Step 7: Commit the CLI registry checkpoint**
+- [x] **Step 7: Commit the CLI registry checkpoint**
 
 ```bash
 git add src/cli-contract.ts src/cli.ts tests/cli-contract.test.ts package.json
@@ -237,7 +237,7 @@ git commit -m "refactor: expose internal CLI contract"
 - Consumes: `CLI_CONTRACT`, built `dist/index.js`, built declaration files, current SourceRecord artifacts, `DomainErrorCode`, and `neutralEvidencePolicyV1`.
 - Produces: the normative compatibility rules `COMP-001` through `COMP-018`, SourceRecord prose rules `SR-012` through `SR-015`, baseline `0.1.0`, and executable compatibility checks.
 
-- [ ] **Step 1: Write the failing compatibility test**
+- [x] **Step 1: Write the failing compatibility test**
 
 Create `tests/compatibility.test.mjs` with:
 
@@ -292,7 +292,7 @@ CLI and SDK promotion policy identities remain linked
 change cases exercise additive and breaking process rules
 ```
 
-- [ ] **Step 2: Run the test to verify RED**
+- [x] **Step 2: Run the test to verify RED**
 
 Run:
 
@@ -303,7 +303,7 @@ node --test tests/compatibility.test.mjs
 
 Expected: FAIL because `spec/compatibility/0.1.0/baseline.json` does not exist.
 
-- [ ] **Step 3: Add exact change-case fixtures**
+- [x] **Step 3: Add exact change-case fixtures**
 
 Create `spec/compatibility/0.1.0/change-cases.jsonl` with exactly:
 
@@ -318,7 +318,7 @@ Its SHA-256 MUST be:
 3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b
 ```
 
-- [ ] **Step 4: Add stable SourceRecord prose identifiers**
+- [x] **Step 4: Add stable SourceRecord prose identifiers**
 
 Modify `spec/source-record.md` without changing behavior:
 
@@ -331,7 +331,7 @@ Modify `spec/source-record.md` without changing behavior:
 
 Do not add `SR-012` through `SR-015` to schema-fixture coverage because they are prose/runtime rules. The compatibility test checks their presence; existing source, ingestion, and promotion tests remain their behavioral evidence.
 
-- [ ] **Step 5: Write the normative compatibility prose**
+- [x] **Step 5: Write the normative compatibility prose**
 
 Create `spec/compatibility.md` with these exact stable identifiers:
 
@@ -358,7 +358,7 @@ Create `spec/compatibility.md` with these exact stable identifiers:
 
 Include the full stability tables, version-domain definitions, change matrix, deprecation lifecycle, and explicit non-guarantees from the approved design. Use `MUST`, `MUST NOT`, `SHOULD`, and `MAY` only for normative requirements.
 
-- [ ] **Step 6: Add accepted RFC 0002**
+- [x] **Step 6: Add accepted RFC 0002**
 
 Create `rfcs/0002-compatibility-versioning-and-deprecation.md` with:
 
@@ -381,7 +381,7 @@ State explicitly:
 - future backward-compatible additions use a minor release after publication;
 - future pre-1.0 breaking changes require accepted RFC, migration notes, deprecation, a new baseline, and a non-patch release.
 
-- [ ] **Step 7: Create baseline `0.1.0`**
+- [x] **Step 7: Create baseline `0.1.0`**
 
 Add the baseline's stable package subpath to `package.json` before comparing package metadata:
 
@@ -615,7 +615,7 @@ test("compatibility baseline is immutable", () => {
 });
 ```
 
-- [ ] **Step 8: Complete baseline enforcement tests**
+- [x] **Step 8: Complete baseline enforcement tests**
 
 In `tests/compatibility.test.mjs`:
 
@@ -644,7 +644,7 @@ Insert `npm run test:compatibility` after `npm run test:schema` in `test`, `pack
 
 Add `tests/compatibility.test.mjs` to `check`.
 
-- [ ] **Step 9: Run the normative compatibility checks**
+- [x] **Step 9: Run the normative compatibility checks**
 
 Run:
 
@@ -657,7 +657,7 @@ npm run check
 
 Expected: compatibility checks and all reused SourceRecord behavioral evidence pass.
 
-- [ ] **Step 10: Commit the normative baseline checkpoint**
+- [x] **Step 10: Commit the normative baseline checkpoint**
 
 ```bash
 git add spec/compatibility.md spec/compatibility/0.1.0 spec/source-record.md rfcs/0002-compatibility-versioning-and-deprecation.md tests/compatibility.test.mjs tests/conformance.test.ts package.json
@@ -676,7 +676,7 @@ git commit -m "feat: add compatibility baseline"
 - Consumes: `spec/compatibility.md`, baseline `0.1.0`, change cases, RFC 0002, and the existing package build.
 - Produces: installed subpath `collective-cognition-sdk/compatibility/0.1.0` and exact tarball/clean-consumer guarantees.
 
-- [ ] **Step 1: Write failing package assertions**
+- [x] **Step 1: Write failing package assertions**
 
 Modify `tests/package.test.mjs` to require:
 
@@ -709,7 +709,7 @@ if (compatibilityBaseline.baselineVersion !== "0.1.0") {
 
 Add an installed JavaScript check that resolves the baseline subpath, reads `change-cases.jsonl` relative to that resolved file, parses both lines, and confirms classifications `additive` and `breaking`.
 
-- [ ] **Step 2: Run package tests to verify RED**
+- [x] **Step 2: Run package tests to verify RED**
 
 Run:
 
@@ -720,11 +720,11 @@ node --test tests/package.test.mjs
 
 Expected: FAIL because the package allowlist and clean-install assertions do not yet include the compatibility artifacts.
 
-- [ ] **Step 3: Add package export and allowlist**
+- [x] **Step 3: Add package export and allowlist**
 
 Add the four exact compatibility/RFC files to `package.json` `files`. Do not add source, tests, plans, examples, connectors, or local reports. Retain the `./compatibility/0.1.0` export added in Task 2.
 
-- [ ] **Step 4: Verify packed and installed behavior**
+- [x] **Step 4: Verify packed and installed behavior**
 
 Run:
 
@@ -740,7 +740,7 @@ Expected:
 - installed executable still validates canonical SourceRecord input;
 - installed change cases are readable relative to the baseline artifact.
 
-- [ ] **Step 5: Commit the package checkpoint**
+- [x] **Step 5: Commit the package checkpoint**
 
 ```bash
 git add package.json tests/package.test.mjs
@@ -763,7 +763,7 @@ git commit -m "test: lock package compatibility artifacts"
 - Consumes: implemented baseline, tests, package subpath, RFC 0002, and the three stability levels.
 - Produces: one consistent public explanation of what is stable, experimental, internal, packaged, and still deferred.
 
-- [ ] **Step 1: Update the public README**
+- [x] **Step 1: Update the public README**
 
 Document:
 
@@ -784,7 +784,7 @@ npm run test:compatibility
 
 Link `spec/compatibility.md` and RFC 0002.
 
-- [ ] **Step 2: Update the roadmap**
+- [x] **Step 2: Update the roadmap**
 
 Under Phase 3:
 
@@ -796,7 +796,7 @@ Under Phase 3:
 
 Reframe Phase 6 migration/deprecation work as operational governance and retirement tooling built on the Phase 3 policy, not creation of the first policy.
 
-- [ ] **Step 3: Update specification and RFC indexes**
+- [x] **Step 3: Update specification and RFC indexes**
 
 In `spec/README.md`:
 
@@ -813,7 +813,7 @@ In `rfcs/README.md`:
 
 In RFC 0001, add only a historical note and evidence link showing that later evolution is governed by RFC 0002 and `spec/compatibility.md`. Do not rewrite RFC 0001 semantics.
 
-- [ ] **Step 4: Reconcile design status**
+- [x] **Step 4: Reconcile design status**
 
 Replace the design's single status line with:
 
@@ -823,7 +823,7 @@ Replace the design's single status line with:
 **Implementation status:** Implemented; final verification pending.
 ```
 
-- [ ] **Step 5: Check all Markdown**
+- [x] **Step 5: Check all Markdown**
 
 Run:
 
@@ -835,7 +835,7 @@ git diff --check
 
 Review every match and keep only explicitly historical or still-accurate statements.
 
-- [ ] **Step 6: Commit the documentation checkpoint**
+- [x] **Step 6: Commit the documentation checkpoint**
 
 ```bash
 git add README.md docs/ROADMAP.md spec/README.md rfcs/README.md rfcs/0001-universal-source-record-ingestion.md docs/superpowers/specs/2026-07-27-compatibility-versioning-deprecation-design.md
@@ -856,7 +856,7 @@ git commit -m "docs: document compatibility guarantees"
 - Consumes: every implementation and documentation artifact from Tasks 1–4.
 - Produces: verified status, independent review evidence, merged `master`, pushed origin, and no leftover feature branch.
 
-- [ ] **Step 1: Run focused compatibility verification**
+- [x] **Step 1: Run focused compatibility verification**
 
 Run:
 
@@ -869,7 +869,7 @@ node --test tests/package.test.mjs
 
 Expected: all focused suites pass.
 
-- [ ] **Step 2: Run the complete local verification matrix**
+- [x] **Step 2: Run the complete local verification matrix**
 
 Run:
 
@@ -884,7 +884,7 @@ git diff --check
 
 Expected: every command exits `0`.
 
-- [ ] **Step 3: Request independent code review**
+- [x] **Step 3: Request independent code review**
 
 Use `superpowers:requesting-code-review`. Require review of:
 
@@ -900,7 +900,7 @@ Use `superpowers:requesting-code-review`. Require review of:
 
 Resolve every finding and rerun the narrowest affected test, then rerun the complete matrix.
 
-- [ ] **Step 4: Mark final statuses**
+- [x] **Step 4: Mark final statuses**
 
 After tests and review pass:
 
@@ -910,7 +910,7 @@ After tests and review pass:
 - set this plan status to `Complete, verified, and integrated`;
 - check every plan box.
 
-- [ ] **Step 5: Commit final verification status**
+- [x] **Step 5: Commit final verification status**
 
 ```bash
 git add rfcs/0002-compatibility-versioning-and-deprecation.md docs/ROADMAP.md docs/superpowers/specs/2026-07-27-compatibility-versioning-deprecation-design.md docs/superpowers/plans/2026-07-27-compatibility-versioning-deprecation.md
