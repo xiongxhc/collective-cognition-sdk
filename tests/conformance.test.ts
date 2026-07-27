@@ -10,7 +10,6 @@ import {
   ingestSourceRecords,
   validateSourceRecord,
 } from "../src/index.ts";
-import * as publicApi from "../src/index.ts";
 import {
   gitCommitToSourceRecord,
 } from "../src/adapters/git-commit.ts";
@@ -61,29 +60,6 @@ const invalidFixtureUrl = new URL(
   "../spec/conformance/0.1.0/source-record/invalid.jsonl",
   import.meta.url,
 );
-
-const neutralRuntimeExports = [
-  "DomainError",
-  "DomainErrorCode",
-  "SOURCE_RECORD_MAX_JSON_DEPTH",
-  "SOURCE_RECORD_SCHEMA_VERSION",
-  "canonicalizeJson",
-  "createObject",
-  "createSourceRecord",
-  "deserializeObject",
-  "deserializeSourceRecord",
-  "evaluateAuthorization",
-  "ingestAndPromoteEvidence",
-  "ingestSourceRecordText",
-  "ingestSourceRecords",
-  "neutralEvidencePolicyV1",
-  "promoteSourceRecordsToEvidence",
-  "serializeObject",
-  "serializeSourceRecord",
-  "sourceRevisionKey",
-  "transitionObject",
-  "validateSourceRecord",
-] as const;
 
 function fixtureText(url: URL): string {
   return readFileSync(url, "utf8");
@@ -405,13 +381,5 @@ test("team-memory and Git connectors satisfy the same SourceRecord contract", ()
   assert.deepEqual(
     records.map((record) => record.source.system),
     ["team-memory-agent", "git"],
-  );
-});
-
-test("root public API is exactly the neutral runtime allowlist", () => {
-  assert.deepEqual(Object.keys(publicApi).sort(), neutralRuntimeExports);
-  assert.equal(
-    DomainErrorCode.INVALID_SOURCE_RECORD,
-    "INVALID_SOURCE_RECORD",
   );
 });

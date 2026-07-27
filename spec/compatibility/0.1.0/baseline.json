@@ -1,0 +1,346 @@
+{
+  "baselineVersion": "0.1.0",
+  "packagePolicyVersion": "0.1.0",
+  "appliesToPackageVersion": "0.1.0",
+  "stabilityLevels": [
+    "normative-stable",
+    "supported-experimental",
+    "internal"
+  ],
+  "normative": {
+    "sourceRecord": {
+      "version": "0.1.0",
+      "prosePath": "spec/source-record.md",
+      "ruleIds": [
+        "SR-001",
+        "SR-002",
+        "SR-003",
+        "SR-004",
+        "SR-005",
+        "SR-006",
+        "SR-007",
+        "SR-008",
+        "SR-009",
+        "SR-010",
+        "SR-011",
+        "SR-012",
+        "SR-013",
+        "SR-014",
+        "SR-015"
+      ],
+      "schema": {
+        "path": "spec/schemas/0.1.0/source-record.schema.json",
+        "id": "urn:collective-cognition:schema:source-record:0.1.0",
+        "packageSubpath": "./schemas/source-record/0.1.0"
+      },
+      "sourceRevisionKeyRule": "SR-005",
+      "canonicalRevisionEqualityRule": "SR-013",
+      "stableErrorsRule": "SR-014"
+    },
+    "compatibility": {
+      "prosePath": "spec/compatibility.md",
+      "ruleIds": [
+        "COMP-001",
+        "COMP-002",
+        "COMP-003",
+        "COMP-004",
+        "COMP-005",
+        "COMP-006",
+        "COMP-007",
+        "COMP-008",
+        "COMP-009",
+        "COMP-010",
+        "COMP-011",
+        "COMP-012",
+        "COMP-013",
+        "COMP-014",
+        "COMP-015",
+        "COMP-016",
+        "COMP-017",
+        "COMP-018"
+      ]
+    },
+    "artifacts": {
+      "spec/schemas/0.1.0/source-record.schema.json": "56cf53c5da98dfbec19a021fbb90673beab8248c7a77df44989b535a0e155648",
+      "spec/conformance/0.1.0/source-record/valid.jsonl": "f52c212026b70bf2b339e1132b2895c91be509f250dde841319dbbb4edd3f74a",
+      "spec/conformance/0.1.0/source-record/invalid.jsonl": "4705f32eb5ea48ddd693759728294d2557b0a6f4a5cc666843b2e03bb03e99c0",
+      "spec/compatibility/0.1.0/change-cases.jsonl": "4721623574266d41f953003b918bd2cd3a19d4b7d6401a10112610e02886f425"
+    }
+  },
+  "package": {
+    "metadata": {
+      "name": "collective-cognition-sdk",
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "license": "Apache-2.0",
+      "engines": {
+        "node": ">=24"
+      },
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js"
+        },
+        "./compatibility/0.1.0": "./spec/compatibility/0.1.0/baseline.json",
+        "./schemas/source-record/0.1.0": "./spec/schemas/0.1.0/source-record.schema.json",
+        "./package.json": "./package.json"
+      },
+      "bin": {
+        "collective-cognition": "./dist/cli.js"
+      }
+    },
+    "runtimeExports": [
+      "DomainError",
+      "DomainErrorCode",
+      "SOURCE_RECORD_MAX_JSON_DEPTH",
+      "SOURCE_RECORD_SCHEMA_VERSION",
+      "canonicalizeJson",
+      "createObject",
+      "createSourceRecord",
+      "deserializeObject",
+      "deserializeSourceRecord",
+      "evaluateAuthorization",
+      "ingestAndPromoteEvidence",
+      "ingestSourceRecordText",
+      "ingestSourceRecords",
+      "neutralEvidencePolicyV1",
+      "promoteSourceRecordsToEvidence",
+      "serializeObject",
+      "serializeSourceRecord",
+      "sourceRevisionKey",
+      "transitionObject",
+      "validateSourceRecord"
+    ],
+    "typeExports": [
+      "ActorKind",
+      "Attribution",
+      "AuthorizationDecision",
+      "AuthorizationPolicy",
+      "AutomationMode",
+      "CognitionEvent",
+      "CognitiveObject",
+      "CognitiveObjectFor",
+      "ConsequenceLevel",
+      "CreateObjectInput",
+      "CreateObjectInputFor",
+      "CreateSourceRecordInput",
+      "DataByType",
+      "DecisionData",
+      "DecisionState",
+      "EvidenceData",
+      "EvidencePromotionContext",
+      "EvidencePromotionMapping",
+      "EvidencePromotionPolicy",
+      "EvidencePromotionRequest",
+      "EvidencePromotionResult",
+      "EvidenceState",
+      "ExperimentData",
+      "ExperimentState",
+      "GoalData",
+      "GoalState",
+      "HumanConfirmation",
+      "HypothesisData",
+      "HypothesisState",
+      "IdentityData",
+      "IdentityState",
+      "IngestAndPromoteEvidenceResult",
+      "IngestionBatchResult",
+      "IngestionItemResult",
+      "IngestionMode",
+      "IngestionOptions",
+      "IngestionTextOptions",
+      "JsonArray",
+      "JsonObject",
+      "JsonPrimitive",
+      "JsonValue",
+      "ObjectType",
+      "PrincipleData",
+      "PrincipleState",
+      "PromotionFailure",
+      "ProvenanceRef",
+      "Relationship",
+      "RelationshipType",
+      "SourceRecord",
+      "SourceRecordSource",
+      "StateByType",
+      "TransitionActor",
+      "TransitionContext",
+      "TransitionResult"
+    ],
+    "errorCodes": [
+      "AUTHORIZATION_DENIED",
+      "CONFIRMATION_REQUIRED",
+      "INGESTION_LIMIT_EXCEEDED",
+      "INVALID_OBJECT",
+      "INVALID_RELATIONSHIP",
+      "INVALID_SOURCE_RECORD",
+      "INVALID_TRANSITION",
+      "PROMOTION_FAILED",
+      "SERIALIZATION_ERROR",
+      "SOURCE_REVISION_COLLISION"
+    ],
+    "normativeStableErrorCodes": [
+      "INVALID_SOURCE_RECORD",
+      "SOURCE_REVISION_COLLISION"
+    ],
+    "policyIdentities": {
+      "neutralEvidencePolicyV1": {
+        "id": "neutral-evidence",
+        "version": "1"
+      }
+    },
+    "declarations": {
+      "files": [
+        "dist/authorization.d.ts",
+        "dist/errors.d.ts",
+        "dist/events.d.ts",
+        "dist/index.d.ts",
+        "dist/ingestion.d.ts",
+        "dist/objects.d.ts",
+        "dist/promotion.d.ts",
+        "dist/source-records.d.ts",
+        "dist/transitions.d.ts",
+        "dist/types.d.ts"
+      ],
+      "sha256": "581ac45c474927e64f636c3abf40ce96e48c6081d3bafcc03f877ca50d34dbba"
+    }
+  },
+  "cli": {
+    "commands": {
+      "validate": {
+        "options": [
+          "input",
+          "format",
+          "max-input-bytes",
+          "max-records",
+          "max-record-bytes"
+        ],
+        "requiredOptions": [
+          "input",
+          "format"
+        ]
+      },
+      "ingest": {
+        "options": [
+          "input",
+          "format",
+          "max-input-bytes",
+          "max-records",
+          "max-record-bytes"
+        ],
+        "requiredOptions": [
+          "input",
+          "format"
+        ]
+      },
+      "promote": {
+        "options": [
+          "input",
+          "format",
+          "max-input-bytes",
+          "max-records",
+          "max-record-bytes",
+          "policy",
+          "hypothesis-id",
+          "context-id",
+          "rationale",
+          "initiator-id",
+          "executor-id",
+          "accountable-id",
+          "promoted-at"
+        ],
+        "requiredOptions": [
+          "input",
+          "format",
+          "policy",
+          "hypothesis-id",
+          "context-id",
+          "rationale",
+          "initiator-id",
+          "executor-id",
+          "accountable-id",
+          "promoted-at"
+        ]
+      },
+      "ingest-promote": {
+        "options": [
+          "input",
+          "format",
+          "max-input-bytes",
+          "max-records",
+          "max-record-bytes",
+          "policy",
+          "hypothesis-id",
+          "context-id",
+          "rationale",
+          "initiator-id",
+          "executor-id",
+          "accountable-id",
+          "promoted-at"
+        ],
+        "requiredOptions": [
+          "input",
+          "format",
+          "policy",
+          "hypothesis-id",
+          "context-id",
+          "rationale",
+          "initiator-id",
+          "executor-id",
+          "accountable-id",
+          "promoted-at"
+        ]
+      }
+    },
+    "formats": [
+      "json",
+      "jsonl"
+    ],
+    "defaults": {
+      "maxInputBytes": 10485760,
+      "maxRecords": 10000,
+      "maxRecordBytes": 1048576
+    },
+    "policySelectors": {
+      "neutral-evidence-v1": {
+        "sdkExport": "neutralEvidencePolicyV1",
+        "id": "neutral-evidence",
+        "version": "1"
+      }
+    },
+    "diagnostics": {
+      "fields": [
+        "code",
+        "message",
+        "details",
+        "stage"
+      ],
+      "stages": [
+        "arguments",
+        "input",
+        "ingestion",
+        "promotion",
+        "output"
+      ],
+      "cliAuthoredCodes": [
+        "CLI_ERROR",
+        "INPUT_READ_ERROR",
+        "INVALID_ARGUMENT"
+      ],
+      "rejectedItemCodes": [
+        "INVALID_SOURCE_RECORD",
+        "SERIALIZATION_ERROR",
+        "SOURCE_REVISION_COLLISION"
+      ]
+    },
+    "exitStatuses": {
+      "success": 0,
+      "topLevelFailure": 1,
+      "rejectedItem": 1,
+      "composedPromotionFailure": 1,
+      "duplicatesOnly": 0
+    }
+  },
+  "deprecations": []
+}
