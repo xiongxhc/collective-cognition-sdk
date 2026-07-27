@@ -12,6 +12,7 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./schemas/source-record/0.1.0": "./spec/schemas/0.1.0/source-record.schema.json",
     "./package.json": "./package.json"
   },
   "bin": {
@@ -23,8 +24,10 @@
     "rfcs/README.md",
     "rfcs/0001-universal-source-record-ingestion.md",
     "spec/README.md",
-    "spec/fixtures/source-records/valid.jsonl",
-    "spec/fixtures/source-records/invalid.jsonl"
+    "spec/source-record.md",
+    "spec/schemas/0.1.0/source-record.schema.json",
+    "spec/conformance/0.1.0/source-record/valid.jsonl",
+    "spec/conformance/0.1.0/source-record/invalid.jsonl"
   ],
   "keywords": [
     "collective-intelligence",

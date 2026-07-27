@@ -100,7 +100,9 @@ Rejected for ingestion because it loses a stable neutral boundary. Trusted calle
 
 Implementation evidence:
 
-- canonical fixtures: [`spec/fixtures/source-records/`](../spec/fixtures/source-records/);
+- normative SourceRecord contract: [`spec/source-record.md`](../spec/source-record.md);
+- SourceRecord schema: [`spec/schemas/0.1.0/source-record.schema.json`](../spec/schemas/0.1.0/source-record.schema.json);
+- canonical fixtures: [`spec/conformance/0.1.0/source-record/`](../spec/conformance/0.1.0/source-record/);
 - conformance suite: [`tests/conformance.test.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/tests/conformance.test.ts);
 - generic CLI: [`src/cli.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/src/cli.ts);
 - migrated connector: [`src/adapters/team-memory.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/src/adapters/team-memory.ts);

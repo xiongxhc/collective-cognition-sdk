@@ -2,6 +2,8 @@
 
 **Status:** Complete and final-review verified
 
+**Historical note:** This execution plan records the repository paths and package state used during Phase 2. SourceRecord fixtures were later promoted into the versioned normative paths under `spec/conformance/0.1.0/source-record/`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement the approved neutral `SourceRecord → explicit promotion → CognitiveObject` boundary with generic JSON/JSONL tooling and a migrated team-memory connector.

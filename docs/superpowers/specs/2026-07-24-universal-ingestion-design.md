@@ -259,7 +259,7 @@ Universal adoption requires behavior that is testable outside one implementation
 - connector tests based only on emitted records;
 - additive namespaced extension examples.
 
-The Phase 2 implementation fixtures are in `spec/fixtures/source-records/`. They exercise the current TypeScript SDK and CLI but are not yet normative, versioned, language-neutral specification fixtures; those remain a Phase 3 deliverable.
+At Phase 2 completion, the implementation fixtures lived in `spec/fixtures/source-records/` and were not yet normative. The Phase 3 SourceRecord conformance slice later promoted and expanded them under `spec/conformance/0.1.0/source-record/`, added `spec/schemas/0.1.0/source-record.schema.json`, and aligned the TypeScript SDK and CLI to that normative corpus.
 
 Team-memory and the source-specific Git commit fixture connector both emit records that pass the same SourceRecord validation boundary. A reusable connector author harness remains Phase 4 work.
 

@@ -218,6 +218,7 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
         target: "ES2024",
         module: "NodeNext",
         moduleResolution: "NodeNext",
+        resolveJsonModule: true,
         strict: true,
         skipLibCheck: false,
         noEmit: true,
@@ -229,6 +230,15 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
   writeFileSync(
     `${consumerRoot}/index.ts`,
     `import { createObject, type GoalData } from ${JSON.stringify(packageJson.name)};
+import sourceRecordSchema from ${JSON.stringify(`${packageJson.name}/schemas/source-record/0.1.0`)}
+  with { type: "json" };
+
+if (
+  sourceRecordSchema.$id !==
+  "urn:collective-cognition:schema:source-record:0.1.0"
+) {
+  throw new Error("installed SourceRecord schema is not discoverable");
+}
 
 const data: GoalData = { objective: "Verify package declarations." };
 createObject({
@@ -324,6 +334,24 @@ createObject({
     assert.deepEqual(
       JSON.parse(imported.stdout.trim()),
       expectedRuntimeExports,
+    );
+
+    const importedSchema = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        `import schema from ${JSON.stringify(`${packageJson.name}/schemas/source-record/0.1.0`)} with { type: "json" }; console.log(schema.$id);`,
+      ],
+      {
+        cwd: consumerRoot,
+        encoding: "utf8",
+      },
+    );
+    assert.equal(importedSchema.status, 0, importedSchema.stderr);
+    assert.equal(
+      importedSchema.stdout.trim(),
+      "urn:collective-cognition:schema:source-record:0.1.0",
     );
 
     const executableName =

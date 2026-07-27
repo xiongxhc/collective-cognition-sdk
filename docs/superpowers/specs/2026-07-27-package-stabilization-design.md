@@ -44,6 +44,7 @@ The distribution entrypoints are:
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./schemas/source-record/0.1.0": "./spec/schemas/0.1.0/source-record.schema.json",
     "./package.json": "./package.json"
   },
   "bin": {
@@ -75,8 +76,12 @@ The package allowlist contains only:
 - `rfcs/README.md`;
 - `rfcs/0001-universal-source-record-ingestion.md`;
 - `spec/README.md`;
-- `spec/fixtures/source-records/valid.jsonl`;
-- `spec/fixtures/source-records/invalid.jsonl`.
+- `spec/source-record.md`;
+- `spec/schemas/0.1.0/source-record.schema.json`;
+- `spec/conformance/0.1.0/source-record/valid.jsonl`;
+- `spec/conformance/0.1.0/source-record/invalid.jsonl`.
+
+The versioned SourceRecord schema subpath and normative artifacts were added by the subsequent SourceRecord conformance slice without widening the source-neutral runtime root.
 
 npm includes `package.json` automatically. A future license file will also be included by npm once one exists. Source files, tests, examples, local reports, planning documents, databases, vaults, and connector credentials must not enter the tarball.
 

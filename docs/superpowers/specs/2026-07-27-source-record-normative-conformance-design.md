@@ -1,6 +1,6 @@
 # SourceRecord Normative Conformance Design
 
-**Status:** Approved design; implementation pending.
+**Status:** Implemented and verified.
 
 **Date:** 2026-07-27
 

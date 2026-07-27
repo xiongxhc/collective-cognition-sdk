@@ -1,5 +1,7 @@
 # SourceRecord Normative Conformance Implementation Plan
 
+**Status:** Implementation complete; final review pending.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Publish a versioned, language-neutral SourceRecord JSON Schema and normative fixture suite that remains behaviorally aligned with the TypeScript SDK, generic CLI, and packed artifact.
@@ -44,7 +46,7 @@
 - Consumes: the serialized `SourceRecord` behavior defined by `src/source-records.ts`.
 - Produces: a Draft 2020-12 schema and versioned fixture files consumed by runtime, CLI, and package tests.
 
-- [ ] **Step 1: Install schema-test dependencies**
+- [x] **Step 1: Install schema-test dependencies**
 
 Run:
 
@@ -54,7 +56,7 @@ npm install --save-dev ajv@^8.17.1 ajv-formats@^3.0.1
 
 Expected: `package.json` and `package-lock.json` add both packages under `devDependencies`; no runtime `dependencies` section is added.
 
-- [ ] **Step 2: Write the failing schema conformance test**
+- [x] **Step 2: Write the failing schema conformance test**
 
 Create `tests/schema-conformance.test.mjs` with helpers that:
 
@@ -142,7 +144,7 @@ test("invalid fixtures cover every machine-checkable rule", () => {
 });
 ```
 
-- [ ] **Step 3: Run the test to verify RED**
+- [x] **Step 3: Run the test to verify RED**
 
 Run:
 
@@ -152,7 +154,7 @@ node --test tests/schema-conformance.test.mjs
 
 Expected: FAIL because `spec/schemas/0.1.0/source-record.schema.json` does not exist.
 
-- [ ] **Step 4: Add the minimal Draft 2020-12 schema**
+- [x] **Step 4: Add the minimal Draft 2020-12 schema**
 
 Create `spec/schemas/0.1.0/source-record.schema.json` with:
 
@@ -223,7 +225,7 @@ Create `spec/schemas/0.1.0/source-record.schema.json` with:
 }
 ```
 
-- [ ] **Step 5: Add exact normative fixtures**
+- [x] **Step 5: Add exact normative fixtures**
 
 Create valid JSONL records covering:
 
@@ -251,7 +253,7 @@ Create invalid JSONL envelopes covering these exact rule IDs and cases:
 
 Every envelope must contain non-empty `description`, one listed `ruleId`, `expectedCode: "INVALID_SOURCE_RECORD"`, and `record`.
 
-- [ ] **Step 6: Run the schema test to verify GREEN**
+- [x] **Step 6: Run the schema test to verify GREEN**
 
 Run:
 
@@ -261,7 +263,7 @@ node --test tests/schema-conformance.test.mjs
 
 Expected: 4 tests pass.
 
-- [ ] **Step 7: Commit the schema checkpoint**
+- [x] **Step 7: Commit the schema checkpoint**
 
 ```bash
 git add package.json package-lock.json tests/schema-conformance.test.mjs spec/schemas/0.1.0/source-record.schema.json spec/conformance/0.1.0/source-record
@@ -283,7 +285,7 @@ git commit -m "feat: add normative SourceRecord schema"
 - Consumes: versioned schema and fixtures from Task 1.
 - Produces: one fixture corpus enforced consistently by schema, SDK, CLI, and package tests.
 
-- [ ] **Step 1: Point runtime conformance tests at normative fixtures**
+- [x] **Step 1: Point runtime conformance tests at normative fixtures**
 
 Change the fixture URLs in `tests/conformance.test.ts` to:
 
@@ -306,7 +308,7 @@ readonly ruleId: string;
 
 Add an assertion that every fixture has a non-empty `description`, `ruleId`, and expected code before checking SDK and CLI outcomes.
 
-- [ ] **Step 2: Run runtime conformance to verify RED**
+- [x] **Step 2: Run runtime conformance to verify RED**
 
 Run:
 
@@ -316,7 +318,7 @@ node --test tests/conformance.test.ts
 
 Expected: FAIL on any intentional schema/runtime mismatch exposed by the expanded corpus.
 
-- [ ] **Step 3: Correct only proven runtime/schema differences**
+- [x] **Step 3: Correct only proven runtime/schema differences**
 
 For each RED mismatch:
 
@@ -334,7 +336,7 @@ Expected likely alignment targets:
 - forbidden context fields reject only at the immediate context level;
 - extension keys require at least one colon or dot namespace separator.
 
-- [ ] **Step 4: Add the schema test to normal verification**
+- [x] **Step 4: Add the schema test to normal verification**
 
 Update scripts in `package.json`:
 
@@ -349,7 +351,7 @@ Update scripts in `package.json`:
 
 Append `node --check tests/schema-conformance.test.mjs` to the existing `check` script.
 
-- [ ] **Step 5: Update package tests to require the new paths**
+- [x] **Step 5: Update package tests to require the new paths**
 
 Change `tests/package.test.mjs` to read the valid fixture from:
 
@@ -371,7 +373,7 @@ spec/source-record.md
 
 Remove the two old `spec/fixtures/source-records/` paths.
 
-- [ ] **Step 6: Run package verification to verify RED**
+- [x] **Step 6: Run package verification to verify RED**
 
 Run:
 
@@ -381,7 +383,7 @@ npm run pack:check
 
 Expected: FAIL because `package.json` does not yet ship the normative files or expose the schema subpath.
 
-- [ ] **Step 7: Remove superseded fixture files**
+- [x] **Step 7: Remove superseded fixture files**
 
 Delete:
 
@@ -392,7 +394,7 @@ spec/fixtures/source-records/invalid.jsonl
 
 No duplicate implementation-only corpus remains.
 
-- [ ] **Step 8: Run focused parity checks**
+- [x] **Step 8: Run focused parity checks**
 
 Run:
 
@@ -404,7 +406,7 @@ npx tsc --noEmit
 
 Expected: schema tests, runtime/CLI conformance tests, and type checking all pass.
 
-- [ ] **Step 9: Commit the parity checkpoint**
+- [x] **Step 9: Commit the parity checkpoint**
 
 ```bash
 git add package.json tests/conformance.test.ts tests/package.test.mjs src/source-records.ts spec/fixtures spec/conformance
@@ -432,7 +434,7 @@ Omit `src/source-records.ts` if no runtime correction was required.
 - Consumes: schema, fixtures, and parity tests from Tasks 1 and 2.
 - Produces: packaged normative assets, stable schema discovery, and synchronized public status documentation.
 
-- [ ] **Step 1: Write normative SourceRecord prose**
+- [x] **Step 1: Write normative SourceRecord prose**
 
 Create `spec/source-record.md` containing:
 
@@ -449,7 +451,7 @@ Create `spec/source-record.md` containing:
 
 State explicitly that schema validity does not promote source material to evidence, truth, authority, or a decision.
 
-- [ ] **Step 2: Add a stable package schema subpath**
+- [x] **Step 2: Add a stable package schema subpath**
 
 Update `package.json`:
 
@@ -479,7 +481,7 @@ Update `package.json`:
 
 Keep `"private": true`.
 
-- [ ] **Step 3: Verify schema discovery from a clean consumer**
+- [x] **Step 3: Verify schema discovery from a clean consumer**
 
 Extend the generated consumer in `tests/package.test.mjs` to:
 
@@ -497,7 +499,7 @@ if (
 
 Assert the consumer process exits successfully.
 
-- [ ] **Step 4: Run package verification to verify GREEN**
+- [x] **Step 4: Run package verification to verify GREEN**
 
 Run:
 
@@ -507,7 +509,7 @@ npm run pack:check
 
 Expected: schema tests and all 5 package tests pass; the exact tarball contains only approved files.
 
-- [ ] **Step 5: Synchronize all affected Markdown**
+- [x] **Step 5: Synchronize all affected Markdown**
 
 Update:
 
@@ -525,7 +527,7 @@ Preserve these statements:
 - broader cognitive-object schemas remain planned;
 - the repository does not claim a cross-language standard.
 
-- [ ] **Step 6: Run complete local verification**
+- [x] **Step 6: Run complete local verification**
 
 Run:
 
