@@ -23,7 +23,7 @@ Runnable now:
 - a source-neutral `collective-cognition` CLI for validate, ingest, promote, and ingest-promote operations;
 - emitted ESM JavaScript, declaration files, an explicit root exports map, an installed `collective-cognition` executable contract, and audited package contents;
 - package compatibility tests covering built imports, runtime exports, declarations, CLI behavior, npm tarball contents, and installation into a clean temporary consumer;
-- schema, SDK, CLI, package, and clean-consumer tests over the same canonical valid and invalid conformance fixtures;
+- schema, SDK, and CLI tests over the complete canonical valid and invalid corpus, plus package and clean-consumer smoke tests for shipped fixtures, schema discovery, and the installed CLI;
 - an experimental read-only team-memory SQLite connector that emits SourceRecord JSONL;
 - a small Git commit fixture connector used to prove a second source-specific module satisfies the same SourceRecord contract.
 

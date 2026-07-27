@@ -1,6 +1,6 @@
 # Collective Cognition Specification
 
-This directory is the contribution entrypoint for the future language-neutral specification. The runnable TypeScript code and emitted package artifacts are the current reference implementation; it is not yet a protocol, externally distributed package, or cross-language standard.
+This directory contains the implemented normative SourceRecord `0.1.0` contract and is the contribution entrypoint for the broader language-neutral specification still under development. The runnable TypeScript code and emitted package artifacts are the current reference implementation; the repository is not yet a protocol, externally distributed package, or cross-language standard.
 
 ## Current Architecture
 
@@ -41,7 +41,7 @@ The historical team-memory direct-to-Evidence path was replaced. The current con
 - `description`: the invalid case;
 - `ruleId`: the normative SourceRecord rule;
 - `expectedCode`: the stable error code;
-- `record`: the SourceRecord-shaped value to validate.
+- exactly one of `record` or lossless `recordJson`: the SourceRecord value to validate.
 
 The invalid corpus covers every machine-checkable rule `SR-001` through `SR-011`. The schema suite proves strict compilation and rejection even when `format` assertion is disabled. The runtime conformance suite verifies SDK and CLI outcomes plus equivalent canonical JSON and JSONL results. Focused runtime suites additionally enforce immutable accepted values, revision collision behavior, bounded normalization, promotion identity, sanitized diagnostics, and fail-closed authorization. Connector tests prove team-memory defaults to raw omission and that team-memory and Git emit valid records under the same SourceRecord contract.
 

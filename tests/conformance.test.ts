@@ -39,7 +39,8 @@ interface InvalidFixture {
   readonly description: string;
   readonly ruleId: string;
   readonly expectedCode: string;
-  readonly record: unknown;
+  readonly record?: unknown;
+  readonly recordJson?: string;
 }
 
 interface CliItem {
@@ -91,6 +92,15 @@ function jsonLines<T>(text: string): T[] {
     .split("\n")
     .filter((line) => line.length > 0)
     .map((line) => JSON.parse(line) as T);
+}
+
+function invalidFixtureJson(fixture: InvalidFixture): string {
+  assert.notEqual(
+    fixture.record === undefined,
+    fixture.recordJson === undefined,
+    `${fixture.description} must define exactly one record form`,
+  );
+  return fixture.recordJson ?? JSON.stringify(fixture.record);
 }
 
 function runValidate(
@@ -156,8 +166,7 @@ test("rejects every canonical invalid fixture with its expected code", () => {
     assert.ok(fixture.ruleId.trim().length > 0);
     assert.equal(fixture.expectedCode, DomainErrorCode.INVALID_SOURCE_RECORD);
   });
-  const records = fixtures.map((fixture) => fixture.record);
-  const jsonl = records.map((record) => JSON.stringify(record)).join("\n");
+  const jsonl = fixtures.map(invalidFixtureJson).join("\n");
   const sdkResult = ingestSourceRecordText(jsonl, { format: "jsonl" });
 
   assert.ok(fixtures.length > 0);
@@ -204,6 +213,96 @@ test("canonical JSON and JSONL produce equivalent SourceRecords", () => {
   assert.deepEqual(
     jsonLines<CliItem>(cliJson.stdout).map((item) => item.record),
     jsonLines<CliItem>(cliJsonl.stdout).map((item) => item.record),
+  );
+});
+
+test("binary64 numeric semantics determine duplicate and collision outcomes", () => {
+  const recordPrefix = {
+    schemaVersion: "0.1.0",
+    id: "source-record:numeric:first",
+    source: { system: "fixture" },
+    sourceId: "item:numeric",
+    revisionId: "revision:numeric",
+    capturedAt: "2026-07-24T10:00:00Z",
+    mediaType: "application/json",
+  };
+  const first = JSON.stringify({
+    ...recordPrefix,
+    content: 9_007_199_254_740_992,
+  });
+  const roundedEquivalent = JSON.stringify({
+    ...recordPrefix,
+    id: "source-record:numeric:equivalent",
+    content: 9_007_199_254_740_992,
+  }).replace("9007199254740992", "9007199254740993");
+  const distinct = JSON.stringify({
+    ...recordPrefix,
+    id: "source-record:numeric:distinct",
+    content: 9_007_199_254_740_994,
+  });
+
+  const duplicateResult = ingestSourceRecordText(
+    `${first}\n${roundedEquivalent}`,
+    { format: "jsonl" },
+  );
+  assert.deepEqual(
+    duplicateResult.items.map((item) => item.status),
+    ["accepted", "duplicate"],
+  );
+
+  const collisionResult = ingestSourceRecordText(
+    `${first}\n${distinct}`,
+    { format: "jsonl" },
+  );
+  assert.deepEqual(
+    collisionResult.items.map((item) => item.status),
+    ["accepted", "rejected"],
+  );
+  assert.equal(
+    collisionResult.items[1]?.status === "rejected"
+      ? collisionResult.items[1].error.code
+      : undefined,
+    DomainErrorCode.SOURCE_REVISION_COLLISION,
+  );
+});
+
+test("canonical content ignores object order but preserves media type spelling", () => {
+  const base = {
+    schemaVersion: "0.1.0",
+    id: "source-record:canonical:first",
+    source: { system: "fixture" },
+    sourceId: "item:canonical",
+    revisionId: "revision:canonical",
+    capturedAt: "2026-07-24T10:00:00Z",
+    mediaType: "application/json",
+    content: { alpha: 1, beta: 2 },
+  };
+  const reordered = {
+    ...base,
+    id: "source-record:canonical:reordered",
+    content: { beta: 2, alpha: 1 },
+  };
+  const mediaTypeChanged = {
+    ...base,
+    id: "source-record:canonical:media-type",
+    mediaType: "Application/JSON",
+  };
+
+  assert.deepEqual(
+    ingestSourceRecords([base, reordered]).items.map((item) => item.status),
+    ["accepted", "duplicate"],
+  );
+
+  const collision = ingestSourceRecords([base, mediaTypeChanged]);
+  assert.deepEqual(
+    collision.items.map((item) => item.status),
+    ["accepted", "rejected"],
+  );
+  assert.equal(
+    collision.items[1]?.status === "rejected"
+      ? collision.items[1].error.code
+      : undefined,
+    DomainErrorCode.SOURCE_REVISION_COLLISION,
   );
 });
 

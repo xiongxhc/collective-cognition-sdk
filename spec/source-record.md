@@ -30,6 +30,8 @@ A serialized SourceRecord MUST be one JSON object. JSON arrays, primitives, or n
 
 JSON Schema operates on serialized JSON. Implementations MAY additionally reject unsafe language-native inputs such as cycles, accessors, custom prototypes, symbols, or non-finite numbers before serialization. Such hardening MUST NOT change the accepted serialized JSON contract.
 
+Before validation, JSON numbers MUST be interpreted as IEEE 754 binary64 values. A number that overflows to positive or negative infinity is invalid. Lexically different JSON numbers that produce the same binary64 value are the same SourceRecord value. Sources requiring exact decimal or integer precision beyond binary64 MUST encode that value as a JSON string with an application-defined media type or namespaced extension.
+
 ## Normative Rules
 
 ### SR-001 — Closed Record Object
@@ -78,6 +80,8 @@ The schema retains the standard `date-time` annotation for tooling, but its patt
 
 `content` MUST be present and MAY be any JSON value, including `null`, a primitive, an array, or an object.
 
+Every number nested in `content`, `context`, or `extensions` MUST remain within the finite binary64 range. NaN and infinity are invalid. This numeric rule applies recursively.
+
 Implementations MUST preserve source-authored content without silently adding cognitive interpretation.
 
 ### SR-009 — Optional Source Metadata
@@ -102,6 +106,32 @@ Implementations MUST NOT treat unsupported unnamespaced fields as extensions.
 
 An implementation MUST validate a record before acceptance. Once accepted, the record MUST be immutable or treated as immutable by the implementation.
 
+### Canonical Equality
+
+Duplicate and collision classification MUST compare the canonical JSON value:
+
+```json
+{"mediaType":"the literal mediaType string","content":"the content value"}
+```
+
+Canonicalization MUST apply these rules recursively:
+
+1. Emit no whitespace between JSON tokens.
+2. Preserve `null`, boolean, and array element order.
+3. Serialize strings with JSON escaping, without Unicode normalization.
+4. Serialize finite binary64 numbers using the shortest decimal form that round-trips to the same binary64 value; serialize negative zero as `0`.
+5. Sort object property names by ascending UTF-16 code units before serialization.
+6. Preserve the literal, case-sensitive `mediaType` string and its parameter spelling.
+
+These rules match the relevant primitive serialization and property-ordering behavior of [RFC 8785 JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785.html). This specification defines equality over parsed SourceRecord values; it does not preserve insignificant input whitespace, object-member order, or alternate numeric spellings.
+
+For example:
+
+- `{"alpha":1,"beta":2}` and `{"beta":2,"alpha":1}` are equal content;
+- `9007199254740992` and `9007199254740993` are equal after binary64 conversion;
+- `9007199254740992` and `9007199254740994` are different; and
+- `application/json` and `Application/JSON` are different literal media types.
+
 For one source revision key:
 
 - matching canonical `mediaType` and `content` MUST classify as a duplicate;
@@ -112,9 +142,9 @@ Ingestion MUST preserve accepted history and MUST NOT silently overwrite a colli
 
 ## Errors
 
-The TypeScript reference implementation reports structural failures with `INVALID_SOURCE_RECORD` and source revision collisions with `SOURCE_REVISION_COLLISION`.
+Conforming validators and ingestion implementations MUST expose `INVALID_SOURCE_RECORD` for SourceRecord structural failures. Conforming ingestion implementations MUST expose `SOURCE_REVISION_COLLISION` when an existing source revision key has different canonical media type or content.
 
-Portable consumers MAY use different error representations. They SHOULD preserve stable machine-readable categories. Validator-specific messages, ordering, and schema-library paths are not portable API.
+Implementations MAY use different error envelopes, exception types, or result structures, but the applicable stable code MUST remain machine-readable. Human-readable messages, ordering, and validator-library paths are not portable API.
 
 ## Compatibility
 
@@ -137,7 +167,12 @@ The normative fixtures are:
 - [`conformance/0.1.0/source-record/valid.jsonl`](conformance/0.1.0/source-record/valid.jsonl)
 - [`conformance/0.1.0/source-record/invalid.jsonl`](conformance/0.1.0/source-record/invalid.jsonl)
 
-Valid fixtures are direct SourceRecord values. Invalid fixtures are envelopes containing `description`, `ruleId`, `expectedCode`, and `record`. Fixture order is not normative.
+Valid fixtures are direct SourceRecord values. Invalid fixtures are envelopes containing `description`, `ruleId`, `expectedCode`, and exactly one of:
+
+- `record`, for ordinary invalid values; or
+- `recordJson`, for a serialized record whose numeric lexical form must reach the parser unchanged.
+
+`expectedCode` is normative. Fixture order is not normative.
 
 | Rule | Schema location | Fixture coverage |
 |---|---|---|
@@ -148,9 +183,9 @@ Valid fixtures are direct SourceRecord values. Invalid fixtures are envelopes co
 | `SR-005` | `properties.sourceId`, `properties.revisionId` | missing revision, blank source ID |
 | `SR-006` | `$defs.timestamp` | calendar, timezone, case, leap-second, hour, and offset failures |
 | `SR-007` | `properties.mediaType` | non-string and malformed values |
-| `SR-008` | root `required`, `properties.content` | missing content; valid fixtures cover every JSON value shape |
+| `SR-008` | root `required`, `properties.content`, `$defs.jsonValue` | missing content, binary64 overflow; valid fixtures cover every JSON value shape |
 | `SR-009` | `properties.contentHash`, `properties.actorId` | blank hash and non-string actor |
 | `SR-010` | `properties.context` | wrong type and forbidden interpretation keys |
 | `SR-011` | `properties.extensions` | wrong type and unnamespaced key |
 
-An implementation claiming conformance to SourceRecord `0.1.0` MUST pass every valid and invalid fixture and MUST implement the prose-only ingestion, immutability, collision, and trust-boundary requirements applicable to its role.
+An implementation claiming conformance to SourceRecord `0.1.0` MUST pass every valid and invalid fixture, expose each invalid fixture's `expectedCode`, and implement the prose-only numeric, canonicalization, ingestion, immutability, collision, and trust-boundary requirements applicable to its role.

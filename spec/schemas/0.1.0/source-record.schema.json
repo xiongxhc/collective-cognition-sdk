@@ -52,7 +52,9 @@
       "type": "string",
       "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+/[!#$%&'*+.^_`|~0-9A-Za-z-]+(?:\\s*;\\s*[!#$%&'*+.^_`|~0-9A-Za-z-]+=(?:[!#$%&'*+.^_`|~0-9A-Za-z-]+|\"(?:[^\"\\\\\\r\\n]|\\\\.)*\"))*$"
     },
-    "content": true,
+    "content": {
+      "$ref": "#/$defs/jsonValue"
+    },
     "contentHash": {
       "$ref": "#/$defs/nonWhitespaceString"
     },
@@ -69,16 +71,55 @@
             "authority"
           ]
         }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/jsonValue"
       }
     },
     "extensions": {
       "type": "object",
       "propertyNames": {
         "pattern": "^[^:.\\s]+(?:[:.][^:.\\s]+)+$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/jsonValue"
       }
     }
   },
   "$defs": {
+    "jsonNumber": {
+      "type": "number",
+      "minimum": -1.7976931348623157e308,
+      "maximum": 1.7976931348623157e308
+    },
+    "jsonValue": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/jsonNumber"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        }
+      ]
+    },
     "nonWhitespaceString": {
       "type": "string",
       "pattern": "\\S"

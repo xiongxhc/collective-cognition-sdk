@@ -30,6 +30,17 @@ function readJsonLines(url) {
     .map((line) => JSON.parse(line));
 }
 
+function invalidFixtureRecord(fixture) {
+  assert.notEqual(
+    fixture.record === undefined,
+    fixture.recordJson === undefined,
+    `${fixture.description} must define exactly one record form`,
+  );
+  return fixture.recordJson === undefined
+    ? fixture.record
+    : JSON.parse(fixture.recordJson);
+}
+
 function compileSchema({ validateFormats = true } = {}) {
   const ajv = new Ajv2020({
     strict: true,
@@ -56,7 +67,11 @@ test("every normative valid fixture satisfies the schema", () => {
 test("every normative invalid fixture violates the schema", () => {
   const validate = compileSchema();
   for (const fixture of readJsonLines(invalidFixtureUrl)) {
-    assert.equal(validate(fixture.record), false, fixture.description);
+    assert.equal(
+      validate(invalidFixtureRecord(fixture)),
+      false,
+      fixture.description,
+    );
   }
 });
 
@@ -67,7 +82,7 @@ test("timestamp validity remains asserted without format validation", () => {
   );
 
   assert.ok(impossibleDate);
-  assert.equal(validate(impossibleDate.record), false);
+  assert.equal(validate(invalidFixtureRecord(impossibleDate)), false);
 });
 
 test("invalid fixtures cover every machine-checkable rule", () => {
