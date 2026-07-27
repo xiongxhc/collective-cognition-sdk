@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use Collective Cognition SDK, please cite it using these metadata."
+title: "Collective Cognition SDK"
+abstract: "A source-neutral SDK for portable cognitive objects, provenance, lifecycle, and governance boundaries in long-term human-AI collaboration."
+authors:
+  - family-names: "Xiong"
+    given-names: "Chris"
+type: software
+version: 0.1.0
+license: Apache-2.0
+repository-code: "https://github.com/xiongxhc/collective-cognition-sdk"
+url: "https://github.com/xiongxhc/collective-cognition-sdk"
+

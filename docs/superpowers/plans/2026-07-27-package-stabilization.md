@@ -2,7 +2,7 @@
 
 **Status:** Complete and verified
 
-**Historical note:** This execution plan records the initial package slice. SourceRecord fixtures were later promoted into `spec/conformance/0.1.0/source-record/`, and the package subsequently added the versioned SourceRecord schema subpath.
+**Historical note:** This execution plan records the initial package slice. SourceRecord fixtures were later promoted into `spec/conformance/0.1.0/source-record/`, the package subsequently added the versioned SourceRecord schema subpath, and Apache-2.0 licensing plus attribution and citation artifacts were added later.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

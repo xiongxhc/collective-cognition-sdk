@@ -2,6 +2,8 @@
 
 **Status:** Complete, verified, and integrated.
 
+**Historical note:** Apache-2.0, `NOTICE`, and `CITATION.cff` were added after this conformance slice. The package remains unpublished and guarded by `"private": true`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Publish a versioned, language-neutral SourceRecord JSON Schema and normative fixture suite that remains behaviorally aligned with the TypeScript SDK, generic CLI, and packed artifact.

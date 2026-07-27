@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdtempSync,
@@ -21,6 +22,9 @@ const distIndexUrl = new URL("../dist/index.js", import.meta.url);
 const distTypesUrl = new URL("../dist/index.d.ts", import.meta.url);
 const distCliUrl = new URL("../dist/cli.js", import.meta.url);
 const packageJsonUrl = new URL("../package.json", import.meta.url);
+const licenseUrl = new URL("../LICENSE", import.meta.url);
+const noticeUrl = new URL("../NOTICE", import.meta.url);
+const citationUrl = new URL("../CITATION.cff", import.meta.url);
 const typescriptCli = fileURLToPath(
   new URL("../node_modules/typescript/bin/tsc", import.meta.url),
 );
@@ -146,6 +150,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   );
   assert.equal(packageJson.main, "./dist/index.js");
   assert.equal(packageJson.types, "./dist/index.d.ts");
+  assert.equal(packageJson.license, "Apache-2.0");
   assert.deepEqual(packageJson.exports, {
     ".": {
       types: "./dist/index.d.ts",
@@ -181,6 +186,9 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.equal(packResults.length, 1);
   const paths = packResults[0].files.map((file) => file.path).sort();
   const expectedPaths = [
+    "CITATION.cff",
+    "LICENSE",
+    "NOTICE",
     "README.md",
     ...emittedFiles(distRoot).map((path) =>
       relative(repositoryRoot, path).replaceAll("\\", "/"),
@@ -197,6 +205,26 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
 
   assert.deepEqual(paths, expectedPaths, "package contents must match allowlist");
   assert.equal(statSync(distRoot).isDirectory(), true);
+});
+
+test("license, attribution, and citation metadata remain distributable", () => {
+  const license = readFileSync(licenseUrl, "utf8");
+  const notice = readFileSync(noticeUrl, "utf8");
+  const citation = readFileSync(citationUrl, "utf8");
+
+  assert.equal(
+    createHash("sha256").update(license).digest("hex"),
+    "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+  );
+  assert.match(license, /Apache License\n\s+Version 2\.0, January 2004/);
+  assert.match(notice, /^Collective Cognition SDK$/m);
+  assert.match(notice, /^Copyright 2026 Chris Xiong$/m);
+  assert.match(citation, /^cff-version: 1\.2\.0$/m);
+  assert.match(citation, /^license: Apache-2\.0$/m);
+  assert.match(
+    citation,
+    /^repository-code: "https:\/\/github\.com\/xiongxhc\/collective-cognition-sdk"$/m,
+  );
 });
 
 test("packed artifact installs, typechecks, imports, and exposes its executable", () => {
