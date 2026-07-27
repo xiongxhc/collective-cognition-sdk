@@ -1,6 +1,6 @@
 # Collective Cognition Specification
 
-This directory contains the implemented Normative Stable SourceRecord `0.1.0` contract and compatibility baseline `0.1.0`, and is the contribution entrypoint for the broader language-neutral specification still under development. The compatibility slice is implemented; final verification is pending. The runnable TypeScript code and emitted package artifacts are the current reference implementation; the package remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
+This directory contains the implemented Normative Stable SourceRecord `0.1.0` contract and compatibility baseline `0.1.0`, and is the contribution entrypoint for the broader language-neutral specification still under development. The compatibility slice is implemented and final-review verified. The runnable TypeScript code and emitted package artifacts are the current reference implementation; the package remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
 
 ## Current Architecture
 
@@ -57,7 +57,7 @@ The invalid corpus covers every machine-checkable rule `SR-001` through `SR-011`
 
 SourceRecord `0.1.0` and compatibility baseline `0.1.0` are Normative Stable. Before `1.0.0`, the package root and generic CLI are Supported Experimental. Connectors and unexported source modules are Internal. Compatibility checks detect exact baseline drift and declared process consequences; they do not automatically determine semantic compatibility.
 
-Phase 3 remains in progress. SourceRecord and the compatibility baseline are implemented normative contracts; final verification of the compatibility slice is pending. The initial ESM build, declarations, package entrypoints, CLI contract, package-content checks, clean-consumer schema discovery, Apache-2.0 license, attribution notice, and citation metadata are also implemented. Broader cognitive-object, relationship, transition, authorization, event, error, persistence, and connector schemas plus host integration contracts remain deferred.
+Phase 3 remains in progress. SourceRecord and the compatibility baseline are implemented normative contracts, and the compatibility slice is final-review verified. The initial ESM build, declarations, package entrypoints, CLI contract, package-content checks, clean-consumer schema discovery, Apache-2.0 license, attribution notice, and citation metadata are also implemented. Broader cognitive-object, relationship, transition, authorization, event, error, persistence, and connector schemas plus host integration contracts remain deferred.
 
 ## Planned Normative Content
 
