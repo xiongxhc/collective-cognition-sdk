@@ -1,0 +1,453 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:collective-cognition:schema:portable-cognition:0.1.0",
+  "oneOf": [
+    { "$ref": "#/$defs/cognitiveObjectRecord" },
+    { "$ref": "#/$defs/cognitionEventRecord" },
+    { "$ref": "#/$defs/transitionContextRecord" },
+    { "$ref": "#/$defs/authorizationDecisionRecord" },
+    { "$ref": "#/$defs/domainErrorRecord" }
+  ],
+  "$defs": {
+    "scalarString": {
+      "type": "string",
+      "pattern": "^(?:[^\\uD800-\\uDFFF]|[\\uD800-\\uDBFF][\\uDC00-\\uDFFF])*$"
+    },
+    "nonWhitespaceString": {
+      "allOf": [
+        { "$ref": "#/$defs/scalarString" },
+        { "type": "string", "pattern": "\\S" }
+      ]
+    },
+    "jsonNumber": {
+      "type": "number",
+      "minimum": -1.7976931348623157e308,
+      "maximum": 1.7976931348623157e308
+    },
+    "jsonValue": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "boolean" },
+        { "$ref": "#/$defs/scalarString" },
+        { "$ref": "#/$defs/jsonNumber" },
+        { "type": "array", "items": { "$ref": "#/$defs/jsonValue" } },
+        {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/scalarString" },
+          "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+        }
+      ]
+    },
+    "jsonObject": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/scalarString" },
+      "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+    },
+    "timestamp": {
+      "allOf": [
+        { "$ref": "#/$defs/scalarString" },
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$"
+        }
+      ]
+    },
+    "extensions": {
+      "type": "object",
+      "propertyNames": {
+        "allOf": [
+          { "$ref": "#/$defs/scalarString" },
+          { "type": "string", "pattern": "^.+[:.].+$" }
+        ]
+      },
+      "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+    },
+    "actor": {
+      "type": "object",
+      "required": ["id", "kind"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonWhitespaceString" },
+        "kind": { "enum": ["human", "agent", "team", "organization"] }
+      },
+      "additionalProperties": false
+    },
+    "humanActor": {
+      "type": "object",
+      "required": ["id", "kind"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonWhitespaceString" },
+        "kind": { "const": "human" }
+      },
+      "additionalProperties": false
+    },
+    "attribution": {
+      "type": "object",
+      "required": ["initiatorId", "executorId", "accountableId"],
+      "properties": {
+        "initiatorId": { "$ref": "#/$defs/nonWhitespaceString" },
+        "executorId": { "$ref": "#/$defs/nonWhitespaceString" },
+        "accountableId": { "$ref": "#/$defs/nonWhitespaceString" }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["source", "sourceId", "capturedAt"],
+      "properties": {
+        "source": { "$ref": "#/$defs/nonWhitespaceString" },
+        "sourceId": { "$ref": "#/$defs/nonWhitespaceString" },
+        "capturedAt": { "$ref": "#/$defs/timestamp" },
+        "uri": { "$ref": "#/$defs/nonWhitespaceString" },
+        "contentHash": { "$ref": "#/$defs/nonWhitespaceString" }
+      },
+      "additionalProperties": false
+    },
+    "relationship": {
+      "type": "object",
+      "required": ["type", "targetId"],
+      "properties": {
+        "type": {
+          "enum": [
+            "parent-goal",
+            "supports-goal",
+            "tests-hypothesis",
+            "supports-hypothesis",
+            "challenges-hypothesis",
+            "relates-to-hypothesis",
+            "observed-in-experiment",
+            "informs-decision",
+            "considers-option",
+            "accountable-identity",
+            "justified-by-decision",
+            "justified-by-evidence"
+          ]
+        },
+        "targetId": { "$ref": "#/$defs/nonWhitespaceString" }
+      },
+      "additionalProperties": false
+    },
+    "identityData": {
+      "type": "object",
+      "properties": {
+        "actorKind": { "enum": ["human", "agent", "team", "organization"] },
+        "displayName": { "$ref": "#/$defs/scalarString" }
+      },
+      "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+    },
+    "goalData": {
+      "type": "object",
+      "properties": {
+        "objective": { "$ref": "#/$defs/scalarString" },
+        "description": { "$ref": "#/$defs/scalarString" },
+        "successCriteria": { "type": "array", "items": { "$ref": "#/$defs/scalarString" } }
+      },
+      "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+    },
+    "hypothesisData": {
+      "type": "object",
+      "properties": {
+        "statement": { "$ref": "#/$defs/scalarString" },
+        "claim": { "$ref": "#/$defs/scalarString" },
+        "scope": { "$ref": "#/$defs/scalarString" }
+      },
+      "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+    },
+    "experimentData": {
+      "type": "object",
+      "properties": {
+        "action": { "$ref": "#/$defs/scalarString" },
+        "expectedOutcome": { "$ref": "#/$defs/scalarString" },
+        "successCriteria": { "type": "array", "items": { "$ref": "#/$defs/scalarString" } }
+      },
+      "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+    },
+    "evidenceData": {
+      "type": "object",
+      "properties": {
+        "statement": { "$ref": "#/$defs/scalarString" },
+        "evidenceKind": { "$ref": "#/$defs/scalarString" },
+        "polarity": { "enum": ["supports", "challenges", "neutral"] },
+        "sourceActorId": { "$ref": "#/$defs/scalarString" },
+        "project": { "$ref": "#/$defs/scalarString" }
+      },
+      "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+    },
+    "decisionData": {
+      "type": "object",
+      "properties": {
+        "rationale": { "$ref": "#/$defs/scalarString" },
+        "selectedOption": { "$ref": "#/$defs/scalarString" },
+        "rejectedOptions": { "type": "array", "items": { "$ref": "#/$defs/scalarString" } }
+      },
+      "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+    },
+    "principleData": {
+      "type": "object",
+      "properties": {
+        "rule": { "$ref": "#/$defs/scalarString" },
+        "rationale": { "$ref": "#/$defs/scalarString" }
+      },
+      "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+    },
+    "cognitiveObject": {
+      "type": "object",
+      "required": [
+        "id", "type", "version", "state", "title", "data", "createdAt", "updatedAt",
+        "attribution", "provenance", "contextId", "relationships"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonWhitespaceString" },
+        "type": { "enum": ["identity", "goal", "hypothesis", "experiment", "evidence", "decision", "principle"] },
+        "version": { "type": "integer", "minimum": 1 },
+        "state": { "$ref": "#/$defs/nonWhitespaceString" },
+        "title": { "$ref": "#/$defs/nonWhitespaceString" },
+        "data": { "type": "object", "additionalProperties": { "$ref": "#/$defs/jsonValue" } },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" },
+        "attribution": { "$ref": "#/$defs/attribution" },
+        "provenance": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/provenance" } },
+        "contextId": { "$ref": "#/$defs/nonWhitespaceString" },
+        "relationships": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/relationship" } },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      },
+      "additionalProperties": false,
+      "oneOf": [
+        { "properties": { "type": { "const": "identity" }, "state": { "enum": ["active", "inactive"] }, "data": { "$ref": "#/$defs/identityData" } } },
+        { "properties": { "type": { "const": "goal" }, "state": { "enum": ["draft", "active", "at_risk", "paused", "achieved", "abandoned", "revised"] }, "data": { "$ref": "#/$defs/goalData" } } },
+        {
+          "properties": {
+            "type": { "const": "hypothesis" },
+            "state": { "enum": ["proposed", "under_review", "testing", "supported", "refuted", "inconclusive"] },
+            "data": { "$ref": "#/$defs/hypothesisData" },
+            "relationships": {
+              "type": "array",
+              "contains": { "type": "object", "required": ["type"], "properties": { "type": { "const": "supports-goal" } } },
+              "minContains": 1
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": { "const": "experiment" },
+            "state": { "enum": ["planned", "active", "completed", "cancelled"] },
+            "data": { "$ref": "#/$defs/experimentData" },
+            "relationships": {
+              "type": "array",
+              "contains": { "type": "object", "required": ["type"], "properties": { "type": { "const": "tests-hypothesis" } } },
+              "minContains": 1
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": { "const": "evidence" },
+            "state": { "enum": ["collected", "assessed", "accepted", "disputed", "rejected", "expired"] },
+            "data": { "$ref": "#/$defs/evidenceData" },
+            "relationships": {
+              "type": "array",
+              "contains": { "type": "object", "required": ["type"], "properties": { "type": { "enum": ["supports-hypothesis", "challenges-hypothesis", "relates-to-hypothesis", "observed-in-experiment"] } } },
+              "minContains": 1
+            }
+          }
+        },
+        {
+          "allOf": [
+            {
+              "properties": {
+                "type": { "const": "decision" },
+                "state": { "enum": ["draft", "proposed", "approved", "rejected", "active", "superseded", "archived"] },
+                "data": { "$ref": "#/$defs/decisionData" }
+              }
+            },
+            {
+              "properties": {
+                "relationships": {
+                  "type": "array",
+                  "allOf": [
+                    { "contains": { "type": "object", "required": ["type"], "properties": { "type": { "const": "supports-goal" } } }, "minContains": 1 },
+                    { "contains": { "type": "object", "required": ["type"], "properties": { "type": { "enum": ["justified-by-evidence", "informs-decision"] } } }, "minContains": 1 },
+                    { "contains": { "type": "object", "required": ["type"], "properties": { "type": { "const": "considers-option" } } }, "minContains": 1 },
+                    { "contains": { "type": "object", "required": ["type"], "properties": { "type": { "const": "accountable-identity" } } }, "minContains": 1 }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "properties": {
+            "type": { "const": "principle" },
+            "state": { "enum": ["proposed", "trial", "adopted", "rejected", "revised", "retired"] },
+            "data": { "$ref": "#/$defs/principleData" },
+            "relationships": {
+              "type": "array",
+              "contains": { "type": "object", "required": ["type"], "properties": { "type": { "enum": ["justified-by-decision", "justified-by-evidence"] } } },
+              "minContains": 1
+            }
+          }
+        }
+      ]
+    },
+    "humanConfirmation": {
+      "type": "object",
+      "required": ["actor", "confirmedAt", "objectId", "targetState", "eventId"],
+      "properties": {
+        "actor": { "$ref": "#/$defs/humanActor" },
+        "confirmedAt": { "$ref": "#/$defs/timestamp" },
+        "objectId": { "$ref": "#/$defs/nonWhitespaceString" },
+        "targetState": { "$ref": "#/$defs/nonWhitespaceString" },
+        "eventId": { "$ref": "#/$defs/nonWhitespaceString" }
+      },
+      "additionalProperties": false
+    },
+    "cognitionEvent": {
+      "type": "object",
+      "required": [
+        "id", "type", "schemaVersion", "objectId", "objectType", "objectVersion", "previousState",
+        "nextState", "occurredAt", "contextId", "initiator", "executor", "accountableParty",
+        "automationMode", "consequenceLevel", "rationale", "provenance"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonWhitespaceString" },
+        "type": { "$ref": "#/$defs/nonWhitespaceString" },
+        "schemaVersion": { "const": "0.1.0" },
+        "objectId": { "$ref": "#/$defs/nonWhitespaceString" },
+        "objectType": { "enum": ["identity", "goal", "hypothesis", "experiment", "evidence", "decision", "principle"] },
+        "objectVersion": { "type": "integer", "minimum": 1 },
+        "previousState": { "$ref": "#/$defs/nonWhitespaceString" },
+        "nextState": { "$ref": "#/$defs/nonWhitespaceString" },
+        "occurredAt": { "$ref": "#/$defs/timestamp" },
+        "contextId": { "$ref": "#/$defs/nonWhitespaceString" },
+        "initiator": { "$ref": "#/$defs/actor" },
+        "executor": { "$ref": "#/$defs/actor" },
+        "accountableParty": { "$ref": "#/$defs/actor" },
+        "automationMode": { "enum": ["manual", "automated"] },
+        "consequenceLevel": { "enum": ["routine", "consequential"] },
+        "rationale": { "$ref": "#/$defs/nonWhitespaceString" },
+        "provenance": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/provenance" } },
+        "humanConfirmation": { "$ref": "#/$defs/humanConfirmation" }
+      },
+      "additionalProperties": false,
+      "oneOf": [
+        { "properties": { "objectType": { "const": "identity" }, "previousState": { "const": "active" }, "nextState": { "const": "inactive" }, "type": { "const": "IdentityInactive" } } },
+        { "properties": { "objectType": { "const": "identity" }, "previousState": { "const": "inactive" }, "nextState": { "const": "active" }, "type": { "const": "IdentityActive" } } },
+        { "properties": { "objectType": { "const": "goal" }, "previousState": { "const": "draft" }, "nextState": { "const": "active" }, "type": { "const": "GoalActive" } } },
+        { "properties": { "objectType": { "const": "goal" }, "previousState": { "const": "active" }, "nextState": { "const": "at_risk" }, "type": { "const": "GoalAtRisk" } } },
+        { "properties": { "objectType": { "const": "goal" }, "previousState": { "const": "active" }, "nextState": { "const": "paused" }, "type": { "const": "GoalPaused" } } },
+        { "properties": { "objectType": { "const": "goal" }, "previousState": { "const": "active" }, "nextState": { "const": "achieved" }, "type": { "const": "GoalAchieved" } } },
+        { "properties": { "objectType": { "const": "goal" }, "previousState": { "const": "active" }, "nextState": { "const": "abandoned" }, "type": { "const": "GoalAbandoned" } } },
+        { "properties": { "objectType": { "const": "goal" }, "previousState": { "const": "active" }, "nextState": { "const": "revised" }, "type": { "const": "GoalRevised" } } },
+        { "properties": { "objectType": { "const": "hypothesis" }, "previousState": { "const": "proposed" }, "nextState": { "const": "under_review" }, "type": { "const": "HypothesisUnderReview" } } },
+        { "properties": { "objectType": { "const": "hypothesis" }, "previousState": { "const": "under_review" }, "nextState": { "const": "testing" }, "type": { "const": "HypothesisTesting" } } },
+        { "properties": { "objectType": { "const": "hypothesis" }, "previousState": { "const": "testing" }, "nextState": { "const": "supported" }, "type": { "const": "HypothesisSupported" } } },
+        { "properties": { "objectType": { "const": "hypothesis" }, "previousState": { "const": "testing" }, "nextState": { "const": "refuted" }, "type": { "const": "HypothesisRefuted" } } },
+        { "properties": { "objectType": { "const": "hypothesis" }, "previousState": { "const": "testing" }, "nextState": { "const": "inconclusive" }, "type": { "const": "HypothesisInconclusive" } } },
+        { "properties": { "objectType": { "const": "experiment" }, "previousState": { "const": "planned" }, "nextState": { "const": "active" }, "type": { "const": "ExperimentActive" } } },
+        { "properties": { "objectType": { "const": "experiment" }, "previousState": { "const": "planned" }, "nextState": { "const": "cancelled" }, "type": { "const": "ExperimentCancelled" } } },
+        { "properties": { "objectType": { "const": "experiment" }, "previousState": { "const": "active" }, "nextState": { "const": "completed" }, "type": { "const": "ExperimentCompleted" } } },
+        { "properties": { "objectType": { "const": "experiment" }, "previousState": { "const": "active" }, "nextState": { "const": "cancelled" }, "type": { "const": "ExperimentCancelled" } } },
+        { "properties": { "objectType": { "const": "evidence" }, "previousState": { "const": "collected" }, "nextState": { "const": "assessed" }, "type": { "const": "EvidenceAssessed" } } },
+        { "properties": { "objectType": { "const": "evidence" }, "previousState": { "const": "assessed" }, "nextState": { "const": "accepted" }, "type": { "const": "EvidenceAccepted" } } },
+        { "properties": { "objectType": { "const": "evidence" }, "previousState": { "const": "assessed" }, "nextState": { "const": "disputed" }, "type": { "const": "EvidenceDisputed" } } },
+        { "properties": { "objectType": { "const": "evidence" }, "previousState": { "const": "assessed" }, "nextState": { "const": "rejected" }, "type": { "const": "EvidenceRejected" } } },
+        { "properties": { "objectType": { "const": "evidence" }, "previousState": { "const": "assessed" }, "nextState": { "const": "expired" }, "type": { "const": "EvidenceExpired" } } },
+        { "properties": { "objectType": { "const": "decision" }, "previousState": { "const": "draft" }, "nextState": { "const": "proposed" }, "type": { "const": "DecisionProposed" } } },
+        { "properties": { "objectType": { "const": "decision" }, "previousState": { "const": "proposed" }, "nextState": { "const": "approved" }, "type": { "const": "DecisionApproved" } } },
+        { "properties": { "objectType": { "const": "decision" }, "previousState": { "const": "proposed" }, "nextState": { "const": "rejected" }, "type": { "const": "DecisionRejected" } } },
+        { "properties": { "objectType": { "const": "decision" }, "previousState": { "const": "approved" }, "nextState": { "const": "active" }, "type": { "const": "DecisionActive" } } },
+        { "properties": { "objectType": { "const": "decision" }, "previousState": { "const": "active" }, "nextState": { "const": "superseded" }, "type": { "const": "DecisionSuperseded" } } },
+        { "properties": { "objectType": { "const": "decision" }, "previousState": { "const": "superseded" }, "nextState": { "const": "archived" }, "type": { "const": "DecisionArchived" } } },
+        { "properties": { "objectType": { "const": "principle" }, "previousState": { "const": "proposed" }, "nextState": { "const": "trial" }, "type": { "const": "PrincipleTrial" } } },
+        { "properties": { "objectType": { "const": "principle" }, "previousState": { "const": "proposed" }, "nextState": { "const": "rejected" }, "type": { "const": "PrincipleRejected" } } },
+        { "properties": { "objectType": { "const": "principle" }, "previousState": { "const": "trial" }, "nextState": { "const": "adopted" }, "type": { "const": "PrincipleAdopted" } } },
+        { "properties": { "objectType": { "const": "principle" }, "previousState": { "const": "trial" }, "nextState": { "const": "rejected" }, "type": { "const": "PrincipleRejected" } } },
+        { "properties": { "objectType": { "const": "principle" }, "previousState": { "const": "adopted" }, "nextState": { "const": "revised" }, "type": { "const": "PrincipleRevised" } } },
+        { "properties": { "objectType": { "const": "principle" }, "previousState": { "const": "adopted" }, "nextState": { "const": "retired" }, "type": { "const": "PrincipleRetired" } } }
+      ]
+    },
+    "transitionContext": {
+      "type": "object",
+      "required": ["eventId", "occurredAt", "initiator", "executor", "accountableParty", "automationMode", "consequenceLevel", "rationale"],
+      "properties": {
+        "eventId": { "$ref": "#/$defs/nonWhitespaceString" },
+        "occurredAt": { "$ref": "#/$defs/timestamp" },
+        "initiator": { "$ref": "#/$defs/actor" },
+        "executor": { "$ref": "#/$defs/actor" },
+        "accountableParty": { "$ref": "#/$defs/actor" },
+        "automationMode": { "enum": ["manual", "automated"] },
+        "consequenceLevel": { "enum": ["routine", "consequential"] },
+        "rationale": { "$ref": "#/$defs/nonWhitespaceString" },
+        "confirmation": { "$ref": "#/$defs/humanConfirmation" }
+      },
+      "additionalProperties": false
+    },
+    "authorizationDecision": {
+      "oneOf": [
+        { "type": "object", "required": ["status"], "properties": { "status": { "const": "allowed" } }, "additionalProperties": false },
+        { "type": "object", "required": ["status", "reason"], "properties": { "status": { "const": "denied" }, "reason": { "$ref": "#/$defs/nonWhitespaceString" } }, "additionalProperties": false },
+        { "type": "object", "required": ["status", "reason", "requiredActorKind"], "properties": { "status": { "const": "confirmation_required" }, "reason": { "$ref": "#/$defs/nonWhitespaceString" }, "requiredActorKind": { "const": "human" } }, "additionalProperties": false }
+      ]
+    },
+    "domainError": {
+      "type": "object",
+      "required": ["code", "message", "details"],
+      "properties": {
+        "code": { "enum": ["INVALID_OBJECT", "INVALID_SOURCE_RECORD", "INVALID_RELATIONSHIP", "INVALID_TRANSITION", "CONFIRMATION_REQUIRED", "AUTHORIZATION_DENIED", "SERIALIZATION_ERROR", "SOURCE_REVISION_COLLISION", "INGESTION_LIMIT_EXCEEDED", "PROMOTION_FAILED", "INVALID_PORTABLE_COGNITION_RECORD"] },
+        "message": { "$ref": "#/$defs/nonWhitespaceString" },
+        "details": { "$ref": "#/$defs/jsonObject" }
+      },
+      "additionalProperties": false
+    },
+    "cognitiveObjectRecord": {
+      "type": "object",
+      "required": ["schemaVersion", "recordType", "payload"],
+      "properties": {
+        "schemaVersion": { "const": "0.1.0" },
+        "recordType": { "const": "cognitive-object" },
+        "payload": { "$ref": "#/$defs/cognitiveObject" }
+      },
+      "additionalProperties": false
+    },
+    "cognitionEventRecord": {
+      "type": "object",
+      "required": ["schemaVersion", "recordType", "payload"],
+      "properties": {
+        "schemaVersion": { "const": "0.1.0" },
+        "recordType": { "const": "cognition-event" },
+        "payload": { "$ref": "#/$defs/cognitionEvent" }
+      },
+      "additionalProperties": false
+    },
+    "transitionContextRecord": {
+      "type": "object",
+      "required": ["schemaVersion", "recordType", "payload"],
+      "properties": {
+        "schemaVersion": { "const": "0.1.0" },
+        "recordType": { "const": "transition-context" },
+        "payload": { "$ref": "#/$defs/transitionContext" }
+      },
+      "additionalProperties": false
+    },
+    "authorizationDecisionRecord": {
+      "type": "object",
+      "required": ["schemaVersion", "recordType", "payload"],
+      "properties": {
+        "schemaVersion": { "const": "0.1.0" },
+        "recordType": { "const": "authorization-decision" },
+        "payload": { "$ref": "#/$defs/authorizationDecision" }
+      },
+      "additionalProperties": false
+    },
+    "domainErrorRecord": {
+      "type": "object",
+      "required": ["schemaVersion", "recordType", "payload"],
+      "properties": {
+        "schemaVersion": { "const": "0.1.0" },
+        "recordType": { "const": "domain-error" },
+        "payload": { "$ref": "#/$defs/domainError" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
