@@ -1,13 +1,13 @@
 # Collective Cognition Specification
 
-This directory is the contribution entrypoint for the future language-neutral specification. The runnable TypeScript code is the current reference implementation; it is not yet a protocol, stable public package, or cross-language standard.
+This directory is the contribution entrypoint for the future language-neutral specification. The runnable TypeScript code and emitted package artifacts are the current reference implementation; it is not yet a protocol, externally distributed package, or cross-language standard.
 
 ## Current Architecture
 
 Two documents define the current direction:
 
-- the [implemented cognitive-core design](../docs/superpowers/specs/2026-07-24-collective-cognition-core-design.md);
-- the [approved universal-ingestion design](../docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
+- the [implemented cognitive-core design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-collective-cognition-core-design.md);
+- the [approved universal-ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
 
 The core design and Phase 2 universal ingestion are implemented and final-review verified locally. [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md) records the implemented ingestion semantics.
 
@@ -21,7 +21,7 @@ The historical team-memory direct-to-Evidence path was replaced. The current con
 
 ## Start Here
 
-- Review the [roadmap](../docs/ROADMAP.md) and distinguish completed phases from planned ones.
+- Review the [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/ROADMAP.md) and distinguish completed phases from planned ones.
 - Run `npm test`, `npx tsc --noEmit`, `npm run check`, and `npm run example`.
 - Run `node --test tests/conformance.test.ts` for the canonical SourceRecord suite.
 - Inspect [`fixtures/source-records/valid.jsonl`](fixtures/source-records/valid.jsonl) and [`fixtures/source-records/invalid.jsonl`](fixtures/source-records/invalid.jsonl).
@@ -40,7 +40,7 @@ The historical team-memory direct-to-Evidence path was replaced. The current con
 
 The invalid corpus covers missing revision identity, invalid timestamp, non-string media type, and unsupported schema version. The conformance suite verifies SDK and CLI outcomes plus equivalent canonical JSON and JSONL results. Focused runtime suites additionally enforce namespaced extensions and neutral context, prove accepted-record clone isolation and deep freezing, accept changed content under a new revision, apply limits before parsing/normalization, classify direct promotion inputs, hash complete promotion payloads, sanitize diagnostics, and fail authorization closed. Connector tests prove team-memory defaults to raw omission and that team-memory and Git emit valid records under the same SourceRecord contract.
 
-These Phase 2 files are implementation conformance fixtures for the TypeScript reference source. Phase 3 will define normative, versioned, language-neutral fixtures and schemas suitable for independent implementations.
+These Phase 2 files are implementation conformance fixtures for the TypeScript reference source. Phase 3 is in progress: the initial ESM build, declarations, package entrypoints, CLI contract, and package-content checks are implemented. Normative, versioned, language-neutral fixtures and schemas suitable for independent implementations remain planned.
 
 ## Planned Normative Content
 
@@ -51,6 +51,9 @@ Specification work will add:
 - normative, versioned, language-neutral conformance fixtures;
 - compatibility, extension, versioning, and deprecation rules;
 - a mapping from every normative rule to an executable check or explicit prose-only rationale.
+- host integration contracts for cognition persistence and event publication without selecting one mandatory database.
+
+Package publication additionally requires an approved license, confirmed registry name, supported-runtime and security policies, final compatibility rules, and explicit human approval. The manifest retains `"private": true` until those gates are complete.
 
 Implementation details specific to TypeScript, SQLite, Markdown, a UI, one connector, or one organization do not belong in the language-neutral core specification.
 

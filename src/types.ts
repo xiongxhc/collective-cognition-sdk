@@ -182,54 +182,47 @@ export type StateByType = {
               : PrincipleState;
 };
 
-export interface IdentityData {
+export type IdentityData = JsonObject & {
   readonly actorKind?: ActorKind;
   readonly displayName?: string;
-  readonly [key: string]: JsonValue;
-}
+};
 
-export interface GoalData {
+export type GoalData = JsonObject & {
   readonly objective?: string;
   readonly description?: string;
   readonly successCriteria?: readonly string[];
-  readonly [key: string]: JsonValue;
-}
+};
 
-export interface HypothesisData {
+export type HypothesisData = JsonObject & {
   readonly statement?: string;
   readonly claim?: string;
   readonly scope?: string;
-  readonly [key: string]: JsonValue;
-}
+};
 
-export interface ExperimentData {
+export type ExperimentData = JsonObject & {
   readonly action?: string;
   readonly expectedOutcome?: string;
   readonly successCriteria?: readonly string[];
-  readonly [key: string]: JsonValue;
-}
+};
 
-export interface EvidenceData {
+export type EvidenceData = JsonObject & {
   readonly statement?: string;
   readonly evidenceKind?: string;
   readonly polarity?: "supports" | "challenges" | "neutral";
   readonly sourceActorId?: string;
   readonly project?: string;
-  readonly [key: string]: JsonValue;
-}
+};
 
-export interface DecisionData {
+export type DecisionData = JsonObject & {
   readonly rationale?: string;
   readonly selectedOption?: string;
   readonly rejectedOptions?: readonly string[];
-  readonly [key: string]: JsonValue;
-}
+};
 
-export interface PrincipleData {
+export type PrincipleData = JsonObject & {
   readonly rule?: string;
   readonly rationale?: string;
-  readonly [key: string]: JsonValue;
-}
+};
 
 export type DataByType = {
   [T in ObjectType]: T extends "identity"

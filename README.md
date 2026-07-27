@@ -2,9 +2,9 @@
 
 Collective Cognition SDK is an experimental, dependency-free TypeScript reference implementation for attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, source system, or organizational beliefs.
 
-This is a public open-source repository. Its source and CLI are runnable, but it is not yet an externally distributed or production-ready package.
+This is a public source repository. Its source, emitted ESM build, declarations, and CLI are runnable, but it is not yet an externally distributed or production-ready package. No open-source license has been selected yet.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 specification and package stabilization remain planned.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the initial package build and compatibility contract is implemented, while normative schemas, final compatibility rules, licensing, security policy, and external distribution remain planned.
 
 ## Current Status
 
@@ -19,14 +19,17 @@ Runnable now:
 - explicit, versioned one-or-more-record neutral-Evidence promotion with duplicate/collision classification, required rationale, complete provenance, immutable input snapshots, and canonical payload-hash identity;
 - caller-configurable SDK ingestion limits and finite CLI input, record-count, and record-size limits;
 - a composed workflow that preserves ingestion and returns a discriminated promotion success or structured failure;
-- a source-neutral `cc` CLI for validate, ingest, promote, and ingest-promote operations;
+- a source-neutral `collective-cognition` CLI for validate, ingest, promote, and ingest-promote operations;
+- emitted ESM JavaScript, declaration files, an explicit root exports map, an installed `collective-cognition` executable contract, and audited package contents;
+- package compatibility tests covering built imports, runtime exports, declarations, CLI behavior, npm tarball contents, and installation into a clean temporary consumer;
 - canonical valid and invalid conformance fixtures;
 - an experimental read-only team-memory SQLite connector that emits SourceRecord JSONL;
 - a small Git commit fixture connector used to prove a second source-specific module satisfies the same SourceRecord contract.
 
 Not implemented yet:
 
-- stable package exports or external distribution;
+- final stable package guarantees or external distribution;
+- an approved license, final registry package name, supported-runtime policy, or security policy;
 - persistence, services, UI, synchronization, or connector ecosystem;
 - Obsidian/Markdown integration;
 - automatic cognition from conversations.
@@ -77,7 +80,7 @@ A `SourceRecord` accepts only the documented top-level and `source` fields. Ever
 
 A convenience workflow may ingest and promote in one operation, but it must preserve and expose both artifacts. Successful parsing never means that material is true, accepted evidence, or authorized for a consequential decision.
 
-Read the [universal ingestion design](docs/superpowers/specs/2026-07-24-universal-ingestion-design.md), [implemented RFC](rfcs/0001-universal-source-record-ingestion.md), and [roadmap](docs/ROADMAP.md).
+Read the [universal ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md), [implemented RFC](rfcs/0001-universal-source-record-ingestion.md), and [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/ROADMAP.md).
 
 ## Requirements
 
@@ -85,10 +88,27 @@ Read the [universal ingestion design](docs/superpowers/specs/2026-07-24-universa
 - `npm install` for development-only TypeScript and Node type packages.
 - No production dependencies.
 
+## Package Development
+
+The package build emits source-neutral ESM JavaScript and declarations under ignored `dist/`:
+
+```bash
+npm run build
+npm run test:package
+npm run pack:check
+```
+
+`npm run test:package` imports the built root, checks the exact runtime export allowlist, rejects relative `.ts` specifiers in emitted modules, runs the built CLI, audits `npm pack --dry-run` against an exact file allowlist, and installs the packed artifact into a clean temporary project to verify default TypeScript consumer settings, package-name imports, and the installed `collective-cognition` binary. npm operations use an isolated temporary cache.
+
+The package manifest intentionally retains `"private": true`. Removing that guard requires an approved license, final registry name, compatibility and security policies, a clean package verification result, and explicit publication approval.
+
 ## Commands
 
 ```bash
 npm test
+npm run build
+npm run test:package
+npm run pack:check
 npx tsc --noEmit
 npm run check
 npm run example
@@ -162,11 +182,11 @@ The project does not claim universal compatibility, production readiness, or bro
 
 ## Roadmap
 
-The tracked [roadmap](docs/ROADMAP.md) separates:
+The tracked [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/ROADMAP.md) separates:
 
 1. the completed runnable core;
 2. the completed universal neutral-first ingestion foundation;
-3. specification and package stabilization;
+3. in-progress specification and package stabilization;
 4. adapter ecosystem foundations;
 5. cross-connector interoperability;
 6. governance and evolution;
