@@ -4,7 +4,7 @@ This directory contains the implemented Normative Stable SourceRecord `0.1.0` an
 
 ## Current Architecture
 
-Three documents define the current direction:
+Four documents define the current direction:
 
 - the [implemented cognitive-core design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-collective-cognition-core-design.md);
 - the [approved universal-ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
@@ -75,7 +75,6 @@ Specification work will add:
 - host integration contracts for host-owned cognition persistence and event publication;
 - additional type-specific cognitive-object semantics and versioned machine-readable schemas where Portable Cognition's intentionally open `data` fields are insufficient;
 - a mapping from every normative rule to an executable check or explicit prose-only rationale.
-- host integration contracts for cognition persistence and event publication without selecting one mandatory database.
 
 Package publication still requires registry confirmation, runtime and security policies, final verification, and explicit human approval. The manifest retains `"private": true`, and the package is unpublished.
 

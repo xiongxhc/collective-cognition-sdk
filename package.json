@@ -34,6 +34,7 @@
     "rfcs/README.md",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
+    "rfcs/0003-portable-cognition-contract.md",
     "spec/README.md",
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",

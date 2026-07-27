@@ -32,7 +32,7 @@ Not implemented yet:
 
 - Task 6 broad final review, package publication, or external distribution;
 - a confirmed registry package name, runtime policy, or security policy;
-- normative schemas for cognitive objects, relationships, transitions, authorization, events, and errors;
+- stricter standalone and type-specific semantic schemas for cognitive objects, relationships, transitions, authorization, events, and errors; the Portable Cognition serialized envelope remains normative;
 - persistence, services, UI, synchronization, or connector ecosystem;
 - Obsidian/Markdown integration;
 - automatic cognition from conversations.
