@@ -1,5 +1,9 @@
 import { DomainError, DomainErrorCode } from "./errors.ts";
 import {
+  JsonTextProfileError,
+  parseProfiledJson,
+} from "./json-text.ts";
+import {
   freezeJsonValue,
   isJsonObject,
   isJsonValue,
@@ -7,6 +11,7 @@ import {
 import type { JsonObject, JsonValue } from "./types.ts";
 
 export const SOURCE_RECORD_SCHEMA_VERSION = "0.1.0";
+export const SOURCE_RECORD_MAX_JSON_DEPTH = 256;
 
 export interface SourceRecordSource {
   readonly system: string;
@@ -45,7 +50,7 @@ export interface CreateSourceRecordInput {
 }
 
 const isoTimestampPattern =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
+  /^(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8])))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,9})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$/;
 
 const mediaTypePattern =
   /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+\/[!#$%&'*+\-.^_`|~0-9A-Za-z]+(?:\s*;\s*[!#$%&'*+\-.^_`|~0-9A-Za-z]+=(?:[!#$%&'*+\-.^_`|~0-9A-Za-z]+|"(?:[^"\\\r\n]|\\.)*"))*$/;
@@ -82,19 +87,7 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function isIsoTimestamp(value: unknown): value is string {
-  if (
-    typeof value === "string" &&
-    isoTimestampPattern.test(value) &&
-    !Number.isNaN(Date.parse(value))
-  ) {
-    const datePart = value.slice(0, 10);
-    const calendarDate = new Date(`${datePart}T00:00:00.000Z`);
-    return (
-      !Number.isNaN(calendarDate.getTime()) &&
-      calendarDate.toISOString().slice(0, 10) === datePart
-    );
-  }
-  return false;
+  return typeof value === "string" && isoTimestampPattern.test(value);
 }
 
 function invalidSourceRecord(
@@ -102,6 +95,60 @@ function invalidSourceRecord(
   details: JsonObject = {},
 ): never {
   throw new DomainError(DomainErrorCode.INVALID_SOURCE_RECORD, message, details);
+}
+
+function sourceRecordDepthIsAllowed(value: unknown): boolean {
+  const visitedDepths = new WeakMap<object, number>();
+  const pending: Array<{ readonly value: unknown; readonly depth: number }> = [
+    { value, depth: 1 },
+  ];
+
+  try {
+    while (pending.length > 0) {
+      const current = pending.pop();
+      if (
+        current === undefined ||
+        typeof current.value !== "object" ||
+        current.value === null
+      ) {
+        continue;
+      }
+      if (current.depth > SOURCE_RECORD_MAX_JSON_DEPTH) {
+        return false;
+      }
+
+      const previousDepth = visitedDepths.get(current.value);
+      if (previousDepth !== undefined && previousDepth >= current.depth) {
+        continue;
+      }
+      visitedDepths.set(current.value, current.depth);
+
+      for (const key of Reflect.ownKeys(current.value)) {
+        const descriptor = Reflect.getOwnPropertyDescriptor(
+          current.value,
+          key,
+        );
+        if (descriptor !== undefined && "value" in descriptor) {
+          pending.push({
+            value: descriptor.value,
+            depth: current.depth + 1,
+          });
+        }
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function validateSourceRecordDepth(value: unknown): void {
+  if (!sourceRecordDepthIsAllowed(value)) {
+    invalidSourceRecord(
+      "Source record exceeds the maximum JSON nesting depth.",
+      { maximumDepth: SOURCE_RECORD_MAX_JSON_DEPTH },
+    );
+  }
 }
 
 function validateSource(value: unknown): asserts value is SourceRecordSource {
@@ -237,6 +284,7 @@ function freezeSourceRecord(record: SourceRecord): SourceRecord {
 export function createSourceRecord(
   input: CreateSourceRecordInput,
 ): SourceRecord {
+  validateSourceRecordDepth(input);
   if (!isJsonObject(input)) {
     invalidSourceRecord("Source record input must be an object.");
   }
@@ -262,6 +310,7 @@ export function createSourceRecord(
 }
 
 export function validateSourceRecord(value: unknown): asserts value is SourceRecord {
+  validateSourceRecordDepth(value);
   if (!isJsonObject(value)) {
     invalidSourceRecord("Source record must be an object.");
   }
@@ -302,8 +351,14 @@ export function serializeSourceRecord(record: SourceRecord): string {
 export function deserializeSourceRecord(json: string): SourceRecord {
   let value: unknown;
   try {
-    value = JSON.parse(json);
-  } catch {
+    value = parseProfiledJson(json);
+  } catch (error) {
+    if (error instanceof JsonTextProfileError) {
+      throw new DomainError(
+        DomainErrorCode.INVALID_SOURCE_RECORD,
+        "Serialized source record violates the JSON interoperability profile.",
+      );
+    }
     throw new DomainError(
       DomainErrorCode.SERIALIZATION_ERROR,
       "Serialized source record is not valid JSON.",

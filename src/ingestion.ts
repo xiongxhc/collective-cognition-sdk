@@ -1,5 +1,9 @@
 import { DomainError, DomainErrorCode } from "./errors.ts";
 import {
+  JsonTextProfileError,
+  parseProfiledJson,
+} from "./json-text.ts";
+import {
   canonicalizeJson,
   normalizeSourceRecord,
   sourceRevisionKey,
@@ -122,6 +126,13 @@ function contentKey(record: SourceRecord): string {
 
 function serializationError(message: string): DomainError {
   return new DomainError(DomainErrorCode.SERIALIZATION_ERROR, message);
+}
+
+function jsonProfileError(): DomainError {
+  return new DomainError(
+    DomainErrorCode.INVALID_SOURCE_RECORD,
+    "Source record text violates the JSON interoperability profile.",
+  );
 }
 
 function sourceRevisionCollision(
@@ -552,10 +563,12 @@ export function ingestSourceRecordText(
   if (options.format === "json") {
     let value: unknown;
     try {
-      value = JSON.parse(text);
+      value = parseProfiledJson(text);
     } catch (error) {
       collector.reject(
-        serializationError("Source record text is not valid JSON."),
+        error instanceof JsonTextProfileError
+          ? jsonProfileError()
+          : serializationError("Source record text is not valid JSON."),
         0,
       );
       return resultFrom(collector);
@@ -590,12 +603,18 @@ export function ingestSourceRecordText(
     }
     try {
       collector.ingest(
-        JSON.parse(line),
+        parseProfiledJson(line),
         index,
         lineIndex + 1,
       );
     } catch (error) {
-      if (error instanceof SyntaxError) {
+      if (error instanceof JsonTextProfileError) {
+        collector.reject(
+          jsonProfileError(),
+          index,
+          lineIndex + 1,
+        );
+      } else if (error instanceof SyntaxError) {
         collector.reject(
           serializationError("Source record JSONL line is not valid JSON."),
           index,

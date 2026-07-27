@@ -25,13 +25,14 @@ const typescriptCli = fileURLToPath(
   new URL("../node_modules/typescript/bin/tsc", import.meta.url),
 );
 const validFixturesUrl = new URL(
-  "../spec/fixtures/source-records/valid.jsonl",
+  "../spec/conformance/0.1.0/source-record/valid.jsonl",
   import.meta.url,
 );
 
 const expectedRuntimeExports = [
   "DomainError",
   "DomainErrorCode",
+  "SOURCE_RECORD_MAX_JSON_DEPTH",
   "SOURCE_RECORD_SCHEMA_VERSION",
   "canonicalizeJson",
   "createObject",
@@ -150,6 +151,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       types: "./dist/index.d.ts",
       import: "./dist/index.js",
     },
+    "./schemas/source-record/0.1.0":
+      "./spec/schemas/0.1.0/source-record.schema.json",
     "./package.json": "./package.json",
   });
   assert.deepEqual(packageJson.bin, {
@@ -186,8 +189,10 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/README.md",
     "spec/README.md",
-    "spec/fixtures/source-records/invalid.jsonl",
-    "spec/fixtures/source-records/valid.jsonl",
+    "spec/conformance/0.1.0/source-record/invalid.jsonl",
+    "spec/conformance/0.1.0/source-record/valid.jsonl",
+    "spec/schemas/0.1.0/source-record.schema.json",
+    "spec/source-record.md",
   ].sort();
 
   assert.deepEqual(paths, expectedPaths, "package contents must match allowlist");
@@ -214,6 +219,7 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
         target: "ES2024",
         module: "NodeNext",
         moduleResolution: "NodeNext",
+        resolveJsonModule: true,
         strict: true,
         skipLibCheck: false,
         noEmit: true,
@@ -225,6 +231,15 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
   writeFileSync(
     `${consumerRoot}/index.ts`,
     `import { createObject, type GoalData } from ${JSON.stringify(packageJson.name)};
+import sourceRecordSchema from ${JSON.stringify(`${packageJson.name}/schemas/source-record/0.1.0`)}
+  with { type: "json" };
+
+if (
+  sourceRecordSchema.$id !==
+  "urn:collective-cognition:schema:source-record:0.1.0"
+) {
+  throw new Error("installed SourceRecord schema is not discoverable");
+}
 
 const data: GoalData = { objective: "Verify package declarations." };
 createObject({
@@ -320,6 +335,24 @@ createObject({
     assert.deepEqual(
       JSON.parse(imported.stdout.trim()),
       expectedRuntimeExports,
+    );
+
+    const importedSchema = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        `import schema from ${JSON.stringify(`${packageJson.name}/schemas/source-record/0.1.0`)} with { type: "json" }; console.log(schema.$id);`,
+      ],
+      {
+        cwd: consumerRoot,
+        encoding: "utf8",
+      },
+    );
+    assert.equal(importedSchema.status, 0, importedSchema.stderr);
+    assert.equal(
+      importedSchema.stdout.trim(),
+      "urn:collective-cognition:schema:source-record:0.1.0",
     );
 
     const executableName =

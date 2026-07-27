@@ -1,6 +1,6 @@
 # Collective Cognition Specification
 
-This directory is the contribution entrypoint for the future language-neutral specification. The runnable TypeScript code and emitted package artifacts are the current reference implementation; it is not yet a protocol, externally distributed package, or cross-language standard.
+This directory contains the implemented normative SourceRecord `0.1.0` contract and is the contribution entrypoint for the broader language-neutral specification still under development. The runnable TypeScript code and emitted package artifacts are the current reference implementation; the repository is not yet a protocol, externally distributed package, or cross-language standard.
 
 ## Current Architecture
 
@@ -23,32 +23,37 @@ The historical team-memory direct-to-Evidence path was replaced. The current con
 
 - Review the [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/ROADMAP.md) and distinguish completed phases from planned ones.
 - Run `npm test`, `npx tsc --noEmit`, `npm run check`, and `npm run example`.
+- Read the normative [`SourceRecord 0.1.0` contract](source-record.md) and its [`JSON Schema`](schemas/0.1.0/source-record.schema.json).
+- Run `node --test tests/schema-conformance.test.mjs` for schema conformance.
 - Run `node --test tests/conformance.test.ts` for the canonical SourceRecord suite.
-- Inspect [`fixtures/source-records/valid.jsonl`](fixtures/source-records/valid.jsonl) and [`fixtures/source-records/invalid.jsonl`](fixtures/source-records/invalid.jsonl).
+- Inspect [`conformance/0.1.0/source-record/valid.jsonl`](conformance/0.1.0/source-record/valid.jsonl) and [`conformance/0.1.0/source-record/invalid.jsonl`](conformance/0.1.0/source-record/invalid.jsonl).
 - Review RFC 0001 before changing ingestion semantics or connector boundaries.
 - Use the [RFC process](../rfcs/README.md) for semantic, compatibility, or governance changes.
 
-## Current Phase 2 Fixtures
+## Normative SourceRecord 0.1.0
 
-`fixtures/source-records/valid.jsonl` contains canonical SourceRecords directly. It covers string and structured content plus optional source instance, observed time, opaque caller-supplied integrity metadata, actor, context, and namespaced extensions. The SDK does not verify `contentHash` syntax or bind it to `content`; an external trust boundary must perform any such verification.
+`source-record.md` defines the normative serialized, lifecycle, collision, and trust-boundary rules. `schemas/0.1.0/source-record.schema.json` is the language-neutral Draft 2020-12 structural contract. The package exposes that schema at `collective-cognition-sdk/schemas/source-record/0.1.0`.
 
-`fixtures/source-records/invalid.jsonl` contains fixture envelopes with:
+`conformance/0.1.0/source-record/valid.jsonl` contains canonical SourceRecords directly. It covers every JSON content shape, optional source instance, observed time, offset and fractional timestamps, opaque caller-supplied integrity metadata, actor, context, and colon- or dot-namespaced extensions. The SDK does not verify `contentHash` syntax or bind it to `content`; an external trust boundary must perform any such verification.
+
+`conformance/0.1.0/source-record/invalid.jsonl` contains fixture envelopes with:
 
 - `description`: the invalid case;
+- `ruleId`: the normative SourceRecord rule;
 - `expectedCode`: the stable error code;
-- `record`: the SourceRecord-shaped value to validate.
+- optional `validationLayer`: `lexical` for pre-parse checks or `runtime` for schema-inexpressible rules;
+- exactly one of `record` or lossless `recordJson`: the SourceRecord value to validate.
 
-The invalid corpus covers missing revision identity, invalid timestamp, non-string media type, and unsupported schema version. The conformance suite verifies SDK and CLI outcomes plus equivalent canonical JSON and JSONL results. Focused runtime suites additionally enforce namespaced extensions and neutral context, prove accepted-record clone isolation and deep freezing, accept changed content under a new revision, apply limits before parsing/normalization, classify direct promotion inputs, hash complete promotion payloads, sanitize diagnostics, and fail authorization closed. Connector tests prove team-memory defaults to raw omission and that team-memory and Git emit valid records under the same SourceRecord contract.
+The invalid corpus covers every machine-checkable rule `SR-001` through `SR-011`, including lossless lexical cases for duplicate member names and lone surrogates and a runtime-layer depth-257 fixture for the schema-inexpressible recursive bound. The valid corpus includes the depth-256 boundary. The schema suite proves strict compilation and rejection of schema-layer fixtures even when `format` assertion is disabled. The runtime conformance suite verifies all fixtures through SDK and CLI outcomes plus equivalent canonical JSON and JSONL results. Focused runtime suites additionally enforce direct-object parity, immutable accepted values, revision collision behavior, bounded normalization, promotion identity, sanitized diagnostics, and fail-closed authorization. Connector tests prove team-memory defaults to raw omission and that team-memory and Git emit valid records under the same SourceRecord contract.
 
-These Phase 2 files are implementation conformance fixtures for the TypeScript reference source. Phase 3 is in progress: the initial ESM build, declarations, package entrypoints, CLI contract, and package-content checks are implemented. Normative, versioned, language-neutral fixtures and schemas suitable for independent implementations remain planned.
+Phase 3 remains in progress. SourceRecord is the first implemented normative language-neutral contract; the initial ESM build, declarations, package entrypoints, CLI contract, package-content checks, and clean-consumer schema discovery are also implemented. Broader cognitive-object, relationship, transition, authorization, event, error, persistence, compatibility, licensing, and security contracts remain planned.
 
 ## Planned Normative Content
 
 Specification work will add:
 
 - cognitive objects, relationships, lifecycle transitions, authorization, events, and errors;
-- versioned machine-readable schemas;
-- normative, versioned, language-neutral conformance fixtures;
+- additional versioned machine-readable schemas and fixtures using the SourceRecord structure as a reference;
 - compatibility, extension, versioning, and deprecation rules;
 - a mapping from every normative rule to an executable check or explicit prose-only rationale.
 - host integration contracts for cognition persistence and event publication without selecting one mandatory database.

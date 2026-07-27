@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  canonicalizeJson,
   DomainErrorCode,
   ingestSourceRecordText,
   ingestSourceRecords,
@@ -37,8 +38,11 @@ import type { gitCommitToSourceRecord as rootGitCommitToSourceRecord } from "../
 
 interface InvalidFixture {
   readonly description: string;
+  readonly ruleId: string;
   readonly expectedCode: string;
-  readonly record: unknown;
+  readonly validationLayer?: "lexical" | "runtime";
+  readonly record?: unknown;
+  readonly recordJson?: string;
 }
 
 interface CliItem {
@@ -50,17 +54,18 @@ interface CliItem {
 }
 
 const validFixtureUrl = new URL(
-  "../spec/fixtures/source-records/valid.jsonl",
+  "../spec/conformance/0.1.0/source-record/valid.jsonl",
   import.meta.url,
 );
 const invalidFixtureUrl = new URL(
-  "../spec/fixtures/source-records/invalid.jsonl",
+  "../spec/conformance/0.1.0/source-record/invalid.jsonl",
   import.meta.url,
 );
 
 const neutralRuntimeExports = [
   "DomainError",
   "DomainErrorCode",
+  "SOURCE_RECORD_MAX_JSON_DEPTH",
   "SOURCE_RECORD_SCHEMA_VERSION",
   "canonicalizeJson",
   "createObject",
@@ -90,6 +95,15 @@ function jsonLines<T>(text: string): T[] {
     .split("\n")
     .filter((line) => line.length > 0)
     .map((line) => JSON.parse(line) as T);
+}
+
+function invalidFixtureJson(fixture: InvalidFixture): string {
+  assert.notEqual(
+    fixture.record === undefined,
+    fixture.recordJson === undefined,
+    `${fixture.description} must define exactly one record form`,
+  );
+  return fixture.recordJson ?? JSON.stringify(fixture.record);
 }
 
 function runValidate(
@@ -150,8 +164,12 @@ test("accepts every canonical valid SourceRecord fixture through SDK and CLI", (
 
 test("rejects every canonical invalid fixture with its expected code", () => {
   const fixtures = jsonLines<InvalidFixture>(fixtureText(invalidFixtureUrl));
-  const records = fixtures.map((fixture) => fixture.record);
-  const jsonl = records.map((record) => JSON.stringify(record)).join("\n");
+  fixtures.forEach((fixture) => {
+    assert.ok(fixture.description.trim().length > 0);
+    assert.ok(fixture.ruleId.trim().length > 0);
+    assert.equal(fixture.expectedCode, DomainErrorCode.INVALID_SOURCE_RECORD);
+  });
+  const jsonl = fixtures.map(invalidFixtureJson).join("\n");
   const sdkResult = ingestSourceRecordText(jsonl, { format: "jsonl" });
 
   assert.ok(fixtures.length > 0);
@@ -199,6 +217,154 @@ test("canonical JSON and JSONL produce equivalent SourceRecords", () => {
     jsonLines<CliItem>(cliJson.stdout).map((item) => item.record),
     jsonLines<CliItem>(cliJsonl.stdout).map((item) => item.record),
   );
+});
+
+test("binary64 numeric semantics determine duplicate and collision outcomes", () => {
+  const recordPrefix = {
+    schemaVersion: "0.1.0",
+    id: "source-record:numeric:first",
+    source: { system: "fixture" },
+    sourceId: "item:numeric",
+    revisionId: "revision:numeric",
+    capturedAt: "2026-07-24T10:00:00Z",
+    mediaType: "application/json",
+  };
+  const first = JSON.stringify({
+    ...recordPrefix,
+    content: 9_007_199_254_740_992,
+  });
+  const roundedEquivalent = JSON.stringify({
+    ...recordPrefix,
+    id: "source-record:numeric:equivalent",
+    content: 9_007_199_254_740_992,
+  }).replace("9007199254740992", "9007199254740993");
+  const distinct = JSON.stringify({
+    ...recordPrefix,
+    id: "source-record:numeric:distinct",
+    content: 9_007_199_254_740_994,
+  });
+
+  const duplicateResult = ingestSourceRecordText(
+    `${first}\n${roundedEquivalent}`,
+    { format: "jsonl" },
+  );
+  assert.deepEqual(
+    duplicateResult.items.map((item) => item.status),
+    ["accepted", "duplicate"],
+  );
+
+  const collisionResult = ingestSourceRecordText(
+    `${first}\n${distinct}`,
+    { format: "jsonl" },
+  );
+  assert.deepEqual(
+    collisionResult.items.map((item) => item.status),
+    ["accepted", "rejected"],
+  );
+  assert.equal(
+    collisionResult.items[1]?.status === "rejected"
+      ? collisionResult.items[1].error.code
+      : undefined,
+    DomainErrorCode.SOURCE_REVISION_COLLISION,
+  );
+});
+
+test("canonical content ignores object order but preserves media type spelling", () => {
+  const base = {
+    schemaVersion: "0.1.0",
+    id: "source-record:canonical:first",
+    source: { system: "fixture" },
+    sourceId: "item:canonical",
+    revisionId: "revision:canonical",
+    capturedAt: "2026-07-24T10:00:00Z",
+    mediaType: "application/json",
+    content: { alpha: 1, beta: 2 },
+  };
+  const reordered = {
+    ...base,
+    id: "source-record:canonical:reordered",
+    content: { beta: 2, alpha: 1 },
+  };
+  const mediaTypeChanged = {
+    ...base,
+    id: "source-record:canonical:media-type",
+    mediaType: "Application/JSON",
+  };
+
+  assert.deepEqual(
+    ingestSourceRecords([base, reordered]).items.map((item) => item.status),
+    ["accepted", "duplicate"],
+  );
+
+  const collision = ingestSourceRecords([base, mediaTypeChanged]);
+  assert.deepEqual(
+    collision.items.map((item) => item.status),
+    ["accepted", "rejected"],
+  );
+  assert.equal(
+    collision.items[1]?.status === "rejected"
+      ? collision.items[1].error.code
+      : undefined,
+    DomainErrorCode.SOURCE_REVISION_COLLISION,
+  );
+});
+
+test("canonical number vectors match RFC 8785 ECMAScript serialization", () => {
+  assert.equal(canonicalizeJson(-0), "0");
+  assert.equal(canonicalizeJson(1e21), "1e+21");
+  assert.equal(canonicalizeJson(1e-7), "1e-7");
+  assert.equal(
+    canonicalizeJson(333333333.33333329),
+    "333333333.3333333",
+  );
+});
+
+test("over-depth JSON remains an item-level SourceRecord rejection", () => {
+  const nestedContent =
+    `${"[".repeat(256)}null${"]".repeat(256)}`;
+  const recordJson =
+    `{"schemaVersion":"0.1.0","id":"source-record:deep","source":{"system":"fixture"},"sourceId":"item:deep","revisionId":"revision:deep","capturedAt":"2026-07-24T10:00:00Z","mediaType":"application/json","content":${nestedContent}}`;
+  const record = JSON.parse(recordJson) as SourceRecord;
+
+  assert.throws(
+    () => validateSourceRecord(record),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === DomainErrorCode.INVALID_SOURCE_RECORD,
+  );
+
+  const directResult = ingestSourceRecords([record]);
+  assert.equal(directResult.items[0]?.status, "rejected");
+  assert.equal(
+    directResult.items[0]?.status === "rejected"
+      ? directResult.items[0].error.code
+      : undefined,
+    DomainErrorCode.INVALID_SOURCE_RECORD,
+  );
+
+  for (const format of ["json", "jsonl"] as const) {
+    const sdkResult = ingestSourceRecordText(recordJson, { format });
+    assert.equal(sdkResult.items[0]?.status, "rejected");
+    assert.equal(
+      sdkResult.items[0]?.status === "rejected"
+        ? sdkResult.items[0].error.code
+        : undefined,
+      DomainErrorCode.INVALID_SOURCE_RECORD,
+    );
+
+    const cliResult = runValidate(recordJson, format);
+    assert.notEqual(cliResult.status, 0);
+    const cliItem = jsonLines<CliItem>(cliResult.stdout)[0];
+    const cliDiagnostic = jsonLines<CliItem>(cliResult.stderr)[0];
+    assert.equal(cliItem?.status, "rejected");
+    assert.equal(cliItem?.error?.code, DomainErrorCode.INVALID_SOURCE_RECORD);
+    assert.equal(cliDiagnostic?.status, "rejected");
+    assert.equal(
+      cliDiagnostic?.error?.code,
+      DomainErrorCode.INVALID_SOURCE_RECORD,
+    );
+  }
 });
 
 test("team-memory and Git connectors satisfy the same SourceRecord contract", () => {
