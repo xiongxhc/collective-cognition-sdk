@@ -11,6 +11,7 @@ import {
 import type { JsonObject, JsonValue } from "./types.ts";
 
 export const SOURCE_RECORD_SCHEMA_VERSION = "0.1.0";
+export const SOURCE_RECORD_MAX_JSON_DEPTH = 256;
 
 export interface SourceRecordSource {
   readonly system: string;
@@ -94,6 +95,60 @@ function invalidSourceRecord(
   details: JsonObject = {},
 ): never {
   throw new DomainError(DomainErrorCode.INVALID_SOURCE_RECORD, message, details);
+}
+
+function sourceRecordDepthIsAllowed(value: unknown): boolean {
+  const visitedDepths = new WeakMap<object, number>();
+  const pending: Array<{ readonly value: unknown; readonly depth: number }> = [
+    { value, depth: 1 },
+  ];
+
+  try {
+    while (pending.length > 0) {
+      const current = pending.pop();
+      if (
+        current === undefined ||
+        typeof current.value !== "object" ||
+        current.value === null
+      ) {
+        continue;
+      }
+      if (current.depth > SOURCE_RECORD_MAX_JSON_DEPTH) {
+        return false;
+      }
+
+      const previousDepth = visitedDepths.get(current.value);
+      if (previousDepth !== undefined && previousDepth >= current.depth) {
+        continue;
+      }
+      visitedDepths.set(current.value, current.depth);
+
+      for (const key of Reflect.ownKeys(current.value)) {
+        const descriptor = Reflect.getOwnPropertyDescriptor(
+          current.value,
+          key,
+        );
+        if (descriptor !== undefined && "value" in descriptor) {
+          pending.push({
+            value: descriptor.value,
+            depth: current.depth + 1,
+          });
+        }
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function validateSourceRecordDepth(value: unknown): void {
+  if (!sourceRecordDepthIsAllowed(value)) {
+    invalidSourceRecord(
+      "Source record exceeds the maximum JSON nesting depth.",
+      { maximumDepth: SOURCE_RECORD_MAX_JSON_DEPTH },
+    );
+  }
 }
 
 function validateSource(value: unknown): asserts value is SourceRecordSource {
@@ -229,6 +284,7 @@ function freezeSourceRecord(record: SourceRecord): SourceRecord {
 export function createSourceRecord(
   input: CreateSourceRecordInput,
 ): SourceRecord {
+  validateSourceRecordDepth(input);
   if (!isJsonObject(input)) {
     invalidSourceRecord("Source record input must be an object.");
   }
@@ -254,6 +310,7 @@ export function createSourceRecord(
 }
 
 export function validateSourceRecord(value: unknown): asserts value is SourceRecord {
+  validateSourceRecordDepth(value);
   if (!isJsonObject(value)) {
     invalidSourceRecord("Source record must be an object.");
   }

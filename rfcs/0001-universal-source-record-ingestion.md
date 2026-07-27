@@ -37,6 +37,7 @@ The SDK needs an ingestion contract that works across organizations and source s
 22. `transitionObject` MUST pass an immutable validated `TransitionContext` snapshot to authorization policy, accept only exact closed `AuthorizationDecision` objects, and proceed only for status `allowed`; policy failure or mutation MUST fail closed.
 23. `contentHash` MUST be treated as opaque caller-supplied integrity metadata unless verified by an external trust boundary. This SDK does not validate digest syntax or content binding.
 24. `teammem:export` failures MUST use `{stage,error:{code,message,details}}` and MUST sanitize non-domain exception messages.
+25. The complete SourceRecord MUST contain at most 256 nested JSON containers, counting the root object as depth 1. Direct SDK values, JSON, JSONL, and CLI input MUST reject deeper records with item-level `INVALID_SOURCE_RECORD` before recursive processing.
 
 The proposed record shape and complete rationale are in the [universal ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
 
@@ -94,6 +95,7 @@ Rejected for ingestion because it loses a stable neutral boundary. Trusted calle
 - [x] Omit team-memory raw content by default and require explicit connector/CLI opt-in.
 - [x] Enforce immutable transition snapshots and exact fail-closed authorization decisions.
 - [x] Treat `contentHash` as opaque caller metadata without implicit digest verification.
+- [x] Enforce one 256-container SourceRecord depth boundary with stable direct SDK, JSON, JSONL, and CLI rejection.
 - [x] Pass the same SourceRecord conformance contract with a second source-specific fixture connector.
 - [x] Verify that the root export surface contains no source-specific connector API.
 - [x] Verify that every repository Markdown file is current or explicitly historical.

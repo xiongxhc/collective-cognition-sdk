@@ -67,7 +67,7 @@ test("every normative valid fixture satisfies the schema", () => {
 test("every normative invalid fixture violates the schema", () => {
   const validate = compileSchema();
   const schemaFixtures = readJsonLines(invalidFixtureUrl).filter(
-    (fixture) => fixture.validationLayer !== "lexical",
+    (fixture) => fixture.validationLayer === undefined,
   );
   for (const fixture of schemaFixtures) {
     assert.equal(
@@ -78,15 +78,33 @@ test("every normative invalid fixture violates the schema", () => {
   }
 });
 
-test("lexical fixtures remain lossless and outside schema assertions", () => {
-  const lexicalFixtures = readJsonLines(invalidFixtureUrl).filter(
+test("non-schema fixtures declare their validation layer", () => {
+  const fixtures = readJsonLines(invalidFixtureUrl);
+  const lexicalFixtures = fixtures.filter(
     (fixture) => fixture.validationLayer === "lexical",
+  );
+  const runtimeFixtures = fixtures.filter(
+    (fixture) => fixture.validationLayer === "runtime",
   );
 
   assert.ok(lexicalFixtures.length > 0);
   for (const fixture of lexicalFixtures) {
     assert.equal(typeof fixture.recordJson, "string");
     assert.equal(fixture.record, undefined);
+  }
+
+  assert.ok(runtimeFixtures.length > 0);
+  for (const fixture of runtimeFixtures) {
+    assert.notEqual(fixture.record, undefined);
+    assert.equal(fixture.recordJson, undefined);
+  }
+
+  for (const fixture of fixtures) {
+    assert.ok(
+      fixture.validationLayer === undefined ||
+        fixture.validationLayer === "lexical" ||
+        fixture.validationLayer === "runtime",
+    );
   }
 });
 

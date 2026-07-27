@@ -75,6 +75,8 @@ Each machine-checkable rule will map to:
 
 Prose-only requirements will state why machine validation is insufficient. These include immutability after acceptance, collision handling, source neutrality, and the trust boundary for `contentHash`.
 
+The implemented contract also fixes the complete SourceRecord depth at 256 nested JSON containers, counting the root object as depth 1. JSON Schema Draft 2020-12 cannot express this recursive resource boundary, so the packaged corpus contains a valid depth-256 fixture and an invalid depth-257 fixture marked `validationLayer: "runtime"`. Runtime tests enforce identical `INVALID_SOURCE_RECORD` behavior across direct SDK, JSON, JSONL, and CLI entry points before recursive processing.
+
 The document will use `MUST`, `MUST NOT`, `SHOULD`, and `MAY` only for normative requirements.
 
 ## Conformance Fixtures
@@ -105,7 +107,7 @@ Fixtures will cover every machine-checkable schema rule, including:
 - namespaced extension keys; and
 - optional-field types.
 
-Fixture order will not be normative.
+They also cover the schema-inexpressible recursive depth boundary with a valid depth-256 record and an invalid depth-257 runtime-layer envelope. Fixture order will not be normative.
 
 ## Conformance Runner
 

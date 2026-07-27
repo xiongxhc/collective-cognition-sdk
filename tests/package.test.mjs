@@ -32,6 +32,7 @@ const validFixturesUrl = new URL(
 const expectedRuntimeExports = [
   "DomainError",
   "DomainErrorCode",
+  "SOURCE_RECORD_MAX_JSON_DEPTH",
   "SOURCE_RECORD_SCHEMA_VERSION",
   "canonicalizeJson",
   "createObject",

@@ -1,6 +1,6 @@
 # SourceRecord Normative Conformance Implementation Plan
 
-**Status:** Implementation complete; final review pending.
+**Status:** Implementation complete and verified; integration pending.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -20,6 +20,7 @@
 - Source collection remains separate from cognitive interpretation.
 - `contentHash` remains opaque caller-supplied metadata.
 - Runtime-only JavaScript hardening is not represented as cross-language JSON.
+- SourceRecord depth is limited normatively to 256 JSON containers, counting the root object as depth 1, and is enforced before recursive runtime processing.
 - `"private": true` remains in `package.json`.
 - No document may claim publication, licensing, production readiness, or cross-language-standard status.
 
@@ -233,7 +234,8 @@ Create valid JSONL records covering:
 2. all optional fields with structured object content;
 3. `null`, boolean, number, and array content values;
 4. timestamp offsets and fractional seconds accepted by the runtime;
-5. both colon- and dot-namespaced extension keys.
+5. both colon- and dot-namespaced extension keys; and
+6. the valid 256-container depth boundary.
 
 Create invalid JSONL envelopes covering these exact rule IDs and cases:
 
@@ -246,12 +248,12 @@ Create invalid JSONL envelopes covering these exact rule IDs and cases:
 | `SR-005` | missing `revisionId`, whitespace `sourceId` |
 | `SR-006` | impossible calendar date, missing timezone, lowercase separator |
 | `SR-007` | non-string and malformed `mediaType` |
-| `SR-008` | missing `content` |
+| `SR-008` | missing `content`; schema-inexpressible depth 257 with `validationLayer: "runtime"` |
 | `SR-009` | whitespace-only `contentHash`, non-string `actorId` |
 | `SR-010` | non-object context, each forbidden interpretation key |
 | `SR-011` | non-object extensions, unnamespaced extension key |
 
-Every envelope must contain non-empty `description`, one listed `ruleId`, `expectedCode: "INVALID_SOURCE_RECORD"`, and `record`.
+Every envelope must contain non-empty `description`, one listed `ruleId`, `expectedCode: "INVALID_SOURCE_RECORD"`, and exactly one of `record` or `recordJson`. Pre-parse cases use `validationLayer: "lexical"`; the depth boundary uses `validationLayer: "runtime"`.
 
 - [x] **Step 6: Run the schema test to verify GREEN**
 
@@ -261,7 +263,7 @@ Run:
 node --test tests/schema-conformance.test.mjs
 ```
 
-Expected: 4 tests pass.
+Expected: 6 tests pass.
 
 - [x] **Step 7: Commit the schema checkpoint**
 
@@ -550,7 +552,7 @@ Expected:
 - the example completes;
 - no whitespace errors exist.
 
-- [ ] **Step 7: Run independent code review**
+- [x] **Step 7: Run independent code review**
 
 Review the full branch diff against:
 
@@ -564,7 +566,9 @@ Review the full branch diff against:
 
 Resolve every correctness, compatibility, security, packaging, and documentation finding, then rerun the complete verification command.
 
-- [ ] **Step 8: Commit the completed slice**
+The whole-branch review found an intermediate-depth stack-overflow window after lexical scanning. The correction adds the normative 256-container profile, packaged depth-boundary fixtures, and parity checks across direct SDK, JSON, JSONL, and CLI paths. Final independent review approved the corrected tree with no remaining findings.
+
+- [x] **Step 8: Commit the completed slice**
 
 ```bash
 git add README.md docs/ROADMAP.md docs/superpowers spec rfcs package.json package-lock.json tests src

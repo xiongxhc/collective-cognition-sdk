@@ -88,6 +88,8 @@ Every number nested in `content`, `context`, or `extensions` MUST remain within 
 
 Every nested string and object member name MUST contain only Unicode scalar values. Lone surrogate code units are invalid.
 
+The complete SourceRecord value MUST contain at most 256 nested JSON containers. The root SourceRecord object has depth 1; each nested object or array increases depth by 1, while primitive values do not increase depth. Implementations MUST reject a deeper record with `INVALID_SOURCE_RECORD` before recursive cloning, freezing, canonicalization, or other processing. This limit is normative prose because JSON Schema Draft 2020-12 cannot express a general recursive depth bound.
+
 Implementations MUST preserve source-authored content without silently adding cognitive interpretation.
 
 ### SR-009 — Optional Source Metadata
@@ -176,9 +178,9 @@ The normative fixtures are:
 Valid fixtures are direct SourceRecord values. Invalid fixtures are envelopes containing `description`, `ruleId`, `expectedCode`, and exactly one of:
 
 - `record`, for ordinary invalid values; or
-- `recordJson`, for a serialized record whose numeric lexical form must reach the parser unchanged.
+- `recordJson`, for a serialized record whose lexical form must reach the parser unchanged.
 
-Lexical cases set `validationLayer` to `"lexical"` because duplicate member names and invalid surrogate sequences MUST be rejected before JSON Schema validation. `expectedCode` is normative. Fixture order is not normative.
+Cases set `validationLayer` to `"lexical"` when duplicate member names or invalid surrogate sequences MUST be rejected before ordinary parsing. They set it to `"runtime"` when a normative rule, such as recursive depth, cannot be expressed by JSON Schema. Fixtures without `validationLayer` are schema assertions. `expectedCode` is normative. Fixture order is not normative.
 
 | Rule | Schema location | Fixture coverage |
 |---|---|---|
@@ -189,9 +191,9 @@ Lexical cases set `validationLayer` to `"lexical"` because duplicate member name
 | `SR-005` | `properties.sourceId`, `properties.revisionId` | missing revision, blank source ID |
 | `SR-006` | `$defs.timestamp` | calendar, timezone, case, leap-second, hour, and offset failures |
 | `SR-007` | `properties.mediaType` | non-string and malformed values |
-| `SR-008` | root `required`, `properties.content`, `$defs.jsonValue`; lexical profile | missing content, binary64 overflow, duplicate nested member, lone surrogate value/key; valid fixtures cover every JSON value shape |
+| `SR-008` | root `required`, `properties.content`, `$defs.jsonValue`; lexical and runtime profiles | missing content, binary64 overflow, duplicate nested member, lone surrogate value/key, valid depth 256, invalid depth 257; valid fixtures cover every JSON value shape |
 | `SR-009` | `properties.contentHash`, `properties.actorId` | blank hash and non-string actor |
 | `SR-010` | `properties.context` | wrong type and forbidden interpretation keys |
 | `SR-011` | `properties.extensions` | wrong type and unnamespaced key |
 
-An implementation claiming conformance to SourceRecord `0.1.0` MUST pass every valid and invalid fixture, expose each invalid fixture's `expectedCode`, and implement the prose-only numeric, canonicalization, ingestion, immutability, collision, and trust-boundary requirements applicable to its role.
+An implementation claiming conformance to SourceRecord `0.1.0` MUST pass every valid and invalid fixture, expose each invalid fixture's `expectedCode`, and implement the prose-only depth, numeric, canonicalization, ingestion, immutability, collision, and trust-boundary requirements applicable to its role.

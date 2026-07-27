@@ -5,6 +5,7 @@ export {
   deserializeSourceRecord,
   serializeSourceRecord,
   sourceRevisionKey,
+  SOURCE_RECORD_MAX_JSON_DEPTH,
   SOURCE_RECORD_SCHEMA_VERSION,
   validateSourceRecord,
 } from "./source-records.ts";

@@ -9,6 +9,7 @@ import {
   DomainErrorCode,
   serializeSourceRecord,
   sourceRevisionKey,
+  SOURCE_RECORD_MAX_JSON_DEPTH,
   SOURCE_RECORD_SCHEMA_VERSION,
   validateSourceRecord,
 } from "../src/index.ts";
@@ -39,6 +40,14 @@ function expectInvalidSourceRecord(action: () => unknown): void {
   );
 }
 
+function nestedArrays(depth: number): CreateSourceRecordInput["content"] {
+  let value: CreateSourceRecordInput["content"] = null;
+  for (let index = 0; index < depth; index += 1) {
+    value = [value];
+  }
+  return value;
+}
+
 test("creates a versioned source record with opaque integrity metadata", () => {
   const record = createSourceRecord({
     ...inputFor(),
@@ -50,6 +59,7 @@ test("creates a versioned source record with opaque integrity metadata", () => {
 
   assert.equal(record.schemaVersion, SOURCE_RECORD_SCHEMA_VERSION);
   assert.equal(SOURCE_RECORD_SCHEMA_VERSION, "0.1.0");
+  assert.equal(SOURCE_RECORD_MAX_JSON_DEPTH, 256);
   assert.equal(record.source.system, "git");
   assert.equal(record.contentHash, "sha256:not-a-verified-digest");
   assert.equal(record.actorId, "agent:collector");
@@ -165,9 +175,23 @@ test("rejects duplicate members and lone surrogates during deserialization", () 
   }
 });
 
-test("deep valid JSON deserialization fails with a stable domain error", () => {
+test("enforces a stable SourceRecord nesting boundary", () => {
+  const accepted = createSourceRecord(
+    inputFor({ content: nestedArrays(255) }),
+  );
+  validateSourceRecord(accepted);
+
+  const rejectedInput = inputFor({ content: nestedArrays(256) });
+  expectInvalidSourceRecord(() => createSourceRecord(rejectedInput));
+  expectInvalidSourceRecord(() =>
+    validateSourceRecord({
+      ...rejectedInput,
+      schemaVersion: SOURCE_RECORD_SCHEMA_VERSION,
+    }),
+  );
+
   const nestedContent =
-    `${"[".repeat(10_000)}null${"]".repeat(10_000)}`;
+    `${"[".repeat(256)}null${"]".repeat(256)}`;
   const json =
     `{"schemaVersion":"0.1.0","id":"source-record:deep","source":{"system":"fixture"},"sourceId":"item:deep","revisionId":"revision:deep","capturedAt":"2026-07-24T10:00:00Z","mediaType":"application/json","content":${nestedContent}}`;
 

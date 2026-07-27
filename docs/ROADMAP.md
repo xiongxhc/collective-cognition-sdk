@@ -65,6 +65,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Team-memory omits raw row content by default, supports explicit connector/CLI opt-in, and emits nested structured diagnostics.
 - [x] Transition authorization uses immutable context snapshots and accepts only exact closed decisions, failing policy errors and mutation closed.
 - [x] `contentHash` remains opaque caller-supplied metadata unless an external trust boundary verifies it.
+- [x] SourceRecords deeper than 256 JSON containers are rejected consistently before recursive processing.
 - [x] Every repository Markdown file is either current or explicitly historical.
 
 **Completion evidence**
@@ -93,10 +94,11 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 - [x] Normative SourceRecord `0.1.0` prose with stable rule identifiers and rule-to-check mapping.
 - [x] A strict JSON Schema Draft 2020-12 artifact with self-asserting timestamp, field, context, and extension rules.
-- [x] Versioned valid and invalid language-neutral fixtures shared by schema, SDK, and CLI tests.
+- [x] Versioned valid and invalid language-neutral fixtures shared by schema, SDK, and CLI tests, including runtime-layer depth boundaries that JSON Schema cannot express.
 - [x] Lossless pre-schema rejection of duplicate JSON member names and lone surrogate strings.
 - [x] A stable installed schema subpath plus exact package and clean-consumer verification.
 - [x] Runtime timestamp behavior aligned to the normative serialized profile.
+- [x] A normative 256-container depth profile with stable direct SDK, JSON, JSONL, and CLI rejection.
 
 **Delivered in the initial package-stabilization slice**
 
