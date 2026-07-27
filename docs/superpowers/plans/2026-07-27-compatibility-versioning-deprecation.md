@@ -1,6 +1,6 @@
 # Compatibility, Versioning, and Deprecation Implementation Plan
 
-**Status:** Complete, verified, and integrated locally; merge and push remain intentionally out of scope.
+**Status:** Complete, verified, merged to `master`, and pushed.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -917,7 +917,7 @@ git add rfcs/0002-compatibility-versioning-and-deprecation.md docs/ROADMAP.md do
 git commit -m "docs: finalize compatibility contract"
 ```
 
-- [ ] **Step 6: Merge and verify master**
+- [x] **Step 6: Merge and verify master**
 
 ```bash
 git switch master
@@ -928,7 +928,7 @@ git status --short --branch
 
 Expected: tests pass on `master` and the tree is clean.
 
-- [ ] **Step 7: Push and remove the merged branch**
+- [x] **Step 7: Push and remove the merged branch**
 
 ```bash
 git push origin master
