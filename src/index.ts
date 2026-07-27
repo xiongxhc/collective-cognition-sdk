@@ -23,6 +23,14 @@ export {
   deserializeObject,
   serializeObject,
 } from "./objects.ts";
+export {
+  createPortableCognitionRecord,
+  deserializePortableCognitionRecord,
+  PORTABLE_COGNITION_MAX_JSON_DEPTH,
+  PORTABLE_COGNITION_SCHEMA_VERSION,
+  serializePortableCognitionRecord,
+  validatePortableCognitionRecord,
+} from "./portable-cognition.ts";
 export { evaluateAuthorization } from "./authorization.ts";
 export { transitionObject } from "./transitions.ts";
 export type {
@@ -88,4 +96,11 @@ export type {
   TransitionContext,
 } from "./authorization.ts";
 export type { CognitionEvent } from "./events.ts";
+export type {
+  CreatePortableCognitionRecordInput,
+  PortableCognitionPayloadByType,
+  PortableCognitionRecord,
+  PortableCognitionRecordType,
+  PortableDomainError,
+} from "./portable-cognition.ts";
 export type { TransitionResult } from "./transitions.ts";
