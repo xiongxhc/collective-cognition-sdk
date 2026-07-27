@@ -10,7 +10,7 @@ import {
 } from "./json-text.ts";
 import {
   freezeJsonValue,
-  isJsonValue,
+  isUnicodeScalarString,
 } from "./types.ts";
 import type {
   ActorKind,
@@ -57,6 +57,59 @@ export type PortableCognitionRecord<
 
 export type CreatePortableCognitionRecordInput =
   PortableCognitionRecord;
+
+type MutableJsonArray = JsonValue[];
+type MutableJsonObject = { [key: string]: JsonValue };
+
+type JsonSnapshotTarget =
+  | { readonly kind: "root" }
+  | {
+      readonly kind: "array";
+      readonly parent: MutableJsonArray;
+      readonly index: number;
+    }
+  | {
+      readonly kind: "object";
+      readonly parent: MutableJsonObject;
+      readonly key: string;
+    };
+
+type JsonSnapshotFrame =
+  | {
+      readonly kind: "value";
+      readonly input: unknown;
+      readonly target: JsonSnapshotTarget;
+      readonly depth: number;
+    }
+  | {
+      readonly kind: "leave";
+      readonly input: object;
+    }
+  | {
+      readonly kind: "array-entry";
+      readonly input: object;
+      readonly snapshot: MutableJsonArray;
+      readonly index: number;
+      readonly length: number;
+      readonly depth: number;
+    }
+  | {
+      readonly kind: "object-entry";
+      readonly input: object;
+      readonly snapshot: MutableJsonObject;
+      readonly keys: readonly string[];
+      readonly index: number;
+      readonly depth: number;
+    };
+
+class PortableJsonSnapshotError extends Error {
+  readonly reason: "depth" | "structure";
+
+  constructor(reason: "depth" | "structure") {
+    super();
+    this.reason = reason;
+  }
+}
 
 const actorKinds = new Set<ActorKind>([
   "human",
@@ -245,6 +298,37 @@ function isTimestamp(value: unknown): value is string {
   return typeof value === "string" && isoTimestampPattern.test(value);
 }
 
+function timestampInstant(value: string): bigint {
+  const year = Number(value.slice(0, 4));
+  const month = Number(value.slice(5, 7));
+  const day = Number(value.slice(8, 10));
+  const hour = Number(value.slice(11, 13));
+  const minute = Number(value.slice(14, 16));
+  const second = Number(value.slice(17, 19));
+  const zoneStart = value.endsWith("Z") ? value.length - 1 : value.length - 6;
+  const fraction = value[19] === "."
+    ? value.slice(20, zoneStart).padEnd(9, "0")
+    : "000000000";
+  let offsetMinutes = 0;
+  if (value[zoneStart] !== "Z") {
+    const direction = value[zoneStart] === "+" ? 1 : -1;
+    offsetMinutes = direction * (
+      Number(value.slice(zoneStart + 1, zoneStart + 3)) * 60 +
+      Number(value.slice(zoneStart + 4, zoneStart + 6))
+    );
+  }
+
+  const local = new Date(0);
+  local.setUTCFullYear(year, month - 1, day);
+  local.setUTCHours(hour, minute, second, 0);
+  const instantMilliseconds = local.getTime() - offsetMinutes * 60_000;
+  return BigInt(instantMilliseconds) * 1_000_000n + BigInt(fraction);
+}
+
+function timestampIsAfter(left: string, right: string): boolean {
+  return timestampInstant(left) > timestampInstant(right);
+}
+
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -289,48 +373,241 @@ function requireNonWhitespaceFields(
   }
 }
 
-function portableCognitionDepthIsAllowed(value: unknown): boolean {
-  const visitedDepths = new WeakMap<object, number>();
-  const pending: Array<{ readonly value: unknown; readonly depth: number }> = [
-    { value, depth: 1 },
+function snapshotPortableJson(value: unknown): JsonValue {
+  const unset = Symbol("unset");
+  let snapshot: JsonValue | typeof unset = unset;
+  const ancestors = new Set<object>();
+  const frames: JsonSnapshotFrame[] = [
+    { kind: "value", input: value, target: { kind: "root" }, depth: 1 },
   ];
 
+  function assign(target: JsonSnapshotTarget, captured: JsonValue): void {
+    if (target.kind === "root") {
+      snapshot = captured;
+      return;
+    }
+    Object.defineProperty(
+      target.parent,
+      target.kind === "array" ? String(target.index) : target.key,
+      {
+        value: captured,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      },
+    );
+  }
+
   try {
-    while (pending.length > 0) {
-      const current = pending.pop();
-      if (
-        current === undefined ||
-        typeof current.value !== "object" ||
-        current.value === null
-      ) {
+    while (frames.length > 0) {
+      const frame = frames.pop();
+      if (frame === undefined) {
+        break;
+      }
+      if (frame.kind === "leave") {
+        ancestors.delete(frame.input);
         continue;
       }
-      if (current.depth > PORTABLE_COGNITION_MAX_JSON_DEPTH) {
-        return false;
-      }
-
-      const previousDepth = visitedDepths.get(current.value);
-      if (previousDepth !== undefined && previousDepth >= current.depth) {
-        continue;
-      }
-      visitedDepths.set(current.value, current.depth);
-
-      for (const key of Reflect.ownKeys(current.value)) {
+      if (frame.kind === "array-entry") {
+        if (frame.index >= frame.length) {
+          continue;
+        }
         const descriptor = Reflect.getOwnPropertyDescriptor(
-          current.value,
+          frame.input,
+          String(frame.index),
+        );
+        if (
+          descriptor === undefined ||
+          !descriptor.enumerable ||
+          !("value" in descriptor)
+        ) {
+          throw new PortableJsonSnapshotError("structure");
+        }
+        frames.push({ ...frame, index: frame.index + 1 });
+        frames.push({
+          kind: "value",
+          input: descriptor.value,
+          target: {
+            kind: "array",
+            parent: frame.snapshot,
+            index: frame.index,
+          },
+          depth: frame.depth + 1,
+        });
+        continue;
+      }
+      if (frame.kind === "object-entry") {
+        if (frame.index >= frame.keys.length) {
+          continue;
+        }
+        const key = frame.keys[frame.index] as string;
+        const descriptor = Reflect.getOwnPropertyDescriptor(
+          frame.input,
           key,
         );
-        if (descriptor !== undefined && "value" in descriptor) {
-          pending.push({
-            value: descriptor.value,
-            depth: current.depth + 1,
+        if (
+          descriptor === undefined ||
+          !descriptor.enumerable ||
+          !("value" in descriptor)
+        ) {
+          throw new PortableJsonSnapshotError("structure");
+        }
+        frames.push({ ...frame, index: frame.index + 1 });
+        frames.push({
+          kind: "value",
+          input: descriptor.value,
+          target: {
+            kind: "object",
+            parent: frame.snapshot,
+            key,
+          },
+          depth: frame.depth + 1,
+        });
+        continue;
+      }
+
+      const current = frame.input;
+      if (current === null) {
+        assign(frame.target, null);
+      } else if (typeof current === "boolean") {
+        assign(frame.target, current);
+      } else if (typeof current === "number") {
+        if (!Number.isFinite(current)) {
+          throw new PortableJsonSnapshotError("structure");
+        }
+        assign(frame.target, current);
+      } else if (typeof current === "string") {
+        if (!isUnicodeScalarString(current)) {
+          throw new PortableJsonSnapshotError("structure");
+        }
+        assign(frame.target, current);
+      } else if (typeof current === "object") {
+        if (frame.depth > PORTABLE_COGNITION_MAX_JSON_DEPTH) {
+          throw new PortableJsonSnapshotError("depth");
+        }
+        if (ancestors.has(current)) {
+          throw new PortableJsonSnapshotError("structure");
+        }
+        const prototype = Object.getPrototypeOf(current);
+        const keys = Reflect.ownKeys(current);
+        if (keys.some((key) => typeof key !== "string")) {
+          throw new PortableJsonSnapshotError("structure");
+        }
+        const names = keys as readonly string[];
+
+        if (Array.isArray(current)) {
+          if (prototype !== Array.prototype) {
+            throw new PortableJsonSnapshotError("structure");
+          }
+          const lengthDescriptor = Reflect.getOwnPropertyDescriptor(
+            current,
+            "length",
+          );
+          if (
+            lengthDescriptor === undefined ||
+            lengthDescriptor.enumerable ||
+            !("value" in lengthDescriptor) ||
+            !Number.isSafeInteger(lengthDescriptor.value) ||
+            lengthDescriptor.value < 0
+          ) {
+            throw new PortableJsonSnapshotError("structure");
+          }
+          const length = lengthDescriptor.value;
+          if (
+            names.length !== length + 1 ||
+            !names.includes("length")
+          ) {
+            throw new PortableJsonSnapshotError("structure");
+          }
+          const nameSet = new Set(names);
+          for (let index = 0; index < length; index += 1) {
+            if (!nameSet.has(String(index))) {
+              throw new PortableJsonSnapshotError("structure");
+            }
+          }
+          const captured: MutableJsonArray = [];
+          Object.defineProperty(captured, "length", {
+            value: length,
+            writable: true,
+          });
+          Object.defineProperty(captured, "toJSON", {
+            value: undefined,
+            configurable: true,
+          });
+          assign(frame.target, captured);
+          ancestors.add(current);
+          frames.push({ kind: "leave", input: current });
+          frames.push({
+            kind: "array-entry",
+            input: current,
+            snapshot: captured,
+            index: 0,
+            length,
+            depth: frame.depth,
+          });
+        } else {
+          if (prototype !== Object.prototype && prototype !== null) {
+            throw new PortableJsonSnapshotError("structure");
+          }
+          if (names.some((name) => !isUnicodeScalarString(name))) {
+            throw new PortableJsonSnapshotError("structure");
+          }
+          const captured = Object.create(null) as MutableJsonObject;
+          assign(frame.target, captured);
+          ancestors.add(current);
+          frames.push({ kind: "leave", input: current });
+          frames.push({
+            kind: "object-entry",
+            input: current,
+            snapshot: captured,
+            keys: names,
+            index: 0,
+            depth: frame.depth,
           });
         }
+      } else {
+        throw new PortableJsonSnapshotError("structure");
       }
     }
-    return true;
-  } catch {
-    return false;
+
+    if (snapshot === unset) {
+      throw new PortableJsonSnapshotError("structure");
+    }
+    return snapshot;
+  } catch (error) {
+    if (
+      error instanceof PortableJsonSnapshotError &&
+      error.reason === "depth"
+    ) {
+      invalidPortableCognitionRecord(
+        "Portable Cognition record exceeds the maximum JSON nesting depth.",
+        { maximumDepth: PORTABLE_COGNITION_MAX_JSON_DEPTH },
+      );
+    }
+    invalidPortableCognitionRecord(
+      "Portable Cognition record could not be snapshotted safely.",
+    );
+  }
+}
+
+function restorePortableJsonPrototypes(value: JsonValue): void {
+  const pending: JsonValue[] = [value];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (typeof current !== "object" || current === null) {
+      continue;
+    }
+    if (Array.isArray(current)) {
+      Reflect.deleteProperty(current, "toJSON");
+    } else {
+      Object.setPrototypeOf(current, Object.prototype);
+    }
+    for (const key of Object.keys(current)) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(current, key);
+      if (descriptor !== undefined && "value" in descriptor) {
+        pending.push(descriptor.value);
+      }
+    }
   }
 }
 
@@ -585,8 +862,10 @@ function validateCognitiveObject(value: unknown): void {
     );
   }
   if (
-    Date.parse(value.createdAt as string) >
-    Date.parse(value.updatedAt as string)
+    timestampIsAfter(
+      value.createdAt as string,
+      value.updatedAt as string,
+    )
   ) {
     invalidPortableCognitionRecord(
       "Portable Cognition object timestamps are out of order.",
@@ -605,6 +884,8 @@ function validateHumanConfirmation(
   value: unknown,
   eventId?: string,
   occurredAt?: string,
+  objectId?: string,
+  targetState?: string,
 ): void {
   requireObject(
     value,
@@ -629,9 +910,19 @@ function validateHumanConfirmation(
       "Portable Cognition confirmation event ID is invalid.",
     );
   }
+  if (objectId !== undefined && value.objectId !== objectId) {
+    invalidPortableCognitionRecord(
+      "Portable Cognition confirmation object ID is invalid.",
+    );
+  }
+  if (targetState !== undefined && value.targetState !== targetState) {
+    invalidPortableCognitionRecord(
+      "Portable Cognition confirmation target state is invalid.",
+    );
+  }
   if (
     occurredAt !== undefined &&
-    Date.parse(value.confirmedAt as string) > Date.parse(occurredAt)
+    timestampIsAfter(value.confirmedAt as string, occurredAt)
   ) {
     invalidPortableCognitionRecord(
       "Portable Cognition confirmation time is invalid.",
@@ -733,6 +1024,8 @@ function validateCognitionEvent(value: unknown): void {
       value.humanConfirmation,
       value.id as string,
       value.occurredAt as string,
+      value.objectId as string,
+      value.nextState as string,
     );
   }
 
@@ -858,20 +1151,9 @@ function validateDomainErrorPayload(value: unknown): void {
   );
 }
 
-export function validatePortableCognitionRecord(
+function validatePortableCognitionSnapshot(
   value: unknown,
 ): asserts value is PortableCognitionRecord {
-  if (!portableCognitionDepthIsAllowed(value)) {
-    invalidPortableCognitionRecord(
-      "Portable Cognition record exceeds the maximum JSON nesting depth.",
-      { maximumDepth: PORTABLE_COGNITION_MAX_JSON_DEPTH },
-    );
-  }
-  if (!isJsonValue(value)) {
-    invalidPortableCognitionRecord(
-      "Portable Cognition record must contain only JSON values.",
-    );
-  }
   requireObject(value, "Portable Cognition record must be an object.");
   requireExactFields(value, ["schemaVersion", "recordType", "payload"]);
   if (value.schemaVersion !== PORTABLE_COGNITION_SCHEMA_VERSION) {
@@ -902,30 +1184,34 @@ export function validatePortableCognitionRecord(
   }
 }
 
+export function validatePortableCognitionRecord(
+  value: unknown,
+): asserts value is PortableCognitionRecord {
+  validatePortableCognitionSnapshot(snapshotPortableJson(value));
+}
+
 export function createPortableCognitionRecord(
   input: CreatePortableCognitionRecordInput,
 ): PortableCognitionRecord {
-  validatePortableCognitionRecord(input);
-  let snapshot: unknown;
+  const snapshot = snapshotPortableJson(input);
+  validatePortableCognitionSnapshot(snapshot);
   try {
-    snapshot = structuredClone(input);
+    restorePortableJsonPrototypes(snapshot);
+    return freezeJsonValue(snapshot) as unknown as PortableCognitionRecord;
   } catch {
     invalidPortableCognitionRecord(
-      "Portable Cognition record could not be cloned safely.",
+      "Portable Cognition record could not be finalized safely.",
     );
   }
-  validatePortableCognitionRecord(snapshot);
-  return freezeJsonValue(
-    snapshot as unknown as JsonValue,
-  ) as unknown as PortableCognitionRecord;
 }
 
 export function serializePortableCognitionRecord(
   record: PortableCognitionRecord,
 ): string {
-  validatePortableCognitionRecord(record);
+  const snapshot = snapshotPortableJson(record);
+  validatePortableCognitionSnapshot(snapshot);
   try {
-    return JSON.stringify(record);
+    return JSON.stringify(snapshot);
   } catch {
     throw new DomainError(
       DomainErrorCode.SERIALIZATION_ERROR,
@@ -952,6 +1238,7 @@ export function deserializePortableCognitionRecord(
     );
   }
 
-  validatePortableCognitionRecord(value);
-  return createPortableCognitionRecord(value);
+  return createPortableCognitionRecord(
+    value as CreatePortableCognitionRecordInput,
+  );
 }

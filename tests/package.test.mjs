@@ -162,6 +162,12 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.equal(packageLock.version, "0.2.0");
   assert.equal(packageLock.packages[""].version, "0.2.0");
   assert.equal(
+    packageJson.scripts["test:schema"],
+    "node --test tests/schema-conformance.test.mjs tests/portable-cognition-schema.test.mjs",
+  );
+  assert.match(packageJson.scripts["pack:check"], /npm run test:schema/);
+  assert.match(packageJson.scripts.prepack, /npm run test:schema/);
+  assert.equal(
     packageJson.private,
     true,
     "publication guard must remain enabled",

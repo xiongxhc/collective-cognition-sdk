@@ -18,7 +18,7 @@ The envelope `schemaVersion` MUST equal `"0.1.0"`. A cognition-event payload als
 
 ### PCR-003 JSON and lexical profile
 
-Records MUST contain only JSON values, finite IEEE 754 binary64 numbers, and Unicode scalar strings. Serialized JSON MUST reject duplicate member names at every level and lone UTF-16 surrogate code units before ordinary parsing erases that information. Schema validators operate on parsed values; lexical fixtures are normative for this pre-schema boundary.
+Records MUST contain only JSON values, finite IEEE 754 binary64 numbers, and Unicode scalar strings in both member names and values. Serialized JSON MUST reject duplicate member names at every level and lone UTF-16 surrogate code units before ordinary parsing erases that information. Schema validators operate on parsed values; lexical fixtures are normative for this pre-schema boundary.
 
 ### PCR-004 Depth boundary
 
@@ -26,7 +26,7 @@ The complete record MUST contain at most 256 nested JSON containers, counting th
 
 ### PCR-005 Cognitive object common fields
 
-A cognitive-object payload MUST contain non-whitespace `id`, `title`, and `contextId`; a positive integer `version`; RFC 3339 `createdAt` and `updatedAt`; exact attribution; one or more provenance entries; relationships; and an object `data`. `createdAt` MUST NOT be later than `updatedAt`. The payload is closed except for `data` and optional `extensions`.
+A cognitive-object payload MUST contain non-whitespace `id`, `title`, and `contextId`; a positive integer `version`; RFC 3339 `createdAt` and `updatedAt`; exact attribution; one or more provenance entries; relationships; and an object `data`. `createdAt` MUST NOT be later than `updatedAt`; instant comparison MUST preserve the declared offset and all 1–9 fractional-second digits. The payload is closed except for `data` and optional `extensions`.
 
 ### PCR-006 Type-state correlation
 
@@ -34,7 +34,7 @@ A cognitive-object payload MUST contain non-whitespace `id`, `title`, and `conte
 
 ### PCR-007 Open typed data
 
-`data` MUST be a JSON object. Known optional fields use these portable types: identity (`actorKind`, `displayName`); goal (`objective`, `description`, `successCriteria`); hypothesis (`statement`, `claim`, `scope`); experiment (`action`, `expectedOutcome`, `successCriteria`); evidence (`statement`, `evidenceKind`, `polarity`, `sourceActorId`, `project`); decision (`rationale`, `selectedOption`, `rejectedOptions`); and principle (`rule`, `rationale`). Other `data` members MAY contain JSON values but MUST NOT override core contract meaning.
+`data` MUST be a JSON object whose member names are Unicode scalar strings. Known optional fields use these portable types: identity (`actorKind`, `displayName`); goal (`objective`, `description`, `successCriteria`); hypothesis (`statement`, `claim`, `scope`); experiment (`action`, `expectedOutcome`, `successCriteria`); evidence (`statement`, `evidenceKind`, `polarity`, `sourceActorId`, `project`); decision (`rationale`, `selectedOption`, `rejectedOptions`); and principle (`rule`, `rationale`). Other `data` members MAY contain JSON values but MUST NOT override core contract meaning.
 
 ### PCR-008 Namespaced extensions
 
@@ -70,7 +70,7 @@ A transition-context payload MUST be closed and contain `eventId`, `occurredAt`,
 
 ### PCR-016 Human confirmation
 
-When a confirmation is present, it MUST be closed; its actor kind MUST be `human`, its event ID MUST equal the containing context event ID, and its confirmation time MUST NOT follow the context occurrence time. Its object ID and target state MUST be non-whitespace strings. This assertion is not authentication or proof of consent.
+When a confirmation is present, it MUST be closed; its actor kind MUST be `human`, its event ID MUST equal the containing event or context event ID, and its confirmation time MUST NOT follow the containing occurrence time using exact RFC 3339 instant comparison. In a cognition-event payload, confirmation `objectId` MUST equal event `objectId` and confirmation `targetState` MUST equal event `nextState`. In a standalone transition-context payload, object ID and target state MUST be non-whitespace strings but remain unbound because the target object and state are not present. This assertion is not authentication or proof of consent.
 
 ### PCR-017 Authorization decisions
 
@@ -78,11 +78,11 @@ An authorization decision MUST be exactly one closed shape: `{ "status": "allowe
 
 ### PCR-018 Domain error projection
 
-A domain-error payload MUST be closed and contain a current stable domain `code`, a non-whitespace `message`, and a JSON-object `details` map. It omits stack traces, causes, host paths, exception names, and arbitrary host exception text. Consumers MUST branch on `code`, not message wording.
+A domain-error payload MUST be closed and contain a current stable domain `code`, a non-whitespace `message`, and a JSON-object `details` map. The portable shape has no dedicated stack, cause, exception-name, or host-path fields, and the runtime does not automatically project caught exceptions into `message` or `details`. Those two fields are caller supplied and can contain arbitrary JSON strings, so hosts MUST filter secrets, paths, and operational details before creating a record. Consumers MUST branch on `code`, not message wording.
 
 ### PCR-019 Runtime isolation and immutability
 
-Runtime acceptance MUST validate first, clone accepted values, and deeply freeze the clone. Implementations MUST NOT retain mutable caller-owned references. Serialization MUST validate before encoding; malformed JSON text uses `SERIALIZATION_ERROR`.
+Runtime validation, creation, and serialization MUST each build one isolated JSON snapshot from own data-property descriptors without invoking accessors or inherited `toJSON` hooks. Reflection or snapshot failures MUST fail closed without exposing underlying exception text. Implementations MUST validate and serialize only that snapshot, MUST NOT reread or retain mutable caller-owned references, and MUST deeply freeze created records. Malformed JSON text uses `SERIALIZATION_ERROR`.
 
 ### PCR-020 Stable portable error classification
 

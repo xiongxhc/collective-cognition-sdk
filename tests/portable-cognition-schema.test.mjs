@@ -38,8 +38,15 @@ const requiredLexicalFixtureDescriptions = [
 const requiredRuntimeFixtureDescriptions = [
   "Portable Cognition record exceeds maximum JSON nesting depth",
   "createdAt follows updatedAt",
+  "event confirmation object ID mismatch",
+  "event confirmation target state mismatch",
+  "event human confirmation follows occurrence time",
   "human confirmation event ID mismatch",
   "human confirmation follows occurrence time",
+];
+
+const requiredSchemaFixtureDescriptions = [
+  "lone surrogate data key",
 ];
 
 test("Portable Cognition schema compiles in strict Draft 2020-12 mode", () => {
@@ -72,6 +79,9 @@ test("invalid fixtures declare lexical and runtime boundaries", () => {
   const runtimeFixtures = fixtures.filter(
     (fixture) => fixture.validationLayer === "runtime",
   );
+  const schemaFixtures = fixtures.filter(
+    (fixture) => fixture.validationLayer === undefined,
+  );
   assert.deepEqual(
     lexicalFixtures.map((fixture) => fixture.description).sort(),
     requiredLexicalFixtureDescriptions.sort(),
@@ -80,6 +90,12 @@ test("invalid fixtures declare lexical and runtime boundaries", () => {
     runtimeFixtures.map((fixture) => fixture.description).sort(),
     requiredRuntimeFixtureDescriptions.sort(),
   );
+  for (const description of requiredSchemaFixtureDescriptions) {
+    assert.ok(
+      schemaFixtures.some((fixture) => fixture.description === description),
+      description,
+    );
+  }
 
   for (const fixture of lexicalFixtures) {
     assert.equal(typeof fixture.recordJson, "string");

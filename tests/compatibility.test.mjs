@@ -40,7 +40,7 @@ const currentBaselineUrl = new URL(
 const expectedHistoricalBaselineSha256 =
   "4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b";
 const expectedCurrentBaselineSha256 =
-  "430b26b2379307b533534acd9dc2d7d7a9d8856f28d2c6e4be2c6812b71f16fa";
+  "3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4";
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -375,9 +375,20 @@ test("normative machine artifacts match exact digests", () => {
   );
 });
 
-test("normative prose exposes every stable rule identifier", () => {
+test("normative prose matches its hash and stable rule identifiers", () => {
   const baseline = readJson(currentBaselineUrl);
 
+  assert.equal(
+    sha256(
+      readFileSync(
+        new URL(
+          baseline.normative.portableCognition.prosePath,
+          repositoryRoot,
+        ),
+      ),
+    ),
+    baseline.normative.portableCognition.proseSha256,
+  );
   assert.deepEqual(
     ruleIds("spec/source-record.md", "SR"),
     baseline.normative.sourceRecord.ruleIds,

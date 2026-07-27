@@ -28,7 +28,7 @@ The historical team-memory direct-to-Evidence path was replaced. The current con
 - Read the normative [`SourceRecord 0.1.0` contract](source-record.md) and its [`JSON Schema`](schemas/0.1.0/source-record.schema.json).
 - Read the normative [`Portable Cognition 0.1.0` contract](portable-cognition.md), its [`JSON Schema`](schemas/0.1.0/portable-cognition.schema.json), and its [conformance fixtures](conformance/0.1.0/portable-cognition/).
 - Read the normative [compatibility policy](compatibility.md), [baseline `0.1.0`](compatibility/0.1.0/baseline.json), and [change cases](compatibility/0.1.0/change-cases.jsonl).
-- Run `node --test tests/schema-conformance.test.mjs` for schema conformance.
+- Run `npm run test:schema` for the combined SourceRecord and Portable Cognition schema gate; `pack:check` and npm prepack inherit it.
 - Run `node --test tests/conformance.test.ts` for the canonical SourceRecord suite.
 - Run `npm run build` and `npm run test:compatibility` for baseline checks.
 - Inspect [`conformance/0.1.0/source-record/valid.jsonl`](conformance/0.1.0/source-record/valid.jsonl) and [`conformance/0.1.0/source-record/invalid.jsonl`](conformance/0.1.0/source-record/invalid.jsonl).
@@ -58,7 +58,7 @@ The invalid corpus covers every machine-checkable rule `SR-001` through `SR-011`
 
 `portable-cognition.md` defines the Normative Stable serialized exchange contract for cognitive objects, cognition events, transition contexts, authorization decisions, and serializable domain errors. `schemas/0.1.0/portable-cognition.schema.json` is its language-neutral Draft 2020-12 structural contract. The package exposes the schema at `collective-cognition-sdk/schemas/portable-cognition/0.1.0` and its valid, invalid, and cognitive-loop fixtures through versioned conformance subpaths.
 
-The contract provides an envelope and runtime codec, not persistence, event publication, identity authentication, authorization-policy execution, connector packaging, runtime policy, or security policy. Confirmation metadata remains an assertion rather than proof of a human approval. The next active Phase 3 slice is host integration contracts for host-owned persistence and publication.
+The contract provides an envelope and runtime codec, not persistence, event publication, identity authentication, authorization-policy execution, connector packaging, runtime policy, or security policy. Confirmation metadata remains an assertion rather than proof of a human approval. The domain-error shape has no dedicated stack, cause, exception-name, or path fields, and the runtime does not automatically project caught exceptions; caller-supplied `message` and `details` still require host filtering for secrets, paths, and operational details. `npm run test:schema` runs this schema suite together with SourceRecord conformance. The next active Phase 3 slice is host integration contracts for host-owned persistence and publication.
 
 ## Normative Compatibility Baselines
 

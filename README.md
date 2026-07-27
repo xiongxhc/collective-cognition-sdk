@@ -114,7 +114,7 @@ npm run test:package
 npm run pack:check
 ```
 
-`npm run test:schema` compiles the SourceRecord schema in strict Draft 2020-12 mode and checks the normative fixture corpus. `npm run test:compatibility` checks the compatibility baseline’s exact inventories, hashes, policy identities, CLI contract, and declared additive and breaking change cases; it does not decide semantic compatibility automatically. `npm run test:package` imports the built root, checks the exact runtime export allowlist, rejects relative `.ts` specifiers in emitted modules, runs the built CLI, audits `npm pack --dry-run` against an exact file allowlist, and installs the packed artifact into a clean temporary project to verify default TypeScript consumer settings, package-name imports, schema-subpath discovery, compatibility-baseline resolution, and the installed `collective-cognition` binary. npm operations use an isolated temporary cache.
+`npm run test:schema` compiles both the SourceRecord and Portable Cognition schemas in strict Draft 2020-12 mode and checks both normative fixture corpora. `npm run pack:check` and npm prepack inherit this combined schema gate. `npm run test:compatibility` checks the compatibility baseline’s exact inventories, hashes, policy identities, CLI contract, and declared additive and breaking change cases; it does not decide semantic compatibility automatically. `npm run test:package` imports the built root, checks the exact runtime export allowlist, rejects relative `.ts` specifiers in emitted modules, runs the built CLI, audits `npm pack --dry-run` against an exact file allowlist, and installs the packed artifact into a clean temporary project to verify default TypeScript consumer settings, package-name imports, schema-subpath discovery, compatibility-baseline resolution, and the installed `collective-cognition` binary. npm operations use an isolated temporary cache.
 
 Installed consumers can import the schema through the versioned package subpath:
 
@@ -171,8 +171,9 @@ npm run --silent teammem:export -- --db /path/to/ledger.db --limit 5 --include-r
 Run the canonical conformance suite directly:
 
 ```bash
-node --test tests/schema-conformance.test.mjs
+npm run test:schema
 node --test tests/conformance.test.ts
+node --disable-warning=ExperimentalWarning --test tests/portable-cognition-conformance.test.ts
 ```
 
 `npm run example` prints an attributed complete chain, a rejected unconfirmed decision approval, a successful human-confirmed approval, and the successful event count.
@@ -230,7 +231,7 @@ Production callers must inject a policy backed by authenticated identity and tru
 
 ## Semantic Limits
 
-SourceRecord `0.1.0` and Portable Cognition `0.1.0` have normative language-neutral schemas and fixtures. Portable Cognition provides an exchange record only: it neither persists nor publishes a record, and it does not authenticate a confirmation or execute authorization policy. Type-specific cognitive-object `data` payloads remain permissive JSON-compatible structures; host integration contracts, stricter per-type semantics, adapters, runtime policy, and security policy remain deferred.
+SourceRecord `0.1.0` and Portable Cognition `0.1.0` have normative language-neutral schemas and fixtures. Portable Cognition provides an exchange record only: it neither persists nor publishes a record, and it does not authenticate a confirmation or execute authorization policy. Its domain-error shape has no dedicated stack, cause, exception-name, or path fields, and runtime boundary failures do not automatically project caught exceptions; `message` and `details` are caller supplied, so hosts must filter secrets, paths, and operational details before creating records. Type-specific cognitive-object `data` payloads remain permissive JSON-compatible structures; host integration contracts, stricter per-type semantics, adapters, runtime policy, and security policy remain deferred.
 
 The project does not claim universal compatibility, production readiness, or broad adoption. Those claims require a stable package, independently implemented connectors, and real-team evidence.
 

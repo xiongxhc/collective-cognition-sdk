@@ -129,6 +129,7 @@
     },
     "identityData": {
       "type": "object",
+      "propertyNames": { "$ref": "#/$defs/scalarString" },
       "properties": {
         "actorKind": { "enum": ["human", "agent", "team", "organization"] },
         "displayName": { "$ref": "#/$defs/scalarString" }
@@ -137,6 +138,7 @@
     },
     "goalData": {
       "type": "object",
+      "propertyNames": { "$ref": "#/$defs/scalarString" },
       "properties": {
         "objective": { "$ref": "#/$defs/scalarString" },
         "description": { "$ref": "#/$defs/scalarString" },
@@ -146,6 +148,7 @@
     },
     "hypothesisData": {
       "type": "object",
+      "propertyNames": { "$ref": "#/$defs/scalarString" },
       "properties": {
         "statement": { "$ref": "#/$defs/scalarString" },
         "claim": { "$ref": "#/$defs/scalarString" },
@@ -155,6 +158,7 @@
     },
     "experimentData": {
       "type": "object",
+      "propertyNames": { "$ref": "#/$defs/scalarString" },
       "properties": {
         "action": { "$ref": "#/$defs/scalarString" },
         "expectedOutcome": { "$ref": "#/$defs/scalarString" },
@@ -164,6 +168,7 @@
     },
     "evidenceData": {
       "type": "object",
+      "propertyNames": { "$ref": "#/$defs/scalarString" },
       "properties": {
         "statement": { "$ref": "#/$defs/scalarString" },
         "evidenceKind": { "$ref": "#/$defs/scalarString" },
@@ -175,6 +180,7 @@
     },
     "decisionData": {
       "type": "object",
+      "propertyNames": { "$ref": "#/$defs/scalarString" },
       "properties": {
         "rationale": { "$ref": "#/$defs/scalarString" },
         "selectedOption": { "$ref": "#/$defs/scalarString" },
@@ -184,6 +190,7 @@
     },
     "principleData": {
       "type": "object",
+      "propertyNames": { "$ref": "#/$defs/scalarString" },
       "properties": {
         "rule": { "$ref": "#/$defs/scalarString" },
         "rationale": { "$ref": "#/$defs/scalarString" }
@@ -202,7 +209,11 @@
         "version": { "type": "integer", "minimum": 1 },
         "state": { "$ref": "#/$defs/nonWhitespaceString" },
         "title": { "$ref": "#/$defs/nonWhitespaceString" },
-        "data": { "type": "object", "additionalProperties": { "$ref": "#/$defs/jsonValue" } },
+        "data": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/scalarString" },
+          "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+        },
         "createdAt": { "$ref": "#/$defs/timestamp" },
         "updatedAt": { "$ref": "#/$defs/timestamp" },
         "attribution": { "$ref": "#/$defs/attribution" },

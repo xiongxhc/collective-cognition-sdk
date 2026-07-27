@@ -107,7 +107,7 @@ export function deserializePortableCognitionRecord(
 ): PortableCognitionRecord;
 ```
 
-The runtime clones and deeply freezes accepted input. It never retains caller-owned mutable references. Serialization validates before encoding. Deserialization uses the existing profiled JSON parser so duplicate member names and lone surrogate strings are rejected before normal parsing can erase the distinction.
+Validation, creation, and serialization each capture one JSON snapshot through own data-property descriptors without invoking accessors or inherited `toJSON` hooks. Semantic validation and serialization consume only that snapshot, so stateful callers are not reread. Reflection and snapshot failures use the stable portable error without underlying exception text. Creation restores ordinary JSON container prototypes, deeply freezes the accepted snapshot, and never retains caller-owned mutable references. Deserialization uses the existing profiled JSON parser so duplicate member names and lone surrogate strings are rejected before normal parsing can erase the distinction.
 
 Portable-contract failures use a new stable code:
 
@@ -184,6 +184,8 @@ The cognition-event payload preserves:
 - one or more provenance references; and
 - optional human confirmation.
 
+When event confirmation is present, its event ID, object ID, and target state bind respectively to the event ID, object ID, and next state. Confirmation and occurrence timestamps compare exact RFC 3339 instants across offsets and all 1–9 fractional-second digits.
+
 The schema enumerates the supported lifecycle edges. It rejects same-state events, unsupported jumps, event types inconsistent with the target state, and states belonging to a different object type.
 
 The event records an accepted transition. It does not prove durable persistence, publication, authentication, or downstream delivery.
@@ -245,9 +247,9 @@ The domain-error payload is a closed serializable projection:
 }
 ```
 
-`code` uses the package's complete current domain-error inventory plus `INVALID_PORTABLE_COGNITION_RECORD`. `message` is a non-whitespace human-readable summary. `details` is a JSON object.
+`code` uses the package's complete current domain-error inventory plus `INVALID_PORTABLE_COGNITION_RECORD`. `message` is a non-whitespace human-readable summary. `details` is a JSON object. Both are caller supplied.
 
-Error message wording is not a compatibility identity. Consumers branch on `code` and may inspect documented detail fields. Stack traces, causes, host paths, and runtime exception names are not portable fields.
+Error message wording is not a compatibility identity. Consumers branch on `code` and may inspect documented detail fields. The shape has no dedicated stack, cause, host-path, or runtime-exception-name fields, and the runtime does not automatically project caught exceptions. Hosts must filter secrets, paths, and operational details from caller-supplied messages and details before creating records.
 
 ## Schema and Conformance Artifacts
 
@@ -289,12 +291,13 @@ Tests prove:
 4. schema-layer invalid fixtures fail both schema and runtime validation with `INVALID_PORTABLE_COGNITION_RECORD`;
 5. lexical fixtures fail deserialization without leaking parser details;
 6. the depth-256 boundary passes and depth 257 fails before recursive processing;
-7. every accepted runtime record is isolated and deeply frozen;
-8. serialize-deserialize round trips preserve exact JSON meaning;
+7. validation, creation, and serialization consume one own-descriptor snapshot without invoking inherited getters or `toJSON`, and reflection failures remain secret-safe;
+8. every accepted runtime record is isolated and deeply frozen, and serialize-deserialize round trips preserve exact JSON meaning;
 9. the complete cognitive-loop fixture contains linked objects and events covering all seven object types and every record family;
 10. existing SourceRecord and runtime tests remain green;
 11. packed artifacts contain exact approved schema, prose, fixtures, RFC, and compatibility files; and
-12. a clean installed consumer can resolve the schema and fixtures and use the runtime API.
+12. `test:schema`, `pack:check`, and prepack run both SourceRecord and Portable Cognition schema suites; and
+13. a clean installed consumer can resolve the schema and fixtures and use the runtime API.
 
 Schema-validator error wording and ordering are not portable API.
 
@@ -315,7 +318,7 @@ New package subpaths expose:
 Compatibility baseline `0.2.0`:
 
 - preserves and hashes baseline `0.1.0`;
-- records Portable Cognition Contract rule IDs and artifact hashes;
+- records Portable Cognition Contract rule IDs plus exact schema, fixture, and normative-prose hashes;
 - records the additive runtime and type exports;
 - records package `0.2.0` metadata and exact emitted files;
 - records the new stable portable error code;
@@ -329,7 +332,8 @@ The current baseline test is generalized so immutable historical baselines are v
 - Portable confirmation metadata is an assertion, not authentication.
 - Agents cannot satisfy a human confirmation by labeling themselves as human through an SDK operation.
 - Schema validation does not establish actor identity, consent, authorization provenance, access rights, or organizational approval.
-- Error projections omit stack traces, causes, source paths, and arbitrary exception text.
+- The error shape has no dedicated stack, cause, exception-name, or path fields, and runtime boundary failures do not automatically project caught exceptions.
+- Error messages and details are caller supplied; hosts must filter secrets, paths, and operational details before creating records.
 - Open `data` values do not receive authority over lifecycle, attribution, provenance, relationships, events, or authorization.
 - Hosts remain responsible for access control, secret filtering, retention, deletion policy, and trusted persistence.
 

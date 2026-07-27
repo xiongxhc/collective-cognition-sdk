@@ -436,7 +436,7 @@ test("schema-layer fixtures have identical schema and runtime outcomes", () => {
   const visitedInvalidFixtures: string[] = [];
 
   assert.equal(expectedValidRecords.length, 11);
-  assert.equal(expectedSchemaInvalidFixtures.length, 16);
+  assert.equal(expectedSchemaInvalidFixtures.length, 17);
   assert.deepEqual(
     sharedSchemaInvalidFixtures.map((fixture) => fixture.description).sort(),
     expectedSchemaInvalidFixtures.map((fixture) => fixture.description).sort(),
