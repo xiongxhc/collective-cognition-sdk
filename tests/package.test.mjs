@@ -25,7 +25,7 @@ const typescriptCli = fileURLToPath(
   new URL("../node_modules/typescript/bin/tsc", import.meta.url),
 );
 const validFixturesUrl = new URL(
-  "../spec/fixtures/source-records/valid.jsonl",
+  "../spec/conformance/0.1.0/source-record/valid.jsonl",
   import.meta.url,
 );
 
@@ -150,6 +150,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       types: "./dist/index.d.ts",
       import: "./dist/index.js",
     },
+    "./schemas/source-record/0.1.0":
+      "./spec/schemas/0.1.0/source-record.schema.json",
     "./package.json": "./package.json",
   });
   assert.deepEqual(packageJson.bin, {
@@ -186,8 +188,10 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/README.md",
     "spec/README.md",
-    "spec/fixtures/source-records/invalid.jsonl",
-    "spec/fixtures/source-records/valid.jsonl",
+    "spec/conformance/0.1.0/source-record/invalid.jsonl",
+    "spec/conformance/0.1.0/source-record/valid.jsonl",
+    "spec/schemas/0.1.0/source-record.schema.json",
+    "spec/source-record.md",
   ].sort();
 
   assert.deepEqual(paths, expectedPaths, "package contents must match allowlist");

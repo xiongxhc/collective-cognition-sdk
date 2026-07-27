@@ -37,6 +37,7 @@ import type { gitCommitToSourceRecord as rootGitCommitToSourceRecord } from "../
 
 interface InvalidFixture {
   readonly description: string;
+  readonly ruleId: string;
   readonly expectedCode: string;
   readonly record: unknown;
 }
@@ -50,11 +51,11 @@ interface CliItem {
 }
 
 const validFixtureUrl = new URL(
-  "../spec/fixtures/source-records/valid.jsonl",
+  "../spec/conformance/0.1.0/source-record/valid.jsonl",
   import.meta.url,
 );
 const invalidFixtureUrl = new URL(
-  "../spec/fixtures/source-records/invalid.jsonl",
+  "../spec/conformance/0.1.0/source-record/invalid.jsonl",
   import.meta.url,
 );
 
@@ -150,6 +151,11 @@ test("accepts every canonical valid SourceRecord fixture through SDK and CLI", (
 
 test("rejects every canonical invalid fixture with its expected code", () => {
   const fixtures = jsonLines<InvalidFixture>(fixtureText(invalidFixtureUrl));
+  fixtures.forEach((fixture) => {
+    assert.ok(fixture.description.trim().length > 0);
+    assert.ok(fixture.ruleId.trim().length > 0);
+    assert.equal(fixture.expectedCode, DomainErrorCode.INVALID_SOURCE_RECORD);
+  });
   const records = fixtures.map((fixture) => fixture.record);
   const jsonl = records.map((record) => JSON.stringify(record)).join("\n");
   const sdkResult = ingestSourceRecordText(jsonl, { format: "jsonl" });
