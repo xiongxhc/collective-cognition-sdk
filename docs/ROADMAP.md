@@ -83,12 +83,14 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** In progress.
+**Status:** In progress. The compatibility slice is delivered and verified; broader Phase 3 work remains.
 
 **Active next slice**
 
 - [x] SourceRecord-first normative conformance design approved.
 - [x] Implement the versioned SourceRecord schema, normative prose, fixtures, differential conformance tests, and packaged artifacts described in [`2026-07-27-source-record-normative-conformance-design.md`](superpowers/specs/2026-07-27-source-record-normative-conformance-design.md).
+- [x] Compatibility, versioning, and deprecation design approved.
+- [x] Compatibility, versioning, and deprecation slice delivered and verified.
 
 **Delivered in the SourceRecord normative-conformance slice**
 
@@ -108,6 +110,13 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Compatibility smoke tests for built imports, runtime exports, declaration specifiers, default TypeScript consumer settings, CLI behavior, exact dry-run tarball contents, and clean temporary consumer installation.
 - [x] A retained `"private": true` publication guard.
 
+**Delivered and verified in the compatibility, versioning, and deprecation slice**
+
+- [x] Normative [compatibility, versioning, and deprecation prose](../spec/compatibility.md) and [RFC 0002](../rfcs/0002-compatibility-versioning-and-deprecation.md).
+- [x] Compatibility baseline `0.1.0`, change cases, and the stable `collective-cognition-sdk/compatibility/0.1.0` package subpath.
+- [x] Exact baseline checks for runtime and type exports, selected package metadata, declaration closure, generic CLI behavior, domain error codes, policy identities, and normative artifact digests.
+- [x] One additive and one breaking process example.
+
 **Delivered in the licensing and attribution slice**
 
 - [x] Apache License 2.0 with the official license text.
@@ -125,11 +134,10 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 - A language-neutral charter and normative definitions for objects, source records, relationships, transitions, authorization, errors, and events.
 - Additional versioned machine-readable schemas and normative fixtures beyond SourceRecord.
-- Compatibility, extension naming, versioning, and deprecation rules.
 - Host integration contracts for cognition persistence and event publication without selecting a mandatory database or service architecture.
-- Final stable package guarantees, API documentation, and external distribution readiness criteria.
-- A confirmed registry package name and publication approval process.
-- Supported-runtime and security policy.
+- Final stable package guarantees, API documentation, registry publication, and external-distribution readiness criteria.
+- Broader cognitive-object, relationship, transition, authorization, event, error, persistence, and connector schemas.
+- Runtime and security policy.
 
 **Acceptance checks**
 
@@ -138,7 +146,6 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - Persistence contracts keep source stores and cognition stores logically distinct and are testable through a host-supplied implementation.
 - Public exports and CLI behavior have compatibility tests.
 - Package dry-run verification includes only approved artifacts and publication remains blocked until every release gate is complete.
-- One sample additive change and one sample breaking change exercise the documented process.
 
 **Explicit deferrals**
 
@@ -200,7 +207,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 - No distributed consensus, real-time synchronization, arbitrary ecosystem guarantee, or certification claim for untested implementations.
 
-## Phase 6: Governance and Evolution
+## Phase 6: Operational Governance and Retirement Tooling
 
 **Status:** Planned.
 
@@ -212,14 +219,14 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 **Deliverables**
 
-- RFC-backed proposal, approval, conflict, learning, and policy-promotion workflows.
-- Extension registry rules, migration tooling, decision records, and deprecation enforcement.
+- RFC-backed proposal, approval, conflict, learning, and policy-promotion workflows that operationalize the Phase 3 compatibility policy rather than creating the first policy.
+- Extension registry rules, migration tooling, decision records, deprecation enforcement, and retirement tooling built on the Phase 3 policy.
 - Organization-configurable authorization policies compatible with core safety boundaries.
 - Connector maintenance, vulnerability, and retirement policy.
 
 **Acceptance checks**
 
-- One additive and one breaking semantic change complete the governance path.
+- Operational additive and breaking changes exercise the established governance and retirement path.
 - Migration tests preserve provenance and historical events.
 - Agents can recommend consequential changes but cannot self-confirm them.
 

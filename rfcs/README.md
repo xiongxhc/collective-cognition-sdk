@@ -2,9 +2,10 @@
 
 RFCs are the contribution path for changes that affect collective-cognition semantics, compatibility, governance, or more than one adapter. They turn design discussion into a reviewable decision with alternatives, consequences, and explicit deferrals.
 
-## Implemented RFCs
+## RFC Index
 
 - [RFC 0001: Universal Source-Record Ingestion](0001-universal-source-record-ingestion.md) — implemented and final-review verified in Phase 2 with closed immutable records, pre-parse limits, full-payload promotion identity, secret-safe diagnostics, privacy-default connectors, fail-closed authorization, canonical fixtures, and two source-specific connector implementations.
+- [RFC 0002: Compatibility, Versioning, and Deprecation](0002-compatibility-versioning-and-deprecation.md) — accepted; implementation is present and final verification is pending.
 
 ## When an RFC Is Required
 

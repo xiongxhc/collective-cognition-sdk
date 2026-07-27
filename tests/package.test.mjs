@@ -22,6 +22,10 @@ const distIndexUrl = new URL("../dist/index.js", import.meta.url);
 const distTypesUrl = new URL("../dist/index.d.ts", import.meta.url);
 const distCliUrl = new URL("../dist/cli.js", import.meta.url);
 const packageJsonUrl = new URL("../package.json", import.meta.url);
+const compatibilityBaselineUrl = new URL(
+  "../spec/compatibility/0.1.0/baseline.json",
+  import.meta.url,
+);
 const licenseUrl = new URL("../LICENSE", import.meta.url);
 const noticeUrl = new URL("../NOTICE", import.meta.url);
 const citationUrl = new URL("../CITATION.cff", import.meta.url);
@@ -143,6 +147,9 @@ test("built CLI executable validates canonical SourceRecord input", () => {
 
 test("npm package manifest and tarball expose only approved artifacts", () => {
   const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
+  const baseline = JSON.parse(
+    readFileSync(compatibilityBaselineUrl, "utf8"),
+  );
   assert.equal(
     packageJson.private,
     true,
@@ -156,6 +163,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       types: "./dist/index.d.ts",
       import: "./dist/index.js",
     },
+    "./compatibility/0.1.0":
+      "./spec/compatibility/0.1.0/baseline.json",
     "./schemas/source-record/0.1.0":
       "./spec/schemas/0.1.0/source-record.schema.json",
     "./package.json": "./package.json",
@@ -163,6 +172,14 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.deepEqual(packageJson.bin, {
     "collective-cognition": "./dist/cli.js",
   });
+  const actualEmittedFiles = emittedFiles(distRoot)
+    .map((path) => relative(repositoryRoot, path).replaceAll("\\", "/"))
+    .sort();
+  assert.deepEqual(
+    actualEmittedFiles,
+    baseline.package.emittedFiles,
+    "dist/ contents must match the immutable baseline inventory",
+  );
 
   const npmCache = mkdtempSync(join(tmpdir(), "ccsdk-npm-cache-"));
   let packed;
@@ -190,13 +207,15 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "LICENSE",
     "NOTICE",
     "README.md",
-    ...emittedFiles(distRoot).map((path) =>
-      relative(repositoryRoot, path).replaceAll("\\", "/"),
-    ),
+    ...baseline.package.emittedFiles,
     "package.json",
     "rfcs/0001-universal-source-record-ingestion.md",
+    "rfcs/0002-compatibility-versioning-and-deprecation.md",
     "rfcs/README.md",
     "spec/README.md",
+    "spec/compatibility.md",
+    "spec/compatibility/0.1.0/baseline.json",
+    "spec/compatibility/0.1.0/change-cases.jsonl",
     "spec/conformance/0.1.0/source-record/invalid.jsonl",
     "spec/conformance/0.1.0/source-record/valid.jsonl",
     "spec/schemas/0.1.0/source-record.schema.json",
@@ -259,8 +278,14 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
   writeFileSync(
     `${consumerRoot}/index.ts`,
     `import { createObject, type GoalData } from ${JSON.stringify(packageJson.name)};
+import compatibilityBaseline from ${JSON.stringify(`${packageJson.name}/compatibility/0.1.0`)}
+  with { type: "json" };
 import sourceRecordSchema from ${JSON.stringify(`${packageJson.name}/schemas/source-record/0.1.0`)}
   with { type: "json" };
+
+if (compatibilityBaseline.baselineVersion !== "0.1.0") {
+  throw new Error("installed compatibility baseline is not discoverable");
+}
 
 if (
   sourceRecordSchema.$id !==
@@ -382,6 +407,34 @@ createObject({
       importedSchema.stdout.trim(),
       "urn:collective-cognition:schema:source-record:0.1.0",
     );
+
+    const importedCompatibility = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        `import { readFile } from "node:fs/promises";
+const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.1.0`)});
+const baseline = JSON.parse(await readFile(new URL(baselineUrl), "utf8"));
+const changeCases = (await readFile(new URL("./change-cases.jsonl", baselineUrl), "utf8"))
+  .trim()
+  .split("\\n")
+  .map((line) => JSON.parse(line));
+console.log(JSON.stringify({
+  baselineVersion: baseline.baselineVersion,
+  classifications: changeCases.map((changeCase) => changeCase.classification),
+}));`,
+      ],
+      {
+        cwd: consumerRoot,
+        encoding: "utf8",
+      },
+    );
+    assert.equal(importedCompatibility.status, 0, importedCompatibility.stderr);
+    assert.deepEqual(JSON.parse(importedCompatibility.stdout.trim()), {
+      baselineVersion: "0.1.0",
+      classifications: ["additive", "breaking"],
+    });
 
     const executableName =
       process.platform === "win32"

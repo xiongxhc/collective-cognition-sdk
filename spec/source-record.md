@@ -2,7 +2,7 @@
 
 ## Status and Scope
 
-This document defines the experimental normative serialized contract for `SourceRecord` version `0.1.0`.
+This document defines the Normative Stable serialized contract for `SourceRecord` version `0.1.0`. The installable package remains Supported Experimental.
 
 A SourceRecord preserves material collected from an external source before cognitive interpretation:
 
@@ -19,7 +19,7 @@ The JSON Schema at [`schemas/0.1.0/source-record.schema.json`](schemas/0.1.0/sou
 - **Source system:** The external system or source category from which material was collected.
 - **Source item:** The logical item identified by `sourceId`.
 - **Source revision:** One immutable version of a source item identified by `revisionId`.
-- **Source revision key:** The ordered tuple of `source.system`, optional `source.instance`, `sourceId`, and `revisionId`.
+- **Source revision key:** The ordered tuple `(source.system, source.instance, sourceId, revisionId)`, where `source.instance` is optional.
 - **Accepted record:** A valid SourceRecord retained by an ingestion operation.
 - **Duplicate:** A record whose source revision key and canonical `mediaType` plus `content` match a retained record.
 - **Collision:** A record whose source revision key matches a retained record while canonical `mediaType` plus `content` differ.
@@ -57,6 +57,8 @@ A SourceRecord MUST be a JSON object. It MUST contain only the fields declared b
 ### SR-005 — Item and Revision Identity
 
 `sourceId` and `revisionId` MUST be present and MUST each contain at least one non-whitespace character.
+
+The source revision key MUST be the ordered tuple `(source.system, source.instance, sourceId, revisionId)`, with the optional `source.instance` retaining its tuple position.
 
 Collectors MUST issue a new `revisionId` when the source item's `mediaType` or `content` changes. An implementation MUST NOT overwrite an accepted record under an existing source revision key.
 
@@ -110,13 +112,13 @@ Optional `extensions` MUST be a JSON object. Every immediate extension key MUST 
 
 Implementations MUST NOT treat unsupported unnamespaced fields as extensions.
 
-## Ingestion and Immutability
+### SR-012 — Validation Before Acceptance and Accepted-Record Immutability
 
 An implementation MUST validate a record before acceptance. Once accepted, the record MUST be immutable or treated as immutable by the implementation.
 
-### Canonical Equality
+### SR-013 — Canonical Revision Equality
 
-Duplicate and collision classification MUST compare the canonical JSON value:
+Duplicate and collision classification MUST compare the canonical JSON value over the literal `mediaType` plus `content`:
 
 ```json
 {"mediaType":"the literal mediaType string","content":"the content value"}
@@ -148,13 +150,13 @@ For one source revision key:
 
 Ingestion MUST preserve accepted history and MUST NOT silently overwrite a collision.
 
-## Errors
+### SR-014 — Stable SourceRecord Errors
 
 Conforming validators and ingestion implementations MUST expose `INVALID_SOURCE_RECORD` for SourceRecord structural failures. Conforming ingestion implementations MUST expose `SOURCE_REVISION_COLLISION` when an existing source revision key has different canonical media type or content.
 
 Implementations MAY use different error envelopes, exception types, or result structures, but the applicable stable code MUST remain machine-readable. Human-readable messages, ordering, and validator-library paths are not portable API.
 
-## Compatibility
+### SR-015 — Immutable Versioned Artifacts
 
 The schema identifier is:
 
@@ -165,6 +167,8 @@ urn:collective-cognition:schema:source-record:0.1.0
 Editorial corrections that do not change accepted serialized values MAY update this prose without changing `schemaVersion`.
 
 Any change that alters which serialized records are accepted or rejected MUST use a new schema-version artifact and matching conformance fixtures. A released versioned schema artifact MUST NOT be silently repurposed.
+
+Versioned machine artifacts MUST remain byte-immutable. A changed normative machine artifact MUST use a new version that preserves the prior artifact.
 
 Namespaced extension values MAY evolve without adding fields to the core record.
 

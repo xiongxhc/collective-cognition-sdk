@@ -57,6 +57,8 @@ Rejected for ingestion because it loses a stable neutral boundary. Trusted calle
 
 ## Compatibility and Migration
 
+> **Historical note:** This RFC records the Phase 2 ingestion decision. Later compatibility, versioning, and deprecation evolution is governed by [RFC 0002](0002-compatibility-versioning-and-deprecation.md) and the normative [compatibility policy](../spec/compatibility.md).
+
 - The cognitive-object TypeScript API remains runnable.
 - Team-memory-specific root exports and direct row-to-Evidence mapping were removed before any stable compatibility promise.
 - The team-memory reader emits source records; neutral Evidence creation is an explicit promotion operation.

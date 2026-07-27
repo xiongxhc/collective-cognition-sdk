@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -75,6 +76,44 @@ function runCli(
   };
 }
 
+async function runCliWithClosedStdout(
+  args: readonly string[],
+  input: string,
+): Promise<CliResult> {
+  const child = spawn(
+    process.execPath,
+    [
+      "--disable-warning=ExperimentalWarning",
+      "src/cli.ts",
+      ...args,
+    ],
+    {
+      cwd: process.cwd(),
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  );
+  let stdout = "";
+  let stderr = "";
+  let stdoutClosed = false;
+
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk: string) => {
+    stdout += chunk;
+    if (!stdoutClosed) {
+      stdoutClosed = true;
+      child.stdout.destroy();
+    }
+  });
+  child.stderr.on("data", (chunk: string) => {
+    stderr += chunk;
+  });
+  child.stdin.end(input);
+
+  const [status] = await once(child, "close") as [number | null];
+  return { status, stdout, stderr };
+}
+
 function jsonLines(text: string): unknown[] {
   return text
     .trim()
@@ -84,7 +123,7 @@ function jsonLines(text: string): unknown[] {
 }
 
 function singleDiagnostic(result: CliResult): CliDiagnostic {
-  assert.notEqual(result.status, 0);
+  assert.equal(result.status, 1);
   assert.equal(result.stdout, "");
   const diagnostics = jsonLines(result.stderr) as CliDiagnostic[];
   assert.equal(diagnostics.length, 1, result.stderr);
@@ -217,6 +256,182 @@ test("ingest reads stdin and suppresses duplicate source revisions", () => {
   assert.deepEqual(jsonLines(result.stdout), [record]);
 });
 
+test("validate exposes accepted and duplicate shapes only on stdout", () => {
+  const record = sourceRecord();
+  const result = runCli(
+    ["validate", ...ingestionArguments("-")],
+    `${JSON.stringify(record)}\n${JSON.stringify(record)}\n`,
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, "");
+  assert.deepEqual(jsonLines(result.stdout), [
+    {
+      index: 0,
+      line: 1,
+      status: "accepted",
+      record,
+    },
+    {
+      index: 1,
+      line: 2,
+      status: "duplicate",
+      record,
+      retainedRecordId: record.id,
+    },
+  ]);
+});
+
+test("CLI parser rejects every argument-form branch structurally", () => {
+  const validInput = `${JSON.stringify(sourceRecord())}\n`;
+  const completePromotion = promotionArguments("-");
+  const cases: ReadonlyArray<{
+    readonly name: string;
+    readonly args: readonly string[];
+  }> = [
+    { name: "missing command", args: [] },
+    { name: "unknown command", args: ["unknown"] },
+    {
+      name: "positional argument",
+      args: ["validate", "input", "-", "--format", "jsonl"],
+    },
+    {
+      name: "unknown option",
+      args: [
+        "validate",
+        "--input",
+        "-",
+        "--format",
+        "jsonl",
+        "--unknown",
+        "value",
+      ],
+    },
+    {
+      name: "missing option value",
+      args: ["validate", "--input", "-", "--format"],
+    },
+    {
+      name: "duplicate option",
+      args: [
+        "validate",
+        "--input",
+        "-",
+        "--input",
+        "-",
+        "--format",
+        "jsonl",
+      ],
+    },
+    {
+      name: "missing required option",
+      args: ["validate", "--format", "jsonl"],
+    },
+    {
+      name: "blank required value",
+      args: ["validate", "--input", " ", "--format", "jsonl"],
+    },
+    {
+      name: "unsupported format",
+      args: ["validate", "--input", "-", "--format", "yaml"],
+    },
+    {
+      name: "invalid positive limit",
+      args: [
+        "validate",
+        ...ingestionArguments("-", { limits: { maxRecords: 0 } }),
+      ],
+    },
+    {
+      name: "promotion option on non-promotion command",
+      args: [
+        "validate",
+        ...ingestionArguments("-"),
+        "--policy",
+        "neutral-evidence-v1",
+      ],
+    },
+    {
+      name: "unsupported policy",
+      args: [
+        "promote",
+        ...completePromotion.map((value) =>
+          value === "neutral-evidence-v1" ? "other-policy" : value
+        ),
+      ],
+    },
+  ];
+
+  for (const cliCase of cases) {
+    const diagnostic = singleDiagnostic(
+      runCli(cliCase.args, validInput),
+    );
+    assert.equal(diagnostic.code, "INVALID_ARGUMENT", cliCase.name);
+    assert.equal(diagnostic.stage, "arguments", cliCase.name);
+  }
+});
+
+test("CLI reports source revision collisions on stderr and exits one", () => {
+  const retained = sourceRecord();
+  const collision = sourceRecord({
+    id: "source-record:cli-collision",
+    content: { summary: "Changed content under the same revision key." },
+  });
+  const result = runCli(
+    ["validate", ...ingestionArguments("-")],
+    `${JSON.stringify(retained)}\n${JSON.stringify(collision)}\n`,
+  );
+
+  assert.equal(result.status, 1);
+  const output = jsonLines(result.stdout) as Array<{
+    readonly status: string;
+    readonly error?: {
+      readonly code: string;
+      readonly message: string;
+      readonly details: Record<string, unknown>;
+    };
+  }>;
+  assert.equal(output.length, 2);
+  assert.equal(output[0]?.status, "accepted");
+  assert.deepEqual(Object.keys(output[1] ?? {}).sort(), [
+    "error",
+    "index",
+    "line",
+    "status",
+  ]);
+  assert.equal(output[1]?.status, "rejected");
+  assert.equal(output[1]?.error?.code, "SOURCE_REVISION_COLLISION");
+  assert.deepEqual(jsonLines(result.stderr), [output[1]]);
+});
+
+test("closed stdout emits one sanitized CLI_ERROR diagnostic", async () => {
+  const secret = "BROKEN_PIPE_SOURCE_CONTENT_MUST_NOT_LEAK";
+  const record = sourceRecord({ content: { summary: secret } });
+  const input = `${JSON.stringify(record)}\n`.repeat(20_000);
+  const result = await runCliWithClosedStdout(
+    [
+      "validate",
+      ...ingestionArguments("-", {
+        limits: { maxRecords: 20_000 },
+      }),
+    ],
+    input,
+  );
+
+  assert.equal(result.status, 1);
+  assert.deepEqual(jsonLines(result.stderr), [
+    {
+      code: "CLI_ERROR",
+      message: "CLI operation failed.",
+      details: {},
+      stage: "output",
+    },
+  ]);
+  assert.equal(result.stderr.includes(secret), false);
+  assert.equal(result.stderr.includes(process.cwd()), false);
+  assert.doesNotMatch(result.stderr, /\b(?:Error:|at file:|at writeJsonLine)\b/);
+});
+
 test("promotion requires every explicit interpretation argument", () => {
   withInputFile(`${JSON.stringify(sourceRecord())}\n`, (path) => {
     const requiredFlags = [
@@ -340,7 +555,7 @@ test("ingest-promote preserves mixed ingestion results when promotion fails", ()
         ...promotionArguments(path, { promotedAt: "not-an-iso-timestamp" }),
       ]);
 
-      assert.notEqual(result.status, 0);
+      assert.equal(result.status, 1);
       const [composed] = jsonLines(result.stdout) as Array<{
         ingestion: {
           items: Array<{
@@ -476,7 +691,7 @@ test("malformed JSONL produces item output and item diagnostics", () => {
         ...ingestionArguments(path),
       ]);
 
-      assert.notEqual(result.status, 0);
+      assert.equal(result.status, 1);
       const items = jsonLines(result.stdout) as Array<{
         line: number;
         status: string;
@@ -507,7 +722,7 @@ test("CLI parser and input diagnostics never expose distinctive secrets", () => 
     `{"value": ${parserSecret}}\n`,
   );
 
-  assert.notEqual(parserResult.status, 0);
+  assert.equal(parserResult.status, 1);
   assert.equal(parserResult.stdout.includes(parserSecret), false);
   assert.equal(parserResult.stderr.includes(parserSecret), false);
 
@@ -516,7 +731,7 @@ test("CLI parser and input diagnostics never expose distinctive secrets", () => 
     "validate",
     ...ingestionArguments(`/missing/${pathSecret}.jsonl`),
   ]);
-  assert.notEqual(inputResult.status, 0);
+  assert.equal(inputResult.status, 1);
   assert.equal(inputResult.stdout, "");
   assert.equal(inputResult.stderr.includes(pathSecret), false);
 });
