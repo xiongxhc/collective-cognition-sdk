@@ -68,6 +68,19 @@ const machineCheckableRuleIds = [
   "PCR-018",
 ];
 
+const requiredLexicalFixtureDescriptions = [
+  "duplicate envelope member name",
+  "duplicate nested data member name",
+  "lone surrogate data string",
+];
+
+const requiredRuntimeFixtureDescriptions = [
+  "Portable Cognition record exceeds maximum JSON nesting depth",
+  "createdAt follows updatedAt",
+  "human confirmation event ID mismatch",
+  "human confirmation follows occurrence time",
+];
+
 test("Portable Cognition schema compiles in strict Draft 2020-12 mode", () => {
   assert.equal(typeof compileSchema(), "function");
 });
@@ -94,12 +107,30 @@ test("invalid fixtures declare lexical and runtime boundaries", () => {
     [...new Set(invalidFixtures.map((fixture) => fixture.ruleId))].sort(),
     machineCheckableRuleIds.sort(),
   );
-  assert.ok(
-    invalidFixtures.some((fixture) => fixture.validationLayer === "lexical"),
+  const lexicalFixtures = invalidFixtures.filter(
+    (fixture) => fixture.validationLayer === "lexical",
   );
-  assert.ok(
-    invalidFixtures.some((fixture) => fixture.validationLayer === "runtime"),
+  const runtimeFixtures = invalidFixtures.filter(
+    (fixture) => fixture.validationLayer === "runtime",
   );
+  assert.deepEqual(
+    lexicalFixtures.map((fixture) => fixture.description).sort(),
+    requiredLexicalFixtureDescriptions.sort(),
+  );
+  assert.deepEqual(
+    runtimeFixtures.map((fixture) => fixture.description).sort(),
+    requiredRuntimeFixtureDescriptions.sort(),
+  );
+
+  for (const fixture of lexicalFixtures) {
+    assert.equal(typeof fixture.recordJson, "string");
+    assert.equal(fixture.record, undefined);
+  }
+
+  for (const fixture of runtimeFixtures) {
+    assert.notEqual(fixture.record, undefined);
+    assert.equal(fixture.recordJson, undefined);
+  }
 
   for (const fixture of invalidFixtures) {
     assert.equal(fixture.expectedCode, "INVALID_PORTABLE_COGNITION_RECORD");
