@@ -165,6 +165,15 @@ test("rejects duplicate members and lone surrogates during deserialization", () 
   }
 });
 
+test("deep valid JSON deserialization fails with a stable domain error", () => {
+  const nestedContent =
+    `${"[".repeat(10_000)}null${"]".repeat(10_000)}`;
+  const json =
+    `{"schemaVersion":"0.1.0","id":"source-record:deep","source":{"system":"fixture"},"sourceId":"item:deep","revisionId":"revision:deep","capturedAt":"2026-07-24T10:00:00Z","mediaType":"application/json","content":${nestedContent}}`;
+
+  expectInvalidSourceRecord(() => deserializeSourceRecord(json));
+});
+
 test("serializes and deserializes source records without semantic loss", () => {
   const record = createSourceRecord(inputFor({ contentHash: "sha256:abc" }));
   const restored = deserializeSourceRecord(serializeSourceRecord(record));

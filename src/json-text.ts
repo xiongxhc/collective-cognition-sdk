@@ -14,12 +14,11 @@ function isWhitespace(character: string | undefined): boolean {
 export function parseProfiledJson(text: string): unknown {
   const value: unknown = JSON.parse(text);
   let index = 0;
-
-  function skipWhitespace(): void {
-    while (isWhitespace(text[index])) {
-      index += 1;
-    }
-  }
+  const containers: Array<
+    | { readonly kind: "array" }
+    | { readonly kind: "object"; readonly keys: Set<string> }
+  > = [];
+  let previousToken: "open" | "comma" | "other" = "other";
 
   function parseStringToken(): string {
     const start = index;
@@ -44,80 +43,56 @@ export function parseProfiledJson(text: string): unknown {
     throw new SyntaxError("Unterminated JSON string.");
   }
 
-  function parseObject(): void {
-    index += 1;
-    skipWhitespace();
-    const keys = new Set<string>();
-    if (text[index] === "}") {
+  while (index < text.length) {
+    const character = text[index];
+    if (isWhitespace(character)) {
       index += 1;
-      return;
-    }
-    while (index < text.length) {
-      const key = parseStringToken();
-      if (keys.has(key)) {
-        throw new JsonTextProfileError(
-          "JSON objects must not contain duplicate member names.",
-        );
+    } else if (character === "{") {
+      containers.push({ kind: "object", keys: new Set<string>() });
+      previousToken = "open";
+      index += 1;
+    } else if (character === "[") {
+      containers.push({ kind: "array" });
+      previousToken = "open";
+      index += 1;
+    } else if (character === "}" || character === "]") {
+      containers.pop();
+      previousToken = "other";
+      index += 1;
+    } else if (character === ",") {
+      previousToken = "comma";
+      index += 1;
+    } else if (character === ":") {
+      previousToken = "other";
+      index += 1;
+    } else if (character === "\"") {
+      const decoded = parseStringToken();
+      const container = containers.at(-1);
+      if (
+        container?.kind === "object" &&
+        (previousToken === "open" || previousToken === "comma")
+      ) {
+        if (container.keys.has(decoded)) {
+          throw new JsonTextProfileError(
+            "JSON objects must not contain duplicate member names.",
+          );
+        }
+        container.keys.add(decoded);
       }
-      keys.add(key);
-      skipWhitespace();
-      index += 1;
-      parseValue();
-      skipWhitespace();
-      if (text[index] === "}") {
-        index += 1;
-        return;
-      }
-      index += 1;
-      skipWhitespace();
-    }
-  }
-
-  function parseArray(): void {
-    index += 1;
-    skipWhitespace();
-    if (text[index] === "]") {
-      index += 1;
-      return;
-    }
-    while (index < text.length) {
-      parseValue();
-      skipWhitespace();
-      if (text[index] === "]") {
-        index += 1;
-        return;
-      }
-      index += 1;
-      skipWhitespace();
-    }
-  }
-
-  function parsePrimitive(): void {
-    while (
-      index < text.length &&
-      !isWhitespace(text[index]) &&
-      text[index] !== "," &&
-      text[index] !== "]" &&
-      text[index] !== "}"
-    ) {
-      index += 1;
-    }
-  }
-
-  function parseValue(): void {
-    skipWhitespace();
-    if (text[index] === "{") {
-      parseObject();
-    } else if (text[index] === "[") {
-      parseArray();
-    } else if (text[index] === "\"") {
-      parseStringToken();
+      previousToken = "other";
     } else {
-      parsePrimitive();
+      while (
+        index < text.length &&
+        !isWhitespace(text[index]) &&
+        text[index] !== "," &&
+        text[index] !== "]" &&
+        text[index] !== "}"
+      ) {
+        index += 1;
+      }
+      previousToken = "other";
     }
   }
 
-  parseValue();
-  skipWhitespace();
   return value;
 }

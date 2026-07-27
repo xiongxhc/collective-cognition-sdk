@@ -317,6 +317,34 @@ test("canonical number vectors match RFC 8785 ECMAScript serialization", () => {
   );
 });
 
+test("deep valid JSON remains an item-level SourceRecord rejection", () => {
+  const nestedContent =
+    `${"[".repeat(10_000)}null${"]".repeat(10_000)}`;
+  const recordJson =
+    `{"schemaVersion":"0.1.0","id":"source-record:deep","source":{"system":"fixture"},"sourceId":"item:deep","revisionId":"revision:deep","capturedAt":"2026-07-24T10:00:00Z","mediaType":"application/json","content":${nestedContent}}`;
+
+  const sdkResult = ingestSourceRecordText(recordJson, { format: "jsonl" });
+  assert.equal(sdkResult.items[0]?.status, "rejected");
+  assert.equal(
+    sdkResult.items[0]?.status === "rejected"
+      ? sdkResult.items[0].error.code
+      : undefined,
+    DomainErrorCode.INVALID_SOURCE_RECORD,
+  );
+
+  const cliResult = runValidate(recordJson, "jsonl");
+  assert.notEqual(cliResult.status, 0);
+  const cliItem = jsonLines<CliItem>(cliResult.stdout)[0];
+  const cliDiagnostic = jsonLines<CliItem>(cliResult.stderr)[0];
+  assert.equal(cliItem?.status, "rejected");
+  assert.equal(cliItem?.error?.code, DomainErrorCode.INVALID_SOURCE_RECORD);
+  assert.equal(cliDiagnostic?.status, "rejected");
+  assert.equal(
+    cliDiagnostic?.error?.code,
+    DomainErrorCode.INVALID_SOURCE_RECORD,
+  );
+});
+
 test("team-memory and Git connectors satisfy the same SourceRecord contract", () => {
   const teamMemoryInput: TeamMemoryEventRow = {
     id: 1,
