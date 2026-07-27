@@ -72,6 +72,9 @@ const CLI_PROMOTION_REQUIRED_OPTION_NAMES = [
 ] as const;
 
 export const CLI_CONTRACT = {
+  formats: CLI_INPUT_FORMATS,
+  baseOptionNames: CLI_BASE_OPTION_NAMES,
+  promotionOptionNames: CLI_PROMOTION_OPTION_NAMES,
   commands: {
     validate: {
       options: CLI_BASE_OPTION_NAMES,
@@ -90,8 +93,111 @@ export const CLI_CONTRACT = {
       requiredOptions: CLI_PROMOTION_REQUIRED_OPTION_NAMES,
     },
   },
-  formats: CLI_INPUT_FORMATS,
   defaults: CLI_DEFAULTS,
+  outputs: {
+    validate: {
+      channel: "stdout",
+      framing: "jsonl",
+      cardinality: "one-per-ingestion-item",
+      variants: {
+        accepted: {
+          requiredFields: ["index", "status", "record"],
+          optionalFields: ["line"],
+        },
+        duplicate: {
+          requiredFields: [
+            "index",
+            "status",
+            "record",
+            "retainedRecordId",
+          ],
+          optionalFields: ["line"],
+        },
+        rejected: {
+          requiredFields: ["index", "status", "error"],
+          optionalFields: ["line"],
+          errorFields: ["code", "message", "details"],
+        },
+      },
+    },
+    ingest: {
+      channel: "stdout",
+      framing: "jsonl",
+      cardinality: "one-per-accepted-record",
+      requiredFields: [
+        "schemaVersion",
+        "id",
+        "source",
+        "sourceId",
+        "revisionId",
+        "capturedAt",
+        "mediaType",
+        "content",
+      ],
+      optionalFields: [
+        "observedAt",
+        "contentHash",
+        "actorId",
+        "context",
+        "extensions",
+      ],
+      sourceRequiredFields: ["system"],
+      sourceOptionalFields: ["instance"],
+    },
+    promote: {
+      channel: "stdout",
+      framing: "jsonl",
+      cardinality: "exactly-one-on-success",
+      requiredFields: [
+        "id",
+        "type",
+        "version",
+        "state",
+        "title",
+        "data",
+        "createdAt",
+        "updatedAt",
+        "attribution",
+        "provenance",
+        "contextId",
+        "relationships",
+        "extensions",
+      ],
+      objectType: "evidence",
+    },
+    "ingest-promote": {
+      channel: "stdout",
+      framing: "jsonl",
+      cardinality: "exactly-one-after-ingestion",
+      requiredFields: ["ingestion", "promotion"],
+      ingestionFields: ["items", "acceptedRecords"],
+      promotionVariants: {
+        succeeded: ["status", "evidence"],
+        failed: ["status", "error"],
+      },
+      promotionErrorFields: ["code", "message", "details"],
+    },
+    rejectedItemDiagnostics: {
+      channel: "stderr",
+      framing: "jsonl",
+      cardinality: "one-per-rejected-item",
+      requiredFields: ["index", "status", "error"],
+      optionalFields: ["line"],
+      errorFields: ["code", "message", "details"],
+    },
+    topLevelDiagnostic: {
+      channel: "stderr",
+      framing: "jsonl",
+      cardinality: "exactly-one-on-failure",
+      requiredFields: ["code", "message", "details", "stage"],
+    },
+    promotionFailureDiagnostic: {
+      channel: "stderr",
+      framing: "jsonl",
+      cardinality: "exactly-one-on-composed-promotion-failure",
+      requiredFields: ["code", "message", "details", "stage"],
+    },
+  },
   policySelectors: {
     [CLI_POLICY_SELECTOR]: {
       sdkExport: "neutralEvidencePolicyV1",

@@ -156,6 +156,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       types: "./dist/index.d.ts",
       import: "./dist/index.js",
     },
+    "./compatibility/0.1.0":
+      "./spec/compatibility/0.1.0/baseline.json",
     "./schemas/source-record/0.1.0":
       "./spec/schemas/0.1.0/source-record.schema.json",
     "./package.json": "./package.json",
@@ -195,8 +197,12 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     ),
     "package.json",
     "rfcs/0001-universal-source-record-ingestion.md",
+    "rfcs/0002-compatibility-versioning-and-deprecation.md",
     "rfcs/README.md",
     "spec/README.md",
+    "spec/compatibility.md",
+    "spec/compatibility/0.1.0/baseline.json",
+    "spec/compatibility/0.1.0/change-cases.jsonl",
     "spec/conformance/0.1.0/source-record/invalid.jsonl",
     "spec/conformance/0.1.0/source-record/valid.jsonl",
     "spec/schemas/0.1.0/source-record.schema.json",

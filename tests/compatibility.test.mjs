@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
+  mkdirSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
+  rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import {
   isExportDeclaration,
@@ -24,7 +30,7 @@ const baselineUrl = new URL(
   import.meta.url,
 );
 const expectedBaselineSha256 =
-  "ea499789bd822a2dcdaf9d2c440af8810d1b50ff6018aba6ea3fa13d25405644";
+  "dde45bec9f8a20ace35b188267ff78a1c36ff5ee01d2411d32f02634559dbc10";
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -105,32 +111,71 @@ function sourceTypeExports() {
   return sorted(names);
 }
 
-function declarationClosure() {
-  const distUrl = new URL("../dist/", import.meta.url);
-  const declarations = new Map(
-    readdirSync(distUrl)
-      .filter((name) => name.endsWith(".d.ts"))
-      .map((name) => [`./${name.replace(/\.d\.ts$/, ".js")}`, name]),
+function declarationFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap(
+    (entry) => {
+      const path = join(directory, entry.name);
+      return entry.isDirectory()
+        ? declarationFiles(path)
+        : /\.d\.(?:ts|mts|cts)$/.test(entry.name)
+          ? [path]
+          : [];
+    },
   );
-  const declarationPaths = [...declarations.values()].map((name) =>
-    fileURLToPath(new URL(name, distUrl))
-  );
+}
+
+function runtimePathForDeclaration(path) {
+  return path
+    .replace(/\.d\.ts$/, ".js")
+    .replace(/\.d\.mts$/, ".mjs")
+    .replace(/\.d\.cts$/, ".cjs");
+}
+
+function declarationClosure(
+  distUrl = new URL("../dist/", import.meta.url),
+  pathPrefix = "dist",
+) {
+  const distPath = fileURLToPath(distUrl);
+  const declarationPaths = declarationFiles(distPath);
+  const declarations = new Map();
+
+  declarationPaths.forEach((declarationPath) => {
+    const declarationUrl = pathToFileURL(declarationPath);
+    const runtimePath = runtimePathForDeclaration(declarationPath);
+    const runtimeUrl = pathToFileURL(runtimePath);
+    declarations.set(declarationUrl.href, declarationPath);
+    declarations.set(runtimeUrl.href, declarationPath);
+    declarations.set(
+      pathToFileURL(runtimePath.replace(/\.(?:mjs|cjs|js)$/, "")).href,
+      declarationPath,
+    );
+    if (/[/\\]index\.d\.(?:ts|mts|cts)$/.test(declarationPath)) {
+      declarations.set(
+        pathToFileURL(dirname(declarationPath)).href,
+        declarationPath,
+      );
+    }
+  });
+
   const api = new API({ cwd: fileURLToPath(repositoryRoot) });
   const snapshot = api.updateSnapshot({ openFiles: declarationPaths });
-  const pending = ["index.d.ts"];
+  const entryPath = join(distPath, "index.d.ts");
+  const pending = [entryPath];
   const visited = new Set();
 
   try {
     while (pending.length > 0) {
-      const name = pending.pop();
-      if (visited.has(name)) {
+      const declarationPath = pending.pop();
+      if (visited.has(declarationPath)) {
         continue;
       }
-      visited.add(name);
+      visited.add(declarationPath);
 
-      const declarationUrl = new URL(name, distUrl);
-      const declarationPath = fileURLToPath(declarationUrl);
-      assert.ok(statSync(declarationUrl).isFile(), `${name} must be a file`);
+      const declarationUrl = pathToFileURL(declarationPath);
+      assert.ok(
+        statSync(declarationPath).isFile(),
+        `${declarationPath} must be a file`,
+      );
       const project = snapshot.getDefaultProjectForFile(declarationPath);
       assert.ok(project, declarationPath);
       const sourceFile = project.program.getSourceFile(declarationPath);
@@ -143,8 +188,20 @@ function declarationClosure() {
           statement.moduleSpecifier &&
           isStringLiteral(statement.moduleSpecifier)
         ) {
-          const target = declarations.get(statement.moduleSpecifier.text);
-          if (target && !visited.has(target)) {
+          const specifier = statement.moduleSpecifier.text;
+          if (!specifier.startsWith(".")) {
+            return;
+          }
+          const target = declarations.get(
+            new URL(specifier, declarationUrl).href,
+          );
+          if (target === undefined) {
+            throw new Error(
+              `unresolved relative declaration target ${specifier} from ` +
+                relative(distPath, declarationPath),
+            );
+          }
+          if (!visited.has(target)) {
             pending.push(target);
           }
         }
@@ -155,7 +212,12 @@ function declarationClosure() {
     api.close();
   }
 
-  return sorted([...visited].map((name) => `dist/${name}`));
+  return sorted(
+    [...visited].map((path) => {
+      const name = relative(distPath, path).replaceAll("\\", "/");
+      return pathPrefix.length > 0 ? `${pathPrefix}/${name}` : name;
+    }),
+  );
 }
 
 function declarationDigest(paths) {
@@ -173,6 +235,21 @@ function declarationDigest(paths) {
   });
 
   return hash.digest("hex");
+}
+
+function withDeclarationFixture(files, action) {
+  const root = mkdtempSync(join(tmpdir(), "ccsdk-declarations-"));
+
+  try {
+    Object.entries(files).forEach(([path, content]) => {
+      const filePath = join(root, path);
+      mkdirSync(dirname(filePath), { recursive: true });
+      writeFileSync(filePath, content, "utf8");
+    });
+    action(pathToFileURL(`${root}/`));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 }
 
 test("compatibility baseline has the initial version", () => {
@@ -267,6 +344,38 @@ test("root-reachable declaration closure matches exact digest", () => {
   assert.equal(
     declarationDigest(paths),
     baseline.package.declarations.sha256,
+  );
+});
+
+test("declaration closure resolves nested references and rejects missing targets", () => {
+  withDeclarationFixture(
+    {
+      "index.d.ts":
+        'export type { Public } from "./nested/public.js";\n',
+      "nested/public.d.ts":
+        'export type { Leaf } from "../shared/leaf.js";\n',
+      "shared/leaf.d.ts": "export interface Leaf {}\n",
+    },
+    (rootUrl) => {
+      assert.deepEqual(declarationClosure(rootUrl, ""), [
+        "index.d.ts",
+        "nested/public.d.ts",
+        "shared/leaf.d.ts",
+      ]);
+    },
+  );
+
+  withDeclarationFixture(
+    {
+      "index.d.ts":
+        'export type { Missing } from "./missing.js";\n',
+    },
+    (rootUrl) => {
+      assert.throws(
+        () => declarationClosure(rootUrl, ""),
+        /unresolved relative declaration target/,
+      );
+    },
   );
 });
 
