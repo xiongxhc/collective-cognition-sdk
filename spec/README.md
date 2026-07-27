@@ -46,7 +46,7 @@ The historical team-memory direct-to-Evidence path was replaced. The current con
 
 The invalid corpus covers every machine-checkable rule `SR-001` through `SR-011`, including lossless lexical cases for duplicate member names and lone surrogates and a runtime-layer depth-257 fixture for the schema-inexpressible recursive bound. The valid corpus includes the depth-256 boundary. The schema suite proves strict compilation and rejection of schema-layer fixtures even when `format` assertion is disabled. The runtime conformance suite verifies all fixtures through SDK and CLI outcomes plus equivalent canonical JSON and JSONL results. Focused runtime suites additionally enforce direct-object parity, immutable accepted values, revision collision behavior, bounded normalization, promotion identity, sanitized diagnostics, and fail-closed authorization. Connector tests prove team-memory defaults to raw omission and that team-memory and Git emit valid records under the same SourceRecord contract.
 
-Phase 3 remains in progress. SourceRecord is the first implemented normative language-neutral contract; the initial ESM build, declarations, package entrypoints, CLI contract, package-content checks, and clean-consumer schema discovery are also implemented. Broader cognitive-object, relationship, transition, authorization, event, error, persistence, compatibility, licensing, and security contracts remain planned.
+Phase 3 remains in progress. SourceRecord is the first implemented normative language-neutral contract; the initial ESM build, declarations, package entrypoints, CLI contract, package-content checks, clean-consumer schema discovery, Apache-2.0 license, attribution notice, and citation metadata are also implemented. Broader cognitive-object, relationship, transition, authorization, event, error, persistence, compatibility, and security contracts remain planned.
 
 ## Planned Normative Content
 
@@ -58,7 +58,7 @@ Specification work will add:
 - a mapping from every normative rule to an executable check or explicit prose-only rationale.
 - host integration contracts for cognition persistence and event publication without selecting one mandatory database.
 
-Package publication additionally requires an approved license, confirmed registry name, supported-runtime and security policies, final compatibility rules, and explicit human approval. The manifest retains `"private": true` until those gates are complete.
+Package publication still requires a confirmed registry name, supported-runtime and security policies, final compatibility rules, and explicit human approval. The manifest retains `"private": true` until those gates are complete.
 
 Implementation details specific to TypeScript, SQLite, Markdown, a UI, one connector, or one organization do not belong in the language-neutral core specification.
 

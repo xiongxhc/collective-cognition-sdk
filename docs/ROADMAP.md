@@ -108,6 +108,13 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Compatibility smoke tests for built imports, runtime exports, declaration specifiers, default TypeScript consumer settings, CLI behavior, exact dry-run tarball contents, and clean temporary consumer installation.
 - [x] A retained `"private": true` publication guard.
 
+**Delivered in the licensing and attribution slice**
+
+- [x] Apache License 2.0 with the official license text.
+- [x] A distributable `NOTICE` preserving project and copyright attribution.
+- [x] CFF 1.2.0 citation metadata for GitHub and research tooling.
+- [x] Package tests requiring the license, notice, and citation artifacts.
+
 **Entry criteria**
 
 - Phase 2 fixtures and contracts pass in the TypeScript implementation.
@@ -121,7 +128,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - Compatibility, extension naming, versioning, and deprecation rules.
 - Host integration contracts for cognition persistence and event publication without selecting a mandatory database or service architecture.
 - Final stable package guarantees, API documentation, and external distribution readiness criteria.
-- An explicitly selected license, confirmed registry package name, and publication approval process.
+- A confirmed registry package name and publication approval process.
 - Supported-runtime and security policy.
 
 **Acceptance checks**

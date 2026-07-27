@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Portable cognitive objects, provenance, lifecycle, and governance boundaries for long-term human-AI collaboration.",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -19,7 +20,10 @@
     "collective-cognition": "./dist/cli.js"
   },
   "files": [
+    "CITATION.cff",
     "dist/",
+    "LICENSE",
+    "NOTICE",
     "README.md",
     "rfcs/README.md",
     "rfcs/0001-universal-source-record-ingestion.md",

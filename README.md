@@ -2,9 +2,9 @@
 
 Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript reference implementation for attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, source system, or organizational beliefs.
 
-This is a public source repository. Its source, emitted ESM build, declarations, and CLI are runnable, but it is not yet an externally distributed or production-ready package. No open-source license has been selected yet.
+This is a public open-source repository licensed under [Apache License 2.0](LICENSE). Its source, emitted ESM build, declarations, and CLI are runnable, but it is not yet an externally distributed or production-ready package.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract and normative SourceRecord `0.1.0` schema are implemented, while broader cognitive schemas, final compatibility rules, licensing, security policy, and external distribution remain planned.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, normative SourceRecord `0.1.0` schema, open-source license, attribution notice, and citation metadata are implemented, while broader cognitive schemas, final compatibility rules, security policy, and external distribution remain planned.
 
 ## Current Status
 
@@ -30,7 +30,7 @@ Runnable now:
 Not implemented yet:
 
 - final stable package guarantees or external distribution;
-- an approved license, final registry package name, supported-runtime policy, or security policy;
+- a final registry package name, supported-runtime policy, or security policy;
 - normative schemas for cognitive objects, relationships, transitions, authorization, events, and errors;
 - persistence, services, UI, synchronization, or connector ecosystem;
 - Obsidian/Markdown integration;
@@ -110,7 +110,13 @@ import sourceRecordSchema from "collective-cognition-sdk/schemas/source-record/0
   with { type: "json" };
 ```
 
-The package manifest intentionally retains `"private": true`. Removing that guard requires an approved license, final registry name, compatibility and security policies, a clean package verification result, and explicit publication approval.
+The package manifest intentionally retains `"private": true` only as an npm publication guard. Removing it still requires a final registry name, compatibility and security policies, a clean package verification result, and explicit publication approval.
+
+## License, Attribution, and Citation
+
+Collective Cognition SDK is licensed under [Apache License 2.0](LICENSE). Distributions and derivative works must preserve the license and applicable attribution notices, including the project [`NOTICE`](NOTICE), as required by the license.
+
+If the SDK supports research, documentation, or another public work, please credit Collective Cognition SDK and link to this repository. Machine-readable citation metadata is available in [`CITATION.cff`](CITATION.cff); GitHub exposes it through the repository's **Cite this repository** action.
 
 ## Commands
 

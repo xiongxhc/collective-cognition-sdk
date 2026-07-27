@@ -83,7 +83,7 @@ The package allowlist contains only:
 
 The versioned SourceRecord schema subpath and normative artifacts were added by the subsequent SourceRecord conformance slice without widening the source-neutral runtime root.
 
-npm includes `package.json` automatically. A future license file will also be included by npm once one exists. Source files, tests, examples, local reports, planning documents, databases, vaults, and connector credentials must not enter the tarball.
+npm includes `package.json` automatically. The later licensing slice added the official Apache-2.0 `LICENSE`, project `NOTICE`, and `CITATION.cff` to the verified package allowlist. Source files, tests, examples, local reports, planning documents, databases, vaults, and connector credentials must not enter the tarball.
 
 ## CLI Contract
 
@@ -108,7 +108,7 @@ Package verification must prove:
 
 Removing `"private": true` is a separate consequential release decision. It requires:
 
-- an explicitly selected license and committed `LICENSE` file;
+- an explicitly selected license and committed `LICENSE` file — completed with Apache-2.0;
 - confirmation that `collective-cognition-sdk` is the intended registry name or selection of a scoped alternative;
 - a supported-runtime and security policy;
 - reviewed package API and compatibility rules;
