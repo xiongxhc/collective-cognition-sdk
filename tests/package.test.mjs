@@ -265,8 +265,14 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
   writeFileSync(
     `${consumerRoot}/index.ts`,
     `import { createObject, type GoalData } from ${JSON.stringify(packageJson.name)};
+import compatibilityBaseline from ${JSON.stringify(`${packageJson.name}/compatibility/0.1.0`)}
+  with { type: "json" };
 import sourceRecordSchema from ${JSON.stringify(`${packageJson.name}/schemas/source-record/0.1.0`)}
   with { type: "json" };
+
+if (compatibilityBaseline.baselineVersion !== "0.1.0") {
+  throw new Error("installed compatibility baseline is not discoverable");
+}
 
 if (
   sourceRecordSchema.$id !==
@@ -388,6 +394,34 @@ createObject({
       importedSchema.stdout.trim(),
       "urn:collective-cognition:schema:source-record:0.1.0",
     );
+
+    const importedCompatibility = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        `import { readFile } from "node:fs/promises";
+const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.1.0`)});
+const baseline = JSON.parse(await readFile(new URL(baselineUrl), "utf8"));
+const changeCases = (await readFile(new URL("./change-cases.jsonl", baselineUrl), "utf8"))
+  .trim()
+  .split("\\n")
+  .map((line) => JSON.parse(line));
+console.log(JSON.stringify({
+  baselineVersion: baseline.baselineVersion,
+  classifications: changeCases.map((changeCase) => changeCase.classification),
+}));`,
+      ],
+      {
+        cwd: consumerRoot,
+        encoding: "utf8",
+      },
+    );
+    assert.equal(importedCompatibility.status, 0, importedCompatibility.stderr);
+    assert.deepEqual(JSON.parse(importedCompatibility.stdout.trim()), {
+      baselineVersion: "0.1.0",
+      classifications: ["additive", "breaking"],
+    });
 
     const executableName =
       process.platform === "win32"
