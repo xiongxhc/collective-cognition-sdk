@@ -1,5 +1,7 @@
 import {
+  createTransitionContextSnapshot,
   evaluateAuthorization,
+  evaluateAuthorizationPolicy,
   validateTransitionRequest,
 } from "./authorization.ts";
 import type {
@@ -56,8 +58,14 @@ export function transitionObject<T extends ObjectType>(
     );
   }
 
-  validateTransitionRequest(object, targetState, context);
-  const authorization = policy(object, targetState, context);
+  const contextSnapshot = createTransitionContextSnapshot(context);
+  validateTransitionRequest(object, targetState, contextSnapshot);
+  const authorization = evaluateAuthorizationPolicy(
+    policy,
+    object,
+    targetState,
+    contextSnapshot,
+  );
   if (authorization.status === "confirmation_required") {
     throw new DomainError(
       DomainErrorCode.CONFIRMATION_REQUIRED,
@@ -74,15 +82,19 @@ export function transitionObject<T extends ObjectType>(
       ...object,
       version: object.version + 1,
       state: targetState,
-      updatedAt: context.occurredAt,
+      updatedAt: contextSnapshot.occurredAt,
       attribution: {
-        initiatorId: context.initiator.id,
-        executorId: context.executor.id,
-        accountableId: context.accountableParty.id,
+        initiatorId: contextSnapshot.initiator.id,
+        executorId: contextSnapshot.executor.id,
+        accountableId: contextSnapshot.accountableParty.id,
       },
     }),
   ) as CognitiveObject<T>;
-  const event = createCognitionEvent(nextObject, object.state, context);
+  const event = createCognitionEvent(
+    nextObject,
+    object.state,
+    contextSnapshot,
+  );
 
   return Object.freeze({ object: nextObject, event });
 }

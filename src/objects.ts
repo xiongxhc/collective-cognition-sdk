@@ -362,11 +362,10 @@ export function deserializeObject(json: string): CognitiveObject {
   let value: unknown;
   try {
     value = JSON.parse(json);
-  } catch (error) {
+  } catch {
     throw new DomainError(
       DomainErrorCode.SERIALIZATION_ERROR,
       "Serialized cognitive object is not valid JSON.",
-      { cause: error instanceof Error ? error.message : String(error) },
     );
   }
 

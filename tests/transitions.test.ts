@@ -436,6 +436,111 @@ test("honors an injected authorization denial", () => {
   assert.equal(object.version, 1);
 });
 
+test("passes an immutable context snapshot to injected authorization policies", () => {
+  const transitionContext = {
+    eventId: "event:authorization-snapshot",
+    occurredAt: "2026-07-24T11:00:00.000Z",
+    initiator: { id: "human:initiator", kind: "human" as const },
+    executor: { id: "agent:executor", kind: "agent" as const },
+    accountableParty: { id: "human:owner", kind: "human" as const },
+    automationMode: "automated" as const,
+    consequenceLevel: "routine" as const,
+    rationale: "Use the validated authorization snapshot.",
+  };
+  const policy: AuthorizationPolicy = (_object, _targetState, snapshot) => {
+    assert.notEqual(snapshot, transitionContext);
+    assert.equal(Object.isFrozen(snapshot), true);
+    assert.equal(Object.isFrozen(snapshot.initiator), true);
+    assert.equal(Object.isFrozen(snapshot.executor), true);
+    assert.equal(Object.isFrozen(snapshot.accountableParty), true);
+
+    transitionContext.occurredAt = "not-a-timestamp";
+    transitionContext.initiator.id = "human:mutated";
+    transitionContext.executor.id = "agent:mutated";
+    transitionContext.accountableParty.id = "human:mutated";
+    transitionContext.rationale = "";
+    return { status: "allowed" };
+  };
+
+  const result = transitionObject(
+    objectFor("goal"),
+    "active",
+    transitionContext,
+    policy,
+  );
+
+  assert.equal(result.object.updatedAt, "2026-07-24T11:00:00.000Z");
+  assert.deepEqual(result.object.attribution, {
+    initiatorId: "human:initiator",
+    executorId: "agent:executor",
+    accountableId: "human:owner",
+  });
+  assert.equal(
+    result.event.rationale,
+    "Use the validated authorization snapshot.",
+  );
+});
+
+test("fails closed when an authorization policy mutates its context", () => {
+  const object = objectFor("goal");
+  const policy: AuthorizationPolicy = (_object, _targetState, snapshot) => {
+    (snapshot.executor as { id: string }).id = "agent:attacker";
+    return { status: "allowed" };
+  };
+
+  assert.throws(
+    () =>
+      transitionObject(
+        object,
+        "active",
+        context({ eventId: "event:policy-mutation" }),
+        policy,
+      ),
+    (error: unknown) =>
+      error instanceof DomainError &&
+      error.code === DomainErrorCode.AUTHORIZATION_DENIED &&
+      error.message === "Authorization policy failed." &&
+      Object.keys(error.details).length === 0,
+  );
+  assert.equal(object.state, "draft");
+  assert.equal(object.version, 1);
+});
+
+test("accepts only exact closed authorization decisions", () => {
+  const invalidDecisions: readonly unknown[] = [
+    { status: "allow" },
+    { status: "allowed", reason: "Unexpected field." },
+    { status: "denied" },
+    { status: "denied", reason: "Denied.", extra: true },
+    {
+      status: "confirmation_required",
+      reason: "Confirmation required.",
+      requiredActorKind: "agent",
+    },
+    null,
+  ];
+
+  for (const decision of invalidDecisions) {
+    const policy = (() => decision) as AuthorizationPolicy;
+    assert.throws(
+      () =>
+        transitionObject(
+          objectFor("goal"),
+          "active",
+          context({ eventId: "event:invalid-policy-decision" }),
+          policy,
+        ),
+      (error: unknown) =>
+        error instanceof DomainError &&
+        error.code === DomainErrorCode.AUTHORIZATION_DENIED &&
+        error.message ===
+          "Authorization policy returned an invalid decision." &&
+        Object.keys(error.details).length === 0,
+      JSON.stringify(decision),
+    );
+  }
+});
+
 test("rejects confirmations replayed across objects, states, or events", () => {
   const activeGoal = transitionObject(
     objectFor("goal"),

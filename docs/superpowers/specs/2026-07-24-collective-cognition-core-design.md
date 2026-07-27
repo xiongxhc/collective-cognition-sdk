@@ -4,11 +4,13 @@
 
 **Status:** Implemented as private local reference source
 
+> Historical Phase 1 design record. Phase 2 universal ingestion is now implemented; current status and commands are in the [roadmap](../../ROADMAP.md) and repository [README](../../../README.md).
+
 ## Current Relationship to Universal Ingestion
 
-This document records the implemented Phase 1 cognitive core. The later [universal ingestion design](2026-07-24-universal-ingestion-design.md) adds a neutral `SourceRecord` boundary before cognitive interpretation.
+This document records the implemented Phase 1 cognitive core. The later [universal ingestion design](2026-07-24-universal-ingestion-design.md) added a neutral `SourceRecord` boundary before cognitive interpretation.
 
-The existing team-memory adapter was added as a real-data experiment after this core design. Its direct source-row-to-`Evidence` mapping is runnable current behavior but not the future root SDK contract. RFC 0001 tracks migration to `SourceRecord → explicit promotion → Evidence`.
+The original team-memory adapter was added as a real-data experiment after this core design. Its direct source-row-to-`Evidence` mapping was replaced in Phase 2 by `SourceRecord → explicit promotion → Evidence`; [RFC 0001](../../../rfcs/0001-universal-source-record-ingestion.md) records the implemented migration.
 
 ## Purpose
 
@@ -29,7 +31,7 @@ Phase 1 is complete when a local caller can:
 7. receive an auditable event for every successful state change;
 8. run automated tests demonstrating the preceding behavior.
 
-## Repository Shape
+## Historical Phase 1 Repository Shape
 
 ```text
 collective-cognition-sdk/
@@ -156,7 +158,7 @@ The default structural evaluator permits humans and agents to create drafts and 
 
 Agents may recommend these transitions but cannot structurally satisfy the human-confirmation requirement themselves. `HumanConfirmation` binds the asserted approval to `objectId`, `targetState`, and `eventId`, and confirmation chronology cannot follow the event.
 
-The default evaluator validates only asserted metadata: shape, chronology, human actor kind, and transition binding. It does not authenticate identity, prove consent, or verify an approval record. `transitionObject` accepts a public `AuthorizationPolicy` function so integrated or production callers can inject a policy backed by authenticated identity and trusted approval records. Such callers must not treat acceptance by the default evaluator as proof of actual human approval.
+The default evaluator validates only asserted metadata: shape, chronology, human actor kind, and transition binding. It does not authenticate identity, prove consent, or verify an approval record. `transitionObject` accepts a public `AuthorizationPolicy` function so integrated or production callers can inject a policy backed by authenticated identity and trusted approval records. Before policy invocation, the transition context is cloned, validated, and deeply frozen. Runtime policy output must be one exact closed decision shape, and only `allowed` proceeds; policy exceptions, mutation attempts, invalid statuses, extra fields, and malformed decisions fail closed with `AUTHORIZATION_DENIED`. Such callers must not treat acceptance by the default evaluator as proof of actual human approval.
 
 ## Event Flow
 
@@ -165,6 +167,7 @@ A caller submits an object, target state, transition context, and policy:
 ```text
 request
   → validate object and target transition
+  → snapshot and freeze transition context
   → evaluate authorization
   → require confirmation when applicable
   → create next immutable object version
@@ -226,14 +229,14 @@ Automated tests cover:
 
 Tests use deterministic IDs and timestamps supplied by the caller so assertions do not depend on wall-clock time or randomness.
 
-## Roadmap Placement
+## Historical Roadmap Placement
 
 The tracked roadmap now contains these phases:
 
 1. **Runnable cognitive core:** the implemented local object model, transitions, authorization, events, examples, and team-memory experiment.
-2. **Universal ingestion foundation:** add neutral source records, generic JSON/JSONL, explicit promotion, and connector boundaries.
+2. **Universal ingestion foundation:** the implemented neutral source records, generic JSON/JSONL, explicit promotion, and connector boundaries.
 3. **Specification and package stabilization:** publish normative schemas, conformance fixtures, stable exports, and distribution criteria.
-4. **Adapter ecosystem foundations:** migrate team-memory, add the Obsidian/Markdown adapter, and publish connector tooling.
+4. **Adapter ecosystem foundations:** maintain and package the already-migrated team-memory connector, add the Obsidian/Markdown adapter, and publish connector tooling.
 5. **Cross-connector interoperability:** prove independent connectors use the same generic ingestion semantics.
 6. **Governance and evolution:** govern extensions, migrations, authorization policies, and connector maintenance.
 7. **Real-team validation:** measure usefulness, reliability, and maintenance cost in opted-in teams.

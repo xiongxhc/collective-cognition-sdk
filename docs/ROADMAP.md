@@ -11,7 +11,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - Immutable, attributed cognitive objects for identities, goals, hypotheses, experiments, evidence, decisions, and principles.
 - Validated lifecycle transitions, auditable events, and structural human-confirmation checks.
 - JSON round trips, automated tests, and a complete cognitive-loop example.
-- A read-only team-memory SQLite experiment that maps selected rows directly to neutral collected evidence.
+- A historical read-only team-memory SQLite experiment that originally mapped selected rows directly to neutral collected evidence.
 
 **Verified commands**
 
@@ -23,13 +23,13 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 **Limits**
 
 - The repository is private reference source, not a published SDK.
-- Team-memory-specific root exports and direct Evidence mapping are experimental.
-- No persistence, service, UI, stable exports map, language-neutral schema, or universal ingestion contract exists yet.
+- The original team-memory-specific root exports and direct Evidence mapping were experimental and are superseded by Phase 2.
+- No persistence, service, UI, stable exports map, or complete language-neutral schema exists yet.
 - Type-specific `data` payloads remain permissive.
 
 ## Phase 2: Universal Ingestion Foundation
 
-**Status:** Architecture approved; draft RFC awaiting written review; implementation not started.
+**Status:** Complete and final-review verified as private local reference source.
 
 **Entry criteria**
 
@@ -39,24 +39,42 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 **Deliverables**
 
-- A versioned, source-neutral `SourceRecord` contract.
-- SDK validation plus canonical JSON and JSONL codecs.
-- Deterministic duplicate/collision classification and immutable source-revision semantics.
-- Explicit, versioned promotion from source records to Evidence.
-- A composed ingest-and-promote workflow that exposes both stages.
-- Stable item-level batch results and errors.
-- A generic CLI for validate, ingest, and promote operations.
-- Migration of team-memory into a connector that emits source records.
+- [x] A closed, versioned, source-neutral `SourceRecord` contract that clones and deeply freezes accepted external values.
+- [x] SDK validation plus canonical JSON and JSONL codecs.
+- [x] Deterministic duplicate/collision classification and immutable source-revision semantics.
+- [x] Explicit, versioned promotion from accepted unique source records to one Evidence object with collision rejection, immutable request/policy snapshots, required rationale, complete provenance, and canonical full-payload identity.
+- [x] A composed ingest-and-promote workflow that preserves ingestion and returns a discriminated promotion outcome.
+- [x] Discriminated item-level batch results, stable errors, and configurable SDK input/record limits.
+- [x] A generic bounded CLI for validate, ingest, promote, and ingest-promote operations with structured top-level diagnostics.
+- [x] Migration of team-memory into a connector that emits source records.
+- [x] A small Git commit fixture connector as the second source-specific conformance implementation.
 
 **Acceptance checks**
 
-- Valid and invalid canonical fixtures behave identically through SDK and CLI.
-- Identical source-revision keys and content classify as duplicates; key reuse with different content fails as a collision.
-- Changed content preserves prior revisions.
-- Promotion preserves source-record and policy links.
-- Valid ingestion remains observable when promotion fails.
-- Root exports contain no team-memory-specific API.
-- Every repository Markdown file describes the same current and target architecture.
+- [x] Valid and invalid canonical fixtures behave identically through SDK and CLI.
+- [x] Identical source-revision keys and content classify as duplicates; key reuse with different content fails as a collision.
+- [x] Changed content uses a new immutable revision identity; key reuse with changed content is rejected without overwriting retained records.
+- [x] Unknown top-level/source fields and unnamespaced extension keys are rejected; polarity, confidence, and authority are rejected in context while raw content remains source-preserving.
+- [x] Mutation of original inputs cannot change accepted ingestion results.
+- [x] Promotion preserves every source-record link, policy identity, and non-empty rationale.
+- [x] Valid ingestion remains observable as an explicit result when promotion fails.
+- [x] SDK and CLI enforce input-byte, record-count, and record-byte limits with `INGESTION_LIMIT_EXCEEDED`.
+- [x] File and stdin input share an incremental bounded reader; line/record limits run before parsing/normalization; parser, policy, and non-domain diagnostics are sanitized.
+- [x] Root exports contain no team-memory-specific API.
+- [x] Team-memory and a second source-specific Git fixture connector emit valid records under the same SourceRecord contract.
+- [x] Team-memory omits raw row content by default, supports explicit connector/CLI opt-in, and emits nested structured diagnostics.
+- [x] Transition authorization uses immutable context snapshots and accepts only exact closed decisions, failing policy errors and mutation closed.
+- [x] `contentHash` remains opaque caller-supplied metadata unless an external trust boundary verifies it.
+- [x] Every repository Markdown file is either current or explicitly historical.
+
+**Completion evidence**
+
+- `node --test tests/conformance.test.ts`
+- `npm test`
+- `npx tsc --noEmit`
+- `npm run check`
+- `npm run example`
+- A bounded default-privacy team-memory SourceRecord export validated and explicitly promoted through the generic CLI without raw row content or changes to source-ledger size or modification time.
 
 **Explicit deferrals**
 
@@ -69,13 +87,13 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 **Entry criteria**
 
 - Phase 2 fixtures and contracts pass in the TypeScript implementation.
-- At least one consumer exercises canonical ingestion without importing a source connector.
+- The generic CLI exercises canonical ingestion without importing a source connector.
 - Semantic ambiguities are captured as RFCs.
 
 **Deliverables**
 
 - A language-neutral charter and normative definitions for objects, source records, relationships, transitions, authorization, errors, and events.
-- Versioned machine-readable schemas and canonical conformance fixtures.
+- Versioned machine-readable schemas and normative, versioned, language-neutral conformance fixtures.
 - Compatibility, extension naming, versioning, and deprecation rules.
 - Stable package exports, build artifacts, API documentation, and external distribution readiness criteria.
 - Supported-runtime and security policy.

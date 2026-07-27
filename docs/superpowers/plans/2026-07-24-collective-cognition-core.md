@@ -19,7 +19,7 @@ The cognitive core is deterministic and side-effect free:
 - JSON-compatible serialization;
 - no production dependencies.
 
-A separate experimental adapter opens team-memory SQLite read-only and maps selected rows directly to neutral collected Evidence. That mapping is current runnable behavior, not the future universal ingestion contract.
+A separate experimental adapter opened team-memory SQLite read-only and mapped selected rows directly to neutral collected Evidence. That historical Phase 1 mapping was replaced by the Phase 2 universal ingestion contract.
 
 ## Completed Work
 
@@ -46,7 +46,7 @@ A separate experimental adapter opens team-memory SQLite read-only and maps sele
 - `teamMemoryEventToEvidence`
 - `teammem:export`
 
-The final two APIs and CLI command are explicitly experimental and source-specific.
+The final two APIs and CLI command were explicitly experimental and source-specific. Phase 2 removed the source-specific root API and changed `teammem:export` to emit SourceRecord JSONL.
 
 ## Preserved Safety Boundaries
 
@@ -61,11 +61,11 @@ The final two APIs and CLI command are explicitly experimental and source-specif
 
 The [universal ingestion design](../specs/2026-07-24-universal-ingestion-design.md) and [RFC 0001](../../../rfcs/0001-universal-source-record-ingestion.md) supersede the idea that a source-specific direct-to-Evidence adapter belongs in the root public SDK.
 
-The next implementation plan must:
+The completed and final-review-verified Phase 2 implementation:
 
-1. introduce neutral `SourceRecord` validation and JSON/JSONL codecs;
-2. add explicit, versioned promotion to Evidence;
-3. move team-memory behind the connector boundary;
-4. replace source-specific root exports with generic ingestion contracts;
-5. preserve a documented migration path for current experimental commands;
-6. keep all Markdown documentation synchronized with implementation status.
+1. introduced closed neutral `SourceRecord` validation, cloned deep-frozen ingestion, and bounded JSON/JSONL codecs;
+2. added explicit, versioned one-or-more-record promotion to Evidence with required rationale and complete provenance;
+3. moved team-memory behind the connector boundary;
+4. replaced source-specific root exports with generic ingestion contracts and a bounded structured-diagnostic CLI;
+5. documented the migration of experimental commands;
+6. synchronized current Markdown while retaining this file as a historical Phase 1 record.

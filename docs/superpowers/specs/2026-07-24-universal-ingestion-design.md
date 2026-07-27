@@ -2,18 +2,18 @@
 
 **Date:** 2026-07-24  
 **Architecture direction:** Approved  
-**Written specification status:** Draft for review
+**Implementation status:** Implemented and final-review verified in Phase 2
 
 ## Problem
 
-The current reference implementation exposes a team-memory SQLite reader and maps source rows directly into `Evidence`. That proves the core can consume real data, but it is not a universal SDK boundary:
+The Phase 1 reference implementation exposed a team-memory SQLite reader and mapped source rows directly into `Evidence`. That proved the core could consume real data, but it was not a universal SDK boundary:
 
 - a source record is not automatically evidence;
 - direct conversion embeds one team's schema and interpretation in the root API;
 - requiring every team to write TypeScript adapters creates an adoption barrier;
 - connector-specific dependencies and release cycles should not control the semantic core.
 
-The SDK needs one source-neutral entrypoint that works for files, APIs, databases, messages, commits, tickets, documents, agents, and future systems without assigning cognitive meaning during collection.
+Phase 2 implements one source-neutral entrypoint that works with canonical records from files, APIs, databases, messages, commits, tickets, documents, agents, and future systems without assigning cognitive meaning during collection.
 
 ## Decision
 
@@ -26,7 +26,7 @@ external source
   → CognitiveObject
 ```
 
-Every item entering through the ingestion boundary becomes an immutable `SourceRecord` before it can become `Evidence` or another cognitive object. A convenience workflow may perform ingestion and promotion in one caller operation, but the implementation must still produce and link both artifacts.
+Every accepted item entering through the ingestion boundary becomes a cloned, deeply frozen `SourceRecord` before it can become `Evidence` or another cognitive object. A convenience workflow may perform ingestion and promotion in one caller operation, but the implementation must still produce and link both artifacts.
 
 Callers that already possess a semantically complete cognitive object may use the core object API directly. They do not need to wrap that object in a `SourceRecord`.
 
@@ -64,7 +64,7 @@ A team writes its own connector only when its source cannot emit canonical recor
 
 ## SourceRecord Boundary
 
-The first normative schema will include these concepts:
+The implemented schema version `0.1.0` includes:
 
 ```ts
 interface SourceRecord {
@@ -87,16 +87,18 @@ interface SourceRecord {
 }
 ```
 
-The exact schema remains subject to RFC review and implementation feedback. The boundary must preserve these invariants:
+The boundary preserves these invariants:
 
 - `id` is an opaque SDK record identity.
 - `source.system`, optional `source.instance`, and `sourceId` identify the upstream item.
-- `revisionId` identifies one immutable upstream revision; an upstream version is preferred, with a canonical content digest as the fallback.
+- `revisionId` identifies one immutable upstream revision; callers choose the upstream version or other stable revision identity.
 - `capturedAt` records ingestion time; `observedAt` records source time when available.
 - `mediaType` declares how to interpret `content`.
-- `content` preserves the caller-authorized source material or a stable structured descriptor; large or restricted payloads may be represented by an integrity-bound reference.
-- `contentHash`, when supplied, verifies content rather than defining semantic truth.
-- source context and extensions remain JSON-compatible and namespaced where necessary.
+- `content` preserves the caller-authorized source material or a stable structured descriptor; large or restricted payloads may be represented by a caller-designated reference.
+- `contentHash` is opaque caller-supplied integrity metadata. The SDK does not validate digest syntax or verify that the value matches `content`; verification belongs to an external trust boundary.
+- source context and extensions remain JSON-compatible, and every extension key contains `:` or `.` with non-empty namespace and local-name sides.
+- top-level and `source` objects are closed. Direct `context` keys named `polarity`, `confidence`, or `authority` are rejected, while raw source `content` may preserve fields with those names.
+- accepted external values are captured once through own data-property descriptors into a bounded plain JSON snapshot, then normalized and deeply frozen without rereading caller-owned input, so later mutation cannot change ingestion results.
 - the tuple `(source.system, source.instance, sourceId, revisionId)` is the logical idempotency key.
 - receiving the same key and canonical content is a duplicate, while receiving the same key with different canonical content is a collision error.
 - a changed source revision creates a distinct immutable record or version; it never silently overwrites history.
@@ -114,15 +116,19 @@ Promotion is an explicit interpretation operation. Its input includes:
 - a named, versioned mapping policy;
 - a rationale and timestamp.
 
-The first implementation promotes source records to `Evidence`. Additional target types require their own accepted semantics rather than a generic arbitrary-object mapper.
+The first implementation promotes one or more source records together into one `Evidence` object. Direct promotion reruns duplicate/collision classification and `EvidencePromotionPolicy.map` receives only the accepted unique, cloned, deeply frozen records. Additional target types require their own accepted semantics rather than a generic arbitrary-object mapper.
 
 Promotion must:
 
 - preserve links to every contributing source record;
 - identify the mapping policy and version;
+- reject empty policy IDs, empty policy versions, empty record sets, and blank rationales;
 - validate the resulting cognitive object through normal core rules;
 - preserve accountable human or organizational attribution;
-- return structured errors without partially emitting results.
+- return structured errors without partially emitting results;
+- snapshot and freeze validated policy identity, request fields, attribution, rationale, and records before invoking `map`;
+- capture mapping output exactly once through own data-property descriptors inside the secret-safe policy boundary, reject accessors and unsupported fields, and validate/use only the plain frozen snapshot;
+- derive Evidence identity from a SHA-256 hash of canonical JSON containing the complete validated payload: records, context, hypothesis, policy identity, rationale, attribution, timestamp, and mapping output.
 
 Promotion must not:
 
@@ -142,7 +148,7 @@ ingest source
   → validate and emit Evidence
 ```
 
-This is orchestration, not a collapsed data model. Output and events must make both steps observable. A failed promotion must not invalidate or conceal a valid source record.
+This is orchestration, not a collapsed data model. Output and events must make both steps observable. A failed promotion must not invalidate or conceal a valid source record. The SDK result contains the successful `ingestion` plus a discriminated `promotion` result; any exception raised after ingestion becomes a structured promotion failure instead of escaping the composed call.
 
 ## Logical Module Boundaries
 
@@ -159,33 +165,54 @@ Exact package names and exports are deferred until the package-surface compatibi
 
 ## Generic CLI Direction
 
-The future CLI supports source-neutral workflows conceptually equivalent to:
+The implemented `cc` CLI supports:
 
 ```bash
-collective-cognition ingest --input records.jsonl
-collective-cognition validate --input records.jsonl
-collective-cognition promote --input records.jsonl --policy evidence-policy.json
+npm run --silent cc -- validate --input records.jsonl --format jsonl
+npm run --silent cc -- ingest --input records.jsonl --format jsonl
+npm run --silent cc -- promote --input records.jsonl --format jsonl \
+  --policy neutral-evidence-v1 \
+  --hypothesis-id hypothesis:delivery-risk \
+  --context-id organization:team \
+  --rationale "These records jointly document the delivery change." \
+  --initiator-id human:owner \
+  --executor-id agent:importer \
+  --accountable-id human:owner \
+  --promoted-at 2026-07-24T12:00:00.000Z
+npm run --silent cc -- ingest-promote --input records.jsonl --format jsonl \
+  --policy neutral-evidence-v1 \
+  --hypothesis-id hypothesis:delivery-risk \
+  --context-id organization:team \
+  --rationale "These records jointly document the delivery change." \
+  --initiator-id human:owner \
+  --executor-id agent:importer \
+  --accountable-id human:owner \
+  --promoted-at 2026-07-24T12:00:00.000Z
 ```
 
-Connector commands may produce canonical JSONL:
+The team-memory connector produces canonical JSONL:
 
 ```bash
-collective-cognition connector team-memory --db ledger.db
+npm run --silent teammem:export -- --db ledger.db --limit 5
 ```
 
 The generic CLI is intended for operators, CI jobs, scheduled tasks, data migration, and teams that do not want to embed the TypeScript API. Applications, agents, connector authors, and platform teams use the SDK API directly.
 
-Command names are illustrative until the CLI contract is implemented and tested.
+`validate` emits item results, `ingest` emits accepted unique SourceRecords, `promote` emits one neutral Evidence object preserving every accepted unique record, and `ingest-promote` emits one result containing serialized ingestion plus a discriminated promotion outcome. JSON and JSONL input may come from a file or stdin.
+
+The CLI accepts `--max-input-bytes`, `--max-records`, and `--max-record-bytes`, with finite defaults `10485760`, `10000`, and `1048576`. Files and stdin use one incremental bounded reader. JSONL line size is enforced before `JSON.parse`, and record size is enforced before validation, normalization, or cloning.
 
 ## Team-Memory Migration
 
-The current team-memory adapter remains a runnable compatibility experiment. It will migrate as follows:
+The team-memory experiment is migrated:
 
 1. SQLite rows map to `SourceRecord`, not directly to `Evidence`.
-2. A separate explicit promotion policy maps selected records to neutral collected evidence.
-3. The connector moves out of the root export surface.
-4. Existing direct-export behavior remains documented as experimental until replaced or deprecated.
-5. Integration with `team-memory-agent` or its LaunchAgent remains separate work; this repository currently does not modify scheduled team-vault output.
+2. The separate `neutral-evidence-v1` policy maps selected records to neutral collected evidence.
+3. The connector is imported directly from `src/adapters/team-memory.ts` and is absent from the root export surface.
+4. `teammem:export` now emits SourceRecord JSONL and no longer accepts hypothesis or context mapping arguments.
+5. Team-memory SourceRecords omit `row.raw` by default. Connector callers use `{ includeRaw: true }`, and CLI callers use `--include-raw`, only when raw retention is explicitly authorized.
+6. `example:teammem` demonstrates default raw omission and explicit promotion after collection.
+7. Integration with `team-memory-agent` or its LaunchAgent remains separate work; this repository does not modify scheduled team-vault output.
 
 This migration proves the generic boundary against a real source without making team-memory a universal dependency.
 
@@ -199,7 +226,7 @@ Batch operations return item-level results:
 - composed ingestion and promotion report the two stages independently;
 - callers choose whether a batch is fail-fast or collect-all.
 
-Stable error codes, result envelopes, and transaction expectations will be defined in the RFC and conformance fixtures.
+`IngestionItemResult` is a discriminated union with status-specific fields. Ingestion limits fail with `INGESTION_LIMIT_EXCEEDED`. Every pre-output generic CLI failure is one JSON stderr diagnostic containing `code`, `message`, `details`, and `stage`; stdout remains empty. Parser and arbitrary policy exception messages are replaced with stable generic errors. The team-memory CLI uses the connector contract `{stage,error:{code,message,details}}` and sanitizes non-domain exceptions.
 
 ## Security and Privacy
 
@@ -207,33 +234,34 @@ The core does not fetch arbitrary URLs, discover credentials, or obtain broad so
 
 Implementations must support:
 
-- caller-configured payload and batch limits;
+- caller-configured input, record-count, and per-record byte limits;
 - rejection of malformed or unsupported media types;
 - secret-safe diagnostics;
 - explicit handling of personally identifiable or restricted data;
-- provenance retention without forcing raw secret storage;
+- provenance retention without forcing raw secret storage; the team-memory connector omits raw rows by default;
 - host-defined retention, redaction, and authorization policy.
 
 The SDK does not treat successful parsing as consent to retain or promote data.
 
 ## Compatibility and Conformance
 
-Universal adoption requires behavior that is testable outside one implementation. The ingestion phase therefore delivers:
+Universal adoption requires behavior that is testable outside one implementation. Phase 2 delivers:
 
 - a versioned `SourceRecord` schema;
 - valid and invalid JSON/JSONL fixtures;
-- idempotency and revision fixtures;
-- promotion fixtures that preserve source links and policy identity;
-- connector conformance tests based only on emitted records;
-- compatibility rules for extensions and unknown fields.
+- closed-field and namespaced-extension validation, single-pass bounded descriptor snapshots, normalization immutability, pre-parse limits, duplicate/collision classification, positive revision, full-payload promotion identity, request-before-policy snapshots with captured receiver and mapping-output semantics, secret-safe diagnostics, and fail-closed authorization coverage in the TypeScript test suite;
+- connector tests based only on emitted records;
+- additive namespaced extension examples.
 
-A connector is conformant when it emits valid source records and passes connector fixtures. It does not need access to core internals.
+The Phase 2 implementation fixtures are in `spec/fixtures/source-records/`. They exercise the current TypeScript SDK and CLI but are not yet normative, versioned, language-neutral specification fixtures; those remain a Phase 3 deliverable.
+
+Team-memory and the source-specific Git commit fixture connector both emit records that pass the same SourceRecord validation boundary. A reusable connector author harness remains Phase 4 work.
 
 ## Alternatives Considered
 
 ### Direct Source-to-Evidence Mapping
 
-This is simple for one source but assigns cognitive meaning too early, couples source integrations to the ontology, and makes neutral archival impossible. It is the current team-memory experiment, not the future root boundary.
+This is simple for one source but assigns cognitive meaning too early, couples source integrations to the ontology, and makes neutral archival impossible. It was the Phase 1 team-memory experiment, not the Phase 2 root boundary.
 
 ### Every Source Implements a Full Adapter
 
@@ -245,7 +273,7 @@ This is the selected approach. It gives every source a stable neutral boundary, 
 
 ## Success Criteria
 
-The universal-ingestion phase is complete when:
+The universal-ingestion phase completed when:
 
 1. canonical JSON and JSONL source records validate through both SDK and CLI;
 2. identical source-revision keys and content produce deterministic duplicate classification;
@@ -253,7 +281,7 @@ The universal-ingestion phase is complete when:
 4. explicit promotion produces evidence linked to source records and a policy version;
 5. a composed workflow exposes both ingestion and promotion results;
 6. team-memory operates as a connector without source-specific root exports;
-7. a second fixture connector passes the same conformance suite;
+7. a second source-specific fixture connector passes the same SourceRecord conformance contract as team-memory;
 8. all public documentation describes the same neutral-first architecture.
 
 ## Non-Goals

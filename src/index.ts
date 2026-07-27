@@ -1,15 +1,29 @@
 export { DomainError, DomainErrorCode } from "./errors.ts";
 export {
+  canonicalizeJson,
+  createSourceRecord,
+  deserializeSourceRecord,
+  serializeSourceRecord,
+  sourceRevisionKey,
+  SOURCE_RECORD_SCHEMA_VERSION,
+  validateSourceRecord,
+} from "./source-records.ts";
+export {
+  ingestSourceRecordText,
+  ingestSourceRecords,
+} from "./ingestion.ts";
+export {
+  ingestAndPromoteEvidence,
+  neutralEvidencePolicyV1,
+  promoteSourceRecordsToEvidence,
+} from "./promotion.ts";
+export {
   createObject,
   deserializeObject,
   serializeObject,
 } from "./objects.ts";
 export { evaluateAuthorization } from "./authorization.ts";
 export { transitionObject } from "./transitions.ts";
-export {
-  readTeamMemoryEvents,
-  teamMemoryEventToEvidence,
-} from "./adapters/team-memory.ts";
 export type {
   ActorKind,
   Attribution,
@@ -43,10 +57,26 @@ export type {
   StateByType,
 } from "./types.ts";
 export type {
-  TeamMemoryEvidenceContext,
-  TeamMemoryEventRow,
-  TeamMemoryQuery,
-} from "./adapters/team-memory.ts";
+  CreateSourceRecordInput,
+  SourceRecord,
+  SourceRecordSource,
+} from "./source-records.ts";
+export type {
+  IngestionBatchResult,
+  IngestionItemResult,
+  IngestionMode,
+  IngestionOptions,
+  IngestionTextOptions,
+} from "./ingestion.ts";
+export type {
+  EvidencePromotionContext,
+  EvidencePromotionMapping,
+  EvidencePromotionPolicy,
+  EvidencePromotionRequest,
+  EvidencePromotionResult,
+  IngestAndPromoteEvidenceResult,
+  PromotionFailure,
+} from "./promotion.ts";
 export type {
   AuthorizationDecision,
   AuthorizationPolicy,

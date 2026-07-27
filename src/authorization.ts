@@ -2,9 +2,11 @@ import { DomainError, DomainErrorCode } from "./errors.ts";
 import type {
   ActorKind,
   CognitiveObject,
+  JsonValue,
   ObjectType,
   StateByType,
 } from "./types.ts";
+import { freezeJsonValue, isJsonObject } from "./types.ts";
 
 export interface TransitionActor {
   readonly id: string;
@@ -155,7 +157,7 @@ function validateConfirmation(
 export function validateTransitionContext(
   context: unknown,
 ): asserts context is TransitionContext {
-  if (typeof context !== "object" || context === null || Array.isArray(context)) {
+  if (!isJsonObject(context)) {
     invalidContext("Transition context must be an object.", "context");
   }
 
@@ -190,6 +192,21 @@ export function validateTransitionContext(
   }
 }
 
+export function createTransitionContextSnapshot(
+  context: unknown,
+): TransitionContext {
+  let snapshot: unknown;
+  try {
+    snapshot = structuredClone(context);
+  } catch {
+    invalidContext("Transition context must be JSON-compatible.", "context");
+  }
+  validateTransitionContext(snapshot);
+  return freezeJsonValue(
+    snapshot as unknown as JsonValue,
+  ) as unknown as TransitionContext;
+}
+
 export function validateTransitionRequest<T extends ObjectType>(
   object: CognitiveObject<T>,
   targetState: StateByType[T],
@@ -220,6 +237,83 @@ export function validateTransitionRequest<T extends ObjectType>(
       "confirmation.targetState",
     );
   }
+}
+
+function invalidAuthorizationDecision(): never {
+  throw new DomainError(
+    DomainErrorCode.AUTHORIZATION_DENIED,
+    "Authorization policy returned an invalid decision.",
+  );
+}
+
+function hasExactFields(
+  value: Readonly<Record<string, unknown>>,
+  fields: readonly string[],
+): boolean {
+  const keys = Object.keys(value);
+  return (
+    keys.length === fields.length &&
+    fields.every((field) => keys.includes(field))
+  );
+}
+
+function validateAuthorizationDecision(
+  value: unknown,
+): asserts value is AuthorizationDecision {
+  if (!isJsonObject(value)) {
+    invalidAuthorizationDecision();
+  }
+  if (value.status === "allowed") {
+    if (!hasExactFields(value, ["status"])) {
+      invalidAuthorizationDecision();
+    }
+    return;
+  }
+  if (value.status === "denied") {
+    if (
+      !hasExactFields(value, ["status", "reason"]) ||
+      !isNonEmptyString(value.reason)
+    ) {
+      invalidAuthorizationDecision();
+    }
+    return;
+  }
+  if (value.status === "confirmation_required") {
+    if (
+      !hasExactFields(value, [
+        "status",
+        "reason",
+        "requiredActorKind",
+      ]) ||
+      !isNonEmptyString(value.reason) ||
+      value.requiredActorKind !== "human"
+    ) {
+      invalidAuthorizationDecision();
+    }
+    return;
+  }
+  invalidAuthorizationDecision();
+}
+
+export function evaluateAuthorizationPolicy<T extends ObjectType>(
+  policy: AuthorizationPolicy,
+  object: CognitiveObject<T>,
+  targetState: StateByType[T],
+  context: TransitionContext,
+): AuthorizationDecision {
+  let decision: unknown;
+  try {
+    decision = policy(object, targetState, context);
+  } catch {
+    throw new DomainError(
+      DomainErrorCode.AUTHORIZATION_DENIED,
+      "Authorization policy failed.",
+    );
+  }
+  validateAuthorizationDecision(decision);
+  return freezeJsonValue(
+    structuredClone(decision) as JsonValue,
+  ) as AuthorizationDecision;
 }
 
 function requiresHumanConfirmation<T extends ObjectType>(

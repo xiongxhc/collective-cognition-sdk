@@ -1,6 +1,10 @@
 import {
   readTeamMemoryEvents,
-  teamMemoryEventToEvidence,
+  teamMemoryEventToSourceRecord,
+} from "../src/adapters/team-memory.ts";
+import {
+  neutralEvidencePolicyV1,
+  promoteSourceRecordsToEvidence,
 } from "../src/index.ts";
 
 const args = process.argv.slice(2);
@@ -14,13 +18,32 @@ if (args.length !== 1) {
   const context = {
     hypothesisId: "hypothesis:delivery-risk",
     contextId: "organization:team",
+    rationale: "The selected ledger records document delivery activity.",
+    attribution: {
+      initiatorId: "human:team-owner",
+      executorId: "agent:team-memory-example",
+      accountableId: "human:team-owner",
+    },
   };
-  const evidence = readTeamMemoryEvents({ dbPath, limit: 5 }).map((row) =>
-    teamMemoryEventToEvidence(row, context),
+  const sourceRecords = readTeamMemoryEvents({ dbPath, limit: 5 }).map(
+    (row) => teamMemoryEventToSourceRecord(row),
   );
+  const latestCapturedAt = sourceRecords.at(-1)?.capturedAt;
+  const evidence = latestCapturedAt === undefined
+    ? []
+    : [
+      promoteSourceRecordsToEvidence(
+        {
+          ...context,
+          records: sourceRecords,
+          promotedAt: latestCapturedAt,
+        },
+        neutralEvidencePolicyV1,
+      ),
+    ];
 
   console.log(
-    `Evidence imported: ${evidence.length}; hypothesis: ${context.hypothesisId}; decisions inferred: 0`,
+    `Source records imported: ${sourceRecords.length}; Evidence promoted: ${evidence.length}; hypothesis: ${context.hypothesisId}; decisions inferred: 0`,
   );
   for (const object of evidence) {
     console.log(JSON.stringify(object));
