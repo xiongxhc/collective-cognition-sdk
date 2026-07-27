@@ -119,7 +119,7 @@ Canonicalization MUST apply these rules recursively:
 1. Emit no whitespace between JSON tokens.
 2. Preserve `null`, boolean, and array element order.
 3. Serialize strings with JSON escaping, without Unicode normalization.
-4. Serialize finite binary64 numbers using the shortest decimal form that round-trips to the same binary64 value; serialize negative zero as `0`.
+4. Serialize finite binary64 numbers exactly as required by [RFC 8785 section 3.2.2.3](https://www.rfc-editor.org/rfc/rfc8785.html#section-3.2.2.3), including its ECMAScript number-serialization procedure and Note 2 enhancement. This procedure serializes negative zero as `0` and preserves forms such as `1e+21` when required by that algorithm.
 5. Sort object property names by ascending UTF-16 code units before serialization.
 6. Preserve the literal, case-sensitive `mediaType` string and its parameter spelling.
 

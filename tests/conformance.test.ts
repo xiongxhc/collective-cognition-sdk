@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  canonicalizeJson,
   DomainErrorCode,
   ingestSourceRecordText,
   ingestSourceRecords,
@@ -303,6 +304,16 @@ test("canonical content ignores object order but preserves media type spelling",
       ? collision.items[1].error.code
       : undefined,
     DomainErrorCode.SOURCE_REVISION_COLLISION,
+  );
+});
+
+test("canonical number vectors match RFC 8785 ECMAScript serialization", () => {
+  assert.equal(canonicalizeJson(-0), "0");
+  assert.equal(canonicalizeJson(1e21), "1e+21");
+  assert.equal(canonicalizeJson(1e-7), "1e-7");
+  assert.equal(
+    canonicalizeJson(333333333.33333329),
+    "333333333.3333333",
   );
 });
 
