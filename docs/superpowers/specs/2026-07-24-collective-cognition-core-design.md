@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-24
 
-**Status:** Implemented as private local reference source
+**Status:** Implemented as a public experimental reference implementation
 
 > Historical Phase 1 design record. Phase 2 universal ingestion is now implemented; current status and commands are in the [roadmap](../../ROADMAP.md) and repository [README](../../../README.md).
 

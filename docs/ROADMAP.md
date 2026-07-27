@@ -4,7 +4,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 1: Runnable Cognitive Core
 
-**Status:** Complete as private local reference source.
+**Status:** Complete as a public experimental reference implementation.
 
 **Delivered**
 
@@ -22,14 +22,14 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 **Limits**
 
-- The repository is private reference source, not a published SDK.
+- The repository is public reference source, not yet a published package or production-ready SDK.
 - The original team-memory-specific root exports and direct Evidence mapping were experimental and are superseded by Phase 2.
 - No persistence, service, UI, stable exports map, or complete language-neutral schema exists yet.
 - Type-specific `data` payloads remain permissive.
 
 ## Phase 2: Universal Ingestion Foundation
 
-**Status:** Complete and final-review verified as private local reference source.
+**Status:** Complete and final-review verified as a public experimental reference implementation.
 
 **Entry criteria**
 
@@ -95,6 +95,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - A language-neutral charter and normative definitions for objects, source records, relationships, transitions, authorization, errors, and events.
 - Versioned machine-readable schemas and normative, versioned, language-neutral conformance fixtures.
 - Compatibility, extension naming, versioning, and deprecation rules.
+- Host integration contracts for cognition persistence and event publication without selecting a mandatory database or service architecture.
 - Stable package exports, build artifacts, API documentation, and external distribution readiness criteria.
 - Supported-runtime and security policy.
 
@@ -102,6 +103,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 - Every normative rule maps to a schema assertion, fixture, test, or explicit prose-only rationale.
 - The TypeScript implementation passes the published conformance suite.
+- Persistence contracts keep source stores and cognition stores logically distinct and are testable through a host-supplied implementation.
 - Public exports and CLI behavior have compatibility tests.
 - One sample additive change and one sample breaking change exercise the documented process.
 
@@ -122,6 +124,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 **Deliverables**
 
 - Team-memory as the first maintained connector.
+- A reference persistence adapter that operates only on an explicitly supplied target and never discovers application data implicitly.
 - An Obsidian/Markdown adapter operating only on an explicitly provided fixture or configured vault.
 - A connector author guide, conformance harness, and reference fixture connector.
 - Deterministic object-to-Markdown and Markdown-to-object fixtures with stable IDs, versions, relationships, and provenance.
@@ -129,6 +132,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 **Acceptance checks**
 
 - Connectors pass the same source-record conformance suite.
+- Persistence adapter tests prove that durable cognitive objects and audit events survive round trips without depending on a source store's private schema.
 - Object → Markdown → object round trips preserve normative semantics.
 - Repeated exports do not rewrite unchanged notes.
 - Tests prove the Markdown adapter never discovers or operates on a personal vault implicitly.

@@ -1,10 +1,10 @@
 # Collective Cognition SDK
 
-Collective Cognition SDK is experimental, dependency-free TypeScript reference source for attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, source system, or organizational beliefs.
+Collective Cognition SDK is an experimental, dependency-free TypeScript reference implementation for attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, source system, or organizational beliefs.
 
-The project is designing a universal SDK, but the current repository remains private reference source rather than an externally packaged or production-ready SDK.
+This is a public open-source repository. Its source and CLI are runnable, but it is not yet an externally distributed or production-ready package.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 specification and package stabilization remains planned.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 specification and package stabilization remain planned.
 
 ## Current Status
 
@@ -45,6 +45,33 @@ any external source
 ```
 
 Canonical JSON and JSONL are the minimum no-code integration path. Reusable connectors remain planned for common systems. A team needs custom connector code only when its source cannot emit canonical records and no shared connector exists.
+
+### System Position
+
+Collective Cognition SDK is a semantic and governance layer used by host applications. It sits above systems that capture activity, documents, conversations, measurements, or other source material. It does not replace those systems, operate an organization-wide service, or require every participant to install the SDK directly.
+
+```text
+source systems and memory stores
+  → connectors or canonical SourceRecords
+  → host application using Collective Cognition SDK
+  → governed cognitive objects and events
+  → review interfaces, agents, reports, or knowledge projections
+```
+
+Applications, agent platforms, and organizational tools embed the SDK or invoke its CLI. Individual participants interact with those products; they need the SDK only when building or operating an integration themselves.
+
+### Storage Ownership
+
+The SDK defines cognitive objects, validation, transitions, provenance, and authorization boundaries. It does not own a database or silently persist application data.
+
+A deployed host normally has two logically distinct stores:
+
+1. a **source store**, owned by the originating system, containing captured material such as activity records, documents, messages, or measurements;
+2. a **cognition store**, owned by the host application, containing governed Goals, Hypotheses, Experiments, Evidence, Decisions, Principles, and their audit events.
+
+These stores may use separate databases, separate schemas in one database, files, or another host-selected persistence model. Keeping them logically separate is important: source material may be replayed or regenerated, while approved decisions, rationale, authority, and history are durable organizational records. A host can begin with a dedicated SQLite database and later move to PostgreSQL or another backend without changing the core model.
+
+Persistence adapters and hosted services are planned ecosystem work, not current SDK behavior.
 
 A `SourceRecord` accepts only the documented top-level and `source` fields. Every `extensions` key must contain a namespace separator (`:` or `.`) with non-empty sides. The interpretation keys `polarity`, `confidence`, and `authority` are also rejected directly in `context`; source-authored raw `content` may preserve fields with those names. `contentHash` is opaque caller-supplied integrity metadata, and this SDK does not verify that it is a digest or that it matches `content`.
 

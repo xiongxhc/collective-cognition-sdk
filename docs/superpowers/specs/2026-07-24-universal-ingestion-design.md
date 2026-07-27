@@ -163,6 +163,12 @@ The root SDK API must expose source-neutral core and ingestion contracts. Source
 
 Exact package names and exports are deferred until the package-surface compatibility work is complete.
 
+### Host and Storage Boundary
+
+The SDK is embedded by host applications; it is not itself a hosted service or database. Source systems retain ownership of captured material. A host that needs durable cognition owns a logically separate cognition store for cognitive objects, relationships, lifecycle events, approvals, and audit history.
+
+Logical separation does not require one physical topology. A host may use separate databases, separate schemas, files, or another persistence model, but source records must not become accepted Evidence or overwrite governed cognition through storage coupling. Persistence contracts and reference adapters remain planned work, and every adapter must operate only on an explicitly supplied target.
+
 ## Generic CLI Direction
 
 The implemented `cc` CLI supports:
