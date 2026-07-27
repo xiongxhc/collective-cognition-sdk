@@ -84,6 +84,11 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 **Status:** In progress.
 
+**Active next slice**
+
+- [x] SourceRecord-first normative conformance design approved.
+- [ ] Implement the versioned SourceRecord schema, normative prose, fixtures, differential conformance tests, and packaged artifacts described in [`2026-07-27-source-record-normative-conformance-design.md`](superpowers/specs/2026-07-27-source-record-normative-conformance-design.md).
+
 **Delivered in the initial package-stabilization slice**
 
 - [x] ESM JavaScript and declaration output under ignored `dist/`.
