@@ -111,6 +111,9 @@ test("requires valid ISO source timestamps", () => {
   expectInvalidSourceRecord(() =>
     createSourceRecord(inputFor({ observedAt: "2026-02-30T10:00:00.000Z" })),
   );
+  expectInvalidSourceRecord(() =>
+    createSourceRecord(inputFor({ capturedAt: "2026-07-24T24:00:00Z" })),
+  );
 });
 
 test("requires an RFC media type", () => {
