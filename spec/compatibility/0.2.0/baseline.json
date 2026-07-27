@@ -1,0 +1,649 @@
+{
+  "baselineVersion": "0.2.0",
+  "packagePolicyVersion": "0.1.0",
+  "appliesToPackageVersion": "0.2.0",
+  "packageChange": {
+    "classification": "additive",
+    "packageVersionEffect": "minor"
+  },
+  "historicalBaselines": {
+    "0.1.0": {
+      "path": "spec/compatibility/0.1.0/baseline.json",
+      "sha256": "4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b"
+    }
+  },
+  "stabilityLevels": [
+    {
+      "id": "normative-stable",
+      "definition": "Portable behavior and immutable versioned artifacts on which implementations and stored data can rely."
+    },
+    {
+      "id": "supported-experimental",
+      "definition": "Public and tested package behavior that can evolve under this policy before 1.0.0."
+    },
+    {
+      "id": "internal",
+      "definition": "Repository implementation details with no compatibility promise."
+    }
+  ],
+  "normative": {
+    "sourceRecord": {
+      "version": "0.1.0",
+      "prosePath": "spec/source-record.md",
+      "ruleIds": [
+        "SR-001",
+        "SR-002",
+        "SR-003",
+        "SR-004",
+        "SR-005",
+        "SR-006",
+        "SR-007",
+        "SR-008",
+        "SR-009",
+        "SR-010",
+        "SR-011",
+        "SR-012",
+        "SR-013",
+        "SR-014",
+        "SR-015"
+      ],
+      "schema": {
+        "path": "spec/schemas/0.1.0/source-record.schema.json",
+        "id": "urn:collective-cognition:schema:source-record:0.1.0",
+        "packageSubpath": "./schemas/source-record/0.1.0"
+      },
+      "sourceRevisionKeyRule": "SR-005",
+      "canonicalRevisionEqualityRule": "SR-013",
+      "stableErrorsRule": "SR-014"
+    },
+    "portableCognition": {
+      "version": "0.1.0",
+      "prosePath": "spec/portable-cognition.md",
+      "ruleIds": [
+        "PCR-001",
+        "PCR-002",
+        "PCR-003",
+        "PCR-004",
+        "PCR-005",
+        "PCR-006",
+        "PCR-007",
+        "PCR-008",
+        "PCR-009",
+        "PCR-010",
+        "PCR-011",
+        "PCR-012",
+        "PCR-013",
+        "PCR-014",
+        "PCR-015",
+        "PCR-016",
+        "PCR-017",
+        "PCR-018",
+        "PCR-019",
+        "PCR-020",
+        "PCR-021",
+        "PCR-022"
+      ],
+      "schema": {
+        "path": "spec/schemas/0.1.0/portable-cognition.schema.json",
+        "id": "urn:collective-cognition:schema:portable-cognition:0.1.0",
+        "packageSubpath": "./schemas/portable-cognition/0.1.0"
+      },
+      "conformance": {
+        "valid": {
+          "path": "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
+          "packageSubpath": "./conformance/portable-cognition/0.1.0/valid"
+        },
+        "invalid": {
+          "path": "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
+          "packageSubpath": "./conformance/portable-cognition/0.1.0/invalid"
+        },
+        "cognitiveLoop": {
+          "path": "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
+          "packageSubpath": "./conformance/portable-cognition/0.1.0/cognitive-loop"
+        }
+      },
+      "runtimeIsolationRule": "PCR-019",
+      "stableErrorsRule": "PCR-020",
+      "versionIndependenceRule": "PCR-021",
+      "hostTrustBoundaryRule": "PCR-022"
+    },
+    "compatibility": {
+      "prosePath": "spec/compatibility.md",
+      "ruleIds": [
+        "COMP-001",
+        "COMP-002",
+        "COMP-003",
+        "COMP-004",
+        "COMP-005",
+        "COMP-006",
+        "COMP-007",
+        "COMP-008",
+        "COMP-009",
+        "COMP-010",
+        "COMP-011",
+        "COMP-012",
+        "COMP-013",
+        "COMP-014",
+        "COMP-015",
+        "COMP-016",
+        "COMP-017",
+        "COMP-018"
+      ]
+    },
+    "artifacts": {
+      "spec/schemas/0.1.0/source-record.schema.json": "56cf53c5da98dfbec19a021fbb90673beab8248c7a77df44989b535a0e155648",
+      "spec/conformance/0.1.0/source-record/valid.jsonl": "f52c212026b70bf2b339e1132b2895c91be509f250dde841319dbbb4edd3f74a",
+      "spec/conformance/0.1.0/source-record/invalid.jsonl": "4705f32eb5ea48ddd693759728294d2557b0a6f4a5cc666843b2e03bb03e99c0",
+      "spec/schemas/0.1.0/portable-cognition.schema.json": "729806a26390f5cceb021f35d571088baf5f6e225b53c00f6c950ca27ab4376a",
+      "spec/conformance/0.1.0/portable-cognition/valid.jsonl": "cc3854706ace472b0d5335ecb9596c7ea3bf2b48c04fd9dd950f9683e8b203f4",
+      "spec/conformance/0.1.0/portable-cognition/invalid.jsonl": "2344008b6c2c6a8b9994856ff89500a96fa3e18e6c34a42cfca835e9950b6c02",
+      "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl": "1693d97e207cfeee63d370ba23d07ffd9023e8b087e5dbd3c0ad53e945184053",
+      "spec/compatibility/0.1.0/change-cases.jsonl": "3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b",
+      "spec/compatibility/0.2.0/change-cases.jsonl": "e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5"
+    }
+  },
+  "package": {
+    "metadata": {
+      "name": "collective-cognition-sdk",
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "license": "Apache-2.0",
+      "engines": {
+        "node": ">=24"
+      },
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js"
+        },
+        "./compatibility/0.1.0": "./spec/compatibility/0.1.0/baseline.json",
+        "./compatibility/0.2.0": "./spec/compatibility/0.2.0/baseline.json",
+        "./schemas/source-record/0.1.0": "./spec/schemas/0.1.0/source-record.schema.json",
+        "./schemas/portable-cognition/0.1.0": "./spec/schemas/0.1.0/portable-cognition.schema.json",
+        "./conformance/portable-cognition/0.1.0/valid": "./spec/conformance/0.1.0/portable-cognition/valid.jsonl",
+        "./conformance/portable-cognition/0.1.0/invalid": "./spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
+        "./conformance/portable-cognition/0.1.0/cognitive-loop": "./spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
+        "./package.json": "./package.json"
+      },
+      "bin": {
+        "collective-cognition": "./dist/cli.js"
+      }
+    },
+    "emittedFiles": [
+      "dist/authorization.d.ts",
+      "dist/authorization.js",
+      "dist/cli-contract.d.ts",
+      "dist/cli-contract.js",
+      "dist/cli.d.ts",
+      "dist/cli.js",
+      "dist/errors.d.ts",
+      "dist/errors.js",
+      "dist/events.d.ts",
+      "dist/events.js",
+      "dist/index.d.ts",
+      "dist/index.js",
+      "dist/ingestion.d.ts",
+      "dist/ingestion.js",
+      "dist/json-text.d.ts",
+      "dist/json-text.js",
+      "dist/objects.d.ts",
+      "dist/objects.js",
+      "dist/portable-cognition.d.ts",
+      "dist/portable-cognition.js",
+      "dist/promotion.d.ts",
+      "dist/promotion.js",
+      "dist/source-records.d.ts",
+      "dist/source-records.js",
+      "dist/transitions.d.ts",
+      "dist/transitions.js",
+      "dist/types.d.ts",
+      "dist/types.js"
+    ],
+    "runtimeExports": [
+      "DomainError",
+      "DomainErrorCode",
+      "PORTABLE_COGNITION_MAX_JSON_DEPTH",
+      "PORTABLE_COGNITION_SCHEMA_VERSION",
+      "SOURCE_RECORD_MAX_JSON_DEPTH",
+      "SOURCE_RECORD_SCHEMA_VERSION",
+      "canonicalizeJson",
+      "createObject",
+      "createPortableCognitionRecord",
+      "createSourceRecord",
+      "deserializeObject",
+      "deserializePortableCognitionRecord",
+      "deserializeSourceRecord",
+      "evaluateAuthorization",
+      "ingestAndPromoteEvidence",
+      "ingestSourceRecordText",
+      "ingestSourceRecords",
+      "neutralEvidencePolicyV1",
+      "promoteSourceRecordsToEvidence",
+      "serializeObject",
+      "serializePortableCognitionRecord",
+      "serializeSourceRecord",
+      "sourceRevisionKey",
+      "transitionObject",
+      "validatePortableCognitionRecord",
+      "validateSourceRecord"
+    ],
+    "typeExports": [
+      "ActorKind",
+      "Attribution",
+      "AuthorizationDecision",
+      "AuthorizationPolicy",
+      "AutomationMode",
+      "CognitionEvent",
+      "CognitiveObject",
+      "CognitiveObjectFor",
+      "ConsequenceLevel",
+      "CreateObjectInput",
+      "CreateObjectInputFor",
+      "CreatePortableCognitionRecordInput",
+      "CreateSourceRecordInput",
+      "DataByType",
+      "DecisionData",
+      "DecisionState",
+      "EvidenceData",
+      "EvidencePromotionContext",
+      "EvidencePromotionMapping",
+      "EvidencePromotionPolicy",
+      "EvidencePromotionRequest",
+      "EvidencePromotionResult",
+      "EvidenceState",
+      "ExperimentData",
+      "ExperimentState",
+      "GoalData",
+      "GoalState",
+      "HumanConfirmation",
+      "HypothesisData",
+      "HypothesisState",
+      "IdentityData",
+      "IdentityState",
+      "IngestAndPromoteEvidenceResult",
+      "IngestionBatchResult",
+      "IngestionItemResult",
+      "IngestionMode",
+      "IngestionOptions",
+      "IngestionTextOptions",
+      "JsonArray",
+      "JsonObject",
+      "JsonPrimitive",
+      "JsonValue",
+      "ObjectType",
+      "PortableCognitionPayloadByType",
+      "PortableCognitionRecord",
+      "PortableCognitionRecordType",
+      "PortableDomainError",
+      "PrincipleData",
+      "PrincipleState",
+      "PromotionFailure",
+      "ProvenanceRef",
+      "Relationship",
+      "RelationshipType",
+      "SourceRecord",
+      "SourceRecordSource",
+      "StateByType",
+      "TransitionActor",
+      "TransitionContext",
+      "TransitionResult"
+    ],
+    "errorCodes": [
+      "AUTHORIZATION_DENIED",
+      "CONFIRMATION_REQUIRED",
+      "INGESTION_LIMIT_EXCEEDED",
+      "INVALID_OBJECT",
+      "INVALID_PORTABLE_COGNITION_RECORD",
+      "INVALID_RELATIONSHIP",
+      "INVALID_SOURCE_RECORD",
+      "INVALID_TRANSITION",
+      "PROMOTION_FAILED",
+      "SERIALIZATION_ERROR",
+      "SOURCE_REVISION_COLLISION"
+    ],
+    "normativeStableErrorCodes": [
+      "INVALID_PORTABLE_COGNITION_RECORD",
+      "INVALID_SOURCE_RECORD",
+      "SOURCE_REVISION_COLLISION"
+    ],
+    "policyIdentities": {
+      "neutralEvidencePolicyV1": {
+        "id": "neutral-evidence",
+        "version": "1"
+      }
+    },
+    "declarations": {
+      "files": [
+        "dist/authorization.d.ts",
+        "dist/errors.d.ts",
+        "dist/events.d.ts",
+        "dist/index.d.ts",
+        "dist/ingestion.d.ts",
+        "dist/objects.d.ts",
+        "dist/portable-cognition.d.ts",
+        "dist/promotion.d.ts",
+        "dist/source-records.d.ts",
+        "dist/transitions.d.ts",
+        "dist/types.d.ts"
+      ],
+      "sha256": "75a3f931f18ba6dae205b5c8da41aadc1a0f68245fc8b237eb216e17febde766"
+    }
+  },
+  "cli": {
+    "formats": [
+      "json",
+      "jsonl"
+    ],
+    "baseOptionNames": [
+      "input",
+      "format",
+      "max-input-bytes",
+      "max-records",
+      "max-record-bytes"
+    ],
+    "promotionOptionNames": [
+      "policy",
+      "hypothesis-id",
+      "context-id",
+      "rationale",
+      "initiator-id",
+      "executor-id",
+      "accountable-id",
+      "promoted-at"
+    ],
+    "commands": {
+      "validate": {
+        "options": [
+          "input",
+          "format",
+          "max-input-bytes",
+          "max-records",
+          "max-record-bytes"
+        ],
+        "requiredOptions": [
+          "input",
+          "format"
+        ]
+      },
+      "ingest": {
+        "options": [
+          "input",
+          "format",
+          "max-input-bytes",
+          "max-records",
+          "max-record-bytes"
+        ],
+        "requiredOptions": [
+          "input",
+          "format"
+        ]
+      },
+      "promote": {
+        "options": [
+          "input",
+          "format",
+          "max-input-bytes",
+          "max-records",
+          "max-record-bytes",
+          "policy",
+          "hypothesis-id",
+          "context-id",
+          "rationale",
+          "initiator-id",
+          "executor-id",
+          "accountable-id",
+          "promoted-at"
+        ],
+        "requiredOptions": [
+          "input",
+          "format",
+          "policy",
+          "hypothesis-id",
+          "context-id",
+          "rationale",
+          "initiator-id",
+          "executor-id",
+          "accountable-id",
+          "promoted-at"
+        ]
+      },
+      "ingest-promote": {
+        "options": [
+          "input",
+          "format",
+          "max-input-bytes",
+          "max-records",
+          "max-record-bytes",
+          "policy",
+          "hypothesis-id",
+          "context-id",
+          "rationale",
+          "initiator-id",
+          "executor-id",
+          "accountable-id",
+          "promoted-at"
+        ],
+        "requiredOptions": [
+          "input",
+          "format",
+          "policy",
+          "hypothesis-id",
+          "context-id",
+          "rationale",
+          "initiator-id",
+          "executor-id",
+          "accountable-id",
+          "promoted-at"
+        ]
+      }
+    },
+    "defaults": {
+      "maxInputBytes": 10485760,
+      "maxRecords": 10000,
+      "maxRecordBytes": 1048576
+    },
+    "outputs": {
+      "validate": {
+        "channel": "stdout",
+        "framing": "jsonl",
+        "cardinality": "one-per-ingestion-item",
+        "variants": {
+          "accepted": {
+            "requiredFields": [
+              "index",
+              "status",
+              "record"
+            ],
+            "optionalFields": [
+              "line"
+            ]
+          },
+          "duplicate": {
+            "requiredFields": [
+              "index",
+              "status",
+              "record",
+              "retainedRecordId"
+            ],
+            "optionalFields": [
+              "line"
+            ]
+          },
+          "rejected": {
+            "requiredFields": [
+              "index",
+              "status",
+              "error"
+            ],
+            "optionalFields": [
+              "line"
+            ],
+            "errorFields": [
+              "code",
+              "message",
+              "details"
+            ]
+          }
+        }
+      },
+      "ingest": {
+        "channel": "stdout",
+        "framing": "jsonl",
+        "cardinality": "one-per-accepted-record",
+        "requiredFields": [
+          "schemaVersion",
+          "id",
+          "source",
+          "sourceId",
+          "revisionId",
+          "capturedAt",
+          "mediaType",
+          "content"
+        ],
+        "optionalFields": [
+          "observedAt",
+          "contentHash",
+          "actorId",
+          "context",
+          "extensions"
+        ],
+        "sourceRequiredFields": [
+          "system"
+        ],
+        "sourceOptionalFields": [
+          "instance"
+        ]
+      },
+      "promote": {
+        "channel": "stdout",
+        "framing": "jsonl",
+        "cardinality": "exactly-one-on-success",
+        "requiredFields": [
+          "id",
+          "type",
+          "version",
+          "state",
+          "title",
+          "data",
+          "createdAt",
+          "updatedAt",
+          "attribution",
+          "provenance",
+          "contextId",
+          "relationships",
+          "extensions"
+        ],
+        "objectType": "evidence"
+      },
+      "ingest-promote": {
+        "channel": "stdout",
+        "framing": "jsonl",
+        "cardinality": "exactly-one-after-ingestion",
+        "requiredFields": [
+          "ingestion",
+          "promotion"
+        ],
+        "ingestionFields": [
+          "items",
+          "acceptedRecords"
+        ],
+        "promotionVariants": {
+          "succeeded": [
+            "status",
+            "evidence"
+          ],
+          "failed": [
+            "status",
+            "error"
+          ]
+        },
+        "promotionErrorFields": [
+          "code",
+          "message",
+          "details"
+        ]
+      },
+      "rejectedItemDiagnostics": {
+        "channel": "stderr",
+        "framing": "jsonl",
+        "cardinality": "one-per-rejected-item",
+        "requiredFields": [
+          "index",
+          "status",
+          "error"
+        ],
+        "optionalFields": [
+          "line"
+        ],
+        "errorFields": [
+          "code",
+          "message",
+          "details"
+        ]
+      },
+      "topLevelDiagnostic": {
+        "channel": "stderr",
+        "framing": "jsonl",
+        "cardinality": "exactly-one-on-failure",
+        "requiredFields": [
+          "code",
+          "message",
+          "details",
+          "stage"
+        ]
+      },
+      "promotionFailureDiagnostic": {
+        "channel": "stderr",
+        "framing": "jsonl",
+        "cardinality": "exactly-one-on-composed-promotion-failure",
+        "requiredFields": [
+          "code",
+          "message",
+          "details",
+          "stage"
+        ]
+      }
+    },
+    "policySelectors": {
+      "neutral-evidence-v1": {
+        "sdkExport": "neutralEvidencePolicyV1",
+        "id": "neutral-evidence",
+        "version": "1"
+      }
+    },
+    "diagnostics": {
+      "fields": [
+        "code",
+        "message",
+        "details",
+        "stage"
+      ],
+      "stages": [
+        "arguments",
+        "input",
+        "ingestion",
+        "promotion",
+        "output"
+      ],
+      "cliAuthoredCodes": [
+        "CLI_ERROR",
+        "INPUT_READ_ERROR",
+        "INVALID_ARGUMENT"
+      ],
+      "rejectedItemCodes": [
+        "INVALID_SOURCE_RECORD",
+        "SERIALIZATION_ERROR",
+        "SOURCE_REVISION_COLLISION"
+      ]
+    },
+    "exitStatuses": {
+      "success": 0,
+      "topLevelFailure": 1,
+      "rejectedItem": 1,
+      "composedPromotionFailure": 1,
+      "duplicatesOnly": 0
+    }
+  },
+  "deprecations": []
+}

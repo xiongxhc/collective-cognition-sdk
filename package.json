@@ -1,6 +1,6 @@
 {
   "name": "collective-cognition-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Portable cognitive objects, provenance, lifecycle, and governance boundaries for long-term human-AI collaboration.",
   "private": true,
   "license": "Apache-2.0",
@@ -14,7 +14,12 @@
       "import": "./dist/index.js"
     },
     "./compatibility/0.1.0": "./spec/compatibility/0.1.0/baseline.json",
+    "./compatibility/0.2.0": "./spec/compatibility/0.2.0/baseline.json",
     "./schemas/source-record/0.1.0": "./spec/schemas/0.1.0/source-record.schema.json",
+    "./schemas/portable-cognition/0.1.0": "./spec/schemas/0.1.0/portable-cognition.schema.json",
+    "./conformance/portable-cognition/0.1.0/valid": "./spec/conformance/0.1.0/portable-cognition/valid.jsonl",
+    "./conformance/portable-cognition/0.1.0/invalid": "./spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
+    "./conformance/portable-cognition/0.1.0/cognitive-loop": "./spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
     "./package.json": "./package.json"
   },
   "bin": {
@@ -33,10 +38,17 @@
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
     "spec/compatibility/0.1.0/change-cases.jsonl",
+    "spec/compatibility/0.2.0/baseline.json",
+    "spec/compatibility/0.2.0/change-cases.jsonl",
     "spec/source-record.md",
+    "spec/portable-cognition.md",
     "spec/schemas/0.1.0/source-record.schema.json",
+    "spec/schemas/0.1.0/portable-cognition.schema.json",
     "spec/conformance/0.1.0/source-record/valid.jsonl",
-    "spec/conformance/0.1.0/source-record/invalid.jsonl"
+    "spec/conformance/0.1.0/source-record/invalid.jsonl",
+    "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
+    "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
+    "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl"
   ],
   "keywords": [
     "collective-intelligence",

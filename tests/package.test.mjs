@@ -22,8 +22,9 @@ const distIndexUrl = new URL("../dist/index.js", import.meta.url);
 const distTypesUrl = new URL("../dist/index.d.ts", import.meta.url);
 const distCliUrl = new URL("../dist/cli.js", import.meta.url);
 const packageJsonUrl = new URL("../package.json", import.meta.url);
+const packageLockUrl = new URL("../package-lock.json", import.meta.url);
 const compatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.1.0/baseline.json",
+  "../spec/compatibility/0.2.0/baseline.json",
   import.meta.url,
 );
 const licenseUrl = new URL("../LICENSE", import.meta.url);
@@ -40,12 +41,16 @@ const validFixturesUrl = new URL(
 const expectedRuntimeExports = [
   "DomainError",
   "DomainErrorCode",
+  "PORTABLE_COGNITION_MAX_JSON_DEPTH",
+  "PORTABLE_COGNITION_SCHEMA_VERSION",
   "SOURCE_RECORD_MAX_JSON_DEPTH",
   "SOURCE_RECORD_SCHEMA_VERSION",
   "canonicalizeJson",
   "createObject",
+  "createPortableCognitionRecord",
   "createSourceRecord",
   "deserializeObject",
+  "deserializePortableCognitionRecord",
   "deserializeSourceRecord",
   "evaluateAuthorization",
   "ingestAndPromoteEvidence",
@@ -54,9 +59,11 @@ const expectedRuntimeExports = [
   "neutralEvidencePolicyV1",
   "promoteSourceRecordsToEvidence",
   "serializeObject",
+  "serializePortableCognitionRecord",
   "serializeSourceRecord",
   "sourceRevisionKey",
   "transitionObject",
+  "validatePortableCognitionRecord",
   "validateSourceRecord",
 ].sort();
 
@@ -147,9 +154,13 @@ test("built CLI executable validates canonical SourceRecord input", () => {
 
 test("npm package manifest and tarball expose only approved artifacts", () => {
   const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
+  const packageLock = JSON.parse(readFileSync(packageLockUrl, "utf8"));
   const baseline = JSON.parse(
     readFileSync(compatibilityBaselineUrl, "utf8"),
   );
+  assert.equal(packageJson.version, "0.2.0");
+  assert.equal(packageLock.version, "0.2.0");
+  assert.equal(packageLock.packages[""].version, "0.2.0");
   assert.equal(
     packageJson.private,
     true,
@@ -165,10 +176,45 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     },
     "./compatibility/0.1.0":
       "./spec/compatibility/0.1.0/baseline.json",
+    "./compatibility/0.2.0":
+      "./spec/compatibility/0.2.0/baseline.json",
     "./schemas/source-record/0.1.0":
       "./spec/schemas/0.1.0/source-record.schema.json",
+    "./schemas/portable-cognition/0.1.0":
+      "./spec/schemas/0.1.0/portable-cognition.schema.json",
+    "./conformance/portable-cognition/0.1.0/valid":
+      "./spec/conformance/0.1.0/portable-cognition/valid.jsonl",
+    "./conformance/portable-cognition/0.1.0/invalid":
+      "./spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
+    "./conformance/portable-cognition/0.1.0/cognitive-loop":
+      "./spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
     "./package.json": "./package.json",
   });
+  assert.deepEqual(packageJson.files, [
+    "CITATION.cff",
+    "dist/",
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "rfcs/README.md",
+    "rfcs/0001-universal-source-record-ingestion.md",
+    "rfcs/0002-compatibility-versioning-and-deprecation.md",
+    "spec/README.md",
+    "spec/compatibility.md",
+    "spec/compatibility/0.1.0/baseline.json",
+    "spec/compatibility/0.1.0/change-cases.jsonl",
+    "spec/compatibility/0.2.0/baseline.json",
+    "spec/compatibility/0.2.0/change-cases.jsonl",
+    "spec/source-record.md",
+    "spec/portable-cognition.md",
+    "spec/schemas/0.1.0/source-record.schema.json",
+    "spec/schemas/0.1.0/portable-cognition.schema.json",
+    "spec/conformance/0.1.0/source-record/valid.jsonl",
+    "spec/conformance/0.1.0/source-record/invalid.jsonl",
+    "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
+    "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
+    "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
+  ]);
   assert.deepEqual(packageJson.bin, {
     "collective-cognition": "./dist/cli.js",
   });
@@ -216,8 +262,15 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
     "spec/compatibility/0.1.0/change-cases.jsonl",
+    "spec/compatibility/0.2.0/baseline.json",
+    "spec/compatibility/0.2.0/change-cases.jsonl",
+    "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
+    "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
+    "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
     "spec/conformance/0.1.0/source-record/invalid.jsonl",
     "spec/conformance/0.1.0/source-record/valid.jsonl",
+    "spec/portable-cognition.md",
+    "spec/schemas/0.1.0/portable-cognition.schema.json",
     "spec/schemas/0.1.0/source-record.schema.json",
     "spec/source-record.md",
   ].sort();
@@ -277,46 +330,51 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
   );
   writeFileSync(
     `${consumerRoot}/index.ts`,
-    `import { createObject, type GoalData } from ${JSON.stringify(packageJson.name)};
-import compatibilityBaseline from ${JSON.stringify(`${packageJson.name}/compatibility/0.1.0`)}
-  with { type: "json" };
-import sourceRecordSchema from ${JSON.stringify(`${packageJson.name}/schemas/source-record/0.1.0`)}
-  with { type: "json" };
+    `import {
+  createPortableCognitionRecord,
+  deserializePortableCognitionRecord,
+  serializePortableCognitionRecord,
+  type PortableCognitionRecord,
+} from ${JSON.stringify(packageJson.name)};
 
-if (compatibilityBaseline.baselineVersion !== "0.1.0") {
-  throw new Error("installed compatibility baseline is not discoverable");
+function roundTrip(record: PortableCognitionRecord) {
+  return deserializePortableCognitionRecord(
+    serializePortableCognitionRecord(
+      createPortableCognitionRecord(record),
+    ),
+  );
 }
 
-if (
-  sourceRecordSchema.$id !==
-  "urn:collective-cognition:schema:source-record:0.1.0"
-) {
-  throw new Error("installed SourceRecord schema is not discoverable");
-}
+void roundTrip;
+`,
+    "utf8",
+  );
+  writeFileSync(
+    `${consumerRoot}/consumer.mjs`,
+    `import {
+  createPortableCognitionRecord,
+  deserializePortableCognitionRecord,
+  serializePortableCognitionRecord,
+} from ${JSON.stringify(packageJson.name)};
+import { readFileSync } from "node:fs";
 
-const data: GoalData = { objective: "Verify package declarations." };
-createObject({
-  id: "goal:consumer",
-  type: "goal",
-  version: 1,
-  state: "draft",
-  title: "Consumer compile",
-  data,
-  createdAt: "2026-07-27T00:00:00.000Z",
-  updatedAt: "2026-07-27T00:00:00.000Z",
-  attribution: {
-    initiatorId: "human:consumer",
-    executorId: "human:consumer",
-    accountableId: "human:consumer"
-  },
-  provenance: [{
-    source: "consumer-test",
-    sourceId: "source:1",
-    capturedAt: "2026-07-27T00:00:00.000Z"
-  }],
-  contextId: "organization:consumer",
-  relationships: []
-});
+const schemaUrl = import.meta.resolve(
+  ${JSON.stringify(`${packageJson.name}/schemas/portable-cognition/0.1.0`)},
+);
+const fixturesUrl = import.meta.resolve(
+  ${JSON.stringify(`${packageJson.name}/conformance/portable-cognition/0.1.0/valid`)},
+);
+const portableSchema = JSON.parse(readFileSync(new URL(schemaUrl), "utf8"));
+const validRecords = readFileSync(new URL(fixturesUrl), "utf8")
+  .trim()
+  .split("\\n")
+  .map((line) => JSON.parse(line));
+
+const record = createPortableCognitionRecord(validRecords[0]);
+const restored = deserializePortableCognitionRecord(
+  serializePortableCognitionRecord(record),
+);
+console.log(portableSchema.$id, restored.recordType);
 `,
     "utf8",
   );
@@ -371,6 +429,20 @@ createObject({
       },
     );
     assert.equal(typechecked.status, 0, typechecked.stderr || typechecked.stdout);
+
+    const consumed = spawnSync(
+      process.execPath,
+      [`${consumerRoot}/consumer.mjs`],
+      {
+        cwd: consumerRoot,
+        encoding: "utf8",
+      },
+    );
+    assert.equal(consumed.status, 0, consumed.stderr);
+    assert.equal(
+      consumed.stdout.trim(),
+      "urn:collective-cognition:schema:portable-cognition:0.1.0 cognitive-object",
+    );
 
     const imported = spawnSync(
       process.execPath,
@@ -435,6 +507,41 @@ console.log(JSON.stringify({
       baselineVersion: "0.1.0",
       classifications: ["additive", "breaking"],
     });
+
+    const importedCurrentCompatibility = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        `import { readFile } from "node:fs/promises";
+const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.2.0`)});
+const baseline = JSON.parse(await readFile(new URL(baselineUrl), "utf8"));
+const changeCases = (await readFile(new URL("./change-cases.jsonl", baselineUrl), "utf8"))
+  .trim()
+  .split("\\n")
+  .map((line) => JSON.parse(line));
+console.log(JSON.stringify({
+  baselineVersion: baseline.baselineVersion,
+  classifications: changeCases.map((changeCase) => changeCase.classification),
+}));`,
+      ],
+      {
+        cwd: consumerRoot,
+        encoding: "utf8",
+      },
+    );
+    assert.equal(
+      importedCurrentCompatibility.status,
+      0,
+      importedCurrentCompatibility.stderr,
+    );
+    assert.deepEqual(
+      JSON.parse(importedCurrentCompatibility.stdout.trim()),
+      {
+        baselineVersion: "0.2.0",
+        classifications: ["additive", "breaking"],
+      },
+    );
 
     const executableName =
       process.platform === "win32"
