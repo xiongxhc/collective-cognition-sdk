@@ -4,7 +4,7 @@ Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript 
 
 This is a public open-source repository licensed under [Apache License 2.0](LICENSE). Its source, emitted ESM build, declarations, and CLI are runnable, but it is not yet an externally distributed or production-ready package.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, normative SourceRecord `0.1.0` schema, open-source license, attribution notice, and citation metadata are implemented, while broader cognitive schemas, final compatibility rules, security policy, and external distribution remain planned.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable compatibility baseline `0.1.0`, open-source license, attribution notice, and citation metadata are implemented. The compatibility slice is implemented; final verification is pending. Broader cognitive schemas, host integration, registry publication, runtime policy, security policy, and production readiness remain open.
 
 ## Current Status
 
@@ -29,14 +29,25 @@ Runnable now:
 
 Not implemented yet:
 
-- final stable package guarantees or external distribution;
-- a final registry package name, supported-runtime policy, or security policy;
+- final verification, package publication, or external distribution;
+- a confirmed registry package name, runtime policy, or security policy;
 - normative schemas for cognitive objects, relationships, transitions, authorization, events, and errors;
 - persistence, services, UI, synchronization, or connector ecosystem;
 - Obsidian/Markdown integration;
 - automatic cognition from conversations.
 
-The team-memory connector proves that real source data can enter the neutral ingestion boundary. It is imported directly from `src/adapters/team-memory.ts`. The Git fixture connector is imported directly from `src/adapters/git-commit.ts`. Neither source-specific connector is exported from the root public API.
+The team-memory connector proves that real source data can enter the neutral ingestion boundary. It is imported directly from `src/adapters/team-memory.ts`. The Git fixture connector is imported directly from `src/adapters/git-commit.ts`. Source-specific connectors and unexported source modules are Internal; neither connector is exported from the root public API.
+
+## Compatibility Status
+
+- SourceRecord `0.1.0` and compatibility baseline `0.1.0` are **Normative Stable** contracts.
+- Before `1.0.0`, the package root and generic `collective-cognition` CLI are **Supported Experimental**.
+- Connectors and unexported source modules are **Internal** and create no public compatibility promise.
+- The baseline locks runtime and type exports, selected package metadata, root-reachable declaration closure, CLI behavior, domain error codes, policy identities, and normative artifact hashes.
+- Consumers can resolve the baseline at `collective-cognition-sdk/compatibility/0.1.0`.
+- Compatibility tests detect exact baseline drift and declared process consequences; they do not automatically determine semantic compatibility.
+
+Read the [compatibility policy](spec/compatibility.md) and [RFC 0002](rfcs/0002-compatibility-versioning-and-deprecation.md). npm publication, registry confirmation, runtime and security policy, broader schemas, and production readiness remain open. The manifest retains `"private": true`, and the package is unpublished.
 
 ## Universal Architecture
 
@@ -97,11 +108,12 @@ The package build emits source-neutral ESM JavaScript and declarations under ign
 ```bash
 npm run build
 npm run test:schema
+npm run test:compatibility
 npm run test:package
 npm run pack:check
 ```
 
-`npm run test:schema` compiles the SourceRecord schema in strict Draft 2020-12 mode and checks the normative fixture corpus. `npm run test:package` imports the built root, checks the exact runtime export allowlist, rejects relative `.ts` specifiers in emitted modules, runs the built CLI, audits `npm pack --dry-run` against an exact file allowlist, and installs the packed artifact into a clean temporary project to verify default TypeScript consumer settings, package-name imports, schema-subpath discovery, and the installed `collective-cognition` binary. npm operations use an isolated temporary cache.
+`npm run test:schema` compiles the SourceRecord schema in strict Draft 2020-12 mode and checks the normative fixture corpus. `npm run test:compatibility` checks the compatibility baseline’s exact inventories, hashes, policy identities, CLI contract, and declared additive and breaking change cases; it does not decide semantic compatibility automatically. `npm run test:package` imports the built root, checks the exact runtime export allowlist, rejects relative `.ts` specifiers in emitted modules, runs the built CLI, audits `npm pack --dry-run` against an exact file allowlist, and installs the packed artifact into a clean temporary project to verify default TypeScript consumer settings, package-name imports, schema-subpath discovery, compatibility-baseline resolution, and the installed `collective-cognition` binary. npm operations use an isolated temporary cache.
 
 Installed consumers can import the schema through the versioned package subpath:
 
@@ -110,7 +122,14 @@ import sourceRecordSchema from "collective-cognition-sdk/schemas/source-record/0
   with { type: "json" };
 ```
 
-The package manifest intentionally retains `"private": true` only as an npm publication guard. Removing it still requires a final registry name, compatibility and security policies, a clean package verification result, and explicit publication approval.
+Consumers can resolve the versioned compatibility baseline through:
+
+```js
+import compatibilityBaseline from "collective-cognition-sdk/compatibility/0.1.0"
+  with { type: "json" };
+```
+
+The package manifest intentionally retains `"private": true` as an npm publication guard. The package is unpublished. Removing the guard still requires registry confirmation, runtime and security policies, final verification, and explicit publication approval.
 
 ## License, Attribution, and Citation
 
@@ -124,6 +143,7 @@ If the SDK supports research, documentation, or another public work, please cred
 npm test
 npm run build
 npm run test:schema
+npm run test:compatibility
 npm run test:package
 npm run pack:check
 npx tsc --noEmit

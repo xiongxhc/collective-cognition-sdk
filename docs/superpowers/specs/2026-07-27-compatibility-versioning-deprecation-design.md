@@ -1,6 +1,8 @@
 # Compatibility, Versioning, and Deprecation Design
 
-**Status:** Draft for formal spec review.
+**Architecture direction:** Approved.
+
+**Implementation status:** Implemented; final verification pending.
 
 **Date:** 2026-07-27
 
