@@ -2,6 +2,14 @@
 
 import { createReadStream } from "node:fs";
 
+import {
+  CLI_BASE_OPTION_NAMES,
+  CLI_COMMAND_NAMES,
+  CLI_DEFAULTS,
+  CLI_INPUT_FORMATS,
+  CLI_POLICY_SELECTOR,
+  CLI_PROMOTION_OPTION_NAMES,
+} from "./cli-contract.ts";
 import { DomainError, DomainErrorCode } from "./errors.ts";
 import { ingestSourceRecordText } from "./ingestion.ts";
 import {
@@ -18,30 +26,8 @@ import type {
   IngestAndPromoteEvidenceResult,
   PromotionFailure,
 } from "./promotion.ts";
+import type { CliOptions, CliStage, Command, InputFormat } from "./cli-contract.ts";
 import type { JsonObject } from "./types.ts";
-
-type Command = "validate" | "ingest" | "promote" | "ingest-promote";
-type InputFormat = "json" | "jsonl";
-type CliStage =
-  | "arguments"
-  | "input"
-  | "ingestion"
-  | "promotion"
-  | "output";
-
-interface CliLimits {
-  readonly maxInputBytes: number;
-  readonly maxRecords: number;
-  readonly maxRecordBytes: number;
-}
-
-interface CliOptions {
-  readonly command: Command;
-  readonly input: string;
-  readonly format: InputFormat;
-  readonly limits: CliLimits;
-  readonly promotion?: EvidencePromotionContext;
-}
 
 interface CliDiagnostic {
   readonly code: string;
@@ -50,37 +36,11 @@ interface CliDiagnostic {
   readonly stage: CliStage;
 }
 
-const DEFAULT_MAX_INPUT_BYTES = 10_485_760;
-const DEFAULT_MAX_RECORDS = 10_000;
-const DEFAULT_MAX_RECORD_BYTES = 1_048_576;
-
-const commands = new Set<Command>([
-  "validate",
-  "ingest",
-  "promote",
-  "ingest-promote",
-]);
-const baseOptionNames = [
-  "input",
-  "format",
-  "max-input-bytes",
-  "max-records",
-  "max-record-bytes",
-] as const;
-const promotionOptionNames = [
-  "policy",
-  "hypothesis-id",
-  "context-id",
-  "rationale",
-  "initiator-id",
-  "executor-id",
-  "accountable-id",
-  "promoted-at",
-] as const;
 const optionNames: ReadonlySet<string> = new Set([
-  ...baseOptionNames,
-  ...promotionOptionNames,
+  ...CLI_BASE_OPTION_NAMES,
+  ...CLI_PROMOTION_OPTION_NAMES,
 ]);
+const commands: ReadonlySet<Command> = new Set(CLI_COMMAND_NAMES);
 
 class CliError extends Error {
   readonly code: string;
@@ -160,35 +120,36 @@ function parseArguments(args: readonly string[]): CliOptions {
   }
 
   const input = requiredValue(values, "input");
-  const format = requiredValue(values, "format");
-  if (format !== "json" && format !== "jsonl") {
+  const formatValue = requiredValue(values, "format");
+  if (!CLI_INPUT_FORMATS.includes(formatValue as InputFormat)) {
     invalidArgument("--format must be json or jsonl.", {
       option: "--format",
-      value: format,
+      value: formatValue,
     });
   }
+  const format = formatValue as InputFormat;
   const limits = {
     maxInputBytes: positiveSafeInteger(
       values,
       "max-input-bytes",
-      DEFAULT_MAX_INPUT_BYTES,
+      CLI_DEFAULTS.maxInputBytes,
     ),
     maxRecords: positiveSafeInteger(
       values,
       "max-records",
-      DEFAULT_MAX_RECORDS,
+      CLI_DEFAULTS.maxRecords,
     ),
     maxRecordBytes: positiveSafeInteger(
       values,
       "max-record-bytes",
-      DEFAULT_MAX_RECORD_BYTES,
+      CLI_DEFAULTS.maxRecordBytes,
     ),
   };
 
   const requiresPromotion =
     command === "promote" || command === "ingest-promote";
   if (!requiresPromotion) {
-    for (const name of promotionOptionNames) {
+    for (const name of CLI_PROMOTION_OPTION_NAMES) {
       if (values[name] !== undefined) {
         invalidArgument(`--${name} is not valid for ${command}.`, {
           option: `--${name}`,
@@ -200,7 +161,7 @@ function parseArguments(args: readonly string[]): CliOptions {
   }
 
   const policy = requiredValue(values, "policy");
-  if (policy !== "neutral-evidence-v1") {
+  if (policy !== CLI_POLICY_SELECTOR) {
     invalidArgument("--policy must be neutral-evidence-v1.", {
       option: "--policy",
       value: policy,
