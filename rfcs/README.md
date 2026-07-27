@@ -6,7 +6,7 @@ RFCs are the contribution path for changes that affect collective-cognition sema
 
 - [RFC 0001: Universal Source-Record Ingestion](0001-universal-source-record-ingestion.md) — implemented and final-review verified in Phase 2 with closed immutable records, pre-parse limits, full-payload promotion identity, secret-safe diagnostics, privacy-default connectors, fail-closed authorization, canonical fixtures, and two source-specific connector implementations.
 - [RFC 0002: Compatibility, Versioning, and Deprecation](0002-compatibility-versioning-and-deprecation.md) — implemented and final-review verified in Phase 3 with a Normative Stable `0.1.0` baseline, explicit stability classes, immutable artifact hashes, compatibility checks, and additive and breaking process examples.
-- [RFC 0003: Portable Cognition Contract](0003-portable-cognition-contract.md) — implemented and task-reviewed in Phase 3 with a Normative Stable `0.1.0` exchange envelope and additive private package `0.2.0` surface; Task 6 broad final review remains pending.
+- [RFC 0003: Portable Cognition Contract](0003-portable-cognition-contract.md) — implemented and final-review verified in Phase 3 with a Normative Stable `0.1.0` exchange envelope and additive private package `0.2.0` surface.
 
 ## When an RFC Is Required
 

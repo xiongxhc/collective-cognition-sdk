@@ -4,7 +4,7 @@ Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript 
 
 This is a public open-source repository licensed under [Apache License 2.0](LICENSE). Its source, emitted ESM build, declarations, and CLI are runnable, but it is not yet an externally distributed or production-ready package.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable compatibility baselines `0.1.0` and `0.2.0`, and Normative Stable Portable Cognition Contract `0.1.0` are implemented. Portable Cognition is task-reviewed; Task 6 broad final review remains pending. Host integration contracts are the next active slice; adapters, registry publication, runtime policy, security policy, and production readiness remain deferred.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable compatibility baselines `0.1.0` and `0.2.0`, and Normative Stable Portable Cognition Contract `0.1.0` are implemented and final-review verified. Host integration contracts are the next active slice; adapters, registry publication, runtime policy, security policy, and production readiness remain deferred.
 
 ## Current Status
 
@@ -30,7 +30,7 @@ Runnable now:
 
 Not implemented yet:
 
-- Task 6 broad final review, package publication, or external distribution;
+- package publication or external distribution;
 - a confirmed registry package name, runtime policy, or security policy;
 - stricter standalone and type-specific semantic schemas for cognitive objects, relationships, transitions, authorization, events, and errors; the Portable Cognition serialized envelope remains normative;
 - persistence, services, UI, synchronization, or connector ecosystem;
@@ -241,7 +241,7 @@ The tracked [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/
 
 1. the completed runnable core;
 2. the completed universal neutral-first ingestion foundation;
-3. in-progress specification and package stabilization, with Portable Cognition implemented and Task 6 final review pending;
+3. in-progress specification and package stabilization, with Portable Cognition implemented and final-review verified;
 4. adapter ecosystem foundations;
 5. cross-connector interoperability;
 6. operational governance and retirement tooling;

@@ -1,6 +1,6 @@
 # RFC 0003: Portable Cognition Contract
 
-**Status:** Implemented; final review pending Task 6
+**Status:** Implemented and final-review verified
 
 **Created:** 2026-07-28
 **Decision owner:** Project maintainer
@@ -53,9 +53,9 @@ Hosts remain responsible for trusted identity, authorization, access control, se
 - Differential and package evidence: [`tests/portable-cognition-conformance.test.ts`](../tests/portable-cognition-conformance.test.ts), [`tests/portable-cognition.test.ts`](../tests/portable-cognition.test.ts), [`tests/portable-cognition-schema.test.mjs`](../tests/portable-cognition-schema.test.mjs), [`tests/compatibility.test.mjs`](../tests/compatibility.test.mjs), and [`tests/package.test.mjs`](../tests/package.test.mjs).
 - Package and compatibility metadata: [`package.json`](../package.json), [baseline `0.2.0`](../spec/compatibility/0.2.0/baseline.json), and [change cases](../spec/compatibility/0.2.0/change-cases.jsonl).
 
-### Task 6 Correction-Wave Snapshot
+### Final Verification Snapshot
 
-Independent final re-review remains pending. The complete local matrix passes: `npm test` reports 194 source, 10 combined SourceRecord and Portable Cognition schema, 14 compatibility, and 6 package tests; TypeScript checking, syntax checking, both examples, `pack:check`, and `git diff --check` also exit successfully.
+Independent final review found no remaining Critical or Important issue after the correction wave. The complete local matrix passes: `npm test` reports 194 source, 10 combined SourceRecord and Portable Cognition schema, 14 compatibility, and 6 package tests; TypeScript checking, syntax checking, both examples, `pack:check`, and `git diff --check` also exit successfully.
 
 Package version `0.2.0` retains `"private": true`. Host integration contracts and persistence or connector adapters remain deferred.
 

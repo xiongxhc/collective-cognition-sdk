@@ -83,7 +83,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** In progress. The compatibility slice is delivered and final-review verified. Portable Cognition is implemented and task-reviewed; Task 6 broad final review remains pending. Broader Phase 3 work remains.
+**Status:** In progress. The compatibility and Portable Cognition slices are delivered and final-review verified. Broader Phase 3 work remains.
 
 **Active next slice**
 
@@ -119,15 +119,16 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Exact baseline checks for runtime and type exports, selected package metadata, declaration closure, generic CLI behavior, domain error codes, policy identities, and normative artifact digests.
 - [x] One additive and one breaking process example.
 
-**Delivered and task-reviewed in the Portable Cognition slice; Task 6 broad final review pending**
+**Delivered and final-review verified in the Portable Cognition slice**
 
 - [x] Normative Stable Portable Cognition Contract `0.1.0` prose, strict JSON Schema, and versioned valid, invalid, and cognitive-loop fixtures.
 - [x] Runtime create, validate, serialize, and deserialize operations with lexical-profile, depth, clone, and deep-freeze enforcement.
 - [x] Additive package `0.2.0` compatibility baseline, runtime and type exports, schema and fixture subpaths, and clean-consumer/package evidence.
 - [x] A runnable cognitive-object round-trip example.
 
-**Task 6 correction-wave evidence; independent final re-review pending**
+**Portable Cognition final verification evidence**
 
+- Independent final review found no remaining Critical or Important issue after the correction wave.
 - The complete local matrix passes: `npm test` reports 194 source, 10 combined SourceRecord and Portable Cognition schema, 14 compatibility, and 6 package tests; TypeScript checking, syntax checking, both examples, `pack:check`, and `git diff --check` also exit successfully.
 - Package version `0.2.0` retains `"private": true`. Host integration contracts and persistence or connector adapters remain deferred.
 - Compatibility hashes: baseline `0.1.0` `4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b`; change cases `0.1.0` `3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b`; baseline `0.2.0` `3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4`; change cases `0.2.0` `e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5`.

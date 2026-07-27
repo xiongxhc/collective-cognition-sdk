@@ -1,6 +1,6 @@
 # Collective Cognition Specification
 
-This directory contains the implemented Normative Stable SourceRecord `0.1.0` and Portable Cognition `0.1.0` contracts plus compatibility baselines `0.1.0` and `0.2.0`. Portable Cognition is task-reviewed; Task 6 broad final review remains pending. The runnable TypeScript code and emitted package artifacts are the current reference implementation; package `0.2.0` remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
+This directory contains the implemented and final-review verified Normative Stable SourceRecord `0.1.0` and Portable Cognition `0.1.0` contracts plus compatibility baselines `0.1.0` and `0.2.0`. The runnable TypeScript code and emitted package artifacts are the current reference implementation; package `0.2.0` remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
 
 ## Current Architecture
 
@@ -9,7 +9,7 @@ Four documents define the current direction:
 - the [implemented cognitive-core design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-collective-cognition-core-design.md);
 - the [approved universal-ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
 - the [approved compatibility, versioning, and deprecation design](../docs/superpowers/specs/2026-07-27-compatibility-versioning-deprecation-design.md).
-- the [implemented Portable Cognition design, with final review pending](../docs/superpowers/specs/2026-07-27-portable-cognition-contract-design.md).
+- the [implemented and final-review verified Portable Cognition design](../docs/superpowers/specs/2026-07-27-portable-cognition-contract-design.md).
 
 The core design and Phase 2 universal ingestion are implemented and final-review verified locally. [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md) records the implemented ingestion semantics.
 
@@ -66,7 +66,7 @@ The contract provides an envelope and runtime codec, not persistence, event publ
 
 SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and compatibility baselines `0.1.0` and `0.2.0` are Normative Stable. Before `1.0.0`, the package root and generic CLI are Supported Experimental. Connectors and unexported source modules are Internal. Compatibility checks detect exact baseline drift and declared process consequences; they do not automatically determine semantic compatibility.
 
-Phase 3 remains in progress. SourceRecord and the compatibility baselines are implemented normative contracts, and the compatibility slice is final-review verified. Portable Cognition is implemented and task-reviewed; Task 6 broad final review remains pending. The initial ESM build, declarations, package entrypoints, CLI contract, package-content checks, clean-consumer schema discovery, Apache-2.0 license, attribution notice, and citation metadata are also implemented. Host integration contracts, adapters and connector packaging, runtime policy, security policy, publication, and production readiness remain deferred.
+Phase 3 remains in progress. SourceRecord, Portable Cognition, and the compatibility baselines are implemented normative contracts; the compatibility and Portable Cognition slices are final-review verified. The initial ESM build, declarations, package entrypoints, CLI contract, package-content checks, clean-consumer schema discovery, Apache-2.0 license, attribution notice, and citation metadata are also implemented. Host integration contracts, adapters and connector packaging, runtime policy, security policy, publication, and production readiness remain deferred.
 
 ## Planned Normative Content
 
