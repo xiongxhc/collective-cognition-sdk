@@ -96,9 +96,19 @@ const relationshipTypes = new Set<RelationshipType>([
   "justified-by-decision",
   "justified-by-evidence",
 ]);
-const domainErrorCodes = new Set<DomainErrorCode>(
-  Object.values(DomainErrorCode),
-);
+const portableDomainErrorCodes: readonly DomainErrorCode[] = Object.freeze([
+  "INVALID_OBJECT",
+  "INVALID_SOURCE_RECORD",
+  "INVALID_RELATIONSHIP",
+  "INVALID_TRANSITION",
+  "CONFIRMATION_REQUIRED",
+  "AUTHORIZATION_DENIED",
+  "SERIALIZATION_ERROR",
+  "SOURCE_REVISION_COLLISION",
+  "INGESTION_LIMIT_EXCEEDED",
+  "PROMOTION_FAILED",
+  "INVALID_PORTABLE_COGNITION_RECORD",
+]);
 
 const validStatesByType: Record<ObjectType, ReadonlySet<string>> = {
   identity: new Set(["active", "inactive"]),
@@ -719,7 +729,11 @@ function validateCognitionEvent(value: unknown): void {
   }
   validateProvenance(value.provenance);
   if (value.humanConfirmation !== undefined) {
-    validateHumanConfirmation(value.humanConfirmation);
+    validateHumanConfirmation(
+      value.humanConfirmation,
+      value.id as string,
+      value.occurredAt as string,
+    );
   }
 
   const objectType = value.objectType as ObjectType;
@@ -832,7 +846,7 @@ function validateDomainErrorPayload(value: unknown): void {
   requireNonWhitespaceFields(value, ["message"]);
   if (
     typeof value.code !== "string" ||
-    !domainErrorCodes.has(value.code as DomainErrorCode)
+    !portableDomainErrorCodes.includes(value.code as DomainErrorCode)
   ) {
     invalidPortableCognitionRecord(
       "Portable Cognition domain error code is invalid.",
@@ -891,7 +905,15 @@ export function validatePortableCognitionRecord(
 export function createPortableCognitionRecord(
   input: CreatePortableCognitionRecordInput,
 ): PortableCognitionRecord {
-  const snapshot = structuredClone(input);
+  validatePortableCognitionRecord(input);
+  let snapshot: unknown;
+  try {
+    snapshot = structuredClone(input);
+  } catch {
+    invalidPortableCognitionRecord(
+      "Portable Cognition record could not be cloned safely.",
+    );
+  }
   validatePortableCognitionRecord(snapshot);
   return freezeJsonValue(
     snapshot as unknown as JsonValue,
