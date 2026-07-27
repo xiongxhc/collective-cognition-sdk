@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:collective-cognition:schema:source-record:0.1.0",
+  "title": "Collective Cognition SourceRecord 0.1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "source",
+    "sourceId",
+    "revisionId",
+    "capturedAt",
+    "mediaType",
+    "content"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "0.1.0"
+    },
+    "id": {
+      "$ref": "#/$defs/nonWhitespaceString"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "system"
+      ],
+      "properties": {
+        "system": {
+          "$ref": "#/$defs/nonWhitespaceString"
+        },
+        "instance": {
+          "$ref": "#/$defs/nonWhitespaceString"
+        }
+      }
+    },
+    "sourceId": {
+      "$ref": "#/$defs/nonWhitespaceString"
+    },
+    "revisionId": {
+      "$ref": "#/$defs/nonWhitespaceString"
+    },
+    "capturedAt": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "observedAt": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "mediaType": {
+      "type": "string",
+      "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+/[!#$%&'*+.^_`|~0-9A-Za-z-]+(?:\\s*;\\s*[!#$%&'*+.^_`|~0-9A-Za-z-]+=(?:[!#$%&'*+.^_`|~0-9A-Za-z-]+|\"(?:[^\"\\\\\\r\\n]|\\\\.)*\"))*$"
+    },
+    "content": true,
+    "contentHash": {
+      "$ref": "#/$defs/nonWhitespaceString"
+    },
+    "actorId": {
+      "$ref": "#/$defs/nonWhitespaceString"
+    },
+    "context": {
+      "type": "object",
+      "propertyNames": {
+        "not": {
+          "enum": [
+            "polarity",
+            "confidence",
+            "authority"
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[^:.\\s]+(?:[:.][^:.\\s]+)+$"
+      }
+    }
+  },
+  "$defs": {
+    "nonWhitespaceString": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:Z|[+-]\\d{2}:\\d{2})$"
+    }
+  }
+}
