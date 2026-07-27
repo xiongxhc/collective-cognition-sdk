@@ -30,7 +30,7 @@ function readJsonLines(url) {
     .map((line) => JSON.parse(line));
 }
 
-function compileSchema() {
+export function compilePortableSchema() {
   const ajv = new Ajv2020({ strict: true, allErrors: true });
   addFormats(ajv, { mode: "full" });
   return ajv.compile(readJson(schemaUrl));
@@ -45,6 +45,19 @@ function invalidFixtureRecord(fixture) {
   return fixture.recordJson === undefined
     ? fixture.record
     : JSON.parse(fixture.recordJson);
+}
+
+export function validRecords() {
+  return readJsonLines(validFixtureUrl);
+}
+
+export function schemaInvalidFixtures() {
+  return readJsonLines(invalidFixtureUrl)
+    .filter((fixture) => fixture.validationLayer === undefined)
+    .map((fixture) => ({
+      ...fixture,
+      record: invalidFixtureRecord(fixture),
+    }));
 }
 
 const machineCheckableRuleIds = [
@@ -82,22 +95,20 @@ const requiredRuntimeFixtureDescriptions = [
 ];
 
 test("Portable Cognition schema compiles in strict Draft 2020-12 mode", () => {
-  assert.equal(typeof compileSchema(), "function");
+  assert.equal(typeof compilePortableSchema(), "function");
 });
 
 test("every schema-layer valid fixture passes", () => {
-  const validate = compileSchema();
-  for (const fixture of readJsonLines(validFixtureUrl)) {
+  const validate = compilePortableSchema();
+  for (const fixture of validRecords()) {
     assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
   }
 });
 
 test("every schema-layer invalid fixture fails", () => {
-  const validate = compileSchema();
-  for (const fixture of readJsonLines(invalidFixtureUrl).filter(
-    (candidate) => candidate.validationLayer === undefined,
-  )) {
-    assert.equal(validate(invalidFixtureRecord(fixture)), false, fixture.description);
+  const validate = compilePortableSchema();
+  for (const fixture of schemaInvalidFixtures()) {
+    assert.equal(validate(fixture.record), false, fixture.description);
   }
 });
 
