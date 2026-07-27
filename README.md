@@ -4,7 +4,7 @@ Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript 
 
 This is a public open-source repository licensed under [Apache License 2.0](LICENSE). Its source, emitted ESM build, declarations, and CLI are runnable, but it is not yet an externally distributed or production-ready package.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable compatibility baseline `0.1.0`, open-source license, attribution notice, and citation metadata are implemented. The compatibility slice is implemented and final-review verified. Broader cognitive schemas, host integration, registry publication, runtime policy, security policy, and production readiness remain open.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable compatibility baselines `0.1.0` and `0.2.0`, and Normative Stable Portable Cognition Contract `0.1.0` are implemented. Portable Cognition is task-reviewed; Task 6 broad final review remains pending. Host integration contracts are the next active slice; adapters, registry publication, runtime policy, security policy, and production readiness remain deferred.
 
 ## Current Status
 
@@ -23,13 +23,14 @@ Runnable now:
 - a source-neutral `collective-cognition` CLI for validate, ingest, promote, and ingest-promote operations;
 - emitted ESM JavaScript, declaration files, an explicit root exports map, an installed `collective-cognition` executable contract, and audited package contents;
 - package compatibility tests covering built imports, runtime exports, declarations, CLI behavior, npm tarball contents, and installation into a clean temporary consumer;
+- Portable Cognition `0.1.0`: a closed versioned envelope for cognitive objects, events, transition contexts, authorization decisions, and domain-error projections, with schema, fixtures, runtime codecs, and a runnable round trip;
 - schema, SDK, and CLI tests over the complete canonical valid and invalid corpus, plus package and clean-consumer smoke tests for shipped fixtures, schema discovery, and the installed CLI;
 - an experimental read-only team-memory SQLite connector that emits SourceRecord JSONL;
 - a small Git commit fixture connector used to prove a second source-specific module satisfies the same SourceRecord contract.
 
 Not implemented yet:
 
-- final verification, package publication, or external distribution;
+- Task 6 broad final review, package publication, or external distribution;
 - a confirmed registry package name, runtime policy, or security policy;
 - normative schemas for cognitive objects, relationships, transitions, authorization, events, and errors;
 - persistence, services, UI, synchronization, or connector ecosystem;
@@ -40,11 +41,11 @@ The team-memory connector proves that real source data can enter the neutral ing
 
 ## Compatibility Status
 
-- SourceRecord `0.1.0` and compatibility baseline `0.1.0` are **Normative Stable** contracts.
+- SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and compatibility baselines `0.1.0` and `0.2.0` are **Normative Stable** contracts.
 - Before `1.0.0`, the package root and generic `collective-cognition` CLI are **Supported Experimental**.
 - Connectors and unexported source modules are **Internal** and create no public compatibility promise.
 - The baseline locks runtime and type exports, selected package metadata, root-reachable declaration closure, CLI behavior, domain error codes, policy identities, and normative artifact hashes.
-- Consumers can resolve the baseline at `collective-cognition-sdk/compatibility/0.1.0`.
+- Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0` and `collective-cognition-sdk/compatibility/0.2.0`.
 - Compatibility tests detect exact baseline drift and declared process consequences; they do not automatically determine semantic compatibility.
 
 Read the [compatibility policy](spec/compatibility.md) and [RFC 0002](rfcs/0002-compatibility-versioning-and-deprecation.md). npm publication, registry confirmation, runtime and security policy, broader schemas, and production readiness remain open. The manifest retains `"private": true`, and the package is unpublished.
@@ -129,6 +130,18 @@ import compatibilityBaseline from "collective-cognition-sdk/compatibility/0.1.0"
   with { type: "json" };
 ```
 
+The private package also exposes the Portable Cognition runtime and versioned artifacts for local or packed consumers:
+
+```ts
+import {
+  createPortableCognitionRecord,
+  deserializePortableCognitionRecord,
+  serializePortableCognitionRecord,
+} from "collective-cognition-sdk";
+```
+
+Run [`examples/portable-cognition.ts`](examples/portable-cognition.ts) for one complete cognitive-object round trip. Its schema and fixtures are available at `collective-cognition-sdk/schemas/portable-cognition/0.1.0` and `collective-cognition-sdk/conformance/portable-cognition/0.1.0/cognitive-loop`.
+
 The package manifest intentionally retains `"private": true` as an npm publication guard. The package is unpublished. Removing the guard still requires registry confirmation, runtime and security policies, final verification, and explicit publication approval.
 
 ## License, Attribution, and Citation
@@ -149,6 +162,7 @@ npm run pack:check
 npx tsc --noEmit
 npm run check
 npm run example
+npm run example:portable
 npm run --silent example:teammem -- /path/to/team-memory-agent/ledger.db
 npm run --silent teammem:export -- --db /path/to/ledger.db --limit 5
 npm run --silent teammem:export -- --db /path/to/ledger.db --limit 5 --include-raw
@@ -162,6 +176,8 @@ node --test tests/conformance.test.ts
 ```
 
 `npm run example` prints an attributed complete chain, a rejected unconfirmed decision approval, a successful human-confirmed approval, and the successful event count.
+
+`npm run example:portable` creates one cognitive-object record, serializes and deserializes its Portable Cognition `0.1.0` envelope, and prints that one restored envelope to stdout.
 
 The migrated team-memory commands are experimental connector tools:
 
@@ -214,7 +230,7 @@ Production callers must inject a policy backed by authenticated identity and tru
 
 ## Semantic Limits
 
-SourceRecord `0.1.0` now has a normative language-neutral schema and fixtures. Type-specific cognitive-object `data` payloads remain permissive JSON-compatible structures; required semantic fields, broader language-neutral schemas, and stricter per-type validation remain roadmap work.
+SourceRecord `0.1.0` and Portable Cognition `0.1.0` have normative language-neutral schemas and fixtures. Portable Cognition provides an exchange record only: it neither persists nor publishes a record, and it does not authenticate a confirmation or execute authorization policy. Type-specific cognitive-object `data` payloads remain permissive JSON-compatible structures; host integration contracts, stricter per-type semantics, adapters, runtime policy, and security policy remain deferred.
 
 The project does not claim universal compatibility, production readiness, or broad adoption. Those claims require a stable package, independently implemented connectors, and real-team evidence.
 
@@ -224,7 +240,7 @@ The tracked [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/
 
 1. the completed runnable core;
 2. the completed universal neutral-first ingestion foundation;
-3. in-progress specification and package stabilization;
+3. in-progress specification and package stabilization, with Portable Cognition implemented and Task 6 final review pending;
 4. adapter ecosystem foundations;
 5. cross-connector interoperability;
 6. operational governance and retirement tooling;

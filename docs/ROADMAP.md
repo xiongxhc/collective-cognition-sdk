@@ -83,7 +83,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** In progress. The compatibility slice is delivered and verified; broader Phase 3 work remains.
+**Status:** In progress. The compatibility slice is delivered and final-review verified. Portable Cognition is implemented and task-reviewed; Task 6 broad final review remains pending. Broader Phase 3 work remains.
 
 **Active next slice**
 
@@ -91,6 +91,8 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Implement the versioned SourceRecord schema, normative prose, fixtures, differential conformance tests, and packaged artifacts described in [`2026-07-27-source-record-normative-conformance-design.md`](superpowers/specs/2026-07-27-source-record-normative-conformance-design.md).
 - [x] Compatibility, versioning, and deprecation design approved.
 - [x] Compatibility, versioning, and deprecation slice delivered and verified.
+- [x] Portable Cognition Contract `0.1.0` design approved and implementation completed.
+- [ ] Host integration contracts for cognition persistence and event publication without selecting a mandatory database, service, or delivery architecture. **Active next slice.**
 
 **Delivered in the SourceRecord normative-conformance slice**
 
@@ -117,6 +119,13 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Exact baseline checks for runtime and type exports, selected package metadata, declaration closure, generic CLI behavior, domain error codes, policy identities, and normative artifact digests.
 - [x] One additive and one breaking process example.
 
+**Delivered and task-reviewed in the Portable Cognition slice; Task 6 broad final review pending**
+
+- [x] Normative Stable Portable Cognition Contract `0.1.0` prose, strict JSON Schema, and versioned valid, invalid, and cognitive-loop fixtures.
+- [x] Runtime create, validate, serialize, and deserialize operations with lexical-profile, depth, clone, and deep-freeze enforcement.
+- [x] Additive package `0.2.0` compatibility baseline, runtime and type exports, schema and fixture subpaths, and clean-consumer/package evidence.
+- [x] A runnable cognitive-object round-trip example.
+
 **Delivered in the licensing and attribution slice**
 
 - [x] Apache License 2.0 with the official license text.
@@ -136,7 +145,6 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - Additional versioned machine-readable schemas and normative fixtures beyond SourceRecord.
 - Host integration contracts for cognition persistence and event publication without selecting a mandatory database or service architecture.
 - Final stable package guarantees, API documentation, registry publication, and external-distribution readiness criteria.
-- Broader cognitive-object, relationship, transition, authorization, event, error, persistence, and connector schemas.
 - Runtime and security policy.
 
 **Acceptance checks**
