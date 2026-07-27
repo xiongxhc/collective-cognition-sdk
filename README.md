@@ -227,7 +227,7 @@ The tracked [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/
 3. in-progress specification and package stabilization;
 4. adapter ecosystem foundations;
 5. cross-connector interoperability;
-6. governance and evolution;
+6. operational governance and retirement tooling;
 7. real-team validation.
 
 Semantic changes use [RFCs](rfcs/README.md). Language-neutral specification contributions start in [spec](spec/README.md).

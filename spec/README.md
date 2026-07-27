@@ -4,7 +4,7 @@ This directory contains the implemented Normative Stable SourceRecord `0.1.0` co
 
 ## Current Architecture
 
-Two documents define the current direction:
+Three documents define the current direction:
 
 - the [implemented cognitive-core design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-collective-cognition-core-design.md);
 - the [approved universal-ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).

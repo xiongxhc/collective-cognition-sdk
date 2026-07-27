@@ -90,7 +90,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] SourceRecord-first normative conformance design approved.
 - [x] Implement the versioned SourceRecord schema, normative prose, fixtures, differential conformance tests, and packaged artifacts described in [`2026-07-27-source-record-normative-conformance-design.md`](superpowers/specs/2026-07-27-source-record-normative-conformance-design.md).
 - [x] Compatibility, versioning, and deprecation design approved.
-- [ ] Compatibility, versioning, and deprecation slice implemented; final verification pending.
+- [x] Compatibility, versioning, and deprecation slice implemented; final verification pending.
 
 **Delivered in the SourceRecord normative-conformance slice**
 
