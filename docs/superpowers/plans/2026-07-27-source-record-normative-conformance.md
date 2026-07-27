@@ -1,6 +1,6 @@
 # SourceRecord Normative Conformance Implementation Plan
 
-**Status:** Implementation complete and verified; integration pending.
+**Status:** Complete, verified, and integrated.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -575,7 +575,7 @@ git add README.md docs/ROADMAP.md docs/superpowers spec rfcs package.json packag
 git commit -m "docs: publish SourceRecord conformance contract"
 ```
 
-- [ ] **Step 9: Merge and publish after authorization**
+- [x] **Step 9: Merge and publish after authorization**
 
 After final verification and explicit push authorization:
 
