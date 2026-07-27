@@ -66,12 +66,27 @@ test("every normative valid fixture satisfies the schema", () => {
 
 test("every normative invalid fixture violates the schema", () => {
   const validate = compileSchema();
-  for (const fixture of readJsonLines(invalidFixtureUrl)) {
+  const schemaFixtures = readJsonLines(invalidFixtureUrl).filter(
+    (fixture) => fixture.validationLayer !== "lexical",
+  );
+  for (const fixture of schemaFixtures) {
     assert.equal(
       validate(invalidFixtureRecord(fixture)),
       false,
       fixture.description,
     );
+  }
+});
+
+test("lexical fixtures remain lossless and outside schema assertions", () => {
+  const lexicalFixtures = readJsonLines(invalidFixtureUrl).filter(
+    (fixture) => fixture.validationLayer === "lexical",
+  );
+
+  assert.ok(lexicalFixtures.length > 0);
+  for (const fixture of lexicalFixtures) {
+    assert.equal(typeof fixture.recordJson, "string");
+    assert.equal(fixture.record, undefined);
   }
 });
 

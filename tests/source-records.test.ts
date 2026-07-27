@@ -145,6 +145,26 @@ test("rejects non-JSON content, context, and extensions", () => {
   }
 });
 
+test("rejects lone surrogates in direct SourceRecord strings and keys", () => {
+  expectInvalidSourceRecord(() =>
+    createSourceRecord(inputFor({ content: "\ud800" })),
+  );
+  expectInvalidSourceRecord(() =>
+    createSourceRecord(inputFor({ content: { "\ud800": "value" } })),
+  );
+});
+
+test("rejects duplicate members and lone surrogates during deserialization", () => {
+  for (const json of [
+    '{"schemaVersion":"0.1.0","id":"first","id":"second","source":{"system":"fixture"},"sourceId":"item","revisionId":"revision","capturedAt":"2026-07-24T10:00:00Z","mediaType":"application/json","content":null}',
+    '{"schemaVersion":"0.1.0","id":"record","source":{"system":"fixture"},"sourceId":"item","revisionId":"revision","capturedAt":"2026-07-24T10:00:00Z","mediaType":"application/json","content":{"value":1,"value":2}}',
+    '{"schemaVersion":"0.1.0","id":"record","source":{"system":"fixture"},"sourceId":"item","revisionId":"revision","capturedAt":"2026-07-24T10:00:00Z","mediaType":"application/json","content":"\\ud800"}',
+    '{"schemaVersion":"0.1.0","id":"record","source":{"system":"fixture"},"sourceId":"item","revisionId":"revision","capturedAt":"2026-07-24T10:00:00Z","mediaType":"application/json","content":{"\\ud800":"value"}}',
+  ]) {
+    expectInvalidSourceRecord(() => deserializeSourceRecord(json));
+  }
+});
+
 test("serializes and deserializes source records without semantic loss", () => {
   const record = createSourceRecord(inputFor({ contentHash: "sha256:abc" }));
   const restored = deserializeSourceRecord(serializeSourceRecord(record));

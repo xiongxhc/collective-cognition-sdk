@@ -15,7 +15,7 @@ Runnable now:
 - structural human-confirmation checks for configured consequential transitions;
 - JSON serialization and a complete cognitive-loop example;
 - a closed, versioned `SourceRecord` contract with canonical JSON/JSONL ingestion that clones and deeply freezes accepted external records;
-- normative SourceRecord `0.1.0` prose, JSON Schema Draft 2020-12, and versioned language-neutral conformance fixtures;
+- normative SourceRecord `0.1.0` prose, JSON Schema Draft 2020-12, lexical interoperability checks, and versioned language-neutral conformance fixtures;
 - deterministic duplicate and source-revision collision classification;
 - explicit, versioned one-or-more-record neutral-Evidence promotion with duplicate/collision classification, required rationale, complete provenance, immutable input snapshots, and canonical payload-hash identity;
 - caller-configurable SDK ingestion limits and finite CLI input, record-count, and record-size limits;

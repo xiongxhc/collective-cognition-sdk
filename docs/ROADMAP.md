@@ -94,6 +94,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Normative SourceRecord `0.1.0` prose with stable rule identifiers and rule-to-check mapping.
 - [x] A strict JSON Schema Draft 2020-12 artifact with self-asserting timestamp, field, context, and extension rules.
 - [x] Versioned valid and invalid language-neutral fixtures shared by schema, SDK, and CLI tests.
+- [x] Lossless pre-schema rejection of duplicate JSON member names and lone surrogate strings.
 - [x] A stable installed schema subpath plus exact package and clean-consumer verification.
 - [x] Runtime timestamp behavior aligned to the normative serialized profile.
 

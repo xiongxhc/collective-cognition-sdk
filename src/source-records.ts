@@ -1,5 +1,9 @@
 import { DomainError, DomainErrorCode } from "./errors.ts";
 import {
+  JsonTextProfileError,
+  parseProfiledJson,
+} from "./json-text.ts";
+import {
   freezeJsonValue,
   isJsonObject,
   isJsonValue,
@@ -290,8 +294,14 @@ export function serializeSourceRecord(record: SourceRecord): string {
 export function deserializeSourceRecord(json: string): SourceRecord {
   let value: unknown;
   try {
-    value = JSON.parse(json);
-  } catch {
+    value = parseProfiledJson(json);
+  } catch (error) {
+    if (error instanceof JsonTextProfileError) {
+      throw new DomainError(
+        DomainErrorCode.INVALID_SOURCE_RECORD,
+        "Serialized source record violates the JSON interoperability profile.",
+      );
+    }
     throw new DomainError(
       DomainErrorCode.SERIALIZATION_ERROR,
       "Serialized source record is not valid JSON.",

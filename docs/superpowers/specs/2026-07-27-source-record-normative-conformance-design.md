@@ -61,6 +61,8 @@ The schema will:
 
 JSON Schema describes serialized JSON. JavaScript-specific rejection of cycles, accessors, symbols, custom prototypes, and non-finite numbers remains reference-runtime input hardening. Those cases do not belong in cross-language JSON fixtures because they cannot exist in valid JSON text.
 
+Duplicate JSON member names and lone surrogate strings require lossless lexical fixtures and pre-schema checks because ordinary parsing erases or preserves them inconsistently across implementations.
+
 ## Normative Prose
 
 `spec/source-record.md` will define rules with stable identifiers such as `SR-001`.

@@ -28,7 +28,11 @@ The JSON Schema at [`schemas/0.1.0/source-record.schema.json`](schemas/0.1.0/sou
 
 A serialized SourceRecord MUST be one JSON object. JSON arrays, primitives, or non-JSON language values are not SourceRecords.
 
-JSON Schema operates on serialized JSON. Implementations MAY additionally reject unsafe language-native inputs such as cycles, accessors, custom prototypes, symbols, or non-finite numbers before serialization. Such hardening MUST NOT change the accepted serialized JSON contract.
+Every JSON object in the serialized record MUST contain unique member names. Every member name and string value MUST contain only Unicode scalar values; lone UTF-16 surrogates are invalid. Implementations MUST enforce these lexical rules before ordinary parsing erases duplicate names or preserves implementation-specific surrogate values.
+
+JSON Schema operates on an already-parsed JSON value and cannot detect duplicate lexical member names. The schema reinforces scalar-string behavior where validator string semantics permit it; the normative lexical fixtures remain authoritative for the pre-schema boundary.
+
+Implementations MAY additionally reject unsafe language-native inputs such as cycles, accessors, custom prototypes, symbols, or non-finite numbers before serialization. Such hardening MUST NOT change the accepted serialized JSON contract.
 
 Before validation, JSON numbers MUST be interpreted as IEEE 754 binary64 values. A number that overflows to positive or negative infinity is invalid. Lexically different JSON numbers that produce the same binary64 value are the same SourceRecord value. Sources requiring exact decimal or integer precision beyond binary64 MUST encode that value as a JSON string with an application-defined media type or namespaced extension.
 
@@ -36,7 +40,7 @@ Before validation, JSON numbers MUST be interpreted as IEEE 754 binary64 values.
 
 ### SR-001 — Closed Record Object
 
-A SourceRecord MUST be a JSON object. It MUST contain only the fields declared by the `0.1.0` schema. Implementations MUST reject unknown root fields rather than discard them.
+A SourceRecord MUST be a JSON object. It MUST contain only the fields declared by the `0.1.0` schema. Implementations MUST reject unknown root fields rather than discard them. Serialized objects MUST contain unique member names at the root and every nested level.
 
 ### SR-002 — Schema Version
 
@@ -82,6 +86,8 @@ The schema retains the standard `date-time` annotation for tooling, but its patt
 
 Every number nested in `content`, `context`, or `extensions` MUST remain within the finite binary64 range. NaN and infinity are invalid. This numeric rule applies recursively.
 
+Every nested string and object member name MUST contain only Unicode scalar values. Lone surrogate code units are invalid.
+
 Implementations MUST preserve source-authored content without silently adding cognitive interpretation.
 
 ### SR-009 — Optional Source Metadata
@@ -118,7 +124,7 @@ Canonicalization MUST apply these rules recursively:
 
 1. Emit no whitespace between JSON tokens.
 2. Preserve `null`, boolean, and array element order.
-3. Serialize strings with JSON escaping, without Unicode normalization.
+3. Serialize Unicode-scalar strings with JSON escaping, without Unicode normalization.
 4. Serialize finite binary64 numbers exactly as required by [RFC 8785 section 3.2.2.3](https://www.rfc-editor.org/rfc/rfc8785.html#section-3.2.2.3), including its ECMAScript number-serialization procedure and Note 2 enhancement. This procedure serializes negative zero as `0` and preserves forms such as `1e+21` when required by that algorithm.
 5. Sort object property names by ascending UTF-16 code units before serialization.
 6. Preserve the literal, case-sensitive `mediaType` string and its parameter spelling.
@@ -172,18 +178,18 @@ Valid fixtures are direct SourceRecord values. Invalid fixtures are envelopes co
 - `record`, for ordinary invalid values; or
 - `recordJson`, for a serialized record whose numeric lexical form must reach the parser unchanged.
 
-`expectedCode` is normative. Fixture order is not normative.
+Lexical cases set `validationLayer` to `"lexical"` because duplicate member names and invalid surrogate sequences MUST be rejected before JSON Schema validation. `expectedCode` is normative. Fixture order is not normative.
 
 | Rule | Schema location | Fixture coverage |
 |---|---|---|
-| `SR-001` | root `type`, `additionalProperties` | unknown root field |
+| `SR-001` | root `type`, `additionalProperties`; lexical profile | unknown root field, duplicate root member |
 | `SR-002` | `properties.schemaVersion` | unsupported schema version |
 | `SR-003` | `properties.id` | whitespace-only record ID |
 | `SR-004` | `properties.source` | missing/blank system, unknown source field |
 | `SR-005` | `properties.sourceId`, `properties.revisionId` | missing revision, blank source ID |
 | `SR-006` | `$defs.timestamp` | calendar, timezone, case, leap-second, hour, and offset failures |
 | `SR-007` | `properties.mediaType` | non-string and malformed values |
-| `SR-008` | root `required`, `properties.content`, `$defs.jsonValue` | missing content, binary64 overflow; valid fixtures cover every JSON value shape |
+| `SR-008` | root `required`, `properties.content`, `$defs.jsonValue`; lexical profile | missing content, binary64 overflow, duplicate nested member, lone surrogate value/key; valid fixtures cover every JSON value shape |
 | `SR-009` | `properties.contentHash`, `properties.actorId` | blank hash and non-string actor |
 | `SR-010` | `properties.context` | wrong type and forbidden interpretation keys |
 | `SR-011` | `properties.extensions` | wrong type and unnamespaced key |

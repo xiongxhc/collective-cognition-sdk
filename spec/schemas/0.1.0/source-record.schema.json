@@ -64,13 +64,20 @@
     "context": {
       "type": "object",
       "propertyNames": {
-        "not": {
-          "enum": [
-            "polarity",
-            "confidence",
-            "authority"
-          ]
-        }
+        "allOf": [
+          {
+            "$ref": "#/$defs/scalarString"
+          },
+          {
+            "not": {
+              "enum": [
+                "polarity",
+                "confidence",
+                "authority"
+              ]
+            }
+          }
+        ]
       },
       "additionalProperties": {
         "$ref": "#/$defs/jsonValue"
@@ -79,7 +86,15 @@
     "extensions": {
       "type": "object",
       "propertyNames": {
-        "pattern": "^[^:.\\s]+(?:[:.][^:.\\s]+)+$"
+        "allOf": [
+          {
+            "$ref": "#/$defs/scalarString"
+          },
+          {
+            "type": "string",
+            "pattern": "^[^:.\\s]+(?:[:.][^:.\\s]+)+$"
+          }
+        ]
       },
       "additionalProperties": {
         "$ref": "#/$defs/jsonValue"
@@ -101,7 +116,7 @@
           "type": "boolean"
         },
         {
-          "type": "string"
+          "$ref": "#/$defs/scalarString"
         },
         {
           "$ref": "#/$defs/jsonNumber"
@@ -114,6 +129,9 @@
         },
         {
           "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/scalarString"
+          },
           "additionalProperties": {
             "$ref": "#/$defs/jsonValue"
           }
@@ -121,8 +139,19 @@
       ]
     },
     "nonWhitespaceString": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/scalarString"
+        },
+        {
+          "type": "string",
+          "pattern": "\\S"
+        }
+      ]
+    },
+    "scalarString": {
       "type": "string",
-      "pattern": "\\S"
+      "pattern": "^(?:[^\\uD800-\\uDFFF]|[\\uD800-\\uDBFF][\\uDC00-\\uDFFF])*$"
     },
     "timestamp": {
       "type": "string",
