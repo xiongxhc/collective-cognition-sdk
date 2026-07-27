@@ -30,9 +30,15 @@ function readJsonLines(url) {
     .map((line) => JSON.parse(line));
 }
 
-function compileSchema() {
-  const ajv = new Ajv2020({ strict: true, allErrors: true });
-  addFormats(ajv, { mode: "full" });
+function compileSchema({ validateFormats = true } = {}) {
+  const ajv = new Ajv2020({
+    strict: true,
+    allErrors: true,
+    validateFormats,
+  });
+  if (validateFormats) {
+    addFormats(ajv, { mode: "full" });
+  }
   return ajv.compile(readJson(schemaUrl));
 }
 
@@ -52,6 +58,16 @@ test("every normative invalid fixture violates the schema", () => {
   for (const fixture of readJsonLines(invalidFixtureUrl)) {
     assert.equal(validate(fixture.record), false, fixture.description);
   }
+});
+
+test("timestamp validity remains asserted without format validation", () => {
+  const validate = compileSchema({ validateFormats: false });
+  const impossibleDate = readJsonLines(invalidFixtureUrl).find(
+    (fixture) => fixture.description === "impossible captured calendar date",
+  );
+
+  assert.ok(impossibleDate);
+  assert.equal(validate(impossibleDate.record), false);
 });
 
 test("invalid fixtures cover every machine-checkable rule", () => {
