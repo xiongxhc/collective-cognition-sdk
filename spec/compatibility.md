@@ -16,6 +16,8 @@ The terms **MUST**, **MUST NOT**, **SHOULD**, and **MAY** express normative requ
 | Supported Experimental | Public and tested package behavior that can evolve under this policy before `1.0.0`. | Root runtime exports, root TypeScript declarations, non-normative package subpaths, the `collective-cognition` executable, generic CLI behavior, and non-SourceRecord domain error codes. |
 | Internal | Repository implementation details with no compatibility promise. | Unexported source modules, source-specific connectors and entrypoints, examples, tests, scripts, plans, repository utilities, and generated layout beyond declared package entrypoints. |
 
+The versioned baseline records these three identifiers and definitions machine-readably.
+
 ### COMP-001 — Overlapping Stability
 
 When a surface has more than one classification, the more stable classification MUST control.
@@ -153,7 +155,7 @@ Runtime warnings MAY be proposed in a later RFC that protects structured CLI con
 
 ## Baseline Enforcement
 
-The versioned baseline records exact normative artifact digests, stable rule identifiers, package metadata, runtime and type exports, declaration closure, domain errors, CLI behavior, policy identities, and deprecations.
+The versioned baseline records exact normative artifact digests, stable rule identifiers, package metadata, the emitted-file inventory, runtime and type exports, declaration closure, domain errors, CLI behavior, policy identities, and deprecations.
 
 ### COMP-018 — Deliberate Baseline Updates
 

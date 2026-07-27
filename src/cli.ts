@@ -217,19 +217,48 @@ function serializeComposedResult(
   };
 }
 
-function writeJsonLine(
+async function writeJsonLine(
   stream: NodeJS.WriteStream,
   value: unknown,
-): void {
-  stream.write(`${JSON.stringify(value)}\n`);
+): Promise<void> {
+  const line = `${JSON.stringify(value)}\n`;
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const settle = (error?: Error | null): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    };
+    const onError = (error: Error): void => {
+      settle(error);
+    };
+
+    stream.once("error", onError);
+    stream.write(line, (error) => {
+      if (error) {
+        settle(error);
+        return;
+      }
+      stream.off("error", onError);
+      settle();
+    });
+  });
 }
 
-function writeItemDiagnostics(result: IngestionBatchResult): boolean {
+async function writeItemDiagnostics(
+  result: IngestionBatchResult,
+): Promise<boolean> {
   let rejected = false;
   for (const item of result.items) {
     if (item.status === "rejected") {
       rejected = true;
-      writeJsonLine(process.stderr, serializeItemResult(item));
+      await writeJsonLine(process.stderr, serializeItemResult(item));
     }
   }
   return rejected;
@@ -366,12 +395,12 @@ async function main(): Promise<void> {
     if (options.command === "validate") {
       stage = "output";
       for (const item of ingestion.items) {
-        writeJsonLine(process.stdout, serializeItemResult(item));
+        await writeJsonLine(process.stdout, serializeItemResult(item));
       }
     } else if (options.command === "ingest") {
       stage = "output";
       for (const record of ingestion.acceptedRecords) {
-        writeJsonLine(process.stdout, record);
+        await writeJsonLine(process.stdout, record);
       }
     } else if (options.command === "promote") {
       stage = "promotion";
@@ -383,7 +412,7 @@ async function main(): Promise<void> {
         neutralEvidencePolicyV1,
       );
       stage = "output";
-      writeJsonLine(process.stdout, evidence);
+      await writeJsonLine(process.stdout, evidence);
     } else {
       stage = "promotion";
       const composed = ingestAndPromoteEvidence(
@@ -395,18 +424,26 @@ async function main(): Promise<void> {
         promotionFailure = composed.promotion.error;
       }
       stage = "output";
-      writeJsonLine(process.stdout, serializeComposedResult(composed));
+      await writeJsonLine(process.stdout, serializeComposedResult(composed));
     }
 
-    const rejected = writeItemDiagnostics(ingestion);
+    const rejected = await writeItemDiagnostics(ingestion);
     if (promotionFailure !== undefined) {
-      writeJsonLine(process.stderr, promotionDiagnostic(promotionFailure));
+      await writeJsonLine(
+        process.stderr,
+        promotionDiagnostic(promotionFailure),
+      );
     }
     if (rejected || promotionFailure !== undefined) {
       process.exitCode = 1;
     }
   } catch (error) {
-    writeJsonLine(process.stderr, topLevelDiagnostic(error, stage));
+    try {
+      await writeJsonLine(
+        process.stderr,
+        topLevelDiagnostic(error, stage),
+      );
+    } catch {}
     process.exitCode = 1;
   }
 }

@@ -308,14 +308,14 @@ Expected: FAIL because `spec/compatibility/0.1.0/baseline.json` does not exist.
 Create `spec/compatibility/0.1.0/change-cases.jsonl` with exactly:
 
 ```jsonl
-{"id":"additive-cli-command","description":"Add an independent generic CLI command without changing existing commands, options, outputs, diagnostics, or exit behavior.","surface":"supported-experimental","classification":"additive","packageVersionEffect":"minor","requiresRfc":false,"requiresMigrationNotes":false,"requiresDeprecation":false}
-{"id":"breaking-remove-root-export","description":"Remove the createObject root export while an existing package consumer imports it.","surface":"supported-experimental","classification":"breaking","packageVersionEffect":"minor-before-1.0","requiresRfc":true,"requiresMigrationNotes":true,"requiresDeprecation":true}
+{"id":"additive-cli-command","description":"Add an independent generic CLI command without changing existing commands, options, outputs, diagnostics, or exit behavior.","surface":"supported-experimental","classification":"additive","packageVersionEffect":"minor","requiresRfc":false,"requiresMigrationNotes":false,"requiresDeprecation":false,"rationale":"Existing CLI commands retain their inputs, outputs, diagnostics, and exit behavior, so existing automation is unaffected."}
+{"id":"breaking-remove-root-export","description":"Remove the createObject root export while an existing package consumer imports it.","surface":"supported-experimental","classification":"breaking","packageVersionEffect":"minor-before-1.0","requiresRfc":true,"requiresMigrationNotes":true,"requiresDeprecation":true,"rationale":"Removing a root export makes an existing conforming import fail, so consumers require migration and deprecation handling."}
 ```
 
 Its SHA-256 MUST be:
 
 ```text
-4721623574266d41f953003b918bd2cd3a19d4b7d6401a10112610e02886f425
+3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b
 ```
 
 - [ ] **Step 4: Add stable SourceRecord prose identifiers**
@@ -397,9 +397,18 @@ Create `spec/compatibility/0.1.0/baseline.json` with these exact top-level keys:
   "packagePolicyVersion": "0.1.0",
   "appliesToPackageVersion": "0.1.0",
   "stabilityLevels": [
-    "normative-stable",
-    "supported-experimental",
-    "internal"
+    {
+      "id": "normative-stable",
+      "definition": "Portable behavior and immutable versioned artifacts on which implementations and stored data can rely."
+    },
+    {
+      "id": "supported-experimental",
+      "definition": "Public and tested package behavior that can evolve under this policy before 1.0.0."
+    },
+    {
+      "id": "internal",
+      "definition": "Repository implementation details with no compatibility promise."
+    }
   ],
   "normative": {},
   "package": {},
@@ -409,6 +418,8 @@ Create `spec/compatibility/0.1.0/baseline.json` with these exact top-level keys:
 ```
 
 Populate the exact inventories below.
+
+The `package` object MUST also record the exact sorted `dist/` emitted-file inventory. Package tests MUST compare the built inventory to that baseline before using the baseline inventory to construct expected tarball contents; they MUST NOT derive approval from whatever files the current build emits.
 
 **Normative inventory**
 
@@ -429,7 +440,7 @@ Stable SourceRecord errors: SR-014
 56cf53c5da98dfbec19a021fbb90673beab8248c7a77df44989b535a0e155648  spec/schemas/0.1.0/source-record.schema.json
 f52c212026b70bf2b339e1132b2895c91be509f250dde841319dbbb4edd3f74a  spec/conformance/0.1.0/source-record/valid.jsonl
 4705f32eb5ea48ddd693759728294d2557b0a6f4a5cc666843b2e03bb03e99c0  spec/conformance/0.1.0/source-record/invalid.jsonl
-4721623574266d41f953003b918bd2cd3a19d4b7d6401a10112610e02886f425  spec/compatibility/0.1.0/change-cases.jsonl
+3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b  spec/compatibility/0.1.0/change-cases.jsonl
 ```
 
 **Package metadata**
@@ -617,8 +628,9 @@ In `tests/compatibility.test.mjs`:
 - verify every normative artifact digest;
 - scan `spec/source-record.md` and `spec/compatibility.md` for the exact rule-ID inventories;
 - discover the relative declaration closure reachable from `dist/index.d.ts`, compare its paths exactly to the baseline list, and compute the framed digest over that closure;
+- traverse relative import/export declarations, import-type expressions, import-equals declarations, and triple-slash path references recursively, failing closed on every unresolved target;
 - validate exactly one additive and one breaking change case and their required process consequences;
-- reject unknown stability levels, classifications, or package-version effects in the change cases.
+- require non-empty rationale and reject unknown stability levels, classifications, or package-version effects in the change cases.
 
 Move the duplicated runtime-export assertion in `tests/conformance.test.ts` to baseline ownership. Keep source-neutral root enforcement in `tests/compatibility.test.mjs`.
 

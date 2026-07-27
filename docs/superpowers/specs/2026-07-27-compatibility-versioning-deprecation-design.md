@@ -195,6 +195,7 @@ rfcs/
 - public TypeScript declaration names;
 - SHA-256 digests for the built declaration files reachable from the package root;
 - compatibility-relevant package metadata: `name`, `type`, `main`, `types`, `exports`, `bin`, `license`, and `engines.node`;
+- the complete emitted-file inventory used to approve package contents;
 - generic CLI command names, allowed and required options, option defaults, output channels and shapes, exit-status rules, diagnostic stages, and stable structured diagnostic codes;
 - SourceRecord schema path, `$id`, and SHA-256 digest;
 - normative prose paths and stable rule identifiers;
@@ -222,7 +223,7 @@ Repository tests will compare the implementation and packed package against the 
 
 1. root runtime exports exactly match the declared public runtime names;
 2. the lockfile-pinned compiler produces declaration-file digests matching the baseline, and representative installed-consumer programs typecheck against the intended signatures;
-3. compatibility-relevant package metadata matches the baseline;
+3. compatibility-relevant package metadata and the complete emitted-file inventory match the baseline;
 4. the internal CLI registry exactly matches the baseline command, option, diagnostic, and policy-selector inventories, and contract tests cover every declared default, output shape, output channel, diagnostic stage and code, and exit-status rule;
 5. the SourceRecord schema path, `$id`, and SHA-256 digest match exactly;
 6. machine-readable normative artifacts match their declared SHA-256 digests, prose exposes the declared stable rule identifiers, and every declared artifact is packaged;

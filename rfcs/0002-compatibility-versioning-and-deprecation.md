@@ -24,7 +24,7 @@ The policy defines:
 - an RFC-backed deprecation lifecycle with a replacement, migration, retained tests, public marking, and earliest removal version; and
 - human classification of baseline failures.
 
-The inaugural compatibility baseline is `spec/compatibility/0.1.0/baseline.json`. It records the exact Normative Stable artifacts, package metadata, root runtime and type exports, root-reachable declaration closure, domain error codes, internal generic CLI registry, policy identities, and active deprecations for package `0.1.0`.
+The inaugural compatibility baseline is `spec/compatibility/0.1.0/baseline.json`. It records the exact stability definitions, Normative Stable artifacts, package metadata, emitted-file inventory, root runtime and type exports, root-reachable declaration closure, domain error codes, internal generic CLI registry, policy identities, and active deprecations for package `0.1.0`.
 
 The package is unpublished. This baseline establishes the initial contract before publication; it does not retroactively stabilize an earlier release.
 
@@ -70,7 +70,7 @@ Runtime deprecation warnings are deferred because they can corrupt structured CL
 - Normative schema, conformance, and change-case artifacts match exact declared SHA-256 digests.
 - SourceRecord and compatibility prose expose exact stable rule-ID inventories.
 - Root runtime exports, TypeScript type exports, domain error codes, and the root-reachable declaration closure match exact baseline inventories.
-- Compatibility-relevant package metadata matches structurally.
+- Compatibility-relevant package metadata and the emitted-file inventory match exactly.
 - The built internal `CLI_CONTRACT` matches the baseline exactly without widening the package root.
 - CLI selectors and SDK policy identities remain linked.
 - Exactly one additive and one breaking change case exercise the declared process consequences and reject unknown enum values.

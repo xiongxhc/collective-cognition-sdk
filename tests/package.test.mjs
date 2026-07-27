@@ -22,6 +22,10 @@ const distIndexUrl = new URL("../dist/index.js", import.meta.url);
 const distTypesUrl = new URL("../dist/index.d.ts", import.meta.url);
 const distCliUrl = new URL("../dist/cli.js", import.meta.url);
 const packageJsonUrl = new URL("../package.json", import.meta.url);
+const compatibilityBaselineUrl = new URL(
+  "../spec/compatibility/0.1.0/baseline.json",
+  import.meta.url,
+);
 const licenseUrl = new URL("../LICENSE", import.meta.url);
 const noticeUrl = new URL("../NOTICE", import.meta.url);
 const citationUrl = new URL("../CITATION.cff", import.meta.url);
@@ -143,6 +147,9 @@ test("built CLI executable validates canonical SourceRecord input", () => {
 
 test("npm package manifest and tarball expose only approved artifacts", () => {
   const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
+  const baseline = JSON.parse(
+    readFileSync(compatibilityBaselineUrl, "utf8"),
+  );
   assert.equal(
     packageJson.private,
     true,
@@ -165,6 +172,14 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.deepEqual(packageJson.bin, {
     "collective-cognition": "./dist/cli.js",
   });
+  const actualEmittedFiles = emittedFiles(distRoot)
+    .map((path) => relative(repositoryRoot, path).replaceAll("\\", "/"))
+    .sort();
+  assert.deepEqual(
+    actualEmittedFiles,
+    baseline.package.emittedFiles,
+    "dist/ contents must match the immutable baseline inventory",
+  );
 
   const npmCache = mkdtempSync(join(tmpdir(), "ccsdk-npm-cache-"));
   let packed;
@@ -192,9 +207,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "LICENSE",
     "NOTICE",
     "README.md",
-    ...emittedFiles(distRoot).map((path) =>
-      relative(repositoryRoot, path).replaceAll("\\", "/"),
-    ),
+    ...baseline.package.emittedFiles,
     "package.json",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",

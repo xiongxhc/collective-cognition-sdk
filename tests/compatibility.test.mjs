@@ -14,8 +14,12 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import {
+  isExternalModuleReference,
   isExportDeclaration,
   isImportDeclaration,
+  isImportEqualsDeclaration,
+  isImportTypeNode,
+  isLiteralTypeNode,
   isNamedExports,
   isStringLiteral,
 } from "typescript/unstable/ast";
@@ -30,7 +34,7 @@ const baselineUrl = new URL(
   import.meta.url,
 );
 const expectedBaselineSha256 =
-  "dde45bec9f8a20ace35b188267ff78a1c36ff5ee01d2411d32f02634559dbc10";
+  "4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b";
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -131,6 +135,43 @@ function runtimePathForDeclaration(path) {
     .replace(/\.d\.cts$/, ".cjs");
 }
 
+function relativeDeclarationSpecifiers(sourceFile) {
+  const specifiers = new Set();
+  const addSpecifier = (value) => {
+    if (typeof value === "string" && value.startsWith(".")) {
+      specifiers.add(value);
+    }
+  };
+  const visit = (node) => {
+    if (
+      (isImportDeclaration(node) || isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      isStringLiteral(node.moduleSpecifier)
+    ) {
+      addSpecifier(node.moduleSpecifier.text);
+    } else if (
+      isImportEqualsDeclaration(node) &&
+      isExternalModuleReference(node.moduleReference) &&
+      isStringLiteral(node.moduleReference.expression)
+    ) {
+      addSpecifier(node.moduleReference.expression.text);
+    } else if (
+      isImportTypeNode(node) &&
+      isLiteralTypeNode(node.argument) &&
+      isStringLiteral(node.argument.literal)
+    ) {
+      addSpecifier(node.argument.literal.text);
+    }
+    node.forEachChild(visit);
+  };
+
+  sourceFile.referencedFiles.forEach((reference) => {
+    addSpecifier(reference.fileName);
+  });
+  sourceFile.forEachChild(visit);
+  return specifiers;
+}
+
 function declarationClosure(
   distUrl = new URL("../dist/", import.meta.url),
   pathPrefix = "dist",
@@ -181,29 +222,18 @@ function declarationClosure(
       const sourceFile = project.program.getSourceFile(declarationPath);
       assert.ok(sourceFile, declarationPath);
 
-      sourceFile.statements.forEach((statement) => {
-        if (
-          (isImportDeclaration(statement) ||
-            isExportDeclaration(statement)) &&
-          statement.moduleSpecifier &&
-          isStringLiteral(statement.moduleSpecifier)
-        ) {
-          const specifier = statement.moduleSpecifier.text;
-          if (!specifier.startsWith(".")) {
-            return;
-          }
-          const target = declarations.get(
-            new URL(specifier, declarationUrl).href,
+      relativeDeclarationSpecifiers(sourceFile).forEach((specifier) => {
+        const target = declarations.get(
+          new URL(specifier, declarationUrl).href,
+        );
+        if (target === undefined) {
+          throw new Error(
+            `unresolved relative declaration target ${specifier} from ` +
+              relative(distPath, declarationPath),
           );
-          if (target === undefined) {
-            throw new Error(
-              `unresolved relative declaration target ${specifier} from ` +
-                relative(distPath, declarationPath),
-            );
-          }
-          if (!visited.has(target)) {
-            pending.push(target);
-          }
+        }
+        if (!visited.has(target)) {
+          pending.push(target);
         }
       });
     }
@@ -257,9 +287,21 @@ test("compatibility baseline has the initial version", () => {
 
   assert.equal(baseline.baselineVersion, "0.1.0");
   assert.deepEqual(baseline.stabilityLevels, [
-    "normative-stable",
-    "supported-experimental",
-    "internal",
+    {
+      id: "normative-stable",
+      definition:
+        "Portable behavior and immutable versioned artifacts on which implementations and stored data can rely.",
+    },
+    {
+      id: "supported-experimental",
+      definition:
+        "Public and tested package behavior that can evolve under this policy before 1.0.0.",
+    },
+    {
+      id: "internal",
+      definition:
+        "Repository implementation details with no compatibility promise.",
+    },
   ]);
 });
 
@@ -379,6 +421,60 @@ test("declaration closure resolves nested references and rejects missing targets
   );
 });
 
+test("declaration closure follows every relative declaration reference form", () => {
+  withDeclarationFixture(
+    {
+      "index.d.ts":
+        'export type Public = import("./nested/public.js").Public;\n',
+      "nested/public.d.ts":
+        'import Legacy = require("../legacy/legacy.js");\n' +
+        "export interface Public extends Legacy {}\n",
+      "legacy/legacy.d.ts":
+        '/// <reference path="../shared/leaf.d.ts" />\n' +
+        "export = Leaf;\n",
+      "shared/leaf.d.ts": "interface Leaf {}\n",
+    },
+    (rootUrl) => {
+      assert.deepEqual(declarationClosure(rootUrl, ""), [
+        "index.d.ts",
+        "legacy/legacy.d.ts",
+        "nested/public.d.ts",
+        "shared/leaf.d.ts",
+      ]);
+    },
+  );
+});
+
+test("declaration closure fails closed for unresolved relative reference forms", () => {
+  const fixtures = [
+    {
+      name: "import type",
+      source: 'export type Missing = import("./missing.js").Missing;\n',
+    },
+    {
+      name: "import equals",
+      source: 'import Missing = require("./missing.js");\nexport = Missing;\n',
+    },
+    {
+      name: "triple-slash path",
+      source: '/// <reference path="./missing.d.ts" />\nexport {};\n',
+    },
+  ];
+
+  fixtures.forEach((fixture) => {
+    withDeclarationFixture(
+      { "index.d.ts": fixture.source },
+      (rootUrl) => {
+        assert.throws(
+          () => declarationClosure(rootUrl, ""),
+          /unresolved relative declaration target/,
+          fixture.name,
+        );
+      },
+    );
+  });
+});
+
 test("package compatibility metadata matches exactly", () => {
   const baseline = readJson(baselineUrl);
   const packageJson = readJson(new URL("../package.json", import.meta.url));
@@ -429,11 +525,9 @@ test("change cases exercise additive and breaking process rules", () => {
       import.meta.url,
     ),
   );
-  const stabilityLevels = new Set([
-    "normative-stable",
-    "supported-experimental",
-    "internal",
-  ]);
+  const stabilityLevels = new Set(
+    readJson(baselineUrl).stabilityLevels.map((level) => level.id),
+  );
   const classifications = new Set(["additive", "breaking"]);
   const packageVersionEffects = new Set([
     "minor",
@@ -451,6 +545,8 @@ test("change cases exercise additive and breaking process rules", () => {
       requiresRfc: false,
       requiresMigrationNotes: false,
       requiresDeprecation: false,
+      rationale:
+        "Existing CLI commands retain their inputs, outputs, diagnostics, and exit behavior, so existing automation is unaffected.",
     },
     {
       id: "breaking-remove-root-export",
@@ -462,12 +558,16 @@ test("change cases exercise additive and breaking process rules", () => {
       requiresRfc: true,
       requiresMigrationNotes: true,
       requiresDeprecation: true,
+      rationale:
+        "Removing a root export makes an existing conforming import fail, so consumers require migration and deprecation handling.",
     },
   ]);
   cases.forEach((changeCase) => {
     assert.ok(stabilityLevels.has(changeCase.surface));
     assert.ok(classifications.has(changeCase.classification));
     assert.ok(packageVersionEffects.has(changeCase.packageVersionEffect));
+    assert.equal(typeof changeCase.rationale, "string");
+    assert.ok(changeCase.rationale.trim().length > 0);
   });
   assert.equal(
     cases.filter((changeCase) => changeCase.classification === "additive")

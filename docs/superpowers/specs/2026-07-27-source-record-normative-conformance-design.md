@@ -159,7 +159,7 @@ Implementation plans, tests, source connectors, and unrelated repository documen
 - Existing versioned schema artifacts MUST NOT be silently repurposed after an external release.
 - Namespaced extension data MAY evolve without adding core fields.
 
-The complete package versioning and deprecation policy remains a later Phase 3 deliverable.
+At the time this design was approved, the complete package versioning and deprecation policy remained a later Phase 3 deliverable. That policy is now implemented through `spec/compatibility.md`, RFC 0002, and baseline `0.1.0`; final verification of that later slice remains pending.
 
 ## Documentation Updates
 
@@ -194,6 +194,6 @@ Independent code review must find no unresolved correctness, compatibility, secu
 
 - Cognitive-object, relationship, transition, authorization, event, and error schemas.
 - Host persistence and event-publication contracts.
-- Full compatibility, deprecation, and migration policy.
+- Full compatibility, deprecation, and migration policy — historical deferral, now implemented pending final verification.
 - License selection, registry-name confirmation, security policy, and publication approval.
 - Connector packaging and marketplace behavior.

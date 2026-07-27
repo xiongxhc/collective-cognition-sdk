@@ -3,9 +3,18 @@
   "packagePolicyVersion": "0.1.0",
   "appliesToPackageVersion": "0.1.0",
   "stabilityLevels": [
-    "normative-stable",
-    "supported-experimental",
-    "internal"
+    {
+      "id": "normative-stable",
+      "definition": "Portable behavior and immutable versioned artifacts on which implementations and stored data can rely."
+    },
+    {
+      "id": "supported-experimental",
+      "definition": "Public and tested package behavior that can evolve under this policy before 1.0.0."
+    },
+    {
+      "id": "internal",
+      "definition": "Repository implementation details with no compatibility promise."
+    }
   ],
   "normative": {
     "sourceRecord": {
@@ -64,7 +73,7 @@
       "spec/schemas/0.1.0/source-record.schema.json": "56cf53c5da98dfbec19a021fbb90673beab8248c7a77df44989b535a0e155648",
       "spec/conformance/0.1.0/source-record/valid.jsonl": "f52c212026b70bf2b339e1132b2895c91be509f250dde841319dbbb4edd3f74a",
       "spec/conformance/0.1.0/source-record/invalid.jsonl": "4705f32eb5ea48ddd693759728294d2557b0a6f4a5cc666843b2e03bb03e99c0",
-      "spec/compatibility/0.1.0/change-cases.jsonl": "4721623574266d41f953003b918bd2cd3a19d4b7d6401a10112610e02886f425"
+      "spec/compatibility/0.1.0/change-cases.jsonl": "3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b"
     }
   },
   "package": {
@@ -90,6 +99,34 @@
         "collective-cognition": "./dist/cli.js"
       }
     },
+    "emittedFiles": [
+      "dist/authorization.d.ts",
+      "dist/authorization.js",
+      "dist/cli-contract.d.ts",
+      "dist/cli-contract.js",
+      "dist/cli.d.ts",
+      "dist/cli.js",
+      "dist/errors.d.ts",
+      "dist/errors.js",
+      "dist/events.d.ts",
+      "dist/events.js",
+      "dist/index.d.ts",
+      "dist/index.js",
+      "dist/ingestion.d.ts",
+      "dist/ingestion.js",
+      "dist/json-text.d.ts",
+      "dist/json-text.js",
+      "dist/objects.d.ts",
+      "dist/objects.js",
+      "dist/promotion.d.ts",
+      "dist/promotion.js",
+      "dist/source-records.d.ts",
+      "dist/source-records.js",
+      "dist/transitions.d.ts",
+      "dist/transitions.js",
+      "dist/types.d.ts",
+      "dist/types.js"
+    ],
     "runtimeExports": [
       "DomainError",
       "DomainErrorCode",
