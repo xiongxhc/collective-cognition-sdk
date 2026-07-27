@@ -38,7 +38,7 @@ The SDK needs an ingestion contract that works across organizations and source s
 23. `contentHash` MUST be treated as opaque caller-supplied integrity metadata unless verified by an external trust boundary. This SDK does not validate digest syntax or content binding.
 24. `teammem:export` failures MUST use `{stage,error:{code,message,details}}` and MUST sanitize non-domain exception messages.
 
-The proposed record shape and complete rationale are in the [universal ingestion design](../docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
+The proposed record shape and complete rationale are in the [universal ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
 
 ## Alternatives
 
@@ -101,10 +101,10 @@ Rejected for ingestion because it loses a stable neutral boundary. Trusted calle
 Implementation evidence:
 
 - canonical fixtures: [`spec/fixtures/source-records/`](../spec/fixtures/source-records/);
-- conformance suite: [`tests/conformance.test.ts`](../tests/conformance.test.ts);
-- generic CLI: [`src/cli.ts`](../src/cli.ts);
-- migrated connector: [`src/adapters/team-memory.ts`](../src/adapters/team-memory.ts);
-- second fixture connector: [`src/adapters/git-commit.ts`](../src/adapters/git-commit.ts);
+- conformance suite: [`tests/conformance.test.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/tests/conformance.test.ts);
+- generic CLI: [`src/cli.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/src/cli.ts);
+- migrated connector: [`src/adapters/team-memory.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/src/adapters/team-memory.ts);
+- second fixture connector: [`src/adapters/git-commit.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/src/adapters/git-commit.ts);
 - completion commands: `npm test`, `npx tsc --noEmit`, `npm run check`, and `npm run example`;
 - bounded live verification: default-privacy team-memory SourceRecord export, generic validation, explicit `neutral-evidence-v1` promotion, complete JSON-line parsing, and unchanged source-ledger metadata.
 

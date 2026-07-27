@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { createReadStream } from "node:fs";
 
 import { DomainError, DomainErrorCode } from "./errors.ts";

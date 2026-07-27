@@ -82,7 +82,15 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** Planned.
+**Status:** In progress.
+
+**Delivered in the initial package-stabilization slice**
+
+- [x] ESM JavaScript and declaration output under ignored `dist/`.
+- [x] An explicit source-neutral root exports map and installed `collective-cognition` executable contract.
+- [x] An npm package-content allowlist that excludes source, tests, examples, planning documents, and connector entrypoints.
+- [x] Compatibility smoke tests for built imports, runtime exports, declaration specifiers, default TypeScript consumer settings, CLI behavior, exact dry-run tarball contents, and clean temporary consumer installation.
+- [x] A retained `"private": true` publication guard.
 
 **Entry criteria**
 
@@ -96,7 +104,8 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - Versioned machine-readable schemas and normative, versioned, language-neutral conformance fixtures.
 - Compatibility, extension naming, versioning, and deprecation rules.
 - Host integration contracts for cognition persistence and event publication without selecting a mandatory database or service architecture.
-- Stable package exports, build artifacts, API documentation, and external distribution readiness criteria.
+- Final stable package guarantees, API documentation, and external distribution readiness criteria.
+- An explicitly selected license, confirmed registry package name, and publication approval process.
 - Supported-runtime and security policy.
 
 **Acceptance checks**
@@ -105,6 +114,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - The TypeScript implementation passes the published conformance suite.
 - Persistence contracts keep source stores and cognition stores logically distinct and are testable through a host-supplied implementation.
 - Public exports and CLI behavior have compatibility tests.
+- Package dry-run verification includes only approved artifacts and publication remains blocked until every release gate is complete.
 - One sample additive change and one sample breaking change exercise the documented process.
 
 **Explicit deferrals**

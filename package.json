@@ -1,13 +1,56 @@
 {
   "name": "collective-cognition-sdk",
   "version": "0.1.0",
+  "description": "Portable cognitive objects, provenance, lifecycle, and governance boundaries for long-term human-AI collaboration.",
   "private": true,
   "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "collective-cognition": "./dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "rfcs/README.md",
+    "rfcs/0001-universal-source-record-ingestion.md",
+    "spec/README.md",
+    "spec/fixtures/source-records/valid.jsonl",
+    "spec/fixtures/source-records/invalid.jsonl"
+  ],
+  "keywords": [
+    "collective-intelligence",
+    "cognition",
+    "governance",
+    "provenance",
+    "human-ai-collaboration"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xiongxhc/collective-cognition-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/xiongxhc/collective-cognition-sdk/issues"
+  },
+  "homepage": "https://github.com/xiongxhc/collective-cognition-sdk#readme",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
+    "build": "node --eval \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && node scripts/rewrite-declaration-imports.mjs",
+    "test": "npm run build && npm run test:source && npm run test:package",
+    "test:source": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
+    "test:package": "node --test tests/package.test.mjs",
+    "pack:check": "npm run build && npm run test:package",
+    "prepack": "npm run build && npm run test:package",
     "check": "node --disable-warning=ExperimentalWarning --check src/types.ts && node --disable-warning=ExperimentalWarning --check src/errors.ts && node --disable-warning=ExperimentalWarning --check src/objects.ts && node --disable-warning=ExperimentalWarning --check src/authorization.ts && node --disable-warning=ExperimentalWarning --check src/events.ts && node --disable-warning=ExperimentalWarning --check src/transitions.ts && node --disable-warning=ExperimentalWarning --check src/source-records.ts && node --disable-warning=ExperimentalWarning --check src/ingestion.ts && node --disable-warning=ExperimentalWarning --check src/promotion.ts && node --disable-warning=ExperimentalWarning --check src/adapters/team-memory.ts && node --disable-warning=ExperimentalWarning --check src/adapters/git-commit.ts && node --disable-warning=ExperimentalWarning --check src/teammem-cli.ts && node --disable-warning=ExperimentalWarning --check src/cli.ts && node --disable-warning=ExperimentalWarning --check src/index.ts && node --disable-warning=ExperimentalWarning --check tests/objects.test.ts && node --disable-warning=ExperimentalWarning --check tests/transitions.test.ts && node --disable-warning=ExperimentalWarning --check tests/cognitive-loop.test.ts && node --disable-warning=ExperimentalWarning --check tests/source-records.test.ts && node --disable-warning=ExperimentalWarning --check tests/ingestion.test.ts && node --disable-warning=ExperimentalWarning --check tests/promotion.test.ts && node --disable-warning=ExperimentalWarning --check tests/team-memory.test.ts && node --disable-warning=ExperimentalWarning --check tests/git-connector.test.ts && node --disable-warning=ExperimentalWarning --check tests/cli.test.ts && node --disable-warning=ExperimentalWarning --check tests/conformance.test.ts && node --disable-warning=ExperimentalWarning --check examples/cognitive-loop.ts && node --disable-warning=ExperimentalWarning --check examples/team-memory-evidence.ts",
     "example": "node --disable-warning=ExperimentalWarning examples/cognitive-loop.ts",
     "example:teammem": "node --disable-warning=ExperimentalWarning examples/team-memory-evidence.ts",
