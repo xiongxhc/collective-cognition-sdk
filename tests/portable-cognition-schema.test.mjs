@@ -1,64 +1,12 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import Ajv2020 from "ajv/dist/2020.js";
-import addFormats from "ajv-formats";
-
-const schemaUrl = new URL(
-  "../spec/schemas/0.1.0/portable-cognition.schema.json",
-  import.meta.url,
-);
-const validFixtureUrl = new URL(
-  "../spec/conformance/0.1.0/portable-cognition/valid.jsonl",
-  import.meta.url,
-);
-const invalidFixtureUrl = new URL(
-  "../spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
-  import.meta.url,
-);
-
-function readJson(url) {
-  return JSON.parse(readFileSync(url, "utf8"));
-}
-
-function readJsonLines(url) {
-  return readFileSync(url, "utf8")
-    .trim()
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => JSON.parse(line));
-}
-
-export function compilePortableSchema() {
-  const ajv = new Ajv2020({ strict: true, allErrors: true });
-  addFormats(ajv, { mode: "full" });
-  return ajv.compile(readJson(schemaUrl));
-}
-
-function invalidFixtureRecord(fixture) {
-  assert.notEqual(
-    fixture.record === undefined,
-    fixture.recordJson === undefined,
-    `${fixture.description} must define exactly one record form`,
-  );
-  return fixture.recordJson === undefined
-    ? fixture.record
-    : JSON.parse(fixture.recordJson);
-}
-
-export function validRecords() {
-  return readJsonLines(validFixtureUrl);
-}
-
-export function schemaInvalidFixtures() {
-  return readJsonLines(invalidFixtureUrl)
-    .filter((fixture) => fixture.validationLayer === undefined)
-    .map((fixture) => ({
-      ...fixture,
-      record: invalidFixtureRecord(fixture),
-    }));
-}
+import {
+  compilePortableSchema,
+  invalidFixtures,
+  schemaInvalidFixtures,
+  validRecords,
+} from "./portable-cognition-fixtures.mjs";
 
 const machineCheckableRuleIds = [
   "PCR-001",
@@ -113,15 +61,15 @@ test("every schema-layer invalid fixture fails", () => {
 });
 
 test("invalid fixtures declare lexical and runtime boundaries", () => {
-  const invalidFixtures = readJsonLines(invalidFixtureUrl);
+  const fixtures = invalidFixtures();
   assert.deepEqual(
-    [...new Set(invalidFixtures.map((fixture) => fixture.ruleId))].sort(),
+    [...new Set(fixtures.map((fixture) => fixture.ruleId))].sort(),
     machineCheckableRuleIds.sort(),
   );
-  const lexicalFixtures = invalidFixtures.filter(
+  const lexicalFixtures = fixtures.filter(
     (fixture) => fixture.validationLayer === "lexical",
   );
-  const runtimeFixtures = invalidFixtures.filter(
+  const runtimeFixtures = fixtures.filter(
     (fixture) => fixture.validationLayer === "runtime",
   );
   assert.deepEqual(
@@ -143,7 +91,7 @@ test("invalid fixtures declare lexical and runtime boundaries", () => {
     assert.equal(fixture.recordJson, undefined);
   }
 
-  for (const fixture of invalidFixtures) {
+  for (const fixture of fixtures) {
     assert.equal(fixture.expectedCode, "INVALID_PORTABLE_COGNITION_RECORD");
     assert.ok(
       fixture.validationLayer === undefined ||

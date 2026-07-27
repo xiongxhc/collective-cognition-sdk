@@ -20,8 +20,8 @@ const cognitiveLoopFixtureUrl = new URL(
   "../spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
   import.meta.url,
 );
-const portableCognitionSchemaTestUrl = new URL(
-  "./portable-cognition-schema.test.mjs",
+const portableCognitionFixturesUrl = new URL(
+  "./portable-cognition-fixtures.mjs",
   import.meta.url,
 );
 
@@ -37,22 +37,25 @@ interface PortableSchemaValidator {
   readonly errors?: unknown;
 }
 
-interface SchemaInvalidFixture {
-  readonly description: string;
-  readonly record: unknown;
+interface FixtureRecord {
+  readonly description?: unknown;
+  readonly record?: unknown;
+  readonly validationLayer?: unknown;
 }
 
-interface SchemaFixtureHelpers {
+interface PortableCognitionFixtures {
   readonly compilePortableSchema: () => PortableSchemaValidator;
-  readonly schemaInvalidFixtures: () => readonly SchemaInvalidFixture[];
+  readonly invalidFixtures: () => readonly FixtureRecord[];
+  readonly schemaInvalidFixtures: () => readonly FixtureRecord[];
   readonly validRecords: () => readonly unknown[];
 }
 
 const {
   compilePortableSchema,
+  invalidFixtures,
   schemaInvalidFixtures,
   validRecords,
-} = await import(portableCognitionSchemaTestUrl.href) as SchemaFixtureHelpers;
+} = await import(portableCognitionFixturesUrl.href) as PortableCognitionFixtures;
 
 function readJsonLines(url: URL): PortableCognitionRecord[] {
   return readFileSync(url, "utf8")
@@ -380,10 +383,15 @@ function generatedCognitiveLoopRecords(): PortableCognitionRecord[] {
   return [
     record("cognitive-object", objects.identity),
     record("cognitive-object", goalActive.object),
+    record("cognitive-object", hypothesisReview.object),
     record("cognitive-object", hypothesisTesting.object),
+    record("cognitive-object", experimentActive.object),
     record("cognitive-object", experimentCompleted.object),
+    record("cognitive-object", evidenceAssessed.object),
     record("cognitive-object", evidenceAccepted.object),
+    record("cognitive-object", decisionProposed.object),
     record("cognitive-object", decisionApproved.object),
+    record("cognitive-object", principleTrial.object),
     record("cognitive-object", principleAdopted.object),
     record("transition-context", goalActiveContext),
     record("cognition-event", goalActive.event),
@@ -419,16 +427,126 @@ function generatedCognitiveLoopRecords(): PortableCognitionRecord[] {
 
 test("schema-layer fixtures have identical schema and runtime outcomes", () => {
   const validateSchema = compilePortableSchema();
-  for (const record of validRecords()) {
+  const expectedValidRecords = validRecords();
+  const expectedSchemaInvalidFixtures = invalidFixtures().filter(
+    (fixture) => fixture.validationLayer === undefined,
+  );
+  const sharedSchemaInvalidFixtures = schemaInvalidFixtures();
+  const visitedValidRecords: string[] = [];
+  const visitedInvalidFixtures: string[] = [];
+
+  assert.equal(expectedValidRecords.length, 11);
+  assert.equal(expectedSchemaInvalidFixtures.length, 16);
+  assert.deepEqual(
+    sharedSchemaInvalidFixtures.map((fixture) => fixture.description).sort(),
+    expectedSchemaInvalidFixtures.map((fixture) => fixture.description).sort(),
+  );
+
+  for (const record of expectedValidRecords) {
+    visitedValidRecords.push(JSON.stringify(record));
     assert.equal(validateSchema(record), true);
     assert.doesNotThrow(() => validatePortableCognitionRecord(record));
   }
-  for (const fixture of schemaInvalidFixtures()) {
-    assert.equal(validateSchema(fixture.record), false, fixture.description);
+  for (const fixture of sharedSchemaInvalidFixtures) {
+    const description = String(fixture.description);
+    visitedInvalidFixtures.push(description);
+    assert.equal(validateSchema(fixture.record), false, description);
     assert.throws(
       () => validatePortableCognitionRecord(fixture.record),
       portableRecordError,
-      fixture.description,
+      description,
+    );
+  }
+  assert.deepEqual(
+    visitedValidRecords.sort(),
+    expectedValidRecords.map((record) => JSON.stringify(record)).sort(),
+  );
+  assert.deepEqual(
+    visitedInvalidFixtures.sort(),
+    expectedSchemaInvalidFixtures
+      .map((fixture) => String(fixture.description))
+      .sort(),
+  );
+});
+
+test("complete cognitive loop preserves every required family, type, status, and link", () => {
+  const records = readJsonLines(cognitiveLoopFixtureUrl);
+  const cognitiveObjects = records.filter(
+    (record): record is PortableCognitionRecord<"cognitive-object"> =>
+      record.recordType === "cognitive-object",
+  );
+  const contexts = records.filter(
+    (record): record is PortableCognitionRecord<"transition-context"> =>
+      record.recordType === "transition-context",
+  );
+  const events = records.filter(
+    (record): record is PortableCognitionRecord<"cognition-event"> =>
+      record.recordType === "cognition-event",
+  );
+  const authorizationDecisions = records.filter(
+    (record): record is PortableCognitionRecord<"authorization-decision"> =>
+      record.recordType === "authorization-decision",
+  );
+
+  assert.deepEqual(
+    [...new Set(records.map((record) => record.recordType))].sort(),
+    [
+      "authorization-decision",
+      "cognition-event",
+      "cognitive-object",
+      "domain-error",
+      "transition-context",
+    ],
+  );
+  assert.deepEqual(
+    [...new Set(cognitiveObjects.map((record) => record.payload.type))].sort(),
+    [
+      "decision",
+      "evidence",
+      "experiment",
+      "goal",
+      "hypothesis",
+      "identity",
+      "principle",
+    ],
+  );
+  assert.deepEqual(
+    [...new Set(authorizationDecisions.map((record) => record.payload.status))].sort(),
+    ["allowed", "confirmation_required"],
+  );
+  assert.equal(cognitiveObjects.length, 12);
+  assert.equal(contexts.length, 11);
+  assert.equal(events.length, 11);
+  assert.equal(new Set(contexts.map((record) => record.payload.eventId)).size, 11);
+  assert.deepEqual(
+    contexts.map((record) => record.payload.eventId).sort(),
+    events.map((record) => record.payload.id).sort(),
+  );
+
+  const objectsByVersion = new Map(
+    cognitiveObjects.map((record) => [
+      `${record.payload.id}:${record.payload.version}`,
+      record.payload,
+    ]),
+  );
+  for (const event of events) {
+    const linkedObject = objectsByVersion.get(
+      `${event.payload.objectId}:${event.payload.objectVersion}`,
+    );
+    assert.deepEqual(
+      linkedObject === undefined
+        ? undefined
+        : {
+            id: linkedObject.id,
+            type: linkedObject.type,
+            version: linkedObject.version,
+          },
+      {
+        id: event.payload.objectId,
+        type: event.payload.objectType,
+        version: event.payload.objectVersion,
+      },
+      event.payload.id,
     );
   }
 });
