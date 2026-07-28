@@ -459,6 +459,81 @@ class ReorderedReadStore implements CognitionStore {
   }
 }
 
+class InsertionOrderReplayStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+  readonly #objects = new Map<string, string>();
+  readonly #events = new Map<string, string>();
+
+  async commitInitial(request: InitialCognitionCommit) {
+    const objectId = request.object.payload.id;
+    const version = request.object.payload.version;
+    const key = `${objectId}\u0000${version}`;
+    const serialized = JSON.stringify(request.object);
+    const existing = this.#objects.get(key);
+    if (existing !== undefined && existing !== serialized) {
+      return {
+        status: "conflict" as const,
+        conflict: {
+          code: "object_revision_collision" as const,
+          objectId,
+          expectedVersion: version,
+          actualVersion: version,
+        },
+      };
+    }
+    const result = await this.#store.commitInitial(request);
+    if (result.status === "committed") {
+      this.#objects.set(key, serialized);
+    }
+    return result;
+  }
+
+  async commitTransition(request: TransitionCognitionCommit) {
+    const objectId = request.object.payload.id;
+    const version = request.object.payload.version;
+    const objectKey = `${objectId}\u0000${version}`;
+    const object = JSON.stringify(request.object);
+    const event = JSON.stringify(request.event);
+    const existingObject = this.#objects.get(objectKey);
+    const existingEvent = this.#events.get(request.event.payload.id);
+    if (existingObject !== undefined && existingObject !== object) {
+      return {
+        status: "conflict" as const,
+        conflict: {
+          code: "object_revision_collision" as const,
+          objectId,
+          expectedVersion: version,
+          actualVersion: version,
+        },
+      };
+    }
+    if (existingEvent !== undefined && existingEvent !== event) {
+      return {
+        status: "conflict" as const,
+        conflict: { code: "event_id_collision" as const, objectId },
+      };
+    }
+    const result = await this.#store.commitTransition(request);
+    if (result.status === "committed") {
+      this.#objects.set(objectKey, object);
+      this.#events.set(request.event.payload.id, event);
+    }
+    return result;
+  }
+
+  getLatestObject(objectId: string) {
+    return this.#store.getLatestObject(objectId);
+  }
+
+  getObjectVersion(objectId: string, version: number) {
+    return this.#store.getObjectVersion(objectId, version);
+  }
+
+  listObjectEvents(objectId: string) {
+    return this.#store.listObjectEvents(objectId);
+  }
+}
+
 function brokenAtomicityFactory(): CognitionHostConformanceFactory {
   return {
     createStore: () => new BrokenAtomicityStore(),
@@ -474,7 +549,7 @@ test("the in-memory host passes every host conformance case", async () => {
 
   assert.equal(report.passed, true);
   assert.equal(report.cases.every(({ status }) => status === "passed"), true);
-  assert.equal(report.cases.length, 11);
+  assert.equal(report.cases.length, 12);
   assert.equal(Object.isFrozen(report), true);
   assert.equal(Object.isFrozen(report.cases), true);
   assert.equal(report.cases.every(Object.isFrozen), true);
@@ -554,6 +629,30 @@ test("accepts semantically identical records with reordered object keys", async 
   assert.equal(report.passed, true);
 });
 
+test("requires canonical replay equality from host stores", async () => {
+  const canonical = await runCognitionHostConformance({
+    createStore: () => new InMemoryCognitionStore(),
+    createPublisher: () => new InMemoryCognitionEventPublisher(),
+  });
+  const insertionOrderSensitive = await runCognitionHostConformance({
+    createStore: () => new InsertionOrderReplayStore(),
+    createPublisher: () => new InMemoryCognitionEventPublisher(),
+  });
+
+  assert.equal(
+    canonical.cases.find(({ id }) => id === "HIC-CONF-012")?.status,
+    "passed",
+  );
+  assert.equal(
+    insertionOrderSensitive.cases.find(({ id }) => id === "HIC-CONF-012")?.status,
+    "failed",
+  );
+  assert.equal(
+    insertionOrderSensitive.cases.find(({ id }) => id === "HIC-CONF-011")?.status,
+    "passed",
+  );
+});
+
 test("isolates each case and sends only Portable Cognition records to ports", async () => {
   let stores = 0;
   let publishers = 0;
@@ -592,7 +691,7 @@ test("isolates each case and sends only Portable Cognition records to ports", as
   const report = await runCognitionHostConformance(factory);
 
   assert.equal(report.passed, true);
-  assert.equal(stores, 9);
+  assert.equal(stores, 10);
   assert.equal(publishers, 3);
   assert.deepEqual(new Set(recordTypes), new Set([
     "cognitive-object",

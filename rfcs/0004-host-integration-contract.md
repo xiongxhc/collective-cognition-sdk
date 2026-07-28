@@ -23,13 +23,23 @@ The contract establishes that:
 - a persistence success followed by publication failure remains observable as `committed_but_unpublished` and can be retried with the same request; and
 - reads are detached, deeply immutable, and deterministically ordered, while hosts use explicit cognition targets and preserve source-store separation.
 
+Only a returned conflict establishes that a transition did not commit either requested record. If a store adapter throws or returns an invalid result, the coordinator returns a sanitized failed outcome without claiming rollback or no write; callers retry the identical request to resolve the potentially ambiguous persistence result through exact replay. Coordinator-generated commit and publication `HostFailure` values and conformance report failures are sanitized, while raw read-port failures have no standardized `HostFailure` outcome.
+
 The accepted semantics are testable through the public host ports and reusable conformance runner. They do not establish exactly-once downstream effects: a publisher may receive at-least-once attempts, and recipients remain responsible for their own idempotency and side-effect controls.
 
 ## Rejected Alternatives
 
-### Require a Shared Database or Transaction Manager
+### Combined Transactional Host
 
-Rejected because storage products, transaction scopes, and fault models differ across hosts. The contract requires observable atomicity and ordering, not a specific implementation mechanism.
+Rejected because most persistence and delivery systems do not share one transaction. Requiring combined database-and-publisher atomicity would exclude local files, Git, SQLite plus webhooks, relational stores plus third-party queues, and in-process consumers. The contract requires observable object-event atomicity and store-first recovery, not a shared transaction manager.
+
+### Event-Sourcing-Only Host
+
+Rejected because it selects a persistence model. Event sourcing may implement the contract, but snapshot stores, document databases, relational databases, Git-backed stores, and in-memory hosts remain equally valid.
+
+### Adapter-Specific Integration
+
+Rejected because embedding team-memory, Obsidian, or another adapter's source schema in the root contract would recreate source-system coupling. Source connectors emit SourceRecords; cognition hosts persist Portable Cognition records through explicit targets.
 
 ### Publish Before Persistence
 
@@ -38,10 +48,6 @@ Rejected because consumers could observe an event whose matching cognitive objec
 ### Treat a Successful Publish Call as Exactly-Once Delivery
 
 Rejected because a local call result cannot prove broker durability, recipient processing, or downstream side effects. Event-ID idempotency bounds repeated publication attempts but does not transfer exactly-once responsibility to arbitrary consumers.
-
-### Reuse SourceRecord Storage as Cognition Storage
-
-Rejected because collection provenance and cognitive interpretation are separate boundaries. Coupling host commits to a source store's private schema would violate the source-neutral portability direction and encourage implicit interpretation.
 
 ## Compatibility Impact
 
@@ -61,8 +67,8 @@ The contract requires sanitized host failure outcomes so adapter exception text,
 
 - `tests/host-conformance.test.ts` pins the exact contract rule inventory, contract version, required status semantics, source-store boundary, and final documentation links.
 - `tests/host-integration.test.ts` verifies request validation, persistence-before-publication coordination, safe failures, partial-success reporting, and identical-request recovery.
-- `tests/reference-host.test.ts` exercises an in-memory reference host for initial and transition replay, conflicts, atomicity, ordering, detached reads, and publisher idempotency.
-- `runCognitionHostConformance` provides isolated public-port checks for complete host implementations; a host claiming complete conformance must pass its applicable cases.
+- `tests/reference-host.test.ts` exercises an in-memory reference host for exact and reordered canonical initial and transition replay, conflicts, atomicity, ordering, detached reads, and publisher idempotency.
+- `runCognitionHostConformance` provides isolated public-port checks for complete host implementations, including rejection of insertion-order-sensitive replay; a host claiming complete conformance must pass its applicable cases.
 - Documentation acceptance requires the focused host suites and `git diff --check`; broader final review remains a separate gate.
 
 ## Explicit Deferrals

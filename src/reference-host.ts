@@ -7,6 +7,7 @@ import {
   prepareTransitionCognitionCommit,
 } from "./host-integration.ts";
 import type { PortableCognitionRecord } from "./portable-cognition.ts";
+import type { JsonValue } from "./types.ts";
 import type {
   CognitionEventPublisher,
   CognitionPublicationStatus,
@@ -46,12 +47,29 @@ function snapshotEvent(
   return snapshotRecord(event, "cognition-event");
 }
 
+function canonicalizeJson(value: JsonValue): string {
+  if (value === null || typeof value === "boolean" || typeof value === "number") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalizeJson).join(",")}]`;
+  }
+  const object = value as Record<string, JsonValue>;
+  return `{${Object.keys(object)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalizeJson(object[key])}`)
+    .join(",")}}`;
+}
+
 function recordsMatch(
   left: PortableCognitionRecord,
   right: PortableCognitionRecord,
 ): boolean {
-  return serializePortableCognitionRecord(left) ===
-    serializePortableCognitionRecord(right);
+  return canonicalizeJson(left as unknown as JsonValue) ===
+    canonicalizeJson(right as unknown as JsonValue);
 }
 
 function objectVersionKey(objectId: string, version: number): string {

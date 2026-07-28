@@ -162,6 +162,20 @@ function changedEvent(
   }) as PortableCognitionEventRecord;
 }
 
+function reorderRecord<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map(reorderRecord) as T;
+  }
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+  const reordered: Record<string, unknown> = {};
+  for (const key of Object.keys(value).sort().reverse()) {
+    reordered[key] = reorderRecord((value as Record<string, unknown>)[key]);
+  }
+  return reordered as T;
+}
+
 const conformanceCases: readonly ConformanceCase[] = [
   {
     id: "HIC-CONF-001",
@@ -420,6 +434,33 @@ const conformanceCases: readonly ConformanceCase[] = [
       assertConformance(
         retry.status === "committed" && retry.persistence === "already_committed" &&
           retry.publication === "published",
+      );
+    },
+  },
+  {
+    id: "HIC-CONF-012",
+    async run(factory) {
+      const store = await factory.createStore();
+      const initial = objectRecord({ id: "goal:host-conformance:canonical-replay" });
+      const reorderedInitial = reorderRecord(initial);
+      assertConformance((await store.commitInitial({ object: initial })).status === "committed");
+      assertConformance(
+        (await store.commitInitial({ object: reorderedInitial })).status ===
+          "already_committed",
+      );
+      const transition = transitionCommit(
+        initial,
+        "event:host-conformance:canonical-replay",
+      );
+      const reorderedTransition: TransitionCognitionCommit = {
+        expectedVersion: transition.expectedVersion,
+        object: reorderRecord(transition.object),
+        event: reorderRecord(transition.event),
+      };
+      assertConformance((await store.commitTransition(transition)).status === "committed");
+      assertConformance(
+        (await store.commitTransition(reorderedTransition)).status ===
+          "already_committed",
       );
     },
   },

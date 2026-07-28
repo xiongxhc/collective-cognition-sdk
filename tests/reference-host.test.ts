@@ -128,6 +128,20 @@ function mutateEvent(
   return value as unknown as PortableCognitionEventRecord;
 }
 
+function reorderRecord<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map(reorderRecord) as T;
+  }
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+  const reordered: Record<string, unknown> = {};
+  for (const key of Object.keys(value).sort().reverse()) {
+    reordered[key] = reorderRecord((value as Record<string, unknown>)[key]);
+  }
+  return reordered as T;
+}
+
 function isInvalidHostRequest(error: unknown): boolean {
   return error instanceof DomainError &&
     error.code === DomainErrorCode.INVALID_HOST_INTEGRATION_REQUEST;
@@ -159,6 +173,18 @@ test("classifies an exact initial replay as already committed", async () => {
   await store.commitInitial({ object });
 
   assert.deepEqual(await store.commitInitial({ object }), {
+    status: "already_committed",
+  });
+});
+
+test("classifies a reordered initial replay as already committed", async () => {
+  const store = new InMemoryCognitionStore();
+  const object = objectRecord();
+  const reordered = reorderRecord(object);
+  await store.commitInitial({ object });
+
+  assert.notEqual(JSON.stringify(reordered), JSON.stringify(object));
+  assert.deepEqual(await store.commitInitial({ object: reordered }), {
     status: "already_committed",
   });
 });
@@ -258,6 +284,25 @@ test("classifies an exact transition replay as already committed", async () => {
   await store.commitTransition(transition);
 
   assert.deepEqual(await store.commitTransition(transition), {
+    status: "already_committed",
+  });
+});
+
+test("classifies a reordered transition replay as already committed", async () => {
+  const store = new InMemoryCognitionStore();
+  const initial = objectRecord();
+  const transition = transitionCommit();
+  const reordered: TransitionCognitionCommit = {
+    expectedVersion: transition.expectedVersion,
+    object: reorderRecord(transition.object),
+    event: reorderRecord(transition.event),
+  };
+  await store.commitInitial({ object: initial });
+  await store.commitTransition(transition);
+
+  assert.notEqual(JSON.stringify(reordered.object), JSON.stringify(transition.object));
+  assert.notEqual(JSON.stringify(reordered.event), JSON.stringify(transition.event));
+  assert.deepEqual(await store.commitTransition(reordered), {
     status: "already_committed",
   });
 });
