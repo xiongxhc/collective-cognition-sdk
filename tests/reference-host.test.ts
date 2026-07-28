@@ -5,6 +5,8 @@ import {
   createObject,
   createPortableCognitionRecord,
   deserializeObject,
+  DomainError,
+  DomainErrorCode,
   transitionObject,
 } from "../src/index.ts";
 import {
@@ -115,6 +117,22 @@ function mutateEventRationale(
   return value as unknown as PortableCognitionEventRecord;
 }
 
+function mutateEvent(
+  record: PortableCognitionEventRecord,
+  fields: Record<string, unknown>,
+): PortableCognitionEventRecord {
+  const value = structuredClone(record) as unknown as {
+    payload: Record<string, unknown>;
+  };
+  Object.assign(value.payload, fields);
+  return value as unknown as PortableCognitionEventRecord;
+}
+
+function isInvalidHostRequest(error: unknown): boolean {
+  return error instanceof DomainError &&
+    error.code === DomainErrorCode.INVALID_HOST_INTEGRATION_REQUEST;
+}
+
 test("commits a version-one object and reads its latest and version records", async () => {
   const store = new InMemoryCognitionStore();
   const object = objectRecord();
@@ -122,6 +140,16 @@ test("commits a version-one object and reads its latest and version records", as
   assert.deepEqual(await store.commitInitial({ object }), { status: "committed" });
   assert.deepEqual(await store.getLatestObject(object.payload.id), object);
   assert.deepEqual(await store.getObjectVersion(object.payload.id, 1), object);
+});
+
+test("rejects a non-version-one initial object without changing store state", async () => {
+  const store = new InMemoryCognitionStore();
+  const object = objectRecord({ version: 2 });
+
+  await assert.rejects(store.commitInitial({ object }), isInvalidHostRequest);
+
+  assert.equal(await store.getLatestObject(object.payload.id), undefined);
+  assert.equal(await store.getObjectVersion(object.payload.id, 2), undefined);
 });
 
 test("classifies an exact initial replay as already committed", async () => {
@@ -168,6 +196,49 @@ test("commits a transition object and event together", async () => {
   assert.deepEqual(await store.listObjectEvents(initial.payload.id), [transition.event]);
 });
 
+test("rejects a non-successor transition version without partial state", async () => {
+  const store = new InMemoryCognitionStore();
+  const initial = objectRecord();
+  const nonSuccessor = transitionCommit({ expectedVersion: 2 });
+  await store.commitInitial({ object: initial });
+
+  await assert.rejects(
+    store.commitTransition({ ...nonSuccessor, expectedVersion: 1 }),
+    isInvalidHostRequest,
+  );
+
+  assert.deepEqual(await store.getLatestObject(initial.payload.id), initial);
+  assert.equal(await store.getObjectVersion(initial.payload.id, 3), undefined);
+  assert.deepEqual(await store.listObjectEvents(initial.payload.id), []);
+});
+
+test("rejects incoherent transition events without partial state", async () => {
+  const mismatches: readonly [string, Record<string, unknown>][] = [
+    ["object ID", { objectId: "goal:other" }],
+    ["object type", { objectType: "hypothesis" }],
+    ["object version", { objectVersion: 3 }],
+    ["object state", { nextState: "paused" }],
+    ["object time", { occurredAt: "2026-07-28T10:02:00.000Z" }],
+  ];
+
+  for (const [description, fields] of mismatches) {
+    const store = new InMemoryCognitionStore();
+    const initial = objectRecord();
+    const transition = transitionCommit();
+    await store.commitInitial({ object: initial });
+
+    await assert.rejects(
+      store.commitTransition({ ...transition, event: mutateEvent(transition.event, fields) }),
+      isInvalidHostRequest,
+      description,
+    );
+
+    assert.deepEqual(await store.getLatestObject(initial.payload.id), initial);
+    assert.equal(await store.getObjectVersion(initial.payload.id, 2), undefined);
+    assert.deepEqual(await store.listObjectEvents(initial.payload.id), []);
+  }
+});
+
 test("retains prior object versions after a transition advances latest", async () => {
   const store = new InMemoryCognitionStore();
   const initial = objectRecord();
@@ -191,32 +262,21 @@ test("classifies an exact transition replay as already committed", async () => {
   });
 });
 
-test("rejects a transition whose expected version is stale", async () => {
+test("returns a version conflict when the expected version is not latest", async () => {
   const store = new InMemoryCognitionStore();
   const initial = objectRecord();
-  const transition = transitionCommit();
+  const future = transitionCommit({ expectedVersion: 2 });
   await store.commitInitial({ object: initial });
-  await store.commitTransition(transition);
 
-  assert.deepEqual(await store.commitTransition(transition), {
-    status: "already_committed",
-  });
-  const stale = transitionCommit({
-    expectedVersion: 2,
-    eventId: "event:goal:reference-host:stale",
-  });
   assert.deepEqual(
-    await store.commitTransition({
-      ...stale,
-      expectedVersion: 1,
-    }),
+    await store.commitTransition(future),
     {
       status: "conflict",
       conflict: {
         code: "version_conflict",
         objectId: initial.payload.id,
-        expectedVersion: 1,
-        actualVersion: 2,
+        expectedVersion: 2,
+        actualVersion: 1,
       },
     },
   );
@@ -225,27 +285,29 @@ test("rejects a transition whose expected version is stale", async () => {
 test("rejects a changed target revision without advancing latest", async () => {
   const store = new InMemoryCognitionStore();
   const initial = objectRecord();
-  const transition = transitionCommit();
+  const second = transitionCommit();
+  const third = transitionCommit({ expectedVersion: 2 });
   await store.commitInitial({ object: initial });
-  await store.commitTransition(transition);
+  await store.commitTransition(second);
+  await store.commitTransition(third);
 
   assert.deepEqual(
     await store.commitTransition({
-      ...transition,
+      ...third,
       expectedVersion: 2,
-      object: mutateTitle(transition.object, "Changed version two"),
+      object: mutateTitle(third.object, "Changed version three"),
     }),
     {
       status: "conflict",
       conflict: {
         code: "object_revision_collision",
         objectId: initial.payload.id,
-        expectedVersion: 2,
-        actualVersion: 2,
+        expectedVersion: 3,
+        actualVersion: 3,
       },
     },
   );
-  assert.deepEqual(await store.getLatestObject(initial.payload.id), transition.object);
+  assert.deepEqual(await store.getLatestObject(initial.payload.id), third.object);
 });
 
 test("rejects an event ID collision without committing its object", async () => {

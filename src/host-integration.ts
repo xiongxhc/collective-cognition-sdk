@@ -278,7 +278,13 @@ function snapshotInitialObject(
   return object;
 }
 
-function snapshotTransitionCommit(
+export function prepareInitialCognitionCommit(
+  request: InitialCognitionCommit,
+): InitialCognitionCommit {
+  return Object.freeze({ object: snapshotInitialObject(request) });
+}
+
+export function prepareTransitionCognitionCommit(
   request: TransitionCognitionCommit,
 ): TransitionCognitionCommit {
   let expectedVersion: number;
@@ -375,8 +381,8 @@ export async function commitInitialCognition(
   store: CognitionStore,
   request: InitialCognitionCommit,
 ): Promise<InitialCommitOutcome> {
-  const object = snapshotInitialObject(request);
-  const hostRequest = Object.freeze({ object });
+  const hostRequest = prepareInitialCognitionCommit(request);
+  const { object } = hostRequest;
 
   try {
     const result = snapshotCommitResult(await store.commitInitial(hostRequest));
@@ -400,7 +406,7 @@ export async function commitCognitionTransition(
   host: CognitionHost,
   request: TransitionCognitionCommit,
 ): Promise<TransitionCommitOutcome> {
-  const hostRequest = snapshotTransitionCommit(request);
+  const hostRequest = prepareTransitionCognitionCommit(request);
   const { object, event } = hostRequest;
 
   let persistence: CognitionPersistenceStatus;

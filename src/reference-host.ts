@@ -2,6 +2,10 @@ import {
   deserializePortableCognitionRecord,
   serializePortableCognitionRecord,
 } from "./portable-cognition.ts";
+import {
+  prepareInitialCognitionCommit,
+  prepareTransitionCognitionCommit,
+} from "./host-integration.ts";
 import type { PortableCognitionRecord } from "./portable-cognition.ts";
 import type {
   CognitionEventPublisher,
@@ -54,13 +58,6 @@ function objectVersionKey(objectId: string, version: number): string {
   return `${objectId}\u0000${version}`;
 }
 
-function snapshotExpectedVersion(expectedVersion: number): number {
-  if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1) {
-    throw new TypeError("Expected version must be a positive safe integer.");
-  }
-  return expectedVersion;
-}
-
 function snapshotIdempotencyKey(options: {
   readonly idempotencyKey: string;
 }): string {
@@ -83,7 +80,7 @@ export class InMemoryCognitionStore implements CognitionStore {
   async commitInitial(
     request: InitialCognitionCommit,
   ): Promise<CognitionStoreCommitResult> {
-    const object = snapshotObject(request.object);
+    const { object } = prepareInitialCognitionCommit(request);
     const objectId = object.payload.id;
     const version = object.payload.version;
     const key = objectVersionKey(objectId, version);
@@ -112,9 +109,8 @@ export class InMemoryCognitionStore implements CognitionStore {
   async commitTransition(
     request: TransitionCognitionCommit,
   ): Promise<CognitionStoreCommitResult> {
-    const expectedVersion = snapshotExpectedVersion(request.expectedVersion);
-    const object = snapshotObject(request.object);
-    const event = snapshotEvent(request.event);
+    const { expectedVersion, object, event } =
+      prepareTransitionCognitionCommit(request);
     const objectId = object.payload.id;
     const version = object.payload.version;
     const existingObject = this.#objects.get(objectVersionKey(objectId, version));
@@ -182,7 +178,18 @@ export class InMemoryCognitionStore implements CognitionStore {
   ): Promise<readonly PortableCognitionEventRecord[]> {
     const events = Array.from(this.#events.values())
       .filter((event) => event.payload.objectId === objectId)
-      .sort((left, right) => left.payload.objectVersion - right.payload.objectVersion)
+      .sort((left, right) => {
+        const versionOrder = left.payload.objectVersion -
+          right.payload.objectVersion;
+        if (versionOrder !== 0) {
+          return versionOrder;
+        }
+        return left.payload.id < right.payload.id
+          ? -1
+          : left.payload.id > right.payload.id
+          ? 1
+          : 0;
+      })
       .map(snapshotEvent);
     return Object.freeze(events);
   }
