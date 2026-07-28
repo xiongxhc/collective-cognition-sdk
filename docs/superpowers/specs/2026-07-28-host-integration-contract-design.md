@@ -202,7 +202,8 @@ Initial commit returns:
 ```ts
 type InitialCommitOutcome =
   | { status: "committed"; persistence: "committed" | "already_committed"; object: PortableCognitiveObjectRecord }
-  | { status: "conflict"; conflict: HostConflict };
+  | { status: "conflict"; conflict: HostConflict }
+  | { status: "failed"; error: HostFailure };
 ```
 
 Transition commit and publication returns:
@@ -223,7 +224,8 @@ type TransitionCommitOutcome =
       event: PortableCognitionEventRecord;
       error: HostFailure;
     }
-  | { status: "conflict"; conflict: HostConflict };
+  | { status: "conflict"; conflict: HostConflict }
+  | { status: "failed"; error: HostFailure };
 ```
 
 `committed_but_unpublished` is durable success plus delivery failure. Callers must not retry the domain transition or construct a new event. They retry the same host request so persistence returns `already_committed` and publication reuses the original event ID.
@@ -269,8 +271,7 @@ The packaged in-memory implementation provides:
 - exact canonical replay detection;
 - optimistic version conflicts;
 - atomic transition commit behavior within one process;
-- an idempotent collecting publisher; and
-- deterministic failure injection for SDK tests only.
+- an idempotent collecting publisher.
 
 It is a reference and test fixture, not a production persistence recommendation.
 
