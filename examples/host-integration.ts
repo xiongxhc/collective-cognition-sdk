@@ -4,18 +4,16 @@ import {
   createObject,
   createPortableCognitionRecord,
   transitionObject,
-} from "../src/index.ts";
+  type CognitionEventPublisher,
+  type CognitionPublicationStatus,
+  type PortableCognitionEventRecord,
+  type PortableCognitiveObjectRecord,
+  type TransitionCognitionCommit,
+} from "collective-cognition-sdk";
 import {
   InMemoryCognitionEventPublisher,
   InMemoryCognitionStore,
-} from "../src/reference-host.ts";
-import type {
-  CognitionEventPublisher,
-  CognitionPublicationStatus,
-  PortableCognitionEventRecord,
-  PortableCognitiveObjectRecord,
-  TransitionCognitionCommit,
-} from "../src/index.ts";
+} from "collective-cognition-sdk/reference-host/0.1.0";
 
 class FailFirstPublisher implements CognitionEventPublisher {
   #failed = false;

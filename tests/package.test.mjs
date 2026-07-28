@@ -37,6 +37,10 @@ const validFixturesUrl = new URL(
   "../spec/conformance/0.1.0/source-record/valid.jsonl",
   import.meta.url,
 );
+const hostIntegrationExampleUrl = new URL(
+  "../examples/host-integration.ts",
+  import.meta.url,
+);
 
 const expectedRuntimeExports = [
   "DomainError",
@@ -125,6 +129,17 @@ test("emitted modules contain no relative TypeScript import specifiers", () => {
       `${path} contains a relative .ts module specifier`,
     );
   }
+});
+
+test("host integration example uses public package entrypoints", () => {
+  const example = readFileSync(hostIntegrationExampleUrl, "utf8");
+
+  assert.match(example, /from "collective-cognition-sdk";/);
+  assert.match(
+    example,
+    /from "collective-cognition-sdk\/reference-host\/0\.1\.0";/,
+  );
+  assert.doesNotMatch(example, /from "\.\.\/src\/(index|reference-host)\.ts";/);
 });
 
 test("built CLI executable validates canonical SourceRecord input", () => {

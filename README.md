@@ -90,7 +90,7 @@ A deployed host normally has two logically distinct stores:
 
 These stores may use separate databases, separate schemas in one database, files, or another host-selected persistence model. Keeping them logically separate is important: source material may be replayed or regenerated, while approved decisions, rationale, authority, and history are durable organizational records. A host can begin with a dedicated SQLite database and later move to PostgreSQL or another backend without changing the core model.
 
-The SDK supplies the host-port contract and an in-memory reference implementation, not a database. A host chooses and owns its `CognitionStore` and `CognitionEventPublisher`; a publication failure is observable as `committed_but_unpublished` and is recovered by retrying the exact same transition request. Concrete persistence adapters and hosted services remain planned ecosystem work.
+The SDK supplies the host-port contract and an in-memory reference implementation, not a database. A host chooses and owns its `CognitionStore` and `CognitionEventPublisher`; a publication failure is observable as `committed_but_unpublished` and retryable with the exact same transition request. The example's identical retry succeeds, but the contract does not guarantee that every retry will succeed. Concrete persistence adapters and hosted services remain planned ecosystem work.
 
 A `SourceRecord` accepts only the documented top-level and `source` fields. Every `extensions` key must contain a namespace separator (`:` or `.`) with non-empty sides. The interpretation keys `polarity`, `confidence`, and `authority` are also rejected directly in `context`; source-authored raw `content` may preserve fields with those names. The complete record is limited to 256 nested JSON containers, counting the root object as depth 1, so every SDK and CLI entry point rejects deeper values with `INVALID_SOURCE_RECORD` before recursive processing. `contentHash` is opaque caller-supplied integrity metadata, and this SDK does not verify that it is a digest or that it matches `content`.
 
@@ -144,7 +144,7 @@ import {
 
 Run [`examples/portable-cognition.ts`](examples/portable-cognition.ts) for one complete cognitive-object round trip. Its schema and fixtures are available at `collective-cognition-sdk/schemas/portable-cognition/0.1.0` and `collective-cognition-sdk/conformance/portable-cognition/0.1.0/cognitive-loop`.
 
-Host applications import the coordinators from the package root and the in-memory reference host from `collective-cognition-sdk/reference-host/0.1.0`. Run [`examples/host-integration.ts`](examples/host-integration.ts) to create an object, persist a transition, observe its first publication fail, and recover by retrying the identical request without generating a new event ID.
+Host applications import the coordinators from the package root and the in-memory reference host from `collective-cognition-sdk/reference-host/0.1.0`. Run [`examples/host-integration.ts`](examples/host-integration.ts) to create an object, persist a transition, observe its first publication fail, and show the identical retry succeed without generating a new event ID.
 
 The package manifest intentionally retains `"private": true` as an npm publication guard. The package is unpublished. Removing the guard still requires registry confirmation, runtime and security policies, final verification, and explicit publication approval.
 
@@ -185,7 +185,7 @@ node --disable-warning=ExperimentalWarning --test tests/portable-cognition-confo
 
 `npm run example:portable` creates one cognitive-object record, serializes and deserializes its Portable Cognition `0.1.0` envelope, and prints that one restored envelope to stdout.
 
-`npm run example:host` prints one JSON outcome showing an initial commit, `committed_but_unpublished` after the first publication attempt, recovery to `committed` from the identical transition request, object version `2`, one stored event, and one published event.
+`npm run example:host` prints one JSON outcome showing an initial commit, `committed_but_unpublished` after the first publication attempt, and this example's identical retry returning `committed`, with object version `2`, one stored event, and one published event. The contract makes publication failure retryable but does not guarantee that every retry succeeds.
 
 The migrated team-memory commands are experimental connector tools:
 
