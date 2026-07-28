@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -22,6 +23,68 @@ import type {
   PortableCognitiveObjectRecord,
   TransitionCognitionCommit,
 } from "../src/host-integration.ts";
+
+const hostContractUrl = new URL("../spec/host-integration.md", import.meta.url);
+const hostRfcUrl = new URL(
+  "../rfcs/0004-host-integration-contract.md",
+  import.meta.url,
+);
+const specificationIndexUrl = new URL("../spec/README.md", import.meta.url);
+const rfcIndexUrl = new URL("../rfcs/README.md", import.meta.url);
+
+const expectedRuleIds = Array.from(
+  { length: 16 },
+  (_, index) => `HIC-${String(index + 1).padStart(3, "0")}`,
+);
+
+function markdownSection(text: string, heading: string): string {
+  const start = text.indexOf(heading);
+  assert.notEqual(start, -1, `Missing ${heading} section.`);
+  const end = text.indexOf("\n## ", start + heading.length);
+  return text.slice(start, end === -1 ? undefined : end);
+}
+
+function extractRuleIds(hostContractText: string): string[] {
+  return Array.from(
+    markdownSection(hostContractText, "## Normative Rules")
+      .matchAll(/^\|\s*`(HIC-\d{3})`\s*\|/gm),
+    ([, ruleId]) => ruleId,
+  );
+}
+
+function extractMappedRuleIds(hostContractText: string): string[] {
+  return Array.from(
+    markdownSection(hostContractText, "## Rule-to-Check Mapping")
+      .matchAll(/^\|\s*`(HIC-\d{3})`\s*\|/gm),
+    ([, ruleId]) => ruleId,
+  );
+}
+
+test("pins the Host Integration Contract rule inventory and links", () => {
+  const hostContractText = readFileSync(hostContractUrl, "utf8");
+  const hostRfcText = readFileSync(hostRfcUrl, "utf8");
+  const specificationIndexText = readFileSync(specificationIndexUrl, "utf8");
+  const rfcIndexText = readFileSync(rfcIndexUrl, "utf8");
+
+  assert.deepEqual(extractRuleIds(hostContractText), expectedRuleIds);
+  assert.deepEqual(extractMappedRuleIds(hostContractText), expectedRuleIds);
+  assert.match(hostContractText, /Contract version: `0\.1\.0`/);
+  assert.match(hostContractText, /committed_but_unpublished/);
+  assert.match(hostContractText, /SourceRecord MUST NOT/);
+  assert.match(
+    hostRfcText,
+    /\]\(\.\.\/spec\/host-integration\.md\)/,
+  );
+  assert.match(specificationIndexText, /\]\(host-integration\.md\)/);
+  assert.match(
+    specificationIndexText,
+    /\]\(\.\.\/rfcs\/0004-host-integration-contract\.md\)/,
+  );
+  assert.match(
+    rfcIndexText,
+    /\]\(0004-host-integration-contract\.md\)/,
+  );
+});
 
 function objectRecord(
   id = "goal:host-conformance",
