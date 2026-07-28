@@ -167,3 +167,27 @@ The historical paths were hashed from the working tree and independently compare
 - Scoped re-review is still pending; this report does not claim independent final approval.
 - Package `0.3.0` remains private and unpublished.
 - The in-memory reference host and deterministic conformance evidence do not certify an external durable adapter, downstream exactly-once effects, production security policy, or production readiness.
+
+## Residual Event-Collision Correction
+
+**Status:** Residual final-review correction implemented; scoped re-review pending
+**Commit message:** `fix: preserve collided cognition events`
+
+### RED
+
+- Added `ReplaceEventAfterCollisionStore`, which returns the expected `event_id_collision` while replacing the original owner's already-committed journal event with the colliding target event.
+- Command: `node --disable-warning=ExperimentalWarning --test --test-name-pattern='replace original events' tests/host-conformance.test.ts`
+- Result before the conformance correction: `1` test, `0` passed, `1` failed because `HIC-CONF-005` incorrectly reported `passed` instead of `failed`.
+
+### GREEN
+
+- Strengthened `HIC-CONF-005` to reread both owners after the collision. The original owner's latest object, initial revision, target revision, and sole canonical event must remain unchanged; the colliding owner's latest and initial revision must remain unchanged, its target revision must remain absent, and its event journal must remain empty.
+- Targeted regression: `1/1` passed.
+- Focused command: `node --disable-warning=ExperimentalWarning --test tests/host-conformance.test.ts tests/reference-host.test.ts tests/host-integration.test.ts`
+- Focused result: `56/56` passed.
+- `npx tsc --noEmit`, `npm run check`, and `git diff --check` exit `0`.
+
+### Scope and Concerns
+
+- Runtime contract, reference host, contract version, normative prose, compatibility baselines, package declarations, and package registration remain unchanged.
+- Scoped re-review remains pending.

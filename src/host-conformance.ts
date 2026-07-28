@@ -282,23 +282,42 @@ const conformanceCases: readonly ConformanceCase[] = [
       const eventId = "event:host-conformance:collision";
       const first = objectRecord({ id: "goal:host-conformance:event:first" });
       const second = objectRecord({ id: "goal:host-conformance:event:second" });
+      const firstTransition = transitionCommit(first, eventId);
+      const secondTransition = transitionCommit(second, eventId);
       assertConformance((await store.commitInitial({ object: first })).status === "committed");
-      assertConformance((await store.commitTransition(transitionCommit(first, eventId))).status === "committed");
+      assertConformance((await store.commitTransition(firstTransition)).status === "committed");
       assertConformance((await store.commitInitial({ object: second })).status === "committed");
-      const result = await store.commitTransition(transitionCommit(second, eventId));
+      const result = await store.commitTransition(secondTransition);
       assertConformance(
         result.status === "conflict" &&
           result.conflict.code === "event_id_collision" &&
           result.conflict.eventId === eventId,
       );
-      const latest = await store.getLatestObject(second.payload.id);
-      const initial = await store.getObjectVersion(second.payload.id, 1);
-      const target = await store.getObjectVersion(second.payload.id, 2);
-      const events = await store.listObjectEvents(second.payload.id);
-      assertConformance(latest !== undefined && recordsMatch(latest, second));
-      assertConformance(initial !== undefined && recordsMatch(initial, second));
-      assertConformance(target === undefined);
-      assertConformance(events.length === 0);
+      const firstLatest = await store.getLatestObject(first.payload.id);
+      const firstInitial = await store.getObjectVersion(first.payload.id, 1);
+      const firstTarget = await store.getObjectVersion(first.payload.id, 2);
+      const firstEvents = await store.listObjectEvents(first.payload.id);
+      const secondLatest = await store.getLatestObject(second.payload.id);
+      const secondInitial = await store.getObjectVersion(second.payload.id, 1);
+      const secondTarget = await store.getObjectVersion(second.payload.id, 2);
+      const secondEvents = await store.listObjectEvents(second.payload.id);
+      assertConformance(
+        firstLatest !== undefined &&
+          recordsMatch(firstLatest, firstTransition.object),
+      );
+      assertConformance(firstInitial !== undefined && recordsMatch(firstInitial, first));
+      assertConformance(
+        firstTarget !== undefined &&
+          recordsMatch(firstTarget, firstTransition.object),
+      );
+      assertConformance(
+        firstEvents.length === 1 &&
+          recordsMatch(firstEvents[0], firstTransition.event),
+      );
+      assertConformance(secondLatest !== undefined && recordsMatch(secondLatest, second));
+      assertConformance(secondInitial !== undefined && recordsMatch(secondInitial, second));
+      assertConformance(secondTarget === undefined);
+      assertConformance(secondEvents.length === 0);
     },
   },
   {

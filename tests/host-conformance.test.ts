@@ -606,6 +606,52 @@ class ExtraEventAfterStaleConflictStore implements CognitionStore {
   }
 }
 
+class ReplaceEventAfterCollisionStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+  readonly #eventOwners = new Map<string, string>();
+  readonly #replacements = new Map<string, PortableCognitionEventRecord>();
+
+  commitInitial(request: InitialCognitionCommit) {
+    return this.#store.commitInitial(request);
+  }
+
+  async commitTransition(request: TransitionCognitionCommit) {
+    const result = await this.#store.commitTransition(request);
+    if (result.status === "committed") {
+      this.#eventOwners.set(
+        request.event.payload.id,
+        request.object.payload.id,
+      );
+    }
+    if (
+      result.status === "conflict" &&
+      result.conflict.code === "event_id_collision" &&
+      this.#eventOwners.has(request.event.payload.id)
+    ) {
+      this.#replacements.set(request.event.payload.id, request.event);
+    }
+    return result;
+  }
+
+  getLatestObject(objectId: string) {
+    return this.#store.getLatestObject(objectId);
+  }
+
+  getObjectVersion(objectId: string, version: number) {
+    return this.#store.getObjectVersion(objectId, version);
+  }
+
+  async listObjectEvents(objectId: string) {
+    return Object.freeze(
+      (await this.#store.listObjectEvents(objectId)).map((event) =>
+        this.#eventOwners.get(event.payload.id) === objectId
+          ? this.#replacements.get(event.payload.id) ?? event
+          : event
+      ),
+    );
+  }
+}
+
 class MalformedAcceptingStore implements CognitionStore {
   readonly #store = new InMemoryCognitionStore();
 
@@ -854,6 +900,18 @@ test("rejects stores that mutate state after returned conflicts", async () => {
   );
   assert.equal(
     extraEvent.cases.find(({ id }) => id === "HIC-CONF-004")?.status,
+    "failed",
+  );
+});
+
+test("rejects stores that replace original events after event ID collisions", async () => {
+  const report = await runCognitionHostConformance({
+    createStore: () => new ReplaceEventAfterCollisionStore(),
+    createPublisher: () => new InMemoryCognitionEventPublisher(),
+  });
+
+  assert.equal(
+    report.cases.find(({ id }) => id === "HIC-CONF-005")?.status,
     "failed",
   );
 });
