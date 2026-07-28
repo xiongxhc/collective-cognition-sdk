@@ -3,8 +3,9 @@
   "packagePolicyVersion": "0.1.0",
   "appliesToPackageVersion": "0.3.0",
   "packageChange": {
-    "classification": "additive",
-    "packageVersionEffect": "minor"
+    "classification": "breaking",
+    "packageVersionEffect": "minor-before-1.0",
+    "correctionRule": "COMP-012"
   },
   "historicalBaselines": {
     "0.1.0": {
@@ -145,12 +146,12 @@
       "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl": "1693d97e207cfeee63d370ba23d07ffd9023e8b087e5dbd3c0ad53e945184053",
       "spec/compatibility/0.1.0/change-cases.jsonl": "3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b",
       "spec/compatibility/0.2.0/change-cases.jsonl": "e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5",
-      "spec/compatibility/0.3.0/change-cases.jsonl": "48ff95bd73ee19efda21108c76fb7c26780f3ba66027ae0c23a1efcce022174a"
+      "spec/compatibility/0.3.0/change-cases.jsonl": "1f1ff3822de318806640357bb11804a0213d7084f05350035f8bb8d519dd95f2"
     },
     "hostIntegration": {
       "version": "0.1.0",
       "prosePath": "spec/host-integration.md",
-      "proseSha256": "dde9f17956a17e691e5159d192748317bda3a585eca1fc6a5cfa7e4303c0332b",
+      "proseSha256": "41d2094f60a096540983bdeb9be5320d43136a8519b9e3ce2336c20f788f7bd7",
       "ruleIds": [
         "HIC-001",
         "HIC-002",
@@ -385,21 +386,51 @@
       }
     },
     "declarations": {
-      "files": [
-        "dist/authorization.d.ts",
-        "dist/errors.d.ts",
-        "dist/events.d.ts",
-        "dist/host-integration.d.ts",
-        "dist/index.d.ts",
-        "dist/ingestion.d.ts",
-        "dist/objects.d.ts",
-        "dist/portable-cognition.d.ts",
-        "dist/promotion.d.ts",
-        "dist/source-records.d.ts",
-        "dist/transitions.d.ts",
-        "dist/types.d.ts"
-      ],
-      "sha256": "07ebf620bb24cfddf8099eaeccd26a9cc03dfa9bbcdfa9cdd79378db0193edca"
+      "root": {
+        "packageSubpath": ".",
+        "declarationEntrypoint": "dist/index.d.ts",
+        "files": [
+          "dist/authorization.d.ts",
+          "dist/errors.d.ts",
+          "dist/events.d.ts",
+          "dist/host-integration.d.ts",
+          "dist/index.d.ts",
+          "dist/ingestion.d.ts",
+          "dist/objects.d.ts",
+          "dist/portable-cognition.d.ts",
+          "dist/promotion.d.ts",
+          "dist/source-records.d.ts",
+          "dist/transitions.d.ts",
+          "dist/types.d.ts"
+        ],
+        "sha256": "7f9e352c9adf8a48d433d280c8040ddad57240726276a15d690133b3dfcf7333"
+      },
+      "hostConformance": {
+        "packageSubpath": "./host-conformance/0.1.0",
+        "declarationEntrypoint": "dist/host-conformance.d.ts",
+        "files": [
+          "dist/authorization.d.ts",
+          "dist/events.d.ts",
+          "dist/host-conformance.d.ts",
+          "dist/host-integration.d.ts",
+          "dist/portable-cognition.d.ts",
+          "dist/types.d.ts"
+        ],
+        "sha256": "4cb58d68d6796cc77a8dfdb5a31013e441c99142bbb5bc62a91e5e71d64db94b"
+      },
+      "referenceHost": {
+        "packageSubpath": "./reference-host/0.1.0",
+        "declarationEntrypoint": "dist/reference-host.d.ts",
+        "files": [
+          "dist/authorization.d.ts",
+          "dist/events.d.ts",
+          "dist/host-integration.d.ts",
+          "dist/portable-cognition.d.ts",
+          "dist/reference-host.d.ts",
+          "dist/types.d.ts"
+        ],
+        "sha256": "1447986d26b53d77a083fe414da8d744056df30db4e0094bb28a656d0f8965b2"
+      }
     }
   },
   "cli": {

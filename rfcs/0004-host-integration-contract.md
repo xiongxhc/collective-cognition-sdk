@@ -1,6 +1,6 @@
 # RFC 0004: Host Integration Contract
 
-**Status:** Accepted; final-review verification pending
+**Status:** Accepted; final review correction implemented, scoped re-review pending
 
 **Created:** 2026-07-28
 **Decision owner:** Project maintainer
@@ -19,6 +19,8 @@ The contract establishes that:
 
 - host ports accept only Portable Cognition cognitive-object and cognition-event records, never SourceRecords;
 - initial and transition persistence preserve immutable object-revision and event identities, exact replay, optimistic concurrency, and observable object-event atomicity;
+- overlapping transition outcomes use one deterministic precedence: exact canonical replay, target object-revision collision, event-ID collision, then stale expected-version conflict only when the target identities are unused;
+- conflict values use closed operation-specific shapes correlated to the requested object, expected version, actual version, and event ID as applicable; malformed or hostile adapter values fail closed;
 - transition publication follows persistence and uses the event ID as the idempotency key;
 - a persistence success followed by publication failure remains observable as `committed_but_unpublished` and can be retried with the same request; and
 - reads are detached, deeply immutable, and deterministically ordered, while hosts use explicit cognition targets and preserve source-store separation.
@@ -51,11 +53,53 @@ Rejected because a local call result cannot prove broker durability, recipient p
 
 ## Compatibility Impact
 
-This RFC adds no package version, export, compatibility baseline, schema, or Portable Cognition record-shape change. It specifies the already public host-port behavior under its independent host contract version `0.1.0`.
+Package `0.3.0` adds the Host Integration `0.1.0` root exports and versioned contract, conformance, and reference-host subpaths. Those host capabilities are additive, but the package release as a whole is classified as a breaking correction because `PortableDomainError.code` is narrowed from the package-wide `DomainErrorCode` union exposed by package `0.2.0` to the fixed Portable Cognition `0.1.0` error-code allowlist.
 
 The Portable Cognition contract version, package version, cognitive-object revision number, and host integration contract version remain independent. A future incompatible host outcome, port shape, replay identity, or conformance rule requires a new host contract version and retained evidence for this version.
 
-Existing SourceRecord and Portable Cognition `0.1.0` artifacts remain unchanged. The package remains private and unpublished; this RFC is neither a registry-release decision nor a production-readiness promise.
+The narrowing restores the TypeScript declaration to the already-normative Portable Cognition `0.1.0` runtime and schema behavior under `COMP-012`, but it is still source-breaking for a generic package `0.2.0` TypeScript consumer. Package `0.3.0` therefore uses the reviewed `minor-before-1.0` path. The package is private and unpublished; retaining the wider declaration as a deprecated parallel type would continue to misrepresent the normative allowlist, so deprecation is not applicable to this correction. Existing SourceRecord and Portable Cognition `0.1.0` serialized artifacts remain byte-identical.
+
+### Portable Domain Error Migration
+
+A package `0.2.0` consumer could assign any package-wide domain code:
+
+```ts
+declare const code: DomainErrorCode;
+const portableError: PortableDomainError = { code, message, details: {} };
+```
+
+In package `0.3.0`, narrow the package-wide code before constructing a Portable Cognition domain-error payload. Consumers can use `PortableDomainError["code"]` without another public API:
+
+```ts
+declare const code: DomainErrorCode;
+const portableCodes: readonly PortableDomainError["code"][] = [
+  "INVALID_OBJECT",
+  "INVALID_SOURCE_RECORD",
+  "INVALID_RELATIONSHIP",
+  "INVALID_TRANSITION",
+  "CONFIRMATION_REQUIRED",
+  "AUTHORIZATION_DENIED",
+  "SERIALIZATION_ERROR",
+  "SOURCE_REVISION_COLLISION",
+  "INGESTION_LIMIT_EXCEEDED",
+  "PROMOTION_FAILED",
+  "INVALID_PORTABLE_COGNITION_RECORD",
+];
+
+function isPortableCode(
+  code: DomainErrorCode,
+): code is PortableDomainError["code"] {
+  return portableCodes.includes(code as PortableDomainError["code"]);
+}
+
+if (isPortableCode(code)) {
+  const portableError: PortableDomainError = {
+    code,
+    message,
+    details: {},
+  };
+}
+```
 
 ## Security Boundaries and Human Authority
 
@@ -66,9 +110,10 @@ The contract requires sanitized host failure outcomes so adapter exception text,
 ## Acceptance Checks
 
 - `tests/host-conformance.test.ts` pins the exact contract rule inventory, contract version, required status semantics, source-store boundary, and final documentation links.
-- `tests/host-integration.test.ts` verifies request validation, persistence-before-publication coordination, safe failures, partial-success reporting, and identical-request recovery.
-- `tests/reference-host.test.ts` exercises an in-memory reference host for exact and reordered canonical initial and transition replay, conflicts, atomicity, ordering, detached reads, and publisher idempotency.
-- `runCognitionHostConformance` provides isolated public-port checks for complete host implementations, including rejection of insertion-order-sensitive replay; a host claiming complete conformance must pass its applicable cases.
+- `tests/host-integration.test.ts` verifies request validation, operation-specific conflict correlation, descriptor-hostile result rejection, persistence-before-publication coordination, safe failures, partial-success reporting, and identical-request recovery.
+- `tests/reference-host.test.ts` exercises exact conflict precedence, unchanged reads after every returned conflict, canonical replay, atomicity, ordering, detached reads, and publisher idempotency.
+- `runCognitionHostConformance` provides isolated public-port checks for complete host implementations, including malformed and SourceRecord-shaped runtime rejection, conflict-state immutability, precedence overlaps, canonical replay, and fresh factory instances; a host claiming complete conformance must pass its applicable cases.
+- Compatibility and clean-consumer tests classify the `PortableDomainError.code` narrowing under `COMP-012`, compile both the rejected package `0.2.0` generic assignment and the supported package `0.3.0` narrowing pattern, and independently pin declaration closures for every public TypeScript entrypoint.
 - Documentation acceptance requires the focused host suites and `git diff --check`; broader final review remains a separate gate.
 
 ## Explicit Deferrals

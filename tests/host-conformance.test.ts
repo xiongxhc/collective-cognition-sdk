@@ -476,8 +476,6 @@ class InsertionOrderReplayStore implements CognitionStore {
         conflict: {
           code: "object_revision_collision" as const,
           objectId,
-          expectedVersion: version,
-          actualVersion: version,
         },
       };
     }
@@ -502,21 +500,208 @@ class InsertionOrderReplayStore implements CognitionStore {
         conflict: {
           code: "object_revision_collision" as const,
           objectId,
-          expectedVersion: version,
-          actualVersion: version,
         },
       };
     }
     if (existingEvent !== undefined && existingEvent !== event) {
       return {
         status: "conflict" as const,
-        conflict: { code: "event_id_collision" as const, objectId },
+        conflict: {
+          code: "event_id_collision" as const,
+          objectId,
+          eventId: request.event.payload.id,
+        },
       };
     }
     const result = await this.#store.commitTransition(request);
     if (result.status === "committed") {
       this.#objects.set(objectKey, object);
       this.#events.set(request.event.payload.id, event);
+    }
+    return result;
+  }
+
+  getLatestObject(objectId: string) {
+    return this.#store.getLatestObject(objectId);
+  }
+
+  getObjectVersion(objectId: string, version: number) {
+    return this.#store.getObjectVersion(objectId, version);
+  }
+
+  listObjectEvents(objectId: string) {
+    return this.#store.listObjectEvents(objectId);
+  }
+}
+
+class OverwriteAfterCollisionStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+  readonly #overwritten = new Map<string, PortableCognitiveObjectRecord>();
+
+  async commitInitial(request: InitialCognitionCommit) {
+    const result = await this.#store.commitInitial(request);
+    if (
+      result.status === "conflict" &&
+      result.conflict.code === "object_revision_collision"
+    ) {
+      this.#overwritten.set(request.object.payload.id, request.object);
+    }
+    return result;
+  }
+
+  commitTransition(request: TransitionCognitionCommit) {
+    return this.#store.commitTransition(request);
+  }
+
+  async getLatestObject(objectId: string) {
+    return this.#overwritten.get(objectId) ??
+      await this.#store.getLatestObject(objectId);
+  }
+
+  async getObjectVersion(objectId: string, version: number) {
+    return version === 1 && this.#overwritten.has(objectId)
+      ? this.#overwritten.get(objectId)
+      : this.#store.getObjectVersion(objectId, version);
+  }
+
+  listObjectEvents(objectId: string) {
+    return this.#store.listObjectEvents(objectId);
+  }
+}
+
+class ExtraEventAfterStaleConflictStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+  readonly #extraEvents = new Map<string, PortableCognitionEventRecord[]>();
+
+  commitInitial(request: InitialCognitionCommit) {
+    return this.#store.commitInitial(request);
+  }
+
+  async commitTransition(request: TransitionCognitionCommit) {
+    const result = await this.#store.commitTransition(request);
+    if (
+      result.status === "conflict" &&
+      result.conflict.code === "version_conflict"
+    ) {
+      const events = this.#extraEvents.get(request.object.payload.id) ?? [];
+      events.push(request.event);
+      this.#extraEvents.set(request.object.payload.id, events);
+    }
+    return result;
+  }
+
+  getLatestObject(objectId: string) {
+    return this.#store.getLatestObject(objectId);
+  }
+
+  getObjectVersion(objectId: string, version: number) {
+    return this.#store.getObjectVersion(objectId, version);
+  }
+
+  async listObjectEvents(objectId: string) {
+    return Object.freeze([
+      ...await this.#store.listObjectEvents(objectId),
+      ...(this.#extraEvents.get(objectId) ?? []),
+    ]);
+  }
+}
+
+class MalformedAcceptingStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+
+  async commitInitial(request: InitialCognitionCommit) {
+    try {
+      return await this.#store.commitInitial(request);
+    } catch {
+      return { status: "committed" as const };
+    }
+  }
+
+  async commitTransition(request: TransitionCognitionCommit) {
+    try {
+      return await this.#store.commitTransition(request);
+    } catch {
+      return { status: "committed" as const };
+    }
+  }
+
+  getLatestObject(objectId: string) {
+    return this.#store.getLatestObject(objectId);
+  }
+
+  getObjectVersion(objectId: string, version: number) {
+    return this.#store.getObjectVersion(objectId, version);
+  }
+
+  listObjectEvents(objectId: string) {
+    return this.#store.listObjectEvents(objectId);
+  }
+}
+
+class StaleFirstStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+
+  commitInitial(request: InitialCognitionCommit) {
+    return this.#store.commitInitial(request);
+  }
+
+  async commitTransition(request: TransitionCognitionCommit) {
+    const latest = await this.#store.getLatestObject(request.object.payload.id);
+    if (
+      latest !== undefined &&
+      latest.payload.version !== request.expectedVersion
+    ) {
+      return {
+        status: "conflict" as const,
+        conflict: {
+          code: "version_conflict" as const,
+          objectId: request.object.payload.id,
+          expectedVersion: request.expectedVersion,
+          actualVersion: latest.payload.version,
+        },
+      };
+    }
+    return this.#store.commitTransition(request);
+  }
+
+  getLatestObject(objectId: string) {
+    return this.#store.getLatestObject(objectId);
+  }
+
+  getObjectVersion(objectId: string, version: number) {
+    return this.#store.getObjectVersion(objectId, version);
+  }
+
+  listObjectEvents(objectId: string) {
+    return this.#store.listObjectEvents(objectId);
+  }
+}
+
+class EventFirstConflictStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+  readonly #events = new Map<string, string>();
+
+  commitInitial(request: InitialCognitionCommit) {
+    return this.#store.commitInitial(request);
+  }
+
+  async commitTransition(request: TransitionCognitionCommit) {
+    const eventId = request.event.payload.id;
+    const event = JSON.stringify(request.event);
+    const existingEvent = this.#events.get(eventId);
+    if (existingEvent !== undefined && existingEvent !== event) {
+      return {
+        status: "conflict" as const,
+        conflict: {
+          code: "event_id_collision" as const,
+          objectId: request.object.payload.id,
+          eventId,
+        },
+      };
+    }
+    const result = await this.#store.commitTransition(request);
+    if (result.status === "committed") {
+      this.#events.set(eventId, event);
     }
     return result;
   }
@@ -549,7 +734,7 @@ test("the in-memory host passes every host conformance case", async () => {
 
   assert.equal(report.passed, true);
   assert.equal(report.cases.every(({ status }) => status === "passed"), true);
-  assert.equal(report.cases.length, 12);
+  assert.equal(report.cases.length, 17);
   assert.equal(Object.isFrozen(report), true);
   assert.equal(Object.isFrozen(report.cases), true);
   assert.equal(report.cases.every(Object.isFrozen), true);
@@ -653,7 +838,144 @@ test("requires canonical replay equality from host stores", async () => {
   );
 });
 
-test("isolates each case and sends only Portable Cognition records to ports", async () => {
+test("rejects stores that mutate state after returned conflicts", async () => {
+  const overwritten = await runCognitionHostConformance({
+    createStore: () => new OverwriteAfterCollisionStore(),
+    createPublisher: () => new InMemoryCognitionEventPublisher(),
+  });
+  const extraEvent = await runCognitionHostConformance({
+    createStore: () => new ExtraEventAfterStaleConflictStore(),
+    createPublisher: () => new InMemoryCognitionEventPublisher(),
+  });
+
+  assert.equal(
+    overwritten.cases.find(({ id }) => id === "HIC-CONF-003")?.status,
+    "failed",
+  );
+  assert.equal(
+    extraEvent.cases.find(({ id }) => id === "HIC-CONF-004")?.status,
+    "failed",
+  );
+});
+
+test("rejects stores that accept malformed or SourceRecord-shaped runtime input", async () => {
+  const report = await runCognitionHostConformance({
+    createStore: () => new MalformedAcceptingStore(),
+    createPublisher: () => new InMemoryCognitionEventPublisher(),
+  });
+
+  assert.equal(
+    report.cases.find(({ id }) => id === "HIC-CONF-014")?.status,
+    "failed",
+  );
+});
+
+test("rejects stale-first and event-first conflict precedence", async () => {
+  const reference = await runCognitionHostConformance({
+    createStore: () => new InMemoryCognitionStore(),
+    createPublisher: () => new InMemoryCognitionEventPublisher(),
+  });
+  const staleFirst = await runCognitionHostConformance({
+    createStore: () => new StaleFirstStore(),
+    createPublisher: () => new InMemoryCognitionEventPublisher(),
+  });
+  const eventFirst = await runCognitionHostConformance({
+    createStore: () => new EventFirstConflictStore(),
+    createPublisher: () => new InMemoryCognitionEventPublisher(),
+  });
+
+  assert.equal(
+    reference.cases.find(({ id }) => id === "HIC-CONF-015")?.status,
+    "passed",
+  );
+  assert.equal(
+    staleFirst.cases.find(({ id }) => id === "HIC-CONF-015")?.status,
+    "failed",
+  );
+  assert.equal(
+    eventFirst.cases.find(({ id }) => id === "HIC-CONF-015")?.status,
+    "failed",
+  );
+});
+
+test("rejects singleton store and publisher factories", async () => {
+  const singletonStore = new InMemoryCognitionStore();
+  const reusedStore = await runCognitionHostConformance({
+    createStore: () => singletonStore,
+    createPublisher: () => new InMemoryCognitionEventPublisher(),
+  });
+  const singletonPublisher = new InMemoryCognitionEventPublisher();
+  const reusedPublisher = await runCognitionHostConformance({
+    createStore: () => new InMemoryCognitionStore(),
+    createPublisher: () => singletonPublisher,
+  });
+
+  assert.equal(
+    reusedStore.cases.find(({ id }) => id === "HIC-CONF-016")?.status,
+    "failed",
+  );
+  assert.equal(
+    reusedPublisher.cases.find(({ id }) => id === "HIC-CONF-017")?.status,
+    "failed",
+  );
+});
+
+test("rejects nonadjacent store and publisher instance reuse across cases", async () => {
+  let storeCalls = 0;
+  let firstStore: InMemoryCognitionStore | undefined;
+  const reusedStore = await runCognitionHostConformance({
+    createStore: () => {
+      storeCalls += 1;
+      if (storeCalls === 1) {
+        firstStore = new InMemoryCognitionStore();
+        return firstStore;
+      }
+      if (storeCalls === 3) {
+        return firstStore as InMemoryCognitionStore;
+      }
+      return new InMemoryCognitionStore();
+    },
+    createPublisher: () => new InMemoryCognitionEventPublisher(),
+  });
+
+  let publisherCalls = 0;
+  let firstPublisher: InMemoryCognitionEventPublisher | undefined;
+  const reusedPublisher = await runCognitionHostConformance({
+    createStore: () => new InMemoryCognitionStore(),
+    createPublisher: () => {
+      publisherCalls += 1;
+      if (publisherCalls === 1) {
+        firstPublisher = new InMemoryCognitionEventPublisher();
+        return firstPublisher;
+      }
+      if (publisherCalls === 3) {
+        return firstPublisher as InMemoryCognitionEventPublisher;
+      }
+      return new InMemoryCognitionEventPublisher();
+    },
+  });
+
+  assert.equal(reusedStore.passed, false);
+  assert.equal(
+    reusedStore.cases.find(({ id }) => id === "HIC-CONF-003")?.status,
+    "failed",
+  );
+  assert.equal(
+    reusedStore.cases.find(({ id }) => id === "HIC-CONF-016")?.status,
+    "passed",
+  );
+  assert.equal(reusedPublisher.passed, false);
+  assert.equal(
+    reusedPublisher.cases.find(({ id }) => id === "HIC-CONF-011")?.status,
+    "failed",
+  );
+  assert.equal(
+    reusedPublisher.cases.find(({ id }) => id === "HIC-CONF-017")?.status,
+    "passed",
+  );
+});
+
+test("isolates each case and keeps SourceRecord outside the port types", async () => {
   let stores = 0;
   let publishers = 0;
   const recordTypes: string[] = [];
@@ -691,12 +1013,12 @@ test("isolates each case and sends only Portable Cognition records to ports", as
   const report = await runCognitionHostConformance(factory);
 
   assert.equal(report.passed, true);
-  assert.equal(stores, 10);
-  assert.equal(publishers, 3);
-  assert.deepEqual(new Set(recordTypes), new Set([
-    "cognitive-object",
-    "cognition-event",
-  ]));
+  assert.equal(stores, 15);
+  assert.equal(publishers, 6);
+  assert.deepEqual(
+    new Set(recordTypes.filter((recordType) => recordType !== undefined)),
+    new Set(["cognitive-object", "cognition-event"]),
+  );
 });
 
 test("sanitizes adapter errors and continues with later conformance cases", async () => {

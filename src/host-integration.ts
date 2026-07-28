@@ -23,12 +23,22 @@ export type HostConflictCode =
   | "object_revision_collision"
   | "event_id_collision";
 
-export interface HostConflict {
-  readonly code: HostConflictCode;
-  readonly objectId: string;
-  readonly expectedVersion?: number;
-  readonly actualVersion?: number;
-}
+export type HostConflict =
+  | {
+      readonly code: "version_conflict";
+      readonly objectId: string;
+      readonly expectedVersion: number;
+      readonly actualVersion: number;
+    }
+  | {
+      readonly code: "object_revision_collision";
+      readonly objectId: string;
+    }
+  | {
+      readonly code: "event_id_collision";
+      readonly objectId: string;
+      readonly eventId: string;
+    };
 
 export const HostFailureCode = {
   COMMIT_FAILED: "HOST_COMMIT_FAILED",
@@ -123,12 +133,6 @@ export type TransitionCommitOutcome =
 
 type DataFields = Record<string, unknown>;
 
-const hostConflictCodes = new Set<HostConflictCode>([
-  "version_conflict",
-  "object_revision_collision",
-  "event_id_collision",
-]);
-
 function invalidHostIntegrationRequest(): never {
   throw new DomainError(
     DomainErrorCode.INVALID_HOST_INTEGRATION_REQUEST,
@@ -182,51 +186,105 @@ function readClosedDataFields(
   }
 }
 
-function snapshotHostConflict(value: unknown): HostConflict | undefined {
-  const fields = readClosedDataFields(
+function hasExactFields(
+  fields: DataFields,
+  expected: readonly string[],
+): boolean {
+  const keys = Object.keys(fields);
+  return keys.length === expected.length &&
+    expected.every((key) => Object.hasOwn(fields, key));
+}
+
+function readHostConflictFields(value: unknown): DataFields | undefined {
+  return readClosedDataFields(
     value,
     ["code", "objectId"],
-    ["expectedVersion", "actualVersion"],
+    ["expectedVersion", "actualVersion", "eventId"],
   );
+}
+
+function snapshotInitialHostConflict(
+  value: unknown,
+  objectId: string,
+): HostConflict | undefined {
+  const fields = readHostConflictFields(value);
+  if (
+    fields === undefined ||
+    !hasExactFields(fields, ["code", "objectId"]) ||
+    fields.code !== "object_revision_collision" ||
+    fields.objectId !== objectId
+  ) {
+    return undefined;
+  }
+  return Object.freeze({
+    code: "object_revision_collision",
+    objectId,
+  });
+}
+
+function snapshotTransitionHostConflict(
+  value: unknown,
+  request: TransitionCognitionCommit,
+): HostConflict | undefined {
+  const fields = readHostConflictFields(value);
+  const objectId = request.object.payload.id;
   if (
     fields === undefined ||
     typeof fields.code !== "string" ||
-    !hostConflictCodes.has(fields.code as HostConflictCode) ||
-    typeof fields.objectId !== "string" ||
-    (fields.expectedVersion !== undefined &&
-      (typeof fields.expectedVersion !== "number" ||
-        !Number.isInteger(fields.expectedVersion) ||
-        fields.expectedVersion <= 0)) ||
-    (fields.actualVersion !== undefined &&
-      (typeof fields.actualVersion !== "number" ||
-        !Number.isInteger(fields.actualVersion) ||
-        fields.actualVersion <= 0))
+    fields.objectId !== objectId
   ) {
     return undefined;
   }
 
-  const conflict: {
-    code: HostConflictCode;
-    objectId: string;
-    expectedVersion?: number;
-    actualVersion?: number;
-  } = {
-    code: fields.code as HostConflictCode,
-    objectId: fields.objectId,
-  };
-  if (fields.expectedVersion !== undefined) {
-    conflict.expectedVersion = fields.expectedVersion as number;
+  if (fields.code === "object_revision_collision") {
+    return hasExactFields(fields, ["code", "objectId"])
+      ? Object.freeze({ code: "object_revision_collision", objectId })
+      : undefined;
   }
-  if (fields.actualVersion !== undefined) {
-    conflict.actualVersion = fields.actualVersion as number;
+
+  if (fields.code === "event_id_collision") {
+    return hasExactFields(fields, ["code", "objectId", "eventId"]) &&
+        fields.eventId === request.event.payload.id
+      ? Object.freeze({
+        code: "event_id_collision",
+        objectId,
+        eventId: request.event.payload.id,
+      })
+      : undefined;
   }
-  return Object.freeze(conflict);
+
+  if (
+    fields.code !== "version_conflict" ||
+    !hasExactFields(fields, [
+      "code",
+      "objectId",
+      "expectedVersion",
+      "actualVersion",
+    ]) ||
+    fields.expectedVersion !== request.expectedVersion ||
+    !Number.isSafeInteger(fields.actualVersion) ||
+    (fields.actualVersion as number) <= 0 ||
+    fields.actualVersion === request.expectedVersion
+  ) {
+    return undefined;
+  }
+  return Object.freeze({
+    code: "version_conflict",
+    objectId,
+    expectedVersion: request.expectedVersion,
+    actualVersion: fields.actualVersion as number,
+  });
 }
 
 function snapshotCommitResult(
   value: unknown,
+  snapshotConflict: (value: unknown) => HostConflict | undefined,
 ): CognitionStoreCommitResult | undefined {
-  const fields = readClosedDataFields(value, ["status"], ["conflict"]);
+  const fields = readClosedDataFields(
+    value,
+    ["status"],
+    ["conflict"],
+  );
   if (fields === undefined || typeof fields.status !== "string") {
     return undefined;
   }
@@ -241,7 +299,7 @@ function snapshotCommitResult(
   if (fields.status !== "conflict" || !Object.hasOwn(fields, "conflict")) {
     return undefined;
   }
-  const conflict = snapshotHostConflict(fields.conflict);
+  const conflict = snapshotConflict(fields.conflict);
   return conflict === undefined
     ? undefined
     : Object.freeze({ status: "conflict", conflict });
@@ -385,7 +443,10 @@ export async function commitInitialCognition(
   const { object } = hostRequest;
 
   try {
-    const result = snapshotCommitResult(await store.commitInitial(hostRequest));
+    const result = snapshotCommitResult(
+      await store.commitInitial(hostRequest),
+      (value) => snapshotInitialHostConflict(value, object.payload.id),
+    );
     if (result === undefined) {
       return failedInitialCommit(object.payload.id);
     }
@@ -413,6 +474,7 @@ export async function commitCognitionTransition(
   try {
     const result = snapshotCommitResult(
       await host.store.commitTransition(hostRequest),
+      (value) => snapshotTransitionHostConflict(value, hostRequest),
     );
     if (result === undefined) {
       return failedTransitionCommit(object.payload.id);

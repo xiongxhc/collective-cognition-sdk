@@ -201,11 +201,12 @@ test("rejects a changed initial revision with the same object ID and version", a
       conflict: {
         code: "object_revision_collision",
         objectId: object.payload.id,
-        expectedVersion: 1,
-        actualVersion: 1,
       },
     },
   );
+  assert.deepEqual(await store.getLatestObject(object.payload.id), object);
+  assert.deepEqual(await store.getObjectVersion(object.payload.id, 1), object);
+  assert.deepEqual(await store.listObjectEvents(object.payload.id), []);
 });
 
 test("commits a transition object and event together", async () => {
@@ -325,6 +326,10 @@ test("returns a version conflict when the expected version is not latest", async
       },
     },
   );
+  assert.deepEqual(await store.getLatestObject(initial.payload.id), initial);
+  assert.deepEqual(await store.getObjectVersion(initial.payload.id, 1), initial);
+  assert.equal(await store.getObjectVersion(initial.payload.id, 3), undefined);
+  assert.deepEqual(await store.listObjectEvents(initial.payload.id), []);
 });
 
 test("rejects a changed target revision without advancing latest", async () => {
@@ -347,12 +352,16 @@ test("rejects a changed target revision without advancing latest", async () => {
       conflict: {
         code: "object_revision_collision",
         objectId: initial.payload.id,
-        expectedVersion: 3,
-        actualVersion: 3,
       },
     },
   );
   assert.deepEqual(await store.getLatestObject(initial.payload.id), third.object);
+  assert.deepEqual(await store.getObjectVersion(initial.payload.id, 1), initial);
+  assert.deepEqual(await store.getObjectVersion(initial.payload.id, 3), third.object);
+  assert.deepEqual(await store.listObjectEvents(initial.payload.id), [
+    second.event,
+    third.event,
+  ]);
 });
 
 test("rejects an event ID collision without committing its object", async () => {
@@ -370,10 +379,113 @@ test("rejects an event ID collision without committing its object", async () => 
     conflict: {
       code: "event_id_collision",
       objectId: otherInitial.payload.id,
+      eventId: collision.event.payload.id,
     },
   });
   assert.deepEqual(await store.getLatestObject(otherInitial.payload.id), otherInitial);
+  assert.deepEqual(
+    await store.getObjectVersion(otherInitial.payload.id, 1),
+    otherInitial,
+  );
+  assert.equal(await store.getObjectVersion(otherInitial.payload.id, 2), undefined);
   assert.deepEqual(await store.listObjectEvents(otherInitial.payload.id), []);
+  assert.deepEqual(await store.getLatestObject(initial.payload.id), transition.object);
+  assert.deepEqual(await store.listObjectEvents(initial.payload.id), [transition.event]);
+});
+
+test("applies canonical replay, object collision, event collision, then stale precedence", async () => {
+  const replayStore = new InMemoryCognitionStore();
+  const replayInitial = objectRecord({ id: "goal:precedence:replay" });
+  const replaySecond = transitionCommit({
+    id: replayInitial.payload.id,
+    eventId: "event:precedence:replay:2",
+  });
+  const replayThird = transitionCommit({
+    id: replayInitial.payload.id,
+    expectedVersion: 2,
+    eventId: "event:precedence:replay:3",
+  });
+  await replayStore.commitInitial({ object: replayInitial });
+  await replayStore.commitTransition(replaySecond);
+  await replayStore.commitTransition(replayThird);
+
+  assert.deepEqual(await replayStore.commitTransition(replaySecond), {
+    status: "already_committed",
+  });
+
+  const objectCollision = transitionCommit({
+    id: replayInitial.payload.id,
+    expectedVersion: 2,
+    eventId: replaySecond.event.payload.id,
+  });
+  assert.deepEqual(
+    await replayStore.commitTransition({
+      ...objectCollision,
+      object: mutateTitle(objectCollision.object, "Changed target revision"),
+    }),
+    {
+      status: "conflict",
+      conflict: {
+        code: "object_revision_collision",
+        objectId: replayInitial.payload.id,
+      },
+    },
+  );
+  assert.deepEqual(
+    await replayStore.getLatestObject(replayInitial.payload.id),
+    replayThird.object,
+  );
+  assert.deepEqual(
+    await replayStore.listObjectEvents(replayInitial.payload.id),
+    [replaySecond.event, replayThird.event],
+  );
+
+  const eventStore = new InMemoryCognitionStore();
+  const eventOwner = objectRecord({ id: "goal:precedence:event-owner" });
+  const sharedEventId = "event:precedence:shared";
+  const ownerTransition = transitionCommit({
+    id: eventOwner.payload.id,
+    eventId: sharedEventId,
+  });
+  const staleTarget = objectRecord({ id: "goal:precedence:stale-target" });
+  await eventStore.commitInitial({ object: eventOwner });
+  await eventStore.commitTransition(ownerTransition);
+  await eventStore.commitInitial({ object: staleTarget });
+
+  const eventCollision = transitionCommit({
+    id: staleTarget.payload.id,
+    expectedVersion: 2,
+    eventId: sharedEventId,
+  });
+  assert.deepEqual(await eventStore.commitTransition(eventCollision), {
+    status: "conflict",
+    conflict: {
+      code: "event_id_collision",
+      objectId: staleTarget.payload.id,
+      eventId: sharedEventId,
+    },
+  });
+  assert.deepEqual(await eventStore.getLatestObject(staleTarget.payload.id), staleTarget);
+  assert.equal(await eventStore.getObjectVersion(staleTarget.payload.id, 3), undefined);
+  assert.deepEqual(await eventStore.listObjectEvents(staleTarget.payload.id), []);
+
+  const staleOnly = transitionCommit({
+    id: staleTarget.payload.id,
+    expectedVersion: 2,
+    eventId: "event:precedence:stale-only",
+  });
+  assert.deepEqual(await eventStore.commitTransition(staleOnly), {
+    status: "conflict",
+    conflict: {
+      code: "version_conflict",
+      objectId: staleTarget.payload.id,
+      expectedVersion: 2,
+      actualVersion: 1,
+    },
+  });
+  assert.deepEqual(await eventStore.getLatestObject(staleTarget.payload.id), staleTarget);
+  assert.equal(await eventStore.getObjectVersion(staleTarget.payload.id, 3), undefined);
+  assert.deepEqual(await eventStore.listObjectEvents(staleTarget.payload.id), []);
 });
 
 test("keeps transition writes atomic when a staged check fails", async () => {

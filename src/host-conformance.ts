@@ -40,6 +40,16 @@ function assertConformance(condition: unknown): asserts condition {
   }
 }
 
+async function assertRejected(action: () => Promise<unknown>): Promise<void> {
+  let rejected = false;
+  try {
+    await action();
+  } catch {
+    rejected = true;
+  }
+  assertConformance(rejected);
+}
+
 function isDeepFrozen(value: unknown): boolean {
   if (typeof value !== "object" || value === null) {
     return true;
@@ -122,9 +132,13 @@ function objectRecord({
 function transitionCommit(
   object: PortableCognitiveObjectRecord,
   eventId: string,
+  expectedVersion = 1,
 ): TransitionCognitionCommit {
   const transition = transitionObject(
-    deserializeObject(JSON.stringify(object.payload)),
+    deserializeObject(JSON.stringify({
+      ...object.payload,
+      version: expectedVersion,
+    })),
     "active",
     {
       eventId,
@@ -138,7 +152,7 @@ function transitionCommit(
     },
   );
   return {
-    expectedVersion: 1,
+    expectedVersion,
     object: createPortableCognitionRecord({
       schemaVersion: "0.1.0",
       recordType: "cognitive-object",
@@ -150,6 +164,16 @@ function transitionCommit(
       payload: transition.event,
     }) as PortableCognitionEventRecord,
   };
+}
+
+function changedObject(
+  object: PortableCognitiveObjectRecord,
+): PortableCognitiveObjectRecord {
+  return createPortableCognitionRecord({
+    schemaVersion: "0.1.0",
+    recordType: "cognitive-object",
+    payload: { ...object.payload, title: "Changed object content." },
+  }) as PortableCognitiveObjectRecord;
 }
 
 function changedEvent(
@@ -215,6 +239,12 @@ const conformanceCases: readonly ConformanceCase[] = [
       assertConformance(
         result.status === "conflict" && result.conflict.code === "object_revision_collision",
       );
+      const latest = await store.getLatestObject(id);
+      const version = await store.getObjectVersion(id, 1);
+      const events = await store.listObjectEvents(id);
+      assertConformance(latest !== undefined && recordsMatch(latest, objectRecord({ id })));
+      assertConformance(version !== undefined && recordsMatch(version, objectRecord({ id })));
+      assertConformance(events.length === 0);
     },
   },
   {
@@ -223,16 +253,26 @@ const conformanceCases: readonly ConformanceCase[] = [
       const store = await factory.createStore();
       const object = objectRecord({ id: "goal:host-conformance:stale" });
       assertConformance((await store.commitInitial({ object })).status === "committed");
-      assertConformance((await store.commitTransition(
-        transitionCommit(object, "event:host-conformance:stale:first"),
-      )).status === "committed");
+      const stale = transitionCommit(
+        object,
+        "event:host-conformance:stale",
+        2,
+      );
       const result = await store.commitTransition(
-        transitionCommit(object, "event:host-conformance:stale:retry"),
+        stale,
       );
       assertConformance(
         result.status === "conflict" && result.conflict.code === "version_conflict" &&
-          result.conflict.expectedVersion === 1 && result.conflict.actualVersion === 2,
+          result.conflict.expectedVersion === 2 && result.conflict.actualVersion === 1,
       );
+      const latest = await store.getLatestObject(object.payload.id);
+      const initial = await store.getObjectVersion(object.payload.id, 1);
+      const target = await store.getObjectVersion(object.payload.id, 3);
+      const events = await store.listObjectEvents(object.payload.id);
+      assertConformance(latest !== undefined && recordsMatch(latest, object));
+      assertConformance(initial !== undefined && recordsMatch(initial, object));
+      assertConformance(target === undefined);
+      assertConformance(events.length === 0);
     },
   },
   {
@@ -247,8 +287,18 @@ const conformanceCases: readonly ConformanceCase[] = [
       assertConformance((await store.commitInitial({ object: second })).status === "committed");
       const result = await store.commitTransition(transitionCommit(second, eventId));
       assertConformance(
-        result.status === "conflict" && result.conflict.code === "event_id_collision",
+        result.status === "conflict" &&
+          result.conflict.code === "event_id_collision" &&
+          result.conflict.eventId === eventId,
       );
+      const latest = await store.getLatestObject(second.payload.id);
+      const initial = await store.getObjectVersion(second.payload.id, 1);
+      const target = await store.getObjectVersion(second.payload.id, 2);
+      const events = await store.listObjectEvents(second.payload.id);
+      assertConformance(latest !== undefined && recordsMatch(latest, second));
+      assertConformance(initial !== undefined && recordsMatch(initial, second));
+      assertConformance(target === undefined);
+      assertConformance(events.length === 0);
     },
   },
   {
@@ -351,10 +401,16 @@ const conformanceCases: readonly ConformanceCase[] = [
       assertConformance((await store.commitInitial({ object: second })).status === "committed");
       const result = await store.commitTransition(transitionCommit(second, eventId));
       assertConformance(
-        result.status === "conflict" && result.conflict.code === "event_id_collision",
+        result.status === "conflict" &&
+          result.conflict.code === "event_id_collision" &&
+          result.conflict.eventId === eventId,
       );
+      const secondLatest = await store.getLatestObject(second.payload.id);
       assertConformance(await store.getObjectVersion(second.payload.id, 2) === undefined);
       assertConformance((await store.listObjectEvents(second.payload.id)).length === 0);
+      assertConformance(
+        secondLatest !== undefined && recordsMatch(secondLatest, second),
+      );
     },
   },
   {
@@ -464,15 +520,254 @@ const conformanceCases: readonly ConformanceCase[] = [
       );
     },
   },
+  {
+    id: "HIC-CONF-013",
+    async run(factory) {
+      const store = await factory.createStore();
+      const object = objectRecord({
+        id: "goal:host-conformance:object-collision",
+      });
+      const transition = transitionCommit(
+        object,
+        "event:host-conformance:object-collision",
+      );
+      assertConformance((await store.commitInitial({ object })).status === "committed");
+      assertConformance((await store.commitTransition(transition)).status === "committed");
+      const result = await store.commitTransition({
+        ...transition,
+        object: changedObject(transition.object),
+      });
+      assertConformance(
+        result.status === "conflict" &&
+          result.conflict.code === "object_revision_collision",
+      );
+      const latest = await store.getLatestObject(object.payload.id);
+      const initial = await store.getObjectVersion(object.payload.id, 1);
+      const target = await store.getObjectVersion(object.payload.id, 2);
+      const events = await store.listObjectEvents(object.payload.id);
+      assertConformance(latest !== undefined && recordsMatch(latest, transition.object));
+      assertConformance(initial !== undefined && recordsMatch(initial, object));
+      assertConformance(target !== undefined && recordsMatch(target, transition.object));
+      assertConformance(
+        events.length === 1 && recordsMatch(events[0], transition.event),
+      );
+    },
+  },
+  {
+    id: "HIC-CONF-014",
+    async run(factory) {
+      const store = await factory.createStore();
+      const publisher = await factory.createPublisher();
+      const malformedObject = {
+        ...objectRecord({ id: "goal:host-conformance:malformed" }),
+        schemaVersion: "9.9.9",
+      };
+      const sourceRecordShape = {
+        schemaVersion: "0.1.0",
+        id: "source-record:host-conformance",
+        source: { system: "host-conformance" },
+        sourceId: "source-item:host-conformance",
+        revisionId: "revision:1",
+        capturedAt: "2026-07-28T10:00:00.000Z",
+        mediaType: "application/json",
+        content: { neutral: true },
+      };
+      const validObject = objectRecord({
+        id: "goal:host-conformance:malformed-transition",
+      });
+      const validTransition = transitionCommit(
+        validObject,
+        "event:host-conformance:malformed-transition",
+      );
+
+      await assertRejected(() =>
+        store.commitInitial({
+          object: malformedObject as unknown as PortableCognitiveObjectRecord,
+        })
+      );
+      await assertRejected(() =>
+        store.commitInitial({
+          object: sourceRecordShape as unknown as PortableCognitiveObjectRecord,
+        })
+      );
+      await assertRejected(() =>
+        store.commitTransition({
+          ...validTransition,
+          event: sourceRecordShape as unknown as PortableCognitionEventRecord,
+        })
+      );
+      await assertRejected(() =>
+        publisher.publish(
+          sourceRecordShape as unknown as PortableCognitionEventRecord,
+          { idempotencyKey: sourceRecordShape.id },
+        )
+      );
+      assertConformance(
+        await store.getLatestObject("goal:host-conformance:malformed") === undefined,
+      );
+      assertConformance(
+        await store.getObjectVersion("goal:host-conformance:malformed", 1) ===
+          undefined,
+      );
+      assertConformance(
+        (await store.listObjectEvents("goal:host-conformance:malformed")).length ===
+          0,
+      );
+    },
+  },
+  {
+    id: "HIC-CONF-015",
+    async run(factory) {
+      const store = await factory.createStore();
+      const replayInitial = objectRecord({
+        id: "goal:host-conformance:precedence:replay",
+      });
+      const replaySecond = transitionCommit(
+        replayInitial,
+        "event:host-conformance:precedence:replay:2",
+      );
+      const replayThird = transitionCommit(
+        replayInitial,
+        "event:host-conformance:precedence:replay:3",
+        2,
+      );
+      assertConformance(
+        (await store.commitInitial({ object: replayInitial })).status ===
+          "committed",
+      );
+      assertConformance(
+        (await store.commitTransition(replaySecond)).status === "committed",
+      );
+      assertConformance(
+        (await store.commitTransition(replayThird)).status === "committed",
+      );
+      assertConformance(
+        (await store.commitTransition(replaySecond)).status ===
+          "already_committed",
+      );
+
+      const overlappingObjectCollision = transitionCommit(
+        replayInitial,
+        replaySecond.event.payload.id,
+        2,
+      );
+      const objectCollision = await store.commitTransition({
+        ...overlappingObjectCollision,
+        object: changedObject(overlappingObjectCollision.object),
+      });
+      assertConformance(
+        objectCollision.status === "conflict" &&
+          objectCollision.conflict.code === "object_revision_collision",
+      );
+
+      const eventOwner = objectRecord({
+        id: "goal:host-conformance:precedence:event-owner",
+      });
+      const sharedEventId = "event:host-conformance:precedence:shared";
+      assertConformance(
+        (await store.commitInitial({ object: eventOwner })).status === "committed",
+      );
+      assertConformance(
+        (await store.commitTransition(
+          transitionCommit(eventOwner, sharedEventId),
+        )).status === "committed",
+      );
+      const staleTarget = objectRecord({
+        id: "goal:host-conformance:precedence:stale-target",
+      });
+      assertConformance(
+        (await store.commitInitial({ object: staleTarget })).status === "committed",
+      );
+      const eventCollision = await store.commitTransition(
+        transitionCommit(staleTarget, sharedEventId, 2),
+      );
+      assertConformance(
+        eventCollision.status === "conflict" &&
+          eventCollision.conflict.code === "event_id_collision" &&
+          eventCollision.conflict.eventId === sharedEventId,
+      );
+      const staleConflict = await store.commitTransition(
+        transitionCommit(
+          staleTarget,
+          "event:host-conformance:precedence:stale",
+          2,
+        ),
+      );
+      assertConformance(
+        staleConflict.status === "conflict" &&
+          staleConflict.conflict.code === "version_conflict" &&
+          staleConflict.conflict.expectedVersion === 2 &&
+          staleConflict.conflict.actualVersion === 1,
+      );
+
+      const replayLatest = await store.getLatestObject(replayInitial.payload.id);
+      const replayEvents = await store.listObjectEvents(replayInitial.payload.id);
+      const staleLatest = await store.getLatestObject(staleTarget.payload.id);
+      const staleEvents = await store.listObjectEvents(staleTarget.payload.id);
+      assertConformance(
+        replayLatest !== undefined && recordsMatch(replayLatest, replayThird.object),
+      );
+      assertConformance(
+        replayEvents.length === 2 &&
+          recordsMatch(replayEvents[0], replaySecond.event) &&
+          recordsMatch(replayEvents[1], replayThird.event),
+      );
+      assertConformance(
+        staleLatest !== undefined && recordsMatch(staleLatest, staleTarget),
+      );
+      assertConformance(
+        await store.getObjectVersion(staleTarget.payload.id, 3) === undefined,
+      );
+      assertConformance(staleEvents.length === 0);
+    },
+  },
+  {
+    id: "HIC-CONF-016",
+    async run(factory) {
+      const first = await factory.createStore();
+      const second = await factory.createStore();
+      assertConformance(first !== second);
+    },
+  },
+  {
+    id: "HIC-CONF-017",
+    async run(factory) {
+      const first = await factory.createPublisher();
+      const second = await factory.createPublisher();
+      assertConformance(first !== second);
+    },
+  },
 ];
+
+function requireFreshInstances(
+  factory: CognitionHostConformanceFactory,
+): CognitionHostConformanceFactory {
+  const stores = new WeakSet<CognitionStore>();
+  const publishers = new WeakSet<CognitionEventPublisher>();
+  return {
+    async createStore() {
+      const store = await factory.createStore();
+      assertConformance(!stores.has(store));
+      stores.add(store);
+      return store;
+    },
+    async createPublisher() {
+      const publisher = await factory.createPublisher();
+      assertConformance(!publishers.has(publisher));
+      publishers.add(publisher);
+      return publisher;
+    },
+  };
+}
 
 export async function runCognitionHostConformance(
   factory: CognitionHostConformanceFactory,
 ): Promise<CognitionHostConformanceReport> {
   const cases: CognitionHostConformanceCaseResult[] = [];
+  const freshFactory = requireFreshInstances(factory);
   for (const conformanceCase of conformanceCases) {
     try {
-      await conformanceCase.run(factory);
+      await conformanceCase.run(freshFactory);
       cases.push(Object.freeze({ id: conformanceCase.id, status: "passed" }));
     } catch {
       cases.push(Object.freeze({

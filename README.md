@@ -4,7 +4,7 @@ Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript 
 
 This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.3.0` remains private and unpublished; its source, emitted ESM build, declarations, and CLI are runnable, but it is not production-ready.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, and compatibility baselines `0.1.0`, `0.2.0`, and `0.3.0` are implemented. Host Integration `0.1.0` is implemented with focused executable evidence; final-review verification remains pending. Concrete adapters, registry publication, runtime policy, security policy, and production readiness remain deferred.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, and compatibility baselines `0.1.0`, `0.2.0`, and `0.3.0` are implemented. Host Integration `0.1.0` final review correction is implemented; scoped re-review remains pending. Concrete adapters, registry publication, runtime policy, security policy, and production readiness remain deferred.
 
 ## Current Status
 
@@ -45,9 +45,10 @@ The team-memory connector proves that real source data can enter the neutral ing
 - SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0`, `0.2.0`, and `0.3.0` are **Normative Stable** contracts.
 - Before `1.0.0`, the package root and generic `collective-cognition` CLI are **Supported Experimental**.
 - Connectors and unexported source modules are **Internal** and create no public compatibility promise.
-- The baseline locks runtime and type exports, selected package metadata, root-reachable declaration closure, CLI behavior, domain error codes, policy identities, and normative artifact hashes.
+- The baseline locks runtime and type exports, selected package metadata, independent declaration closures and literal digests for the root, host-conformance, and reference-host entrypoints, CLI behavior, domain error codes, policy identities, and normative artifact hashes.
 - Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0`, `collective-cognition-sdk/compatibility/0.2.0`, and `collective-cognition-sdk/compatibility/0.3.0`.
 - Compatibility tests detect exact baseline drift and declared process consequences; they do not automatically determine semantic compatibility.
+- Package `0.3.0` is classified as a `minor-before-1.0` breaking correction: the Host Integration additions are optional, while `PortableDomainError.code` is narrowed from package `0.2.0`'s package-wide `DomainErrorCode` to the immutable Portable Cognition `0.1.0` allowlist under `COMP-012`.
 
 Read the [compatibility policy](spec/compatibility.md) and [RFC 0002](rfcs/0002-compatibility-versioning-and-deprecation.md). npm publication, registry confirmation, runtime and security policy, broader schemas, and production readiness remain open. The manifest retains `"private": true`, and the package is unpublished.
 
@@ -116,7 +117,7 @@ npm run test:package
 npm run pack:check
 ```
 
-`npm run test:schema` compiles both the SourceRecord and Portable Cognition schemas in strict Draft 2020-12 mode and checks both normative fixture corpora. `npm run pack:check` and npm prepack inherit this combined schema gate. `npm run test:compatibility` checks the compatibility baseline’s exact inventories, hashes, policy identities, CLI contract, and declared additive and breaking change cases; it does not decide semantic compatibility automatically. `npm run test:package` imports the built root, checks the exact runtime export allowlist, rejects relative `.ts` specifiers in emitted modules, runs the built CLI, audits `npm pack --dry-run` against an exact file allowlist, and installs the packed artifact into a clean temporary project to verify default TypeScript consumer settings, package-name imports, schema-subpath discovery, compatibility-baseline resolution, and the installed `collective-cognition` binary. npm operations use an isolated temporary cache.
+`npm run test:schema` compiles both the SourceRecord and Portable Cognition schemas in strict Draft 2020-12 mode and checks both normative fixture corpora. `npm run pack:check` and npm prepack inherit this combined schema gate. `npm run test:compatibility` checks the compatibility baseline’s exact inventories, independent public declaration closures and digests, policy identities, CLI contract, and declared additive and breaking change cases; it does not decide semantic compatibility automatically. `npm run test:package` imports the built root, checks the exact runtime export allowlist, rejects relative `.ts` specifiers in emitted modules, proves the public-import host example builds from a checkout with no `dist/`, runs the built CLI, audits `npm pack --dry-run` against an exact file allowlist, and installs the packed artifact into a clean temporary project to verify default TypeScript consumer settings, package-name imports, schema-subpath discovery, compatibility-baseline resolution, the package `0.3.0` error-code narrowing migration, and the installed `collective-cognition` binary. npm operations use an isolated temporary cache.
 
 Installed consumers can import the schema through the versioned package subpath:
 
@@ -131,6 +132,8 @@ Consumers can resolve the versioned compatibility baseline through:
 import compatibilityBaseline from "collective-cognition-sdk/compatibility/0.3.0"
   with { type: "json" };
 ```
+
+Package `0.2.0` allowed a package-wide `DomainErrorCode` value to be assigned directly to `PortableDomainError.code`. Package `0.3.0` requires callers to narrow first because Portable Cognition `0.1.0` deliberately excludes host-only and future package errors. Use a type guard returning `code is PortableDomainError["code"]`; [RFC 0004](rfcs/0004-host-integration-contract.md#portable-domain-error-migration) contains the complete migration example.
 
 The private package also exposes the Portable Cognition runtime and versioned artifacts for local or packed consumers:
 
@@ -248,7 +251,7 @@ The tracked [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/
 
 1. the completed runnable core;
 2. the completed universal neutral-first ingestion foundation;
-3. in-progress specification and package stabilization, with Portable Cognition final-review verified and Host Integration implemented with final review pending;
+3. in-progress specification and package stabilization, with Portable Cognition final-review verified and Host Integration final review correction implemented with scoped re-review pending;
 4. adapter ecosystem foundations;
 5. cross-connector interoperability;
 6. operational governance and retirement tooling;

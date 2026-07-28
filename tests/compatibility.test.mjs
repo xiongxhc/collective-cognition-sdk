@@ -185,6 +185,7 @@ function relativeDeclarationSpecifiers(sourceFile) {
 function declarationClosure(
   distUrl = new URL("../dist/", import.meta.url),
   pathPrefix = "dist",
+  entrypoint = "index.d.ts",
 ) {
   const distPath = fileURLToPath(distUrl);
   const declarationPaths = declarationFiles(distPath);
@@ -210,7 +211,7 @@ function declarationClosure(
 
   const api = new API({ cwd: fileURLToPath(repositoryRoot) });
   const snapshot = api.updateSnapshot({ openFiles: declarationPaths });
-  const entryPath = join(distPath, "index.d.ts");
+  const entryPath = join(distPath, entrypoint);
   const pending = [entryPath];
   const visited = new Set();
 
@@ -306,14 +307,15 @@ test("historical baseline 0.2.0 remains immutable", () => {
   );
 });
 
-test("current baseline describes additive package 0.3.0", () => {
+test("current baseline describes the breaking correction in package 0.3.0", () => {
   const baseline = readJson(currentBaselineUrl);
 
   assert.equal(baseline.baselineVersion, "0.3.0");
   assert.equal(baseline.appliesToPackageVersion, "0.3.0");
   assert.deepEqual(baseline.packageChange, {
-    classification: "additive",
-    packageVersionEffect: "minor",
+    classification: "breaking",
+    packageVersionEffect: "minor-before-1.0",
+    correctionRule: "COMP-012",
   });
   assert.deepEqual(baseline.historicalBaselines, {
     "0.1.0": {
@@ -502,15 +504,42 @@ test("root runtime and domain error inventories match exactly", () => {
   );
 });
 
-test("root-reachable declaration closure matches exact digest", () => {
+test("public declaration entrypoint closures match exact independent digests", () => {
   const baseline = readJson(currentBaselineUrl);
-  const paths = declarationClosure();
+  const entrypoints = {
+    root: {
+      packageSubpath: ".",
+      declarationEntrypoint: "dist/index.d.ts",
+    },
+    hostConformance: {
+      packageSubpath: "./host-conformance/0.1.0",
+      declarationEntrypoint: "dist/host-conformance.d.ts",
+    },
+    referenceHost: {
+      packageSubpath: "./reference-host/0.1.0",
+      declarationEntrypoint: "dist/reference-host.d.ts",
+    },
+  };
 
-  assert.deepEqual(paths, baseline.package.declarations.files);
-  assert.equal(
-    declarationDigest(paths),
-    baseline.package.declarations.sha256,
+  assert.deepEqual(
+    Object.keys(baseline.package.declarations),
+    Object.keys(entrypoints),
   );
+  Object.entries(entrypoints).forEach(([name, expected]) => {
+    const declaration = baseline.package.declarations[name];
+    assert.equal(declaration.packageSubpath, expected.packageSubpath);
+    assert.equal(
+      declaration.declarationEntrypoint,
+      expected.declarationEntrypoint,
+    );
+    const paths = declarationClosure(
+      new URL("../dist/", import.meta.url),
+      "dist",
+      expected.declarationEntrypoint.slice("dist/".length),
+    );
+    assert.deepEqual(paths, declaration.files, name);
+    assert.equal(declarationDigest(paths), declaration.sha256, name);
+  });
 });
 
 test("declaration closure resolves nested references and rejects missing targets", () => {
@@ -668,7 +697,7 @@ test("change cases exercise additive and breaking process rules", () => {
     {
       id: "additive-host-integration-boundary",
       description:
-        "Add Host Integration 0.1.0 runtime exports, public types, contract prose, reference host, conformance runner, and package subpaths while preserving every existing package surface.",
+        "Add Host Integration 0.1.0 runtime exports, public types, contract prose, reference host, conformance runner, and package subpaths as independent capabilities.",
       surface: "supported-experimental",
       classification: "additive",
       packageVersionEffect: "minor",
@@ -676,20 +705,21 @@ test("change cases exercise additive and breaking process rules", () => {
       requiresMigrationNotes: false,
       requiresDeprecation: false,
       rationale:
-        "Existing imports, normative artifacts, CLI behavior, and policy identities remain available with unchanged meaning while consumers may opt into the host boundary.",
+        "The host boundary itself is optional and does not remove or redirect a prior import, artifact, CLI behavior, or policy identity.",
     },
     {
-      id: "breaking-remove-root-export",
+      id: "breaking-portable-domain-error-code-narrowing",
       description:
-        "Remove the createObject root export while an existing package consumer imports it.",
+        "Narrow PortableDomainError.code from the package-wide DomainErrorCode union to the fixed Portable Cognition 0.1.0 error-code allowlist.",
       surface: "supported-experimental",
       classification: "breaking",
       packageVersionEffect: "minor-before-1.0",
       requiresRfc: true,
       requiresMigrationNotes: true,
-      requiresDeprecation: true,
+      requiresDeprecation: false,
+      correctionRule: "COMP-012",
       rationale:
-        "Removing a root export makes an existing conforming import fail, so consumers require migration and deprecation handling.",
+        "A generic 0.2.0 TypeScript assignment can stop compiling, but retaining the wider declaration would continue to contradict the already-normative Portable Cognition 0.1.0 allowlist; package 0.3.0 is private, unpublished, and uses the reviewed pre-1.0 minor correction path.",
     },
   ]);
   cases.forEach((changeCase) => {
@@ -699,6 +729,12 @@ test("change cases exercise additive and breaking process rules", () => {
     assert.equal(typeof changeCase.rationale, "string");
     assert.ok(changeCase.rationale.trim().length > 0);
   });
+  assert.equal(
+    cases.find(({ id }) =>
+      id === "breaking-portable-domain-error-code-narrowing"
+    )?.correctionRule,
+    "COMP-012",
+  );
   assert.equal(
     cases.filter((changeCase) => changeCase.classification === "additive")
       .length,

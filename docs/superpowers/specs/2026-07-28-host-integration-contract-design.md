@@ -1,6 +1,6 @@
 # Host Integration Contract Design
 
-**Status:** Implemented with focused executable evidence; final-review verification pending
+**Status:** Final review correction implemented; scoped re-review pending
 
 **Date:** 2026-07-28
 
@@ -61,7 +61,7 @@ Rejected because embedding team-memory, Obsidian, or another source schema in th
 - A packaged in-memory reference implementation.
 - A reusable host conformance harness for third-party implementations.
 - Deterministic tests for commits, conflicts, retries, publication failure, recovery, mutation resistance, and error sanitization.
-- Package `0.3.0` and compatibility baseline `0.3.0` as an additive public capability.
+- Package `0.3.0` and compatibility baseline `0.3.0`: additive Host Integration capabilities plus the `COMP-012` source-breaking `PortableDomainError.code` correction under the pre-`1.0.0` minor policy.
 
 ### Excluded
 
@@ -112,7 +112,7 @@ The store:
 - commits the object only when no cognition with that object ID exists;
 - returns `committed` after a new durable write;
 - returns `already_committed` for an exact canonical replay;
-- returns `conflict` when the object ID and version already identify different canonical content; and
+- returns only an `object_revision_collision` correlated to the requested object ID when that object ID and version already identify different canonical content; and
 - does not publish an event because object creation does not currently produce a cognition event.
 
 ### Transition Commit
@@ -134,13 +134,14 @@ Before calling the store, the coordinator verifies:
 
 The store atomically writes the next object revision and event. Neither may become visible without the other.
 
-The store:
+The store evaluates outcomes in one exact order:
 
-- returns `committed` after a new atomic write;
-- returns `already_committed` for an exact canonical replay of both records;
-- returns `conflict` when the stored current version differs from the expected version;
-- returns `conflict` when the target object revision or event identity exists with different canonical content; and
-- leaves the previously committed state unchanged after every failed commit.
+1. exact canonical replay of both records;
+2. target object-revision collision;
+3. event-ID collision; and
+4. stale expected-version conflict only when both target identities are unused.
+
+Every conflict uses a closed operation-specific shape correlated to the request. Version conflicts include the exact requested expected version and a positive safe actual version inconsistent with it. Event collisions include the exact requested event ID. The store leaves latest, object revisions, and events unchanged after every returned conflict.
 
 ## Store Interface
 
@@ -232,7 +233,7 @@ type TransitionCommitOutcome =
 
 ## Failures
 
-Expected concurrency and identity conflicts are data outcomes, not thrown exceptions.
+Expected concurrency and identity conflicts are data outcomes, not thrown exceptions. The coordinator accepts only the operation-specific closed conflict shapes above. Mis-correlated, extra-field, unsafe-version, accessor-bearing, or reflection-hostile conflict results become the fixed sanitized commit failure.
 
 Unexpected store and publisher failures become sanitized `HostFailure` values with:
 
@@ -286,10 +287,14 @@ Adapter authors supply fresh `CognitionStore` and `CognitionEventPublisher` inst
 - stale expected-version rejection;
 - object-revision collision rejection;
 - event-ID collision rejection;
+- unchanged latest, revision, and event reads after every returned conflict;
+- exact replay, object collision, event collision, and stale-version overlap precedence;
 - exact transition replay;
 - no partial visibility after failed commits;
 - detached and deeply frozen read results;
 - input mutation resistance;
+- malformed and SourceRecord-shaped runtime rejection without SourceRecord in the port types;
+- rejection of reused store or publisher factory instances across all cases;
 - exact publisher replay;
 - publisher idempotency-key collision rejection;
 - `committed_but_unpublished` behavior;
@@ -308,9 +313,9 @@ The slice adds:
 - a separate stable package subpath for the in-memory reference host;
 - package `0.3.0`;
 - compatibility baseline `0.3.0`; and
-- clean-consumer tests for runtime, declarations, subpaths, and package contents.
+- clean-consumer tests for runtime, declarations, subpaths, package contents, the package `0.2.0` generic error-code assignment, and the supported package `0.3.0` narrowing migration.
 
-Existing SourceRecord, ingestion, promotion, cognition, transition, compatibility, CLI, and package behavior remains unchanged.
+SourceRecord, ingestion, promotion, cognition, transition, CLI, and serialized Portable Cognition `0.1.0` behaviors remain unchanged. Package `0.3.0` is not purely additive: `PortableDomainError.code` is narrowed from the package-wide `DomainErrorCode` exposed by package `0.2.0` to the immutable Portable Cognition `0.1.0` allowlist. The private, unpublished package keeps version `0.3.0` and classifies the correction as `breaking` with `minor-before-1.0` under `COMP-012`.
 
 ## Security and Trust Boundaries
 
@@ -351,7 +356,18 @@ The slice is complete when:
 10. a deliberately broken host fails the relevant conformance cases;
 11. source stores remain outside the cognition host interfaces;
 12. package, compatibility, schema, source, CLI, and example checks pass; and
-13. independent final review finds no unresolved Critical or Important issue; this verification remains pending.
+13. scoped re-review confirms the final-review correction with no unresolved Critical or Important issue; this verification remains pending.
+
+## Final Review Correction Evidence
+
+- Focused Host Integration, reference-host, conformance, and Portable Cognition suites pass `81` tests.
+- `npm test` passes `249` source, `10` schema, `14` compatibility, and `8` package tests (`281` total).
+- `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, the read-only team-memory example, `npm run pack:check`, and `git diff --check` exit successfully.
+- Compatibility hashes: baseline `0.1.0` `4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b`; change cases `0.1.0` `3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b`; baseline `0.2.0` `3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4`; change cases `0.2.0` `e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5`; baseline `0.3.0` `02991abb5133a4aef2b6a2fc736567fbbde9e29859909f806f08822fcd40d3d4`; change cases `0.3.0` `1f1ff3822de318806640357bb11804a0213d7084f05350035f8bb8d519dd95f2`.
+- Host Integration prose hash: `41d2094f60a096540983bdeb9be5320d43136a8519b9e3ce2336c20f788f7bd7`.
+- Public declaration closure hashes: root `7f9e352c9adf8a48d433d280c8040ddad57240726276a15d690133b3dfcf7333`; host-conformance `4cb58d68d6796cc77a8dfdb5a31013e441c99142bbb5bc62a91e5e71d64db94b`; reference-host `1447986d26b53d77a083fe414da8d744056df30db4e0094bb28a656d0f8965b2`.
+- Independent byte comparisons confirm historical baseline/artifact `0.1.0` and `0.2.0` files are unchanged. The Portable Cognition runtime allowlist and its focused tests are untouched by this correction pass.
+- Final review correction implemented; scoped re-review pending.
 
 ## Delivery Sequence
 
@@ -362,4 +378,4 @@ The slice is complete when:
 5. Extract and package the reusable conformance harness.
 6. Add package `0.3.0` compatibility artifacts.
 7. Update README, roadmap, examples, and package verification. Completed in package `0.3.0`.
-8. Run focused tests, full local checks, independent review, and final verification. Focused tests and local checks are complete; independent final review remains pending.
+8. Run focused tests, full local checks, independent review, and final verification. Final-review corrections and the complete local matrix are implemented; scoped re-review remains pending.

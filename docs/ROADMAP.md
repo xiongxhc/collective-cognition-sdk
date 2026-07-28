@@ -83,7 +83,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** In progress. The compatibility and Portable Cognition slices are delivered and final-review verified. Host Integration is implemented with focused executable evidence; final-review verification and broader Phase 3 work remain.
+**Status:** In progress. The compatibility and Portable Cognition slices are delivered and final-review verified. Host Integration final review correction is implemented; scoped re-review and broader Phase 3 work remain.
 
 **Active next slice**
 
@@ -92,7 +92,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Compatibility, versioning, and deprecation design approved.
 - [x] Compatibility, versioning, and deprecation slice delivered and verified.
 - [x] Portable Cognition Contract `0.1.0` design approved and implementation completed.
-- [x] Host integration contracts for cognition persistence and event publication without selecting a mandatory database, service, or delivery architecture. Final-review verification remains pending.
+- [x] Host integration contracts for cognition persistence and event publication without selecting a mandatory database, service, or delivery architecture. Final review correction implemented; scoped re-review pending.
 
 **Delivered in the SourceRecord normative-conformance slice**
 
@@ -136,12 +136,25 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - Portable Cognition artifact hashes: prose `d73a6de049c7408715d7e717dd326e79830d99fe84ff85cb5936dfb8a757be89`; schema `6dec3f942ca88994fef588a2ffb93240d716e116dbec7ded46a1f362446f6bdd`; valid fixtures `cc3854706ace472b0d5335ecb9596c7ea3bf2b48c04fd9dd950f9683e8b203f4`; invalid fixtures `0f8e21f7379824223482e26ae26ec0b7b5031077ab63f6dac4558239b4908ba4`; cognitive-loop fixtures `1693d97e207cfeee63d370ba23d07ffd9023e8b087e5dbd3c0ad53e945184053`.
 - The root-reachable declaration digest remains `75a3f931f18ba6dae205b5c8da41aadc1a0f68245fc8b237eb216e17febde766`.
 
-**Delivered in the Host Integration slice; final review pending**
+**Delivered in the Host Integration slice; final review correction implemented, scoped re-review pending**
 
 - [x] Normative Host Integration Contract `0.1.0`, store and publisher ports, commit coordinators, and a private package `0.3.0` compatibility baseline.
-- [x] An in-memory reference host and reusable conformance harness covering commits, reads, conflicts, exact replay, immutable snapshots, publication idempotency, and secret-safe failures.
-- [x] A runnable host example that persists an initial object, reports `committed_but_unpublished` after a first publication failure, retries the identical transition request, and reports one stored and published event.
-- [x] Focused host integration, reference-host, and conformance suites pass locally; independent final-review verification is not yet complete.
+- [x] Operation-specific correlated conflict validation, exact replay → object collision → event collision → stale-version precedence, and unchanged latest/revision/event state after every returned conflict.
+- [x] An in-memory reference host and `17`-case reusable conformance harness covering malformed and SourceRecord-shaped runtime rejection, fresh factory instances, commits, reads, conflicts, exact replay, immutable snapshots, publication idempotency, and secret-safe failures.
+- [x] Package `0.3.0` compatibility is classified as a `COMP-012` `minor-before-1.0` breaking correction because `PortableDomainError.code` narrows package `0.2.0`'s generic `DomainErrorCode`; migration and clean-consumer type evidence are included.
+- [x] Root, host-conformance, and reference-host declaration entrypoint closures are independently computed and pinned to literal baseline digests.
+- [x] A runnable public-import host example builds successfully when `dist/` is absent, persists an initial object, reports `committed_but_unpublished` after a first publication failure, retries the identical transition request, and reports one stored and published event.
+
+**Host Integration final review correction evidence**
+
+- The focused Host Integration, reference-host, conformance, and Portable Cognition command passes `81` tests.
+- `npm test` passes `249` source, `10` combined SourceRecord and Portable Cognition schema, `14` compatibility, and `8` package tests (`281` total).
+- `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, the read-only team-memory example, `npm run pack:check`, and `git diff --check` exit successfully.
+- Compatibility hashes: baseline `0.1.0` `4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b`; change cases `0.1.0` `3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b`; baseline `0.2.0` `3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4`; change cases `0.2.0` `e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5`; baseline `0.3.0` `02991abb5133a4aef2b6a2fc736567fbbde9e29859909f806f08822fcd40d3d4`; change cases `0.3.0` `1f1ff3822de318806640357bb11804a0213d7084f05350035f8bb8d519dd95f2`.
+- Host Integration prose hash: `41d2094f60a096540983bdeb9be5320d43136a8519b9e3ce2336c20f788f7bd7`.
+- Public declaration closure hashes: root `7f9e352c9adf8a48d433d280c8040ddad57240726276a15d690133b3dfcf7333`; host-conformance `4cb58d68d6796cc77a8dfdb5a31013e441c99142bbb5bc62a91e5e71d64db94b`; reference-host `1447986d26b53d77a083fe414da8d744056df30db4e0094bb28a656d0f8965b2`.
+- Independent byte comparisons confirm all historical baseline/artifact `0.1.0` and `0.2.0` files remain unchanged. The Portable Cognition `0.1.0` runtime allowlist remains fixed and its correction-pass source/tests are untouched.
+- Final review correction implemented; scoped re-review pending.
 
 **Delivered in the licensing and attribution slice**
 

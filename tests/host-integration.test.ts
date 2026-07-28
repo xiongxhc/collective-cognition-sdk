@@ -247,12 +247,10 @@ test("preserves an exact already committed result", async () => {
   });
 });
 
-test("passes a conflict result through unchanged", async () => {
+test("accepts only the initial object collision for the requested object", async () => {
   const conflict = {
     code: "object_revision_collision" as const,
     objectId: "goal:host-integration",
-    expectedVersion: 1,
-    actualVersion: 2,
   };
   const store = recordingStore({ status: "conflict", conflict });
 
@@ -263,37 +261,58 @@ test("passes a conflict result through unchanged", async () => {
   assert.deepEqual(outcome, { status: "conflict", conflict });
 });
 
-test("fails closed on invalid conflict versions", async () => {
-  const invalidVersions = [NaN, Infinity, -Infinity, 0, -1, 1.5];
+test("fails closed on invalid or mis-correlated initial conflicts", async () => {
+  const hostileConflict = {
+    code: "object_revision_collision",
+    objectId: "goal:host-integration",
+  };
+  Object.defineProperty(hostileConflict, "objectId", {
+    enumerable: true,
+    get() {
+      throw new Error("HOSTILE_CONFLICT_SECRET");
+    },
+  });
+  const invalidConflicts: readonly [string, unknown][] = [
+    ["version conflict", {
+      code: "version_conflict",
+      objectId: "goal:host-integration",
+      expectedVersion: 1,
+      actualVersion: 2,
+    }],
+    ["event collision", {
+      code: "event_id_collision",
+      objectId: "goal:host-integration",
+    }],
+    ["cross-object collision", {
+      code: "object_revision_collision",
+      objectId: "goal:other",
+    }],
+    ["unrelated version claims", {
+      code: "object_revision_collision",
+      objectId: "goal:host-integration",
+      expectedVersion: 1,
+      actualVersion: 1,
+    }],
+    ["descriptor-hostile collision", hostileConflict],
+  ];
 
-  for (const field of ["expectedVersion", "actualVersion"] as const) {
-    for (const value of invalidVersions) {
-      const store = recordingStore({
-        status: "conflict",
-        conflict: {
-          code: "version_conflict",
-          objectId: "goal:host-integration",
-          expectedVersion: 1,
-          actualVersion: 1,
-          [field]: value,
-        },
-      } as unknown as CognitionStoreCommitResult);
+  for (const [description, conflict] of invalidConflicts) {
+    const store = recordingStore({
+      status: "conflict",
+      conflict,
+    } as unknown as CognitionStoreCommitResult);
+    const outcome = await commitInitialCognition(store, {
+      object: portableGoalRecord(),
+    });
 
-      const outcome = await commitInitialCognition(store, {
-        object: portableGoalRecord(),
-      });
-
-      assert.deepEqual(outcome, failedCommitOutcome());
-    }
+    assert.deepEqual(outcome, failedCommitOutcome(), description);
   }
 });
 
 test("detaches conflict outcomes from mutable host aliases", async () => {
   const conflict = {
-    code: "version_conflict" as const,
+    code: "object_revision_collision" as const,
     objectId: "goal:host-integration",
-    expectedVersion: 1,
-    actualVersion: 2,
   };
   const store = recordingStore({ status: "conflict", conflict });
 
@@ -301,16 +320,13 @@ test("detaches conflict outcomes from mutable host aliases", async () => {
     object: portableGoalRecord(),
   });
   conflict.objectId = "goal:mutated";
-  conflict.expectedVersion = 9;
 
   assert.equal(outcome.status, "conflict");
   assert.notStrictEqual(outcome.conflict, conflict);
   assert.equal(Object.isFrozen(outcome.conflict), true);
   assert.deepEqual(outcome.conflict, {
-    code: "version_conflict",
+    code: "object_revision_collision",
     objectId: "goal:host-integration",
-    expectedVersion: 1,
-    actualVersion: 2,
   });
 });
 
@@ -473,6 +489,124 @@ test("does not publish a store conflict", async () => {
 
   assert.equal(outcome.status, "conflict");
   assert.equal(host.publishCalls.length, 0);
+});
+
+test("accepts only operation-specific transition conflicts", async () => {
+  const request = portableTransitionCommit();
+  const conflicts = [
+    {
+      code: "version_conflict",
+      objectId: request.object.payload.id,
+      expectedVersion: request.expectedVersion,
+      actualVersion: request.expectedVersion + 1,
+    },
+    {
+      code: "object_revision_collision",
+      objectId: request.object.payload.id,
+    },
+    {
+      code: "event_id_collision",
+      objectId: request.object.payload.id,
+      eventId: request.event.payload.id,
+    },
+  ] as const;
+
+  for (const conflict of conflicts) {
+    const host = recordingHost({
+      transitionBehavior: {
+        status: "conflict",
+        conflict,
+      } as unknown as CognitionStoreCommitResult,
+    });
+
+    assert.deepEqual(
+      await commitCognitionTransition(host, request),
+      { status: "conflict", conflict },
+    );
+    assert.equal(host.publishCalls.length, 0);
+  }
+});
+
+test("fails closed on invalid or mis-correlated transition conflicts", async () => {
+  const request = portableTransitionCommit();
+  const hostileConflict = {
+    code: "event_id_collision",
+    objectId: request.object.payload.id,
+    eventId: request.event.payload.id,
+  };
+  Object.defineProperty(hostileConflict, "eventId", {
+    enumerable: true,
+    get() {
+      throw new Error("HOSTILE_CONFLICT_SECRET");
+    },
+  });
+  const invalidConflicts: readonly [string, unknown][] = [
+    ["cross-object version conflict", {
+      code: "version_conflict",
+      objectId: "goal:other",
+      expectedVersion: 1,
+      actualVersion: 2,
+    }],
+    ["wrong expected version", {
+      code: "version_conflict",
+      objectId: request.object.payload.id,
+      expectedVersion: 2,
+      actualVersion: 3,
+    }],
+    ["equal actual version", {
+      code: "version_conflict",
+      objectId: request.object.payload.id,
+      expectedVersion: 1,
+      actualVersion: 1,
+    }],
+    ["unsafe actual version", {
+      code: "version_conflict",
+      objectId: request.object.payload.id,
+      expectedVersion: 1,
+      actualVersion: Number.MAX_SAFE_INTEGER + 1,
+    }],
+    ["object collision with version claims", {
+      code: "object_revision_collision",
+      objectId: request.object.payload.id,
+      expectedVersion: 2,
+      actualVersion: 2,
+    }],
+    ["cross-object revision collision", {
+      code: "object_revision_collision",
+      objectId: "goal:other",
+    }],
+    ["event collision without event identity", {
+      code: "event_id_collision",
+      objectId: request.object.payload.id,
+    }],
+    ["cross-event collision", {
+      code: "event_id_collision",
+      objectId: request.object.payload.id,
+      eventId: "event:other",
+    }],
+    ["cross-object event collision", {
+      code: "event_id_collision",
+      objectId: "goal:other",
+      eventId: request.event.payload.id,
+    }],
+    ["descriptor-hostile event collision", hostileConflict],
+  ];
+
+  for (const [description, conflict] of invalidConflicts) {
+    const host = recordingHost({
+      transitionBehavior: {
+        status: "conflict",
+        conflict,
+      } as unknown as CognitionStoreCommitResult,
+    });
+
+    assert.deepEqual(
+      await commitCognitionTransition(host, request),
+      failedCommitOutcome(),
+      description,
+    );
+    assert.equal(host.publishCalls.length, 0, description);
+  }
 });
 
 test("returns a failed outcome without publishing when the store throws", async () => {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  cpSync,
   existsSync,
   mkdtempSync,
   mkdirSync,
@@ -9,6 +10,7 @@ import {
   readdirSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -142,6 +144,49 @@ test("host integration example uses public package entrypoints", () => {
   assert.doesNotMatch(example, /from "\.\.\/src\/(index|reference-host)\.ts";/);
 });
 
+test("host integration example builds and runs without a pre-existing dist", () => {
+  const temporaryRoot = mkdtempSync(join(tmpdir(), "ccsdk-host-example-"));
+  const checkoutRoot = join(temporaryRoot, "checkout");
+  const expectedOutput =
+    '{"initial":"committed","firstTransition":"committed_but_unpublished",' +
+    '"retryTransition":"committed","latestVersion":2,"storedEventCount":1,' +
+    '"publishedEventCount":1}\n';
+
+  try {
+    cpSync(repositoryRoot, checkoutRoot, {
+      recursive: true,
+      filter(source) {
+        const path = relative(repositoryRoot, source).replaceAll("\\", "/");
+        return path !== ".git" && !path.startsWith(".git/") &&
+          path !== "dist" && !path.startsWith("dist/") &&
+          path !== "node_modules" && !path.startsWith("node_modules/");
+      },
+    });
+    symlinkSync(
+      join(repositoryRoot, "node_modules"),
+      join(checkoutRoot, "node_modules"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    assert.equal(existsSync(join(checkoutRoot, "dist")), false);
+
+    const result = spawnNpm(["run", "--silent", "example:host"], {
+      cwd: checkoutRoot,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        npm_config_cache: join(temporaryRoot, "npm-cache"),
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stderr, "");
+    assert.equal(result.stdout, expectedOutput);
+    assert.equal(existsSync(join(checkoutRoot, "dist/index.js")), true);
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
 test("built CLI executable validates canonical SourceRecord input", () => {
   const validRecord = readFileSync(validFixturesUrl, "utf8")
     .split("\n")
@@ -186,6 +231,10 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   );
   assert.match(packageJson.scripts["pack:check"], /npm run test:schema/);
   assert.match(packageJson.scripts.prepack, /npm run test:schema/);
+  assert.equal(
+    packageJson.scripts["example:host"],
+    "npm run --silent build && node --disable-warning=ExperimentalWarning examples/host-integration.ts",
+  );
   assert.equal(
     packageJson.private,
     true,
@@ -399,6 +448,7 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
   type CognitionPublicationStatus,
   type CognitionStore,
   type CognitionStoreCommitResult,
+  type DomainErrorCode as DomainErrorCodeType,
   type HostConflict,
   type HostConflictCode,
   type HostFailure,
@@ -408,6 +458,7 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
   type PortableCognitionEventRecord,
   type PortableCognitionRecord,
   type PortableCognitiveObjectRecord,
+  type PortableDomainError,
   type TransitionCognitionCommit,
   type TransitionCommitOutcome,
 } from ${JSON.stringify(packageJson.name)};
@@ -428,6 +479,52 @@ function roundTrip(record: PortableCognitionRecord) {
       createPortableCognitionRecord(record),
     ),
   );
+}
+
+declare const packageWideCode: DomainErrorCodeType;
+type PortableDomainError020 = {
+  readonly code: DomainErrorCodeType;
+  readonly message: string;
+  readonly details: PortableDomainError["details"];
+};
+const package020GenericAssignment: PortableDomainError020 = {
+  code: packageWideCode,
+  message: "Package-wide error.",
+  details: {},
+};
+const oldGenericAssignment: PortableDomainError = {
+  // @ts-expect-error Package 0.3.0 narrows the 0.2.0 generic assignment.
+  code: packageWideCode,
+  message: "Package-wide error.",
+  details: {},
+};
+const portableDomainErrorCodes: readonly PortableDomainError["code"][] = [
+  "INVALID_OBJECT",
+  "INVALID_SOURCE_RECORD",
+  "INVALID_RELATIONSHIP",
+  "INVALID_TRANSITION",
+  "CONFIRMATION_REQUIRED",
+  "AUTHORIZATION_DENIED",
+  "SERIALIZATION_ERROR",
+  "SOURCE_REVISION_COLLISION",
+  "INGESTION_LIMIT_EXCEEDED",
+  "PROMOTION_FAILED",
+  "INVALID_PORTABLE_COGNITION_RECORD",
+];
+function isPortableDomainErrorCode(
+  code: DomainErrorCodeType,
+): code is PortableDomainError["code"] {
+  return portableDomainErrorCodes.includes(
+    code as PortableDomainError["code"],
+  );
+}
+if (isPortableDomainErrorCode(packageWideCode)) {
+  const migratedAssignment: PortableDomainError = {
+    code: packageWideCode,
+    message: "Portable error.",
+    details: {},
+  };
+  void migratedAssignment;
 }
 
 type HostTypes =
@@ -452,6 +549,8 @@ type HostTypes =
   | CognitionHostConformanceReport;
 
 void roundTrip;
+void package020GenericAssignment;
+void oldGenericAssignment;
 void (undefined as unknown as HostTypes);
 void HOST_INTEGRATION_CONTRACT_VERSION;
 void HostFailureCode;

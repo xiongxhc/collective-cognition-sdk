@@ -4,7 +4,7 @@
 
 This document defines the normative compatibility policy for the Collective Cognition SDK. It separates portable serialized contracts from the installable package, public experimental APIs, and repository internals.
 
-The historical compatibility baseline `0.1.0` records the inaugural surface of the unpublished package `0.1.0`; it does not represent a migration from an earlier published release. Baseline `0.2.0` records the additive Portable Cognition package surface, and the current baseline `0.3.0` records the additive Host Integration package surface while retaining prior baselines and artifacts byte-for-byte. Package `0.3.0` remains private, unpublished, and not production-ready.
+The historical compatibility baseline `0.1.0` records the inaugural surface of the unpublished package `0.1.0`; it does not represent a migration from an earlier published release. Baseline `0.2.0` records the additive Portable Cognition package surface. The current baseline `0.3.0` records the additive Host Integration package surface plus the source-breaking correction that narrows `PortableDomainError.code` to the already-normative Portable Cognition `0.1.0` allowlist, while retaining prior baselines and serialized artifacts byte-for-byte. Package `0.3.0` remains private, unpublished, and not production-ready.
 
 The terms **MUST**, **MUST NOT**, **SHOULD**, and **MAY** express normative requirements.
 
@@ -30,7 +30,7 @@ An editorial correction MAY update prose without a contract-version change only 
 
 ### COMP-003 — Supported Experimental Evolution
 
-Supported Experimental patch releases MUST remain backward compatible. Before `1.0.0`, a minor release MAY make a breaking Supported Experimental change only through an accepted RFC, migration notes, deprecation, a new compatibility baseline, and a non-patch release.
+Supported Experimental patch releases MUST remain backward compatible. Before `1.0.0`, a minor release MAY make a breaking Supported Experimental change only through an accepted RFC, migration notes, deprecation, a new compatibility baseline, and a non-patch release. A `COMP-012` correctness correction MAY mark deprecation as not applicable only when retaining the old declaration or behavior would continue contradicting an already-normative contract; the RFC MUST explain that conflict, and migration notes, a new baseline, and a non-patch release remain mandatory.
 
 The Supported Experimental classification does not make cognitive-object, authorization, transition, event, or other unfinished semantics Normative Stable.
 
@@ -109,6 +109,8 @@ A correction is patch-compatible only when it restores behavior to a normative r
 
 When prose and implementation were both ambiguous, selecting one interpretation MUST be classified through the additive or breaking process rather than as a correction.
 
+A correction that narrows a Supported Experimental TypeScript type is still source-breaking when a previously compiling generic consumer can fail. Before `1.0.0`, such a correction MUST use `minor-before-1.0`, an accepted RFC, migration evidence, and a new compatibility baseline. Deprecation MAY be recorded as not applicable only under the contradiction condition in `COMP-003`.
+
 ## Change Matrix
 
 | Surface | Additive example | Breaking example | Required control |
@@ -155,9 +157,11 @@ Runtime warnings MAY be proposed in a later RFC that protects structured CLI con
 
 ## Baseline Enforcement
 
-The versioned baseline records exact normative artifact digests, stable rule identifiers, package metadata, the emitted-file inventory, runtime and type exports, declaration closure, domain errors, CLI behavior, policy identities, and deprecations.
+The versioned baseline records exact normative artifact digests, stable rule identifiers, package metadata, the emitted-file inventory, runtime and type exports, independent declaration closures and literal digests for every public TypeScript entrypoint, domain errors, CLI behavior, policy identities, and deprecations.
 
-Baseline `0.2.0` classifies the package change as additive with a minor package-version effect. It adds Portable Cognition `0.1.0` runtime, type, schema, and conformance entrypoints without removing or redirecting an existing package surface. Baseline `0.3.0` likewise classifies the additive Host Integration `0.1.0` runtime, type, contract, conformance, and reference-host subpaths without removing or redirecting an existing package surface.
+Baseline `0.2.0` classifies the package change as additive with a minor package-version effect. It adds Portable Cognition `0.1.0` runtime, type, schema, and conformance entrypoints without removing or redirecting an existing package surface.
+
+Baseline `0.3.0` records two changes. The Host Integration `0.1.0` runtime, type, contract, conformance, and reference-host subpaths are additive. The `PortableDomainError.code` declaration narrowing is a `COMP-012` correctness correction but is source-breaking for a generic package `0.2.0` TypeScript assignment, so the package change is classified `breaking` with `minor-before-1.0`. Migration narrows a package-wide `DomainErrorCode` with a guard returning `code is PortableDomainError["code"]`. Deprecation is not applicable because retaining the wider portable payload declaration would continue contradicting the immutable Portable Cognition `0.1.0` allowlist.
 
 ### COMP-018 — Deliberate Baseline Updates
 

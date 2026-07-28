@@ -113,8 +113,6 @@ export class InMemoryCognitionStore implements CognitionStore {
         conflict: {
           code: "object_revision_collision",
           objectId,
-          expectedVersion: version,
-          actualVersion: version,
         },
       };
     }
@@ -133,37 +131,49 @@ export class InMemoryCognitionStore implements CognitionStore {
     const version = object.payload.version;
     const existingObject = this.#objects.get(objectVersionKey(objectId, version));
     const existingEvent = this.#events.get(event.payload.id);
+    const objectMatches = existingObject !== undefined &&
+      recordsMatch(existingObject, object);
+    const eventMatches = existingEvent !== undefined &&
+      recordsMatch(existingEvent, event);
 
-    if (existingObject !== undefined && !recordsMatch(existingObject, object)) {
+    if (objectMatches && eventMatches) {
+      return { status: "already_committed" };
+    }
+    if (existingObject !== undefined && !objectMatches) {
       return {
         status: "conflict",
         conflict: {
           code: "object_revision_collision",
           objectId,
-          expectedVersion: version,
-          actualVersion: version,
         },
       };
     }
-    if (existingEvent !== undefined && !recordsMatch(existingEvent, event)) {
+    if (existingEvent !== undefined && !eventMatches) {
       return {
         status: "conflict",
-        conflict: { code: "event_id_collision", objectId },
+        conflict: {
+          code: "event_id_collision",
+          objectId,
+          eventId: event.payload.id,
+        },
       };
     }
-    if (existingObject !== undefined && existingEvent !== undefined) {
-      return { status: "already_committed" };
+    if (existingObject !== undefined || existingEvent !== undefined) {
+      throw new TypeError("Transition identities are only partially committed.");
     }
 
     const actualVersion = this.#latestVersions.get(objectId);
     if (actualVersion !== expectedVersion) {
+      if (actualVersion === undefined) {
+        throw new TypeError("Transition target object does not exist.");
+      }
       return {
         status: "conflict",
         conflict: {
           code: "version_conflict",
           objectId,
           expectedVersion,
-          ...(actualVersion === undefined ? {} : { actualVersion }),
+          actualVersion,
         },
       };
     }
