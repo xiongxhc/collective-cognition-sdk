@@ -83,6 +83,17 @@ function recordingStore(initialBehavior: InitialBehavior): CognitionStore & {
   };
 }
 
+function failedCommitOutcome() {
+  return {
+    status: "failed" as const,
+    error: {
+      code: "HOST_COMMIT_FAILED",
+      message: "Cognition commit failed.",
+      objectId: "goal:host-integration",
+    },
+  };
+}
+
 test("commits a validated initial cognitive object", async () => {
   const store = recordingStore({ status: "committed" });
   const outcome = await commitInitialCognition(store, {
@@ -139,6 +150,57 @@ test("passes a conflict result through unchanged", async () => {
   assert.deepEqual(outcome, { status: "conflict", conflict });
 });
 
+test("fails closed on invalid conflict versions", async () => {
+  const invalidVersions = [NaN, Infinity, -Infinity, 0, -1, 1.5];
+
+  for (const field of ["expectedVersion", "actualVersion"] as const) {
+    for (const value of invalidVersions) {
+      const store = recordingStore({
+        status: "conflict",
+        conflict: {
+          code: "version_conflict",
+          objectId: "goal:host-integration",
+          expectedVersion: 1,
+          actualVersion: 1,
+          [field]: value,
+        },
+      } as unknown as CognitionStoreCommitResult);
+
+      const outcome = await commitInitialCognition(store, {
+        object: portableGoalRecord(),
+      });
+
+      assert.deepEqual(outcome, failedCommitOutcome());
+    }
+  }
+});
+
+test("detaches conflict outcomes from mutable host aliases", async () => {
+  const conflict = {
+    code: "version_conflict" as const,
+    objectId: "goal:host-integration",
+    expectedVersion: 1,
+    actualVersion: 2,
+  };
+  const store = recordingStore({ status: "conflict", conflict });
+
+  const outcome = await commitInitialCognition(store, {
+    object: portableGoalRecord(),
+  });
+  conflict.objectId = "goal:mutated";
+  conflict.expectedVersion = 9;
+
+  assert.equal(outcome.status, "conflict");
+  assert.notStrictEqual(outcome.conflict, conflict);
+  assert.equal(Object.isFrozen(outcome.conflict), true);
+  assert.deepEqual(outcome.conflict, {
+    code: "version_conflict",
+    objectId: "goal:host-integration",
+    expectedVersion: 1,
+    actualVersion: 2,
+  });
+});
+
 test("isolates the caller and outcome from host request mutation", async () => {
   const callerObject = structuredClone(portableGoalRecord()) as {
     payload: { title: string };
@@ -154,6 +216,8 @@ test("isolates the caller and outcome from host request mutation", async () => {
   (callerObject.payload as { title: string }).title = "Mutated by caller";
 
   assert.equal(callerObject.payload.title, "Mutated by caller");
+  assert.equal(Object.isFrozen(store.initialCalls[0]), true);
+  assert.equal(Object.isFrozen(store.initialCalls[0].object), true);
   assert.equal(store.initialCalls[0].object.payload.title, "Host integration");
   assert.equal(outcome.status, "committed");
   assert.equal(outcome.object.payload.title, "Host integration");

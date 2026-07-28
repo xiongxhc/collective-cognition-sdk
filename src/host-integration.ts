@@ -164,9 +164,13 @@ function snapshotHostConflict(value: unknown): HostConflict | undefined {
     !hostConflictCodes.has(fields.code as HostConflictCode) ||
     typeof fields.objectId !== "string" ||
     (fields.expectedVersion !== undefined &&
-      typeof fields.expectedVersion !== "number") ||
+      (typeof fields.expectedVersion !== "number" ||
+        !Number.isInteger(fields.expectedVersion) ||
+        fields.expectedVersion <= 0)) ||
     (fields.actualVersion !== undefined &&
-      typeof fields.actualVersion !== "number")
+      (typeof fields.actualVersion !== "number" ||
+        !Number.isInteger(fields.actualVersion) ||
+        fields.actualVersion <= 0))
   ) {
     return undefined;
   }
