@@ -191,3 +191,40 @@ The historical paths were hashed from the working tree and independently compare
 
 - Runtime contract, reference host, contract version, normative prose, compatibility baselines, package declarations, and package registration remain unchanged.
 - Scoped re-review remains pending.
+
+## Documentation Finalization After Scoped Re-review
+
+**Verified head:** `26aa692a3e82b1aed8d69c9cfa797258cddcc3d7`
+**Final status:** Host Integration `0.1.0` is implemented and final-review verified
+**Commit message:** `docs: finalize host integration contract`
+
+The earlier pending-review statements in this report are preserved as historical snapshots and are superseded by this finalization evidence.
+
+### Fresh Controller Verification
+
+- Focused Host Integration, reference-host, and conformance tests: `56` passed, `0` failed.
+- `npm test`: `250` source, `10` schema, `14` compatibility, and `8` package tests passed with zero failures.
+- `npx tsc --noEmit`, `npm run check`, the cognitive-loop example, Portable Cognition example, Host Integration example, `npm run pack:check`, and `git diff --check` passed.
+- The Host Integration example reports initial `committed`, first transition `committed_but_unpublished`, retry transition `committed`, latest version `2`, one stored event, and one published event.
+
+### Review Conclusion
+
+- All final broad-review findings are corrected.
+- The residual scoped re-review reports no Critical or Important blocker.
+- Current-state documentation now records Host Integration as implemented and final-review verified.
+
+### Verified Hashes
+
+- Compatibility baseline `0.1.0`: `4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b`
+- Compatibility baseline `0.2.0`: `3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4`
+- Compatibility baseline `0.3.0`: `02991abb5133a4aef2b6a2fc736567fbbde9e29859909f806f08822fcd40d3d4`
+- Compatibility change cases `0.3.0`: `1f1ff3822de318806640357bb11804a0213d7084f05350035f8bb8d519dd95f2`
+- Host Integration prose: `41d2094f60a096540983bdeb9be5320d43136a8519b9e3ce2336c20f788f7bd7`
+- Root declaration closure: `7f9e352c9adf8a48d433d280c8040ddad57240726276a15d690133b3dfcf7333`
+- Host conformance declaration closure: `4cb58d68d6796cc77a8dfdb5a31013e441c99142bbb5bc62a91e5e71d64db94b`
+- Reference host declaration closure: `1447986d26b53d77a083fe414da8d744056df30db4e0094bb28a656d0f8965b2`
+
+### Remaining Deferrals
+
+- Package `0.3.0` remains private and unpublished.
+- Production persistence and connector adapters, runtime policy, security policy, registry publication, external interoperability certification, and production readiness remain deferred.

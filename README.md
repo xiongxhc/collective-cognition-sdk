@@ -4,7 +4,7 @@ Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript 
 
 This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.3.0` remains private and unpublished; its source, emitted ESM build, declarations, and CLI are runnable, but it is not production-ready.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, and compatibility baselines `0.1.0`, `0.2.0`, and `0.3.0` are implemented. Host Integration `0.1.0` final review correction is implemented; scoped re-review remains pending. Concrete adapters, registry publication, runtime policy, security policy, and production readiness remain deferred.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, and compatibility baselines `0.1.0`, `0.2.0`, and `0.3.0` are implemented. Host Integration `0.1.0` is implemented and final-review verified. Concrete adapters, registry publication, runtime policy, security policy, and production readiness remain deferred.
 
 ## Current Status
 
@@ -251,7 +251,7 @@ The tracked [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/
 
 1. the completed runnable core;
 2. the completed universal neutral-first ingestion foundation;
-3. in-progress specification and package stabilization, with Portable Cognition final-review verified and Host Integration final review correction implemented with scoped re-review pending;
+3. in-progress specification and package stabilization, with Portable Cognition and Host Integration implemented and final-review verified;
 4. adapter ecosystem foundations;
 5. cross-connector interoperability;
 6. operational governance and retirement tooling;

@@ -57,7 +57,7 @@ Hosts remain responsible for trusted identity, authorization, access control, se
 
 Independent final review found no remaining Critical or Important issue after the correction wave. The complete local matrix passes: `npm test` reports 194 source, 10 combined SourceRecord and Portable Cognition schema, 14 compatibility, and 6 package tests; TypeScript checking, syntax checking, both examples, `pack:check`, and `git diff --check` also exit successfully.
 
-At that historical delivery point, package version `0.2.0` retained `"private": true`, and Host Integration was deferred. The current private, unpublished package is `0.3.0`; [RFC 0004](0004-host-integration-contract.md) and the [Host Integration Contract `0.1.0`](../spec/host-integration.md) record the implemented host boundary. Its independent final-review verification remains pending. Concrete persistence and connector adapters remain deferred.
+At that historical delivery point, package version `0.2.0` retained `"private": true`, and Host Integration was deferred. The current private, unpublished package is `0.3.0`; [RFC 0004](0004-host-integration-contract.md) and the [Host Integration Contract `0.1.0`](../spec/host-integration.md) record the implemented and final-review verified host boundary. Concrete persistence and connector adapters remain deferred.
 
 - Compatibility hashes: baseline `0.1.0` `4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b`; change cases `0.1.0` `3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b`; baseline `0.2.0` `3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4`; change cases `0.2.0` `e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5`.
 - SourceRecord artifact hashes remain byte-identical: schema `56cf53c5da98dfbec19a021fbb90673beab8248c7a77df44989b535a0e155648`; valid fixtures `f52c212026b70bf2b339e1132b2895c91be509f250dde841319dbbb4edd3f74a`; invalid fixtures `4705f32eb5ea48ddd693759728294d2557b0a6f4a5cc666843b2e03bb03e99c0`.
@@ -74,7 +74,7 @@ At that historical delivery point, package version `0.2.0` retained `"private": 
 
 ## Explicit Deferrals
 
-- Host Integration contracts for persistence and event publication are now implemented; see [RFC 0004](0004-host-integration-contract.md) and the [Host Integration Contract `0.1.0`](../spec/host-integration.md). Independent final-review verification remains pending.
+- Host Integration contracts for persistence and event publication are implemented and final-review verified; see [RFC 0004](0004-host-integration-contract.md) and the [Host Integration Contract `0.1.0`](../spec/host-integration.md).
 - Persistence adapters, connectors, connector packaging, marketplaces, or source-system discovery.
 - Authentication, trusted confirmation records, authorization-policy execution, runtime policy, and security policy.
 - Registry publication, removal of `"private": true`, a `1.0.0` promise, production readiness, hosted services, or delivery guarantees.

@@ -1,6 +1,6 @@
 # RFC 0004: Host Integration Contract
 
-**Status:** Accepted; final review correction implemented, scoped re-review pending
+**Status:** Implemented and final-review verified
 
 **Created:** 2026-07-28
 **Decision owner:** Project maintainer
@@ -114,11 +114,22 @@ The contract requires sanitized host failure outcomes so adapter exception text,
 - `tests/reference-host.test.ts` exercises exact conflict precedence, unchanged reads after every returned conflict, canonical replay, atomicity, ordering, detached reads, and publisher idempotency.
 - `runCognitionHostConformance` provides isolated public-port checks for complete host implementations, including malformed and SourceRecord-shaped runtime rejection, conflict-state immutability, precedence overlaps, canonical replay, and fresh factory instances; a host claiming complete conformance must pass its applicable cases.
 - Compatibility and clean-consumer tests classify the `PortableDomainError.code` narrowing under `COMP-012`, compile both the rejected package `0.2.0` generic assignment and the supported package `0.3.0` narrowing pattern, and independently pin declaration closures for every public TypeScript entrypoint.
-- Documentation acceptance requires the focused host suites and `git diff --check`; broader final review remains a separate gate.
+- Documentation acceptance and final verification require the focused host suites, the complete local matrix, scoped re-review, and `git diff --check`; all have passed for this slice.
+
+## Final Verification Evidence
+
+- Fresh controller verification at head `26aa692a3e82b1aed8d69c9cfa797258cddcc3d7` passes all `56` focused Host Integration, reference-host, and conformance tests.
+- `npm test` passes `250` source, `10` combined SourceRecord and Portable Cognition schema, `14` compatibility, and `8` package tests (`282` total), all with zero failures.
+- `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, `npm run pack:check`, and `git diff --check` exit successfully.
+- The host example reports initial `committed`, first transition `committed_but_unpublished`, retry transition `committed`, latest version `2`, one stored event, and one published event.
+- The final broad review findings are corrected, and the residual scoped re-review reports no Critical or Important blocker.
+- Compatibility hashes: baseline `0.1.0` `4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b`; baseline `0.2.0` `3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4`; baseline `0.3.0` `02991abb5133a4aef2b6a2fc736567fbbde9e29859909f806f08822fcd40d3d4`; change cases `0.3.0` `1f1ff3822de318806640357bb11804a0213d7084f05350035f8bb8d519dd95f2`.
+- Host Integration prose hash: `41d2094f60a096540983bdeb9be5320d43136a8519b9e3ce2336c20f788f7bd7`.
+- Public declaration closure hashes: root `7f9e352c9adf8a48d433d280c8040ddad57240726276a15d690133b3dfcf7333`; host-conformance `4cb58d68d6796cc77a8dfdb5a31013e441c99142bbb5bc62a91e5e71d64db94b`; reference-host `1447986d26b53d77a083fe414da8d744056df30db4e0094bb28a656d0f8965b2`.
 
 ## Explicit Deferrals
 
 - A mandatory persistence engine, transaction protocol, queue, broker, subscriber API, retry scheduler, dead-letter mechanism, or exactly-once delivery guarantee.
 - A production persistence adapter, remote service, connector marketplace, source-system discovery, or SourceRecord storage integration.
 - Authentication, authorization-policy execution, trusted human confirmation, tenant governance, privacy operations, retention/deletion policy, security-runtime policy, or incident response.
-- Package publication, removal of `"private": true`, external interoperability certification, production-readiness claims, and final-review verification.
+- Package publication, removal of `"private": true`, external interoperability certification, and production-readiness claims.
