@@ -525,6 +525,27 @@ test("returns a frozen partial success when publication throws", async () => {
   assert.equal(JSON.stringify(outcome).includes("HOST_PUBLICATION_SECRET"), false);
 });
 
+test("returns a sanitized partial success when publication returns an invalid status", async () => {
+  const request = portableTransitionCommit();
+  const host = recordingHost({
+    publicationBehavior: () =>
+      "HOST_PUBLICATION_SECRET" as unknown as CognitionPublicationStatus,
+  });
+
+  const outcome = await commitCognitionTransition(host, request);
+
+  assert.equal(outcome.status, "committed_but_unpublished");
+  if (outcome.status === "committed_but_unpublished") {
+    assert.deepEqual(outcome.error, {
+      code: "HOST_PUBLICATION_FAILED",
+      message: "Cognition publication failed.",
+      objectId: "goal:host-integration",
+      eventId: "event:goal-host-integration-active",
+    });
+  }
+  assert.equal(JSON.stringify(outcome).includes("HOST_PUBLICATION_SECRET"), false);
+});
+
 test("recovers an identical request after publication failure", async () => {
   const request = portableTransitionCommit();
   let retried = false;

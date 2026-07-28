@@ -32,12 +32,12 @@ export type PortableCognitionRecordType =
   | "domain-error";
 
 export interface PortableDomainError {
-  readonly code: DomainErrorCode;
+  readonly code: PortableDomainErrorCode;
   readonly message: string;
   readonly details: JsonObject;
 }
 
-type PortableDomainErrorCode =
+export type PortableDomainErrorCode =
   | "INVALID_OBJECT"
   | "INVALID_SOURCE_RECORD"
   | "INVALID_RELATIONSHIP"
