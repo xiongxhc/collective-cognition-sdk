@@ -1,6 +1,6 @@
 # Host Integration Contract Design
 
-**Status:** Design approved; written specification ready for review
+**Status:** Implemented with focused executable evidence; final-review verification pending
 
 **Date:** 2026-07-28
 
@@ -324,7 +324,7 @@ Existing SourceRecord, ingestion, promotion, cognition, transition, compatibilit
 
 ## Documentation
 
-The implementation updates:
+The implementation includes:
 
 - `README.md` with the host/application/adapter boundary and a minimal example;
 - `ROADMAP.md` with verified Phase 3 completion evidence and remaining Phase 4 adapters;
@@ -351,7 +351,7 @@ The slice is complete when:
 10. a deliberately broken host fails the relevant conformance cases;
 11. source stores remain outside the cognition host interfaces;
 12. package, compatibility, schema, source, CLI, and example checks pass; and
-13. independent final review finds no unresolved Critical or Important issue.
+13. independent final review finds no unresolved Critical or Important issue; this verification remains pending.
 
 ## Delivery Sequence
 
@@ -361,5 +361,5 @@ The slice is complete when:
 4. Add the in-memory store and collecting publisher.
 5. Extract and package the reusable conformance harness.
 6. Add package `0.3.0` compatibility artifacts.
-7. Update README, roadmap, examples, and package verification.
-8. Run focused tests, full local checks, independent review, and final verification.
+7. Update README, roadmap, examples, and package verification. Completed in package `0.3.0`.
+8. Run focused tests, full local checks, independent review, and final verification. Focused tests and local checks are complete; independent final review remains pending.

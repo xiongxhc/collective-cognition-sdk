@@ -4,7 +4,7 @@
 
 This document defines the normative compatibility policy for the Collective Cognition SDK. It separates portable serialized contracts from the installable package, public experimental APIs, and repository internals.
 
-The historical compatibility baseline `0.1.0` records the inaugural surface of the unpublished package `0.1.0`; it does not represent a migration from an earlier published release. The current baseline `0.2.0` records the additive Portable Cognition package surface while retaining the `0.1.0` baseline and SourceRecord artifacts byte-for-byte.
+The historical compatibility baseline `0.1.0` records the inaugural surface of the unpublished package `0.1.0`; it does not represent a migration from an earlier published release. Baseline `0.2.0` records the additive Portable Cognition package surface, and the current baseline `0.3.0` records the additive Host Integration package surface while retaining prior baselines and artifacts byte-for-byte. Package `0.3.0` remains private, unpublished, and not production-ready.
 
 The terms **MUST**, **MUST NOT**, **SHOULD**, and **MAY** express normative requirements.
 
@@ -12,7 +12,7 @@ The terms **MUST**, **MUST NOT**, **SHOULD**, and **MAY** express normative requ
 
 | Level | Meaning | Current surfaces |
 | --- | --- | --- |
-| Normative Stable | Portable behavior and immutable versioned artifacts on which implementations and stored data can rely. | SourceRecord `0.1.0` and Portable Cognition `0.1.0` prose, schemas, conformance fixtures, stable contract error codes, versioned artifact package subpaths, this policy, versioned compatibility baselines, change cases, and compatibility package subpaths. |
+| Normative Stable | Portable behavior and immutable versioned artifacts on which implementations and stored data can rely. | SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and Host Integration `0.1.0` prose, schemas or conformance fixtures where applicable, stable contract error codes, versioned artifact package subpaths, this policy, versioned compatibility baselines, change cases, and compatibility package subpaths. |
 | Supported Experimental | Public and tested package behavior that can evolve under this policy before `1.0.0`. | Root runtime exports, root TypeScript declarations, non-normative package subpaths, the `collective-cognition` executable, generic CLI behavior, and non-SourceRecord domain error codes. |
 | Internal | Repository implementation details with no compatibility promise. | Unexported source modules, source-specific connectors and entrypoints, examples, tests, scripts, plans, repository utilities, and generated layout beyond declared package entrypoints. |
 
@@ -157,7 +157,7 @@ Runtime warnings MAY be proposed in a later RFC that protects structured CLI con
 
 The versioned baseline records exact normative artifact digests, stable rule identifiers, package metadata, the emitted-file inventory, runtime and type exports, declaration closure, domain errors, CLI behavior, policy identities, and deprecations.
 
-Baseline `0.2.0` classifies the package change as additive with a minor package-version effect. It adds Portable Cognition `0.1.0` runtime, type, schema, and conformance entrypoints without removing or redirecting an existing package surface.
+Baseline `0.2.0` classifies the package change as additive with a minor package-version effect. It adds Portable Cognition `0.1.0` runtime, type, schema, and conformance entrypoints without removing or redirecting an existing package surface. Baseline `0.3.0` likewise classifies the additive Host Integration `0.1.0` runtime, type, contract, conformance, and reference-host subpaths without removing or redirecting an existing package surface.
 
 ### COMP-018 — Deliberate Baseline Updates
 
