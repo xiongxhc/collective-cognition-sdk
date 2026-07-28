@@ -159,6 +159,43 @@ class AliasVersionReadStore implements CognitionStore {
   }
 }
 
+class AliasLatestReadStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+  readonly #objects = new Map<string, PortableCognitiveObjectRecord>();
+
+  commitInitial(request: InitialCognitionCommit) {
+    return this.#store.commitInitial(request);
+  }
+
+  commitTransition(request: TransitionCognitionCommit) {
+    return this.#store.commitTransition(request);
+  }
+
+  async getLatestObject(
+    objectId: string,
+  ): Promise<PortableCognitiveObjectRecord | undefined> {
+    const existing = this.#objects.get(objectId);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const object = await this.#store.getLatestObject(objectId);
+    if (object === undefined) {
+      return undefined;
+    }
+    const alias = structuredClone(object) as PortableCognitiveObjectRecord;
+    this.#objects.set(objectId, alias);
+    return alias;
+  }
+
+  getObjectVersion(objectId: string, version: number) {
+    return this.#store.getObjectVersion(objectId, version);
+  }
+
+  listObjectEvents(objectId: string) {
+    return this.#store.listObjectEvents(objectId);
+  }
+}
+
 class AliasEventReadStore implements CognitionStore {
   readonly #store = new InMemoryCognitionStore();
   readonly #events = new Map<string, PortableCognitionEventRecord[]>();
@@ -191,6 +228,78 @@ class AliasEventReadStore implements CognitionStore {
     ) as PortableCognitionEventRecord[];
     this.#events.set(objectId, events);
     return events;
+  }
+}
+
+class CallerAliasingInitialStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+  readonly #initials = new Map<string, PortableCognitiveObjectRecord>();
+
+  async commitInitial(request: InitialCognitionCommit) {
+    const result = await this.#store.commitInitial(request);
+    if (result.status === "committed") {
+      this.#initials.set(request.object.payload.id, request.object);
+    }
+    return result;
+  }
+
+  commitTransition(request: TransitionCognitionCommit) {
+    return this.#store.commitTransition(request);
+  }
+
+  async getLatestObject(objectId: string) {
+    const latest = await this.#store.getLatestObject(objectId);
+    return latest?.payload.version === 1
+      ? this.#initials.get(objectId)
+      : latest;
+  }
+
+  getObjectVersion(objectId: string, version: number) {
+    return version === 1
+      ? Promise.resolve(this.#initials.get(objectId))
+      : this.#store.getObjectVersion(objectId, version);
+  }
+
+  listObjectEvents(objectId: string) {
+    return this.#store.listObjectEvents(objectId);
+  }
+}
+
+function shallowFreezeRecord<T>(record: T): T {
+  if (typeof record !== "object" || record === null) {
+    return record;
+  }
+  const value = structuredClone(record) as { payload?: unknown };
+  return Object.freeze({
+    ...value,
+    ...(value.payload === undefined ? {} : { payload: Object.freeze({ ...value.payload }) }),
+  }) as T;
+}
+
+class ShallowFrozenReadStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+
+  commitInitial(request: InitialCognitionCommit) {
+    return this.#store.commitInitial(request);
+  }
+
+  commitTransition(request: TransitionCognitionCommit) {
+    return this.#store.commitTransition(request);
+  }
+
+  async getLatestObject(objectId: string) {
+    const object = await this.#store.getLatestObject(objectId);
+    return object === undefined ? undefined : shallowFreezeRecord(object);
+  }
+
+  async getObjectVersion(objectId: string, version: number) {
+    const object = await this.#store.getObjectVersion(objectId, version);
+    return object === undefined ? undefined : shallowFreezeRecord(object);
+  }
+
+  async listObjectEvents(objectId: string) {
+    const events = await this.#store.listObjectEvents(objectId);
+    return Object.freeze(events.map(shallowFreezeRecord));
   }
 }
 
@@ -293,11 +402,15 @@ test("requires object and event read-back after successful and partial transitio
   );
 });
 
-test("rejects aliased version and event reads without aborting later cases", async () => {
-  for (const createStore of [
-    () => new AliasVersionReadStore(),
-    () => new AliasEventReadStore(),
-  ]) {
+test("rejects aliased latest, version, event, and caller reads without aborting", async () => {
+  const factories: readonly [string, () => CognitionStore][] = [
+    ["latest", () => new AliasLatestReadStore()],
+    ["version", () => new AliasVersionReadStore()],
+    ["event", () => new AliasEventReadStore()],
+    ["caller", () => new CallerAliasingInitialStore()],
+    ["shallow", () => new ShallowFrozenReadStore()],
+  ];
+  for (const [description, createStore] of factories) {
     const report = await runCognitionHostConformance({
       createStore,
       createPublisher: () => new InMemoryCognitionEventPublisher(),
@@ -306,10 +419,12 @@ test("rejects aliased version and event reads without aborting later cases", asy
     assert.equal(
       report.cases.find(({ id }) => id === "HIC-CONF-006")?.status,
       "failed",
+      description,
     );
     assert.equal(
       report.cases.find(({ id }) => id === "HIC-CONF-011")?.status,
       "passed",
+      description,
     );
   }
 });

@@ -40,6 +40,13 @@ function assertConformance(condition: unknown): asserts condition {
   }
 }
 
+function isDeepFrozen(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) {
+    return true;
+  }
+  return Object.isFrozen(value) && Object.values(value).every(isDeepFrozen);
+}
+
 function canonicalizeJson(value: JsonValue): string {
   if (value === null || typeof value === "boolean" || typeof value === "number") {
     return JSON.stringify(value);
@@ -81,7 +88,16 @@ function objectRecord({
       version: 1,
       state: "draft",
       title,
-      data: { objective: "Exercise the public host ports." },
+      data: {
+        objective: "Exercise the public host ports.",
+        nested: {
+          entries: [{
+            label: "nested conformance data",
+            tags: ["host", "conformance"],
+            metadata: { source: "harness" },
+          }],
+        },
+      },
       createdAt: "2026-07-28T10:00:00.000Z",
       updatedAt: "2026-07-28T10:00:00.000Z",
       attribution: {
@@ -95,7 +111,10 @@ function objectRecord({
         capturedAt: "2026-07-28T10:00:00.000Z",
       }],
       contextId: "organization:host-conformance",
-      relationships: [],
+      relationships: [{
+        type: "supports-goal",
+        targetId: "goal:host-conformance:parent",
+      }],
     }),
   }) as PortableCognitiveObjectRecord;
 }
@@ -228,6 +247,19 @@ const conformanceCases: readonly ConformanceCase[] = [
       ) as PortableCognitiveObjectRecord;
       assertConformance((await store.commitInitial({ object })).status === "committed");
       (object.payload as { title: string }).title = "Caller mutation";
+      (
+        object.payload.data as unknown as {
+          nested: { entries: { tags: string[] }[] };
+        }
+      ).nested.entries[0].tags[0] = "caller mutation";
+      (object.payload.provenance as unknown as { source: string }[])[0].source =
+        "caller mutation";
+      (object.payload.relationships as unknown as { targetId: string }[])[0].targetId =
+        "goal:caller-mutation";
+      const initialLatest = await store.getLatestObject(initial.payload.id);
+      const initialVersion = await store.getObjectVersion(initial.payload.id, 1);
+      assertConformance(initialLatest !== undefined && recordsMatch(initialLatest, initial));
+      assertConformance(initialVersion !== undefined && recordsMatch(initialVersion, initial));
       const transition = transitionCommit(initial, "event:host-conformance:immutable");
       assertConformance((await store.commitTransition(transition)).status === "committed");
       const latest = await store.getLatestObject(initial.payload.id);
@@ -236,23 +268,34 @@ const conformanceCases: readonly ConformanceCase[] = [
       assertConformance(latest !== undefined && recordsMatch(latest, transition.object));
       assertConformance(version !== undefined && recordsMatch(version, transition.object));
       assertConformance(events.length === 1 && recordsMatch(events[0], transition.event));
-      assertConformance(Object.isFrozen(latest));
-      assertConformance(Object.isFrozen(latest.payload));
-      assertConformance(Object.isFrozen(version));
-      assertConformance(Object.isFrozen(version.payload));
-      assertConformance(Object.isFrozen(events));
-      assertConformance(Object.isFrozen(events[0]));
-      assertConformance(Object.isFrozen(events[0].payload));
+      assertConformance(isDeepFrozen(latest));
+      assertConformance(isDeepFrozen(version));
+      assertConformance(isDeepFrozen(events));
       try {
         (latest.payload as { title: string }).title = "Latest mutation";
       } catch {
       }
       try {
-        (version.payload as { title: string }).title = "Version mutation";
+        (
+          version.payload.data as unknown as {
+            nested: { entries: { tags: string[] }[] };
+          }
+        ).nested.entries[0].tags[0] = "Version mutation";
       } catch {
       }
       try {
-        (events[0].payload as { rationale: string }).rationale = "Event mutation";
+        (latest.payload.provenance as unknown as { source: string }[])[0].source =
+          "Latest mutation";
+      } catch {
+      }
+      try {
+        (version.payload.relationships as unknown as { targetId: string }[])[0].targetId =
+          "goal:version-mutation";
+      } catch {
+      }
+      try {
+        (events[0].payload.provenance as unknown as { source: string }[])[0].source =
+          "Event mutation";
       } catch {
       }
       assertConformance(
