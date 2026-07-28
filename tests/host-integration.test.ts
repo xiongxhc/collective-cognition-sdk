@@ -2,23 +2,41 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  commitCognitionTransition,
   commitInitialCognition,
   createObject,
   createPortableCognitionRecord,
   deserializeObject,
   DomainError,
   DomainErrorCode,
+  transitionObject,
 } from "../src/index.ts";
 import type {
+  CognitionEventPublisher,
+  CognitionHost,
+  CognitionPublicationStatus,
   CognitionStore,
   CognitionStoreCommitResult,
   InitialCognitionCommit,
+  PortableCognitionEventRecord,
   PortableCognitiveObjectRecord,
+  TransitionCognitionCommit,
 } from "../src/index.ts";
 
 type InitialBehavior =
   | CognitionStoreCommitResult
   | ((request: InitialCognitionCommit) => CognitionStoreCommitResult | Promise<CognitionStoreCommitResult>);
+
+type TransitionBehavior =
+  | CognitionStoreCommitResult
+  | ((request: TransitionCognitionCommit) => CognitionStoreCommitResult | Promise<CognitionStoreCommitResult>);
+
+type PublicationBehavior =
+  | CognitionPublicationStatus
+  | ((
+      event: PortableCognitionEventRecord,
+      options: { readonly idempotencyKey: string },
+    ) => CognitionPublicationStatus | Promise<CognitionPublicationStatus>);
 
 function portableGoalRecord(
   overrides: Partial<{ readonly version: number }> = {},
@@ -81,6 +99,101 @@ function recordingStore(initialBehavior: InitialBehavior): CognitionStore & {
       return [];
     },
   };
+}
+
+function portableTransitionCommit(): TransitionCognitionCommit {
+  const previous = deserializeObject(JSON.stringify(portableGoalRecord().payload));
+  const transition = transitionObject(previous, "active", {
+    eventId: "event:goal-host-integration-active",
+    occurredAt: "2026-07-28T10:01:00.000Z",
+    initiator: { id: "human:creator", kind: "human" },
+    executor: { id: "human:creator", kind: "human" },
+    accountableParty: { id: "human:owner", kind: "human" },
+    automationMode: "manual",
+    consequenceLevel: "routine",
+    rationale: "Activate the host integration goal.",
+  });
+  return {
+    expectedVersion: 1,
+    object: createPortableCognitionRecord({
+      schemaVersion: "0.1.0",
+      recordType: "cognitive-object",
+      payload: transition.object,
+    }) as PortableCognitiveObjectRecord,
+    event: createPortableCognitionRecord({
+      schemaVersion: "0.1.0",
+      recordType: "cognition-event",
+      payload: transition.event,
+    }) as PortableCognitionEventRecord,
+  };
+}
+
+function portableEvent(
+  overrides: Record<string, unknown>,
+): PortableCognitionEventRecord {
+  const event = structuredClone(portableTransitionCommit().event) as unknown as {
+    payload: Record<string, unknown>;
+  };
+  return createPortableCognitionRecord({
+    schemaVersion: "0.1.0",
+    recordType: "cognition-event",
+    payload: { ...event.payload, ...overrides },
+  } as unknown as PortableCognitionEventRecord) as PortableCognitionEventRecord;
+}
+
+function recordingHost({
+  transitionBehavior = { status: "committed" },
+  publicationBehavior = "published",
+  onCommit,
+  onPublish,
+}: {
+  readonly transitionBehavior?: TransitionBehavior;
+  readonly publicationBehavior?: PublicationBehavior;
+  readonly onCommit?: () => void;
+  readonly onPublish?: () => void;
+} = {}): CognitionHost & {
+  readonly transitionCalls: TransitionCognitionCommit[];
+  readonly publishCalls: {
+    readonly event: PortableCognitionEventRecord;
+    readonly options: { readonly idempotencyKey: string };
+  }[];
+} {
+  const transitionCalls: TransitionCognitionCommit[] = [];
+  const publishCalls: {
+    event: PortableCognitionEventRecord;
+    options: { readonly idempotencyKey: string };
+  }[] = [];
+  const store: CognitionStore = {
+    async commitInitial() {
+      return { status: "committed" };
+    },
+    async commitTransition(request) {
+      transitionCalls.push(request);
+      onCommit?.();
+      return typeof transitionBehavior === "function"
+        ? transitionBehavior(request)
+        : transitionBehavior;
+    },
+    async getLatestObject() {
+      return undefined;
+    },
+    async getObjectVersion() {
+      return undefined;
+    },
+    async listObjectEvents() {
+      return [];
+    },
+  };
+  const publisher: CognitionEventPublisher = {
+    async publish(event, options) {
+      publishCalls.push({ event, options });
+      onPublish?.();
+      return typeof publicationBehavior === "function"
+        ? publicationBehavior(event, options)
+        : publicationBehavior;
+    },
+  };
+  return { store, publisher, transitionCalls, publishCalls };
 }
 
 function failedCommitOutcome() {
@@ -269,4 +382,179 @@ test("sanitizes host commit exceptions", async () => {
     },
   });
   assert.equal(JSON.stringify(outcome).includes("HOST_COMMIT_SECRET"), false);
+});
+
+test("stores a transition before publishing its event", async () => {
+  const calls: string[] = [];
+  const host = recordingHost({
+    onCommit: () => calls.push("commit"),
+    onPublish: () => calls.push("publish"),
+  });
+  const request = portableTransitionCommit();
+
+  const outcome = await commitCognitionTransition(host, request);
+
+  assert.equal(outcome.status, "committed");
+  assert.deepEqual(calls, ["commit", "publish"]);
+  assert.equal(host.publishCalls[0].options.idempotencyKey, request.event.payload.id);
+  assert.equal(Object.isFrozen(host.publishCalls[0].options), true);
+});
+
+test("commits only a coherent transition request", async () => {
+  const request = portableTransitionCommit();
+  const host = recordingHost();
+
+  const outcome = await commitCognitionTransition(host, request);
+
+  assert.equal(outcome.status, "committed");
+  assert.equal(outcome.object.payload.version, request.expectedVersion + 1);
+  assert.equal(outcome.event.payload.objectId, outcome.object.payload.id);
+  assert.equal(outcome.event.payload.objectType, outcome.object.payload.type);
+  assert.equal(outcome.event.payload.objectVersion, outcome.object.payload.version);
+  assert.equal(outcome.event.payload.nextState, outcome.object.payload.state);
+  assert.equal(outcome.event.payload.occurredAt, outcome.object.payload.updatedAt);
+});
+
+test("rejects every incoherent transition before invoking an adapter", async () => {
+  const request = portableTransitionCommit();
+  const invalidRequests: TransitionCognitionCommit[] = [
+    { ...request, expectedVersion: 0 },
+    { ...request, expectedVersion: Number.MAX_SAFE_INTEGER + 1 },
+    { ...request, object: portableGoalRecord({ version: 1 }) },
+    { ...request, event: portableEvent({ objectId: "goal:other" }) },
+    {
+      ...request,
+      event: portableEvent({
+        objectType: "identity",
+        previousState: "active",
+        nextState: "inactive",
+        type: "IdentityInactive",
+      }),
+    },
+    { ...request, event: portableEvent({ objectVersion: 3 }) },
+    {
+      ...request,
+      event: portableEvent({
+        previousState: "active",
+        nextState: "at_risk",
+        type: "GoalAtRisk",
+      }),
+    },
+    { ...request, event: portableEvent({ occurredAt: "2026-07-28T10:02:00.000Z" }) },
+  ];
+
+  for (const invalidRequest of invalidRequests) {
+    const host = recordingHost();
+    await assert.rejects(
+      commitCognitionTransition(host, invalidRequest),
+      (error: unknown) =>
+        error instanceof DomainError &&
+        error.code === DomainErrorCode.INVALID_HOST_INTEGRATION_REQUEST,
+    );
+    assert.equal(host.transitionCalls.length, 0);
+    assert.equal(host.publishCalls.length, 0);
+  }
+});
+
+test("does not publish a store conflict", async () => {
+  const host = recordingHost({
+    transitionBehavior: {
+      status: "conflict",
+      conflict: {
+        code: "version_conflict",
+        objectId: "goal:host-integration",
+        expectedVersion: 1,
+        actualVersion: 2,
+      },
+    },
+  });
+
+  const outcome = await commitCognitionTransition(host, portableTransitionCommit());
+
+  assert.equal(outcome.status, "conflict");
+  assert.equal(host.publishCalls.length, 0);
+});
+
+test("returns a failed outcome without publishing when the store throws", async () => {
+  const host = recordingHost({
+    transitionBehavior: () => {
+      throw new Error("HOST_STORE_SECRET");
+    },
+  });
+
+  const outcome = await commitCognitionTransition(host, portableTransitionCommit());
+
+  assert.equal(outcome.status, "failed");
+  assert.equal(outcome.error.code, "HOST_COMMIT_FAILED");
+  assert.equal(host.publishCalls.length, 0);
+  assert.equal(JSON.stringify(outcome).includes("HOST_STORE_SECRET"), false);
+});
+
+test("preserves successful publication statuses", async () => {
+  for (const publicationBehavior of ["published", "already_published"] as const) {
+    const host = recordingHost({ publicationBehavior });
+
+    const outcome = await commitCognitionTransition(host, portableTransitionCommit());
+
+    assert.deepEqual(outcome.status, "committed");
+    if (outcome.status === "committed") {
+      assert.equal(outcome.persistence, "committed");
+      assert.equal(outcome.publication, publicationBehavior);
+    }
+  }
+});
+
+test("returns a frozen partial success when publication throws", async () => {
+  const request = portableTransitionCommit();
+  const host = recordingHost({
+    publicationBehavior: () => {
+      throw new Error("HOST_PUBLICATION_SECRET");
+    },
+  });
+
+  const outcome = await commitCognitionTransition(host, request);
+
+  assert.equal(outcome.status, "committed_but_unpublished");
+  if (outcome.status === "committed_but_unpublished") {
+    assert.equal(outcome.error.code, "HOST_PUBLICATION_FAILED");
+    assert.equal(Object.isFrozen(outcome.object), true);
+    assert.equal(Object.isFrozen(outcome.event), true);
+    assert.notStrictEqual(outcome.object, request.object);
+    assert.notStrictEqual(outcome.event, request.event);
+  }
+  assert.equal(JSON.stringify(outcome).includes("HOST_PUBLICATION_SECRET"), false);
+});
+
+test("recovers an identical request after publication failure", async () => {
+  const request = portableTransitionCommit();
+  let retried = false;
+  const host = recordingHost({
+    transitionBehavior: () => {
+      const status = retried ? "already_committed" : "committed";
+      retried = true;
+      return { status };
+    },
+    publicationBehavior: (() => {
+      let failed = false;
+      return () => {
+        if (!failed) {
+          failed = true;
+          throw new Error("HOST_PUBLICATION_SECRET");
+        }
+        return "published";
+      };
+    })(),
+  });
+
+  const first = await commitCognitionTransition(host, request);
+  const retry = await commitCognitionTransition(host, request);
+
+  assert.equal(first.status, "committed_but_unpublished");
+  assert.equal(retry.status, "committed");
+  if (retry.status === "committed") {
+    assert.equal(retry.persistence, "already_committed");
+    assert.equal(retry.publication, "published");
+  }
+  assert.equal(host.transitionCalls.length, 2);
+  assert.equal(host.publishCalls.length, 2);
 });

@@ -34,6 +34,7 @@ export {
 export { evaluateAuthorization } from "./authorization.ts";
 export { transitionObject } from "./transitions.ts";
 export {
+  commitCognitionTransition,
   commitInitialCognition,
   HostFailureCode,
   HOST_INTEGRATION_CONTRACT_VERSION,
@@ -110,6 +111,8 @@ export type {
 } from "./portable-cognition.ts";
 export type { TransitionResult } from "./transitions.ts";
 export type {
+  CognitionEventPublisher,
+  CognitionHost,
   CognitionPersistenceStatus,
   CognitionPublicationStatus,
   CognitionStore,
@@ -121,5 +124,6 @@ export type {
   InitialCommitOutcome,
   PortableCognitionEventRecord,
   PortableCognitiveObjectRecord,
+  TransitionCommitOutcome,
   TransitionCognitionCommit,
 } from "./host-integration.ts";

@@ -82,11 +82,41 @@ export interface CognitionStore {
   ): Promise<readonly PortableCognitionEventRecord[]>;
 }
 
+export interface CognitionEventPublisher {
+  publish(
+    event: PortableCognitionEventRecord,
+    options: { readonly idempotencyKey: string },
+  ): Promise<CognitionPublicationStatus>;
+}
+
+export interface CognitionHost {
+  readonly store: CognitionStore;
+  readonly publisher: CognitionEventPublisher;
+}
+
 export type InitialCommitOutcome =
   | {
       readonly status: "committed";
       readonly persistence: CognitionPersistenceStatus;
       readonly object: PortableCognitiveObjectRecord;
+    }
+  | { readonly status: "conflict"; readonly conflict: HostConflict }
+  | { readonly status: "failed"; readonly error: HostFailure };
+
+export type TransitionCommitOutcome =
+  | {
+      readonly status: "committed";
+      readonly persistence: CognitionPersistenceStatus;
+      readonly publication: CognitionPublicationStatus;
+      readonly object: PortableCognitiveObjectRecord;
+      readonly event: PortableCognitionEventRecord;
+    }
+  | {
+      readonly status: "committed_but_unpublished";
+      readonly persistence: CognitionPersistenceStatus;
+      readonly object: PortableCognitiveObjectRecord;
+      readonly event: PortableCognitionEventRecord;
+      readonly error: HostFailure;
     }
   | { readonly status: "conflict"; readonly conflict: HostConflict }
   | { readonly status: "failed"; readonly error: HostFailure };
@@ -217,6 +247,14 @@ function snapshotCommitResult(
     : Object.freeze({ status: "conflict", conflict });
 }
 
+function snapshotPublicationStatus(
+  value: unknown,
+): CognitionPublicationStatus | undefined {
+  return value === "published" || value === "already_published"
+    ? value
+    : undefined;
+}
+
 function snapshotInitialObject(
   request: InitialCognitionCommit,
 ): PortableCognitiveObjectRecord {
@@ -240,6 +278,56 @@ function snapshotInitialObject(
   return object;
 }
 
+function snapshotTransitionCommit(
+  request: TransitionCognitionCommit,
+): TransitionCognitionCommit {
+  let expectedVersion: number;
+  let objectInput: PortableCognitiveObjectRecord;
+  let eventInput: PortableCognitionEventRecord;
+  try {
+    expectedVersion = request.expectedVersion;
+    objectInput = request.object;
+    eventInput = request.event;
+  } catch {
+    invalidHostIntegrationRequest();
+  }
+
+  if (
+    !Number.isSafeInteger(expectedVersion) ||
+    expectedVersion <= 0
+  ) {
+    invalidHostIntegrationRequest();
+  }
+
+  let object: PortableCognitiveObjectRecord;
+  let event: PortableCognitionEventRecord;
+  try {
+    object = createPortableCognitionRecord(
+      objectInput,
+    ) as PortableCognitiveObjectRecord;
+    event = createPortableCognitionRecord(
+      eventInput,
+    ) as PortableCognitionEventRecord;
+  } catch {
+    invalidHostIntegrationRequest();
+  }
+
+  if (
+    object.recordType !== "cognitive-object" ||
+    event.recordType !== "cognition-event" ||
+    object.payload.version !== expectedVersion + 1 ||
+    event.payload.objectId !== object.payload.id ||
+    event.payload.objectType !== object.payload.type ||
+    event.payload.objectVersion !== object.payload.version ||
+    event.payload.nextState !== object.payload.state ||
+    event.payload.occurredAt !== object.payload.updatedAt
+  ) {
+    invalidHostIntegrationRequest();
+  }
+
+  return Object.freeze({ expectedVersion, object, event });
+}
+
 function failedInitialCommit(objectId: string): InitialCommitOutcome {
   return Object.freeze({
     status: "failed",
@@ -247,6 +335,38 @@ function failedInitialCommit(objectId: string): InitialCommitOutcome {
       code: HostFailureCode.COMMIT_FAILED,
       message: "Cognition commit failed.",
       objectId,
+    }),
+  });
+}
+
+function failedTransitionCommit(
+  objectId: string,
+): TransitionCommitOutcome {
+  return Object.freeze({
+    status: "failed",
+    error: Object.freeze({
+      code: HostFailureCode.COMMIT_FAILED,
+      message: "Cognition commit failed.",
+      objectId,
+    }),
+  });
+}
+
+function unpublishedTransitionCommit(
+  persistence: CognitionPersistenceStatus,
+  object: PortableCognitiveObjectRecord,
+  event: PortableCognitionEventRecord,
+): TransitionCommitOutcome {
+  return Object.freeze({
+    status: "committed_but_unpublished",
+    persistence,
+    object,
+    event,
+    error: Object.freeze({
+      code: HostFailureCode.PUBLICATION_FAILED,
+      message: "Cognition publication failed.",
+      objectId: object.payload.id,
+      eventId: event.payload.id,
     }),
   });
 }
@@ -273,5 +393,48 @@ export async function commitInitialCognition(
     });
   } catch {
     return failedInitialCommit(object.payload.id);
+  }
+}
+
+export async function commitCognitionTransition(
+  host: CognitionHost,
+  request: TransitionCognitionCommit,
+): Promise<TransitionCommitOutcome> {
+  const hostRequest = snapshotTransitionCommit(request);
+  const { object, event } = hostRequest;
+
+  let persistence: CognitionPersistenceStatus;
+  try {
+    const result = snapshotCommitResult(
+      await host.store.commitTransition(hostRequest),
+    );
+    if (result === undefined) {
+      return failedTransitionCommit(object.payload.id);
+    }
+    if (result.status === "conflict") {
+      return Object.freeze({ status: "conflict", conflict: result.conflict });
+    }
+    persistence = result.status;
+  } catch {
+    return failedTransitionCommit(object.payload.id);
+  }
+
+  const options = Object.freeze({ idempotencyKey: event.payload.id });
+  try {
+    const publication = snapshotPublicationStatus(
+      await host.publisher.publish(event, options),
+    );
+    if (publication === undefined) {
+      return unpublishedTransitionCommit(persistence, object, event);
+    }
+    return Object.freeze({
+      status: "committed",
+      persistence,
+      publication,
+      object,
+      event,
+    });
+  } catch {
+    return unpublishedTransitionCommit(persistence, object, event);
   }
 }
