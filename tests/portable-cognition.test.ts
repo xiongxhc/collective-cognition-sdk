@@ -545,9 +545,9 @@ test("keeps the Portable Cognition 0.1.0 error-code allowlist fixed", async () =
     "PROMOTION_FAILED",
     "INVALID_PORTABLE_COGNITION_RECORD",
   ] as const;
-  assert.deepEqual(Object.values(DomainErrorCode), expectedCodes);
 
   const futureCode = "UNRELATED_FUTURE_ERROR";
+  const hostIntegrationCode = DomainErrorCode.INVALID_HOST_INTEGRATION_REQUEST;
   const mutableDomainErrorCode = DomainErrorCode as unknown as Record<
     string,
     string
@@ -569,19 +569,21 @@ test("keeps the Portable Cognition 0.1.0 error-code allowlist fixed", async () =
         }),
       );
     }
-    assert.throws(
-      () =>
-        freshRuntime.validatePortableCognitionRecord({
-          schemaVersion: "0.1.0",
-          recordType: "domain-error",
-          payload: {
-            code: futureCode,
-            message: "Future error.",
-            details: {},
-          },
-        }),
-      isPortableRecordError,
-    );
+    for (const code of [futureCode, hostIntegrationCode]) {
+      assert.throws(
+        () =>
+          freshRuntime.validatePortableCognitionRecord({
+            schemaVersion: "0.1.0",
+            recordType: "domain-error",
+            payload: {
+              code,
+              message: "Future error.",
+              details: {},
+            },
+          }),
+        isPortableRecordError,
+      );
+    }
   } finally {
     delete mutableDomainErrorCode.UNRELATED_FUTURE_ERROR;
   }
