@@ -1,6 +1,6 @@
 {
   "name": "collective-cognition-sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Portable cognitive objects, provenance, lifecycle, and governance boundaries for long-term human-AI collaboration.",
   "private": true,
   "license": "Apache-2.0",
@@ -15,6 +15,16 @@
     },
     "./compatibility/0.1.0": "./spec/compatibility/0.1.0/baseline.json",
     "./compatibility/0.2.0": "./spec/compatibility/0.2.0/baseline.json",
+    "./compatibility/0.3.0": "./spec/compatibility/0.3.0/baseline.json",
+    "./contracts/host-integration/0.1.0": "./spec/host-integration.md",
+    "./host-conformance/0.1.0": {
+      "types": "./dist/host-conformance.d.ts",
+      "import": "./dist/host-conformance.js"
+    },
+    "./reference-host/0.1.0": {
+      "types": "./dist/reference-host.d.ts",
+      "import": "./dist/reference-host.js"
+    },
     "./schemas/source-record/0.1.0": "./spec/schemas/0.1.0/source-record.schema.json",
     "./schemas/portable-cognition/0.1.0": "./spec/schemas/0.1.0/portable-cognition.schema.json",
     "./conformance/portable-cognition/0.1.0/valid": "./spec/conformance/0.1.0/portable-cognition/valid.jsonl",
@@ -35,12 +45,16 @@
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
     "rfcs/0003-portable-cognition-contract.md",
+    "rfcs/0004-host-integration-contract.md",
     "spec/README.md",
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
     "spec/compatibility/0.1.0/change-cases.jsonl",
     "spec/compatibility/0.2.0/baseline.json",
     "spec/compatibility/0.2.0/change-cases.jsonl",
+    "spec/compatibility/0.3.0/baseline.json",
+    "spec/compatibility/0.3.0/change-cases.jsonl",
+    "spec/host-integration.md",
     "spec/source-record.md",
     "spec/portable-cognition.md",
     "spec/schemas/0.1.0/source-record.schema.json",

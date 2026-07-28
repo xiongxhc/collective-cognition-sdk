@@ -33,13 +33,17 @@ const historicalBaselineUrl = new URL(
   "../spec/compatibility/0.1.0/baseline.json",
   import.meta.url,
 );
-const currentBaselineUrl = new URL(
+const previousBaselineUrl = new URL(
   "../spec/compatibility/0.2.0/baseline.json",
+  import.meta.url,
+);
+const currentBaselineUrl = new URL(
+  "../spec/compatibility/0.3.0/baseline.json",
   import.meta.url,
 );
 const expectedHistoricalBaselineSha256 =
   "4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b";
-const expectedCurrentBaselineSha256 =
+const expectedPreviousBaselineSha256 =
   "3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4";
 
 function sha256(value) {
@@ -295,11 +299,18 @@ test("historical baseline 0.1.0 remains immutable", () => {
   );
 });
 
-test("current baseline describes additive package 0.2.0", () => {
+test("historical baseline 0.2.0 remains immutable", () => {
+  assert.equal(
+    sha256(readFileSync(previousBaselineUrl)),
+    expectedPreviousBaselineSha256,
+  );
+});
+
+test("current baseline describes additive package 0.3.0", () => {
   const baseline = readJson(currentBaselineUrl);
 
-  assert.equal(baseline.baselineVersion, "0.2.0");
-  assert.equal(baseline.appliesToPackageVersion, "0.2.0");
+  assert.equal(baseline.baselineVersion, "0.3.0");
+  assert.equal(baseline.appliesToPackageVersion, "0.3.0");
   assert.deepEqual(baseline.packageChange, {
     classification: "additive",
     packageVersionEffect: "minor",
@@ -308,6 +319,10 @@ test("current baseline describes additive package 0.2.0", () => {
     "0.1.0": {
       path: "spec/compatibility/0.1.0/baseline.json",
       sha256: expectedHistoricalBaselineSha256,
+    },
+    "0.2.0": {
+      path: "spec/compatibility/0.2.0/baseline.json",
+      sha256: expectedPreviousBaselineSha256,
     },
   });
   assert.deepEqual(baseline.deprecations, []);
@@ -330,13 +345,6 @@ test("current baseline describes additive package 0.2.0", () => {
   ]);
 });
 
-test("current baseline 0.2.0 remains immutable", () => {
-  assert.equal(
-    sha256(readFileSync(currentBaselineUrl)),
-    expectedCurrentBaselineSha256,
-  );
-});
-
 test("normative machine artifacts match exact digests", () => {
   const baseline = readJson(currentBaselineUrl);
   const normativeContracts = [
@@ -355,6 +363,7 @@ test("normative machine artifacts match exact digests", () => {
     [
       "spec/compatibility/0.1.0/change-cases.jsonl",
       "spec/compatibility/0.2.0/change-cases.jsonl",
+      "spec/compatibility/0.3.0/change-cases.jsonl",
       "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
       "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
       "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
@@ -401,6 +410,42 @@ test("normative prose matches its hash and stable rule identifiers", () => {
     ruleIds("spec/compatibility.md", "COMP"),
     baseline.normative.compatibility.ruleIds,
   );
+  assert.deepEqual(baseline.normative.hostIntegration, {
+    version: "0.1.0",
+    prosePath: "spec/host-integration.md",
+    proseSha256: sha256(
+      readFileSync(
+        new URL("spec/host-integration.md", repositoryRoot),
+      ),
+    ),
+    ruleIds: [
+      "HIC-001",
+      "HIC-002",
+      "HIC-003",
+      "HIC-004",
+      "HIC-005",
+      "HIC-006",
+      "HIC-007",
+      "HIC-008",
+      "HIC-009",
+      "HIC-010",
+      "HIC-011",
+      "HIC-012",
+      "HIC-013",
+      "HIC-014",
+      "HIC-015",
+      "HIC-016",
+    ],
+    packageSubpaths: {
+      contract: "./contracts/host-integration/0.1.0",
+      conformance: "./host-conformance/0.1.0",
+      referenceHost: "./reference-host/0.1.0",
+    },
+  });
+  assert.deepEqual(
+    ruleIds("spec/host-integration.md", "HIC"),
+    baseline.normative.hostIntegration.ruleIds,
+  );
 });
 
 test("root runtime and domain error inventories match exactly", () => {
@@ -417,17 +462,44 @@ test("root runtime and domain error inventories match exactly", () => {
   assert.deepEqual(
     baseline.package.normativeStableErrorCodes,
     [
+      "INVALID_HOST_INTEGRATION_REQUEST",
       "INVALID_PORTABLE_COGNITION_RECORD",
       "INVALID_SOURCE_RECORD",
       "SOURCE_REVISION_COLLISION",
     ],
   );
+  assert.equal(publicApi.HOST_INTEGRATION_CONTRACT_VERSION, "0.1.0");
+  assert.deepEqual(publicApi.HostFailureCode, {
+    COMMIT_FAILED: "HOST_COMMIT_FAILED",
+    PUBLICATION_FAILED: "HOST_PUBLICATION_FAILED",
+  });
+  assert.equal(typeof publicApi.commitInitialCognition, "function");
+  assert.equal(typeof publicApi.commitCognitionTransition, "function");
   assert.ok(
     Object.keys(publicApi).every(
       (name) => !/team|git|connector|adapter/i.test(name),
     ),
   );
   assert.deepEqual(sourceTypeExports(), baseline.package.typeExports);
+  assert.ok(
+    [
+      "CognitionEventPublisher",
+      "CognitionHost",
+      "CognitionPersistenceStatus",
+      "CognitionPublicationStatus",
+      "CognitionStore",
+      "CognitionStoreCommitResult",
+      "HostConflict",
+      "HostConflictCode",
+      "HostFailure",
+      "InitialCognitionCommit",
+      "InitialCommitOutcome",
+      "PortableCognitionEventRecord",
+      "PortableCognitiveObjectRecord",
+      "TransitionCognitionCommit",
+      "TransitionCommitOutcome",
+    ].every((name) => baseline.package.typeExports.includes(name)),
+  );
 });
 
 test("root-reachable declaration closure matches exact digest", () => {
@@ -539,8 +611,14 @@ test("package compatibility metadata matches exactly", () => {
 
 test("CLI registry matches the exact baseline", () => {
   const baseline = readJson(currentBaselineUrl);
+  const previousBaseline = readJson(previousBaselineUrl);
 
   assert.deepEqual(CLI_CONTRACT, baseline.cli);
+  assert.deepEqual(baseline.cli, previousBaseline.cli);
+  assert.deepEqual(
+    baseline.package.policyIdentities,
+    previousBaseline.package.policyIdentities,
+  );
 });
 
 test("CLI and SDK promotion policy identities remain linked", () => {
@@ -573,7 +651,7 @@ test("CLI and SDK promotion policy identities remain linked", () => {
 test("change cases exercise additive and breaking process rules", () => {
   const cases = readJsonLines(
     new URL(
-      "../spec/compatibility/0.2.0/change-cases.jsonl",
+      "../spec/compatibility/0.3.0/change-cases.jsonl",
       import.meta.url,
     ),
   );
@@ -588,9 +666,9 @@ test("change cases exercise additive and breaking process rules", () => {
 
   assert.deepEqual(cases, [
     {
-      id: "additive-portable-cognition-package",
+      id: "additive-host-integration-boundary",
       description:
-        "Add Portable Cognition 0.1.0 runtime exports, schema, conformance fixtures, and package subpaths while preserving every existing SourceRecord and package surface.",
+        "Add Host Integration 0.1.0 runtime exports, public types, contract prose, reference host, conformance runner, and package subpaths while preserving every existing package surface.",
       surface: "supported-experimental",
       classification: "additive",
       packageVersionEffect: "minor",
@@ -598,7 +676,7 @@ test("change cases exercise additive and breaking process rules", () => {
       requiresMigrationNotes: false,
       requiresDeprecation: false,
       rationale:
-        "Existing imports, SourceRecord artifacts, CLI behavior, and policy identities remain available with unchanged meaning while consumers may opt into the new contract.",
+        "Existing imports, normative artifacts, CLI behavior, and policy identities remain available with unchanged meaning while consumers may opt into the host boundary.",
     },
     {
       id: "breaking-remove-root-export",

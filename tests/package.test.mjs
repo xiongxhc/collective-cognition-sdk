@@ -24,7 +24,7 @@ const distCliUrl = new URL("../dist/cli.js", import.meta.url);
 const packageJsonUrl = new URL("../package.json", import.meta.url);
 const packageLockUrl = new URL("../package-lock.json", import.meta.url);
 const compatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.2.0/baseline.json",
+  "../spec/compatibility/0.3.0/baseline.json",
   import.meta.url,
 );
 const licenseUrl = new URL("../LICENSE", import.meta.url);
@@ -41,11 +41,15 @@ const validFixturesUrl = new URL(
 const expectedRuntimeExports = [
   "DomainError",
   "DomainErrorCode",
+  "HOST_INTEGRATION_CONTRACT_VERSION",
+  "HostFailureCode",
   "PORTABLE_COGNITION_MAX_JSON_DEPTH",
   "PORTABLE_COGNITION_SCHEMA_VERSION",
   "SOURCE_RECORD_MAX_JSON_DEPTH",
   "SOURCE_RECORD_SCHEMA_VERSION",
   "canonicalizeJson",
+  "commitCognitionTransition",
+  "commitInitialCognition",
   "createObject",
   "createPortableCognitionRecord",
   "createSourceRecord",
@@ -158,9 +162,9 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   const baseline = JSON.parse(
     readFileSync(compatibilityBaselineUrl, "utf8"),
   );
-  assert.equal(packageJson.version, "0.2.0");
-  assert.equal(packageLock.version, "0.2.0");
-  assert.equal(packageLock.packages[""].version, "0.2.0");
+  assert.equal(packageJson.version, "0.3.0");
+  assert.equal(packageLock.version, "0.3.0");
+  assert.equal(packageLock.packages[""].version, "0.3.0");
   assert.equal(
     packageJson.scripts["test:schema"],
     "node --test tests/schema-conformance.test.mjs tests/portable-cognition-schema.test.mjs",
@@ -184,6 +188,18 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       "./spec/compatibility/0.1.0/baseline.json",
     "./compatibility/0.2.0":
       "./spec/compatibility/0.2.0/baseline.json",
+    "./compatibility/0.3.0":
+      "./spec/compatibility/0.3.0/baseline.json",
+    "./contracts/host-integration/0.1.0":
+      "./spec/host-integration.md",
+    "./host-conformance/0.1.0": {
+      types: "./dist/host-conformance.d.ts",
+      import: "./dist/host-conformance.js",
+    },
+    "./reference-host/0.1.0": {
+      types: "./dist/reference-host.d.ts",
+      import: "./dist/reference-host.js",
+    },
     "./schemas/source-record/0.1.0":
       "./spec/schemas/0.1.0/source-record.schema.json",
     "./schemas/portable-cognition/0.1.0":
@@ -206,12 +222,16 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
     "rfcs/0003-portable-cognition-contract.md",
+    "rfcs/0004-host-integration-contract.md",
     "spec/README.md",
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
     "spec/compatibility/0.1.0/change-cases.jsonl",
     "spec/compatibility/0.2.0/baseline.json",
     "spec/compatibility/0.2.0/change-cases.jsonl",
+    "spec/compatibility/0.3.0/baseline.json",
+    "spec/compatibility/0.3.0/change-cases.jsonl",
+    "spec/host-integration.md",
     "spec/source-record.md",
     "spec/portable-cognition.md",
     "spec/schemas/0.1.0/source-record.schema.json",
@@ -265,6 +285,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
     "rfcs/0003-portable-cognition-contract.md",
+    "rfcs/0004-host-integration-contract.md",
     "rfcs/README.md",
     "spec/README.md",
     "spec/compatibility.md",
@@ -272,11 +293,14 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.1.0/change-cases.jsonl",
     "spec/compatibility/0.2.0/baseline.json",
     "spec/compatibility/0.2.0/change-cases.jsonl",
+    "spec/compatibility/0.3.0/baseline.json",
+    "spec/compatibility/0.3.0/change-cases.jsonl",
     "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
     "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
     "spec/conformance/0.1.0/source-record/invalid.jsonl",
     "spec/conformance/0.1.0/source-record/valid.jsonl",
+    "spec/host-integration.md",
     "spec/portable-cognition.md",
     "spec/schemas/0.1.0/portable-cognition.schema.json",
     "spec/schemas/0.1.0/source-record.schema.json",
@@ -284,6 +308,14 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   ].sort();
 
   assert.deepEqual(paths, expectedPaths, "package contents must match allowlist");
+  assert.ok(
+    paths.every(
+      (path) =>
+        !/^(?:src|tests|examples|docs)\//.test(path) &&
+        !/(?:adapter|connector|git-commit|team-memory|teammem)/i.test(path),
+    ),
+    "package must exclude source tests, design documents, connectors, and adapters",
+  );
   assert.equal(statSync(distRoot).isDirectory(), true);
 });
 
@@ -339,11 +371,41 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
   writeFileSync(
     `${consumerRoot}/index.ts`,
     `import {
+  HOST_INTEGRATION_CONTRACT_VERSION,
+  HostFailureCode,
+  commitCognitionTransition,
+  commitInitialCognition,
   createPortableCognitionRecord,
   deserializePortableCognitionRecord,
   serializePortableCognitionRecord,
+  type CognitionEventPublisher,
+  type CognitionHost,
+  type CognitionPersistenceStatus,
+  type CognitionPublicationStatus,
+  type CognitionStore,
+  type CognitionStoreCommitResult,
+  type HostConflict,
+  type HostConflictCode,
+  type HostFailure,
+  type HostFailureCode as HostFailureCodeType,
+  type InitialCognitionCommit,
+  type InitialCommitOutcome,
+  type PortableCognitionEventRecord,
   type PortableCognitionRecord,
+  type PortableCognitiveObjectRecord,
+  type TransitionCognitionCommit,
+  type TransitionCommitOutcome,
 } from ${JSON.stringify(packageJson.name)};
+import {
+  InMemoryCognitionEventPublisher,
+  InMemoryCognitionStore,
+} from ${JSON.stringify(`${packageJson.name}/reference-host/0.1.0`)};
+import {
+  runCognitionHostConformance,
+  type CognitionHostConformanceCaseResult,
+  type CognitionHostConformanceFactory,
+  type CognitionHostConformanceReport,
+} from ${JSON.stringify(`${packageJson.name}/host-conformance/0.1.0`)};
 
 function roundTrip(record: PortableCognitionRecord) {
   return deserializePortableCognitionRecord(
@@ -353,19 +415,62 @@ function roundTrip(record: PortableCognitionRecord) {
   );
 }
 
+type HostTypes =
+  | CognitionEventPublisher
+  | CognitionHost
+  | CognitionPersistenceStatus
+  | CognitionPublicationStatus
+  | CognitionStore
+  | CognitionStoreCommitResult
+  | HostConflict
+  | HostConflictCode
+  | HostFailure
+  | HostFailureCodeType
+  | InitialCognitionCommit
+  | InitialCommitOutcome
+  | PortableCognitionEventRecord
+  | PortableCognitiveObjectRecord
+  | TransitionCognitionCommit
+  | TransitionCommitOutcome
+  | CognitionHostConformanceCaseResult
+  | CognitionHostConformanceFactory
+  | CognitionHostConformanceReport;
+
 void roundTrip;
+void (undefined as unknown as HostTypes);
+void HOST_INTEGRATION_CONTRACT_VERSION;
+void HostFailureCode;
+void commitCognitionTransition;
+void commitInitialCognition;
+void InMemoryCognitionEventPublisher;
+void InMemoryCognitionStore;
+void runCognitionHostConformance;
 `,
     "utf8",
   );
   writeFileSync(
     `${consumerRoot}/consumer.mjs`,
     `import {
+  HOST_INTEGRATION_CONTRACT_VERSION,
+  HostFailureCode,
+  commitCognitionTransition,
+  commitInitialCognition,
   createPortableCognitionRecord,
   deserializePortableCognitionRecord,
   serializePortableCognitionRecord,
 } from ${JSON.stringify(packageJson.name)};
+import {
+  InMemoryCognitionEventPublisher,
+  InMemoryCognitionStore,
+} from ${JSON.stringify(`${packageJson.name}/reference-host/0.1.0`)};
+import {
+  runCognitionHostConformance,
+} from ${JSON.stringify(`${packageJson.name}/host-conformance/0.1.0`)};
 import { readFileSync } from "node:fs";
 
+const contractUrl = import.meta.resolve(
+  ${JSON.stringify(`${packageJson.name}/contracts/host-integration/0.1.0`)},
+);
 const schemaUrl = import.meta.resolve(
   ${JSON.stringify(`${packageJson.name}/schemas/portable-cognition/0.1.0`)},
 );
@@ -373,6 +478,7 @@ const fixturesUrl = import.meta.resolve(
   ${JSON.stringify(`${packageJson.name}/conformance/portable-cognition/0.1.0/valid`)},
 );
 const portableSchema = JSON.parse(readFileSync(new URL(schemaUrl), "utf8"));
+const hostContract = readFileSync(new URL(contractUrl), "utf8");
 const validRecords = readFileSync(new URL(fixturesUrl), "utf8")
   .trim()
   .split("\\n")
@@ -382,7 +488,22 @@ const record = createPortableCognitionRecord(validRecords[0]);
 const restored = deserializePortableCognitionRecord(
   serializePortableCognitionRecord(record),
 );
-console.log(portableSchema.$id, restored.recordType);
+console.log(JSON.stringify({
+  schemaId: portableSchema.$id,
+  recordType: restored.recordType,
+  contractVersion: HOST_INTEGRATION_CONTRACT_VERSION,
+  commitFailure: HostFailureCode.COMMIT_FAILED,
+  contractReadable:
+    hostContract.includes("# Host Integration Contract 0.1.0") &&
+    hostContract.includes("HIC-016"),
+  runtimeTypes: [
+    typeof commitCognitionTransition,
+    typeof commitInitialCognition,
+    typeof InMemoryCognitionEventPublisher,
+    typeof InMemoryCognitionStore,
+    typeof runCognitionHostConformance,
+  ],
+}));
 `,
     "utf8",
   );
@@ -447,10 +568,21 @@ console.log(portableSchema.$id, restored.recordType);
       },
     );
     assert.equal(consumed.status, 0, consumed.stderr);
-    assert.equal(
-      consumed.stdout.trim(),
-      "urn:collective-cognition:schema:portable-cognition:0.1.0 cognitive-object",
-    );
+    assert.deepEqual(JSON.parse(consumed.stdout.trim()), {
+      schemaId:
+        "urn:collective-cognition:schema:portable-cognition:0.1.0",
+      recordType: "cognitive-object",
+      contractVersion: "0.1.0",
+      commitFailure: "HOST_COMMIT_FAILED",
+      contractReadable: true,
+      runtimeTypes: [
+        "function",
+        "function",
+        "function",
+        "function",
+        "function",
+      ],
+    });
 
     const imported = spawnSync(
       process.execPath,
@@ -522,7 +654,7 @@ console.log(JSON.stringify({
         "--input-type=module",
         "--eval",
         `import { readFile } from "node:fs/promises";
-const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.2.0`)});
+const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.3.0`)});
 const baseline = JSON.parse(await readFile(new URL(baselineUrl), "utf8"));
 const changeCases = (await readFile(new URL("./change-cases.jsonl", baselineUrl), "utf8"))
   .trim()
@@ -546,7 +678,7 @@ console.log(JSON.stringify({
     assert.deepEqual(
       JSON.parse(importedCurrentCompatibility.stdout.trim()),
       {
-        baselineVersion: "0.2.0",
+        baselineVersion: "0.3.0",
         classifications: ["additive", "breaking"],
       },
     );
