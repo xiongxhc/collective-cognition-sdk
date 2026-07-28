@@ -17,7 +17,7 @@ This RFC adopts the [Portable Cognition Contract `0.1.0`](../spec/portable-cogni
 
 The contract is Normative Stable. Its schema, prose, valid and invalid fixtures, cognitive-loop fixture, stable portable error code, and versioned package subpaths are immutable `0.1.0` artifacts. The TypeScript runtime creates one own-descriptor JSON snapshot per validation, creation, or serialization operation, validates and serializes only that snapshot, and deeply freezes created records without invoking caller accessors or inherited `toJSON` hooks.
 
-Package `0.2.0` adds this surface without removing or redirecting a prior surface. The package remains `"private": true` and unpublished; this is an additive compatibility effect in the private package inventory, not a published release or a production-readiness claim.
+The historical package `0.2.0` delivery added this surface without removing or redirecting a prior surface. The current private, unpublished package is `0.3.0`, which retains that Portable Cognition surface and adds [Host Integration `0.1.0`](0004-host-integration-contract.md); neither package version is a published release or a production-readiness claim.
 
 ## Alternatives
 
@@ -35,7 +35,7 @@ Rejected for this slice. Storage atomicity, queries, transaction boundaries, del
 
 ## Compatibility and Migration
 
-There is no migration from an earlier published Portable Cognition contract. `0.2.0` preserves SourceRecord `0.1.0`, compatibility baseline `0.1.0`, and their package subpaths. The new [`0.2.0` baseline](../spec/compatibility/0.2.0/baseline.json) records the added runtime and type exports, portable schema and fixture subpaths, rule and artifact hashes, and package inventory.
+There is no migration from an earlier published Portable Cognition contract. The historical `0.2.0` package delivery preserves SourceRecord `0.1.0`, compatibility baseline `0.1.0`, and their package subpaths. Its [`0.2.0` baseline](../spec/compatibility/0.2.0/baseline.json) records the added runtime and type exports, portable schema and fixture subpaths, rule and artifact hashes, and package inventory. The current [`0.3.0` baseline](../spec/compatibility/0.3.0/baseline.json) retains those artifacts and adds Host Integration package surfaces.
 
 The [compatibility policy](../spec/compatibility.md) classifies the addition as additive. Future changes to the accepted `0.1.0` record shape require a new contract version while preserving the existing versioned artifacts.
 
@@ -51,13 +51,13 @@ Hosts remain responsible for trusted identity, authorization, access control, se
 - Conformance corpus: [valid records](../spec/conformance/0.1.0/portable-cognition/valid.jsonl), [invalid records](../spec/conformance/0.1.0/portable-cognition/invalid.jsonl), and the [complete cognitive loop](../spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl).
 - Reference runtime: [`src/portable-cognition.ts`](../src/portable-cognition.ts), re-exported by [`src/index.ts`](../src/index.ts), with a runnable [round-trip example](../examples/portable-cognition.ts).
 - Differential and package evidence: [`tests/portable-cognition-conformance.test.ts`](../tests/portable-cognition-conformance.test.ts), [`tests/portable-cognition.test.ts`](../tests/portable-cognition.test.ts), [`tests/portable-cognition-schema.test.mjs`](../tests/portable-cognition-schema.test.mjs), [`tests/compatibility.test.mjs`](../tests/compatibility.test.mjs), and [`tests/package.test.mjs`](../tests/package.test.mjs).
-- Package and compatibility metadata: [`package.json`](../package.json), [baseline `0.2.0`](../spec/compatibility/0.2.0/baseline.json), and [change cases](../spec/compatibility/0.2.0/change-cases.jsonl).
+- Historical package and compatibility metadata: [`package.json`](../package.json), [baseline `0.2.0`](../spec/compatibility/0.2.0/baseline.json), and [change cases](../spec/compatibility/0.2.0/change-cases.jsonl).
 
-### Final Verification Snapshot
+### Historical `0.2.0` Delivery Verification Snapshot
 
 Independent final review found no remaining Critical or Important issue after the correction wave. The complete local matrix passes: `npm test` reports 194 source, 10 combined SourceRecord and Portable Cognition schema, 14 compatibility, and 6 package tests; TypeScript checking, syntax checking, both examples, `pack:check`, and `git diff --check` also exit successfully.
 
-Package version `0.2.0` retains `"private": true`. Host integration contracts and persistence or connector adapters remain deferred.
+At that historical delivery point, package version `0.2.0` retained `"private": true`, and Host Integration was deferred. The current private, unpublished package is `0.3.0`; [RFC 0004](0004-host-integration-contract.md) and the [Host Integration Contract `0.1.0`](../spec/host-integration.md) record the implemented and final-review verified host boundary. Concrete persistence and connector adapters remain deferred.
 
 - Compatibility hashes: baseline `0.1.0` `4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b`; change cases `0.1.0` `3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b`; baseline `0.2.0` `3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4`; change cases `0.2.0` `e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5`.
 - SourceRecord artifact hashes remain byte-identical: schema `56cf53c5da98dfbec19a021fbb90673beab8248c7a77df44989b535a0e155648`; valid fixtures `f52c212026b70bf2b339e1132b2895c91be509f250dde841319dbbb4edd3f74a`; invalid fixtures `4705f32eb5ea48ddd693759728294d2557b0a6f4a5cc666843b2e03bb03e99c0`.
@@ -74,7 +74,7 @@ Package version `0.2.0` retains `"private": true`. Host integration contracts an
 
 ## Explicit Deferrals
 
-- Host integration contracts for persistence and event publication; this is the next active Phase 3 slice.
+- Host Integration contracts for persistence and event publication are implemented and final-review verified; see [RFC 0004](0004-host-integration-contract.md) and the [Host Integration Contract `0.1.0`](../spec/host-integration.md).
 - Persistence adapters, connectors, connector packaging, marketplaces, or source-system discovery.
 - Authentication, trusted confirmation records, authorization-policy execution, runtime policy, and security policy.
 - Registry publication, removal of `"private": true`, a `1.0.0` promise, production readiness, hosted services, or delivery guarantees.

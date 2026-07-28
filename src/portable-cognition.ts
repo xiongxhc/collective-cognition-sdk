@@ -32,10 +32,23 @@ export type PortableCognitionRecordType =
   | "domain-error";
 
 export interface PortableDomainError {
-  readonly code: DomainErrorCode;
+  readonly code: PortableDomainErrorCode;
   readonly message: string;
   readonly details: JsonObject;
 }
+
+export type PortableDomainErrorCode =
+  | "INVALID_OBJECT"
+  | "INVALID_SOURCE_RECORD"
+  | "INVALID_RELATIONSHIP"
+  | "INVALID_TRANSITION"
+  | "CONFIRMATION_REQUIRED"
+  | "AUTHORIZATION_DENIED"
+  | "SERIALIZATION_ERROR"
+  | "SOURCE_REVISION_COLLISION"
+  | "INGESTION_LIMIT_EXCEEDED"
+  | "PROMOTION_FAILED"
+  | "INVALID_PORTABLE_COGNITION_RECORD";
 
 export type PortableCognitionPayloadByType = {
   readonly "cognitive-object": CognitiveObject;
@@ -149,7 +162,7 @@ const relationshipTypes = new Set<RelationshipType>([
   "justified-by-decision",
   "justified-by-evidence",
 ]);
-const portableDomainErrorCodes: readonly DomainErrorCode[] = Object.freeze([
+const portableDomainErrorCodes: readonly PortableDomainErrorCode[] = Object.freeze([
   "INVALID_OBJECT",
   "INVALID_SOURCE_RECORD",
   "INVALID_RELATIONSHIP",
@@ -1139,7 +1152,7 @@ function validateDomainErrorPayload(value: unknown): void {
   requireNonWhitespaceFields(value, ["message"]);
   if (
     typeof value.code !== "string" ||
-    !portableDomainErrorCodes.includes(value.code as DomainErrorCode)
+    !portableDomainErrorCodes.includes(value.code as PortableDomainErrorCode)
   ) {
     invalidPortableCognitionRecord(
       "Portable Cognition domain error code is invalid.",

@@ -379,6 +379,7 @@ function generatedCognitiveLoopRecords(): PortableCognitionRecord[] {
     }
   }
   assert.ok(domainError);
+  assert.equal(domainError.code, "CONFIRMATION_REQUIRED");
 
   return [
     record("cognitive-object", objects.identity),
@@ -418,7 +419,7 @@ function generatedCognitiveLoopRecords(): PortableCognitionRecord[] {
     record("authorization-decision", allowed),
     record("authorization-decision", confirmationRequired),
     record("domain-error", {
-      code: domainError.code,
+      code: "CONFIRMATION_REQUIRED",
       message: domainError.message,
       details: domainError.details,
     }),

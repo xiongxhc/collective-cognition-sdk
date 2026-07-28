@@ -33,6 +33,12 @@ export {
 } from "./portable-cognition.ts";
 export { evaluateAuthorization } from "./authorization.ts";
 export { transitionObject } from "./transitions.ts";
+export {
+  commitCognitionTransition,
+  commitInitialCognition,
+  HostFailureCode,
+  HOST_INTEGRATION_CONTRACT_VERSION,
+} from "./host-integration.ts";
 export type {
   ActorKind,
   Attribution,
@@ -104,3 +110,20 @@ export type {
   PortableDomainError,
 } from "./portable-cognition.ts";
 export type { TransitionResult } from "./transitions.ts";
+export type {
+  CognitionEventPublisher,
+  CognitionHost,
+  CognitionPersistenceStatus,
+  CognitionPublicationStatus,
+  CognitionStore,
+  CognitionStoreCommitResult,
+  HostConflict,
+  HostConflictCode,
+  HostFailure,
+  InitialCognitionCommit,
+  InitialCommitOutcome,
+  PortableCognitionEventRecord,
+  PortableCognitiveObjectRecord,
+  TransitionCommitOutcome,
+  TransitionCognitionCommit,
+} from "./host-integration.ts";

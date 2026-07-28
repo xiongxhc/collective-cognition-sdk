@@ -1,6 +1,6 @@
 # Collective Cognition Specification
 
-This directory contains the implemented and final-review verified Normative Stable SourceRecord `0.1.0` and Portable Cognition `0.1.0` contracts plus compatibility baselines `0.1.0` and `0.2.0`. The runnable TypeScript code and emitted package artifacts are the current reference implementation; package `0.2.0` remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
+This directory contains the implemented and final-review verified Normative Stable SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and [Host Integration `0.1.0`](host-integration.md) contracts plus compatibility baselines `0.1.0`, `0.2.0`, and `0.3.0`. The runnable TypeScript code and emitted package artifacts are the current reference implementation; package `0.3.0` remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
 
 ## Current Architecture
 
@@ -24,9 +24,10 @@ The historical team-memory direct-to-Evidence path was replaced. The current con
 ## Start Here
 
 - Review the [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/ROADMAP.md) and distinguish completed phases from planned ones.
-- Run `npm test`, `npx tsc --noEmit`, `npm run check`, and `npm run example`.
+- Run `npm test`, `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, and `npm run example:host`.
 - Read the normative [`SourceRecord 0.1.0` contract](source-record.md) and its [`JSON Schema`](schemas/0.1.0/source-record.schema.json).
 - Read the normative [`Portable Cognition 0.1.0` contract](portable-cognition.md), its [`JSON Schema`](schemas/0.1.0/portable-cognition.schema.json), and its [conformance fixtures](conformance/0.1.0/portable-cognition/).
+- Read the normative [Host Integration Contract `0.1.0`](host-integration.md) and [RFC 0004](../rfcs/0004-host-integration-contract.md) before changing host-owned cognition persistence, publication, replay, or read behavior.
 - Read the normative [compatibility policy](compatibility.md), [baseline `0.1.0`](compatibility/0.1.0/baseline.json), and [change cases](compatibility/0.1.0/change-cases.jsonl).
 - Run `npm run test:schema` for the combined SourceRecord and Portable Cognition schema gate; `pack:check` and npm prepack inherit it.
 - Run `node --test tests/conformance.test.ts` for the canonical SourceRecord suite.
@@ -58,23 +59,25 @@ The invalid corpus covers every machine-checkable rule `SR-001` through `SR-011`
 
 `portable-cognition.md` defines the Normative Stable serialized exchange contract for cognitive objects, cognition events, transition contexts, authorization decisions, and serializable domain errors. `schemas/0.1.0/portable-cognition.schema.json` is its language-neutral Draft 2020-12 structural contract. The package exposes the schema at `collective-cognition-sdk/schemas/portable-cognition/0.1.0` and its valid, invalid, and cognitive-loop fixtures through versioned conformance subpaths.
 
-The contract provides an envelope and runtime codec, not persistence, event publication, identity authentication, authorization-policy execution, connector packaging, runtime policy, or security policy. Confirmation metadata remains an assertion rather than proof of a human approval. The domain-error shape has no dedicated stack, cause, exception-name, or path fields, and the runtime does not automatically project caught exceptions; caller-supplied `message` and `details` still require host filtering for secrets, paths, and operational details. `npm run test:schema` runs this schema suite together with SourceRecord conformance. The next active Phase 3 slice is host integration contracts for host-owned persistence and publication.
+The contract provides an envelope and runtime codec, not identity authentication, authorization-policy execution, connector packaging, runtime policy, or security policy. Confirmation metadata remains an assertion rather than proof of a human approval. The domain-error shape has no dedicated stack, cause, exception-name, or path fields, and the runtime does not automatically project caught exceptions; caller-supplied `message` and `details` still require host filtering for secrets, paths, and operational details. `npm run test:schema` runs this schema suite together with SourceRecord conformance.
+
+## Normative Host Integration 0.1.0
+
+[`host-integration.md`](host-integration.md) defines the accepted host-owned persistence and publication boundary for Portable Cognition records. It requires detached immutable snapshots, versioned object-revision and event identities, coherent transition commits, observable atomicity, optimistic concurrency, persistence-before-publication, event-ID publication idempotency, recoverable `committed_but_unpublished` outcomes, and deterministic detached reads.
+
+The contract is storage and transport neutral: it does not require a database, queue, transaction manager, automatic retries, or exactly-once downstream effects. Hosts operate only on explicit cognition targets and never discover, inspect, or couple to a SourceRecord store through these ports. The reusable host conformance runner, focused host suites, and host recovery example provide current executable evidence, and Host Integration `0.1.0` is implemented and final-review verified. `team-memory-agent` may implement or compose these ports later when it promotes material into shared cognition; individual collectors need them only for that promotion. Production adapters, security policy, and publication readiness remain deferred.
 
 ## Normative Compatibility Baselines
 
-`compatibility.md` defines the normative compatibility, versioning, and deprecation policy. `compatibility/0.1.0/baseline.json` is the byte-immutable baseline for the SourceRecord contract and initial package surface. `compatibility/0.2.0/baseline.json` retains that surface and records the additive Portable Cognition runtime, type, schema, conformance, package, and artifact inventories. The package exposes them at `collective-cognition-sdk/compatibility/0.1.0` and `collective-cognition-sdk/compatibility/0.2.0`.
+`compatibility.md` defines the normative compatibility, versioning, and deprecation policy. `compatibility/0.1.0/baseline.json` is the byte-immutable baseline for the SourceRecord contract and initial package surface. `compatibility/0.2.0/baseline.json` retains that surface and records the additive Portable Cognition runtime, type, schema, conformance, package, and artifact inventories. `compatibility/0.3.0/baseline.json` retains those surfaces, records the additive Host Integration runtime, type, and package subpaths, and classifies the `PortableDomainError.code` narrowing as a `COMP-012` source-breaking correction with a `minor-before-1.0` effect. The package exposes the baselines at `collective-cognition-sdk/compatibility/0.1.0`, `collective-cognition-sdk/compatibility/0.2.0`, and `collective-cognition-sdk/compatibility/0.3.0`.
 
-SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and compatibility baselines `0.1.0` and `0.2.0` are Normative Stable. Before `1.0.0`, the package root and generic CLI are Supported Experimental. Connectors and unexported source modules are Internal. Compatibility checks detect exact baseline drift and declared process consequences; they do not automatically determine semantic compatibility.
+SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0`, `0.2.0`, and `0.3.0` are Normative Stable. Before `1.0.0`, the package root and generic CLI are Supported Experimental. Connectors and unexported source modules are Internal. Compatibility checks detect exact baseline drift, independently hash each public declaration entrypoint closure, and exercise the package `0.2.0` generic error-code assignment plus the supported package `0.3.0` narrowing migration; they do not automatically determine semantic compatibility.
 
-Phase 3 remains in progress. SourceRecord, Portable Cognition, and the compatibility baselines are implemented normative contracts; the compatibility and Portable Cognition slices are final-review verified. The initial ESM build, declarations, package entrypoints, CLI contract, package-content checks, clean-consumer schema discovery, Apache-2.0 license, attribution notice, and citation metadata are also implemented. Host integration contracts, adapters and connector packaging, runtime policy, security policy, publication, and production readiness remain deferred.
+Phase 3 remains in progress. SourceRecord, Portable Cognition, Host Integration, and the compatibility baselines are implemented normative contracts, and the compatibility, Portable Cognition, and Host Integration slices are final-review verified. The ESM build, declarations, package entrypoints, CLI contract, package-content checks, clean-consumer schema discovery, Apache-2.0 license, attribution notice, and citation metadata are also implemented. Concrete adapters and connector packaging, runtime policy, security policy, publication, and production readiness remain deferred.
 
 ## Planned Normative Content
 
-Specification work will add:
-
-- host integration contracts for host-owned cognition persistence and event publication;
-- additional type-specific cognitive-object semantics and versioned machine-readable schemas where Portable Cognition's intentionally open `data` fields are insufficient;
-- a mapping from every normative rule to an executable check or explicit prose-only rationale.
+Remaining specification work will add additional type-specific cognitive-object semantics and versioned machine-readable schemas where Portable Cognition's intentionally open `data` fields are insufficient. The Host Integration Contract already maps every rule to runtime validation, conformance evidence, or an explicit prose-only rationale.
 
 Package publication still requires registry confirmation, runtime and security policies, final verification, and explicit human approval. The manifest retains `"private": true`, and the package is unpublished.
 
