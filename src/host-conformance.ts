@@ -2,6 +2,7 @@ import { createPortableCognitionRecord } from "./portable-cognition.ts";
 import { createObject, deserializeObject } from "./objects.ts";
 import { transitionObject } from "./transitions.ts";
 import { commitCognitionTransition } from "./host-integration.ts";
+import type { JsonValue } from "./types.ts";
 import type {
   CognitionEventPublisher,
   CognitionStore,
@@ -37,6 +38,31 @@ function assertConformance(condition: unknown): asserts condition {
   if (!condition) {
     throw new Error("Host conformance assertion failed.");
   }
+}
+
+function canonicalizeJson(value: JsonValue): string {
+  if (value === null || typeof value === "boolean" || typeof value === "number") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalizeJson).join(",")}]`;
+  }
+  const object = value as Record<string, JsonValue>;
+  return `{${Object.keys(object)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalizeJson(object[key])}`)
+    .join(",")}}`;
+}
+
+function recordsMatch(
+  left: PortableCognitiveObjectRecord | PortableCognitionEventRecord,
+  right: PortableCognitiveObjectRecord | PortableCognitionEventRecord,
+): boolean {
+  return canonicalizeJson(left as unknown as JsonValue) ===
+    canonicalizeJson(right as unknown as JsonValue);
 }
 
 function objectRecord({
@@ -125,12 +151,10 @@ const conformanceCases: readonly ConformanceCase[] = [
       const object = objectRecord({ id: "goal:host-conformance:initial" });
       const result = await store.commitInitial({ object });
       assertConformance(result.status === "committed");
-      assertConformance(
-        JSON.stringify(await store.getLatestObject(object.payload.id)) === JSON.stringify(object),
-      );
-      assertConformance(
-        JSON.stringify(await store.getObjectVersion(object.payload.id, 1)) === JSON.stringify(object),
-      );
+      const latest = await store.getLatestObject(object.payload.id);
+      const version = await store.getObjectVersion(object.payload.id, 1);
+      assertConformance(latest !== undefined && recordsMatch(latest, object));
+      assertConformance(version !== undefined && recordsMatch(version, object));
     },
   },
   {
@@ -198,22 +222,54 @@ const conformanceCases: readonly ConformanceCase[] = [
     id: "HIC-CONF-006",
     async run(factory) {
       const store = await factory.createStore();
+      const initial = objectRecord({ id: "goal:host-conformance:immutable" });
       const object = structuredClone(
-        objectRecord({ id: "goal:host-conformance:immutable" }),
+        initial,
       ) as PortableCognitiveObjectRecord;
       assertConformance((await store.commitInitial({ object })).status === "committed");
       (object.payload as { title: string }).title = "Caller mutation";
-      const read = await store.getLatestObject(object.payload.id);
-      assertConformance(read !== undefined);
-      assertConformance(read.payload.title === "Host conformance");
-      assertConformance(Object.isFrozen(read));
-      assertConformance(Object.isFrozen(read.payload));
+      const transition = transitionCommit(initial, "event:host-conformance:immutable");
+      assertConformance((await store.commitTransition(transition)).status === "committed");
+      const latest = await store.getLatestObject(initial.payload.id);
+      const version = await store.getObjectVersion(initial.payload.id, 2);
+      const events = await store.listObjectEvents(initial.payload.id);
+      assertConformance(latest !== undefined && recordsMatch(latest, transition.object));
+      assertConformance(version !== undefined && recordsMatch(version, transition.object));
+      assertConformance(events.length === 1 && recordsMatch(events[0], transition.event));
+      assertConformance(Object.isFrozen(latest));
+      assertConformance(Object.isFrozen(latest.payload));
+      assertConformance(Object.isFrozen(version));
+      assertConformance(Object.isFrozen(version.payload));
+      assertConformance(Object.isFrozen(events));
+      assertConformance(Object.isFrozen(events[0]));
+      assertConformance(Object.isFrozen(events[0].payload));
       try {
-        (read.payload as { title: string }).title = "Read mutation";
+        (latest.payload as { title: string }).title = "Latest mutation";
+      } catch {
+      }
+      try {
+        (version.payload as { title: string }).title = "Version mutation";
+      } catch {
+      }
+      try {
+        (events[0].payload as { rationale: string }).rationale = "Event mutation";
       } catch {
       }
       assertConformance(
-        (await store.getLatestObject(object.payload.id))?.payload.title === "Host conformance",
+        recordsMatch(
+          (await store.getLatestObject(initial.payload.id)) ?? initial,
+          transition.object,
+        ),
+      );
+      assertConformance(
+        recordsMatch(
+          (await store.getObjectVersion(initial.payload.id, 2)) ?? initial,
+          transition.object,
+        ),
+      );
+      const rereadEvents = await store.listObjectEvents(initial.payload.id);
+      assertConformance(
+        rereadEvents.length === 1 && recordsMatch(rereadEvents[0], transition.event),
       );
     },
   },
@@ -225,7 +281,14 @@ const conformanceCases: readonly ConformanceCase[] = [
       const first = objectRecord({ id: "goal:host-conformance:atomic:first" });
       const second = objectRecord({ id: "goal:host-conformance:atomic" });
       assertConformance((await store.commitInitial({ object: first })).status === "committed");
-      assertConformance((await store.commitTransition(transitionCommit(first, eventId))).status === "committed");
+      const firstTransition = transitionCommit(first, eventId);
+      assertConformance((await store.commitTransition(firstTransition)).status === "committed");
+      const latest = await store.getLatestObject(first.payload.id);
+      const version = await store.getObjectVersion(first.payload.id, 2);
+      const events = await store.listObjectEvents(first.payload.id);
+      assertConformance(latest !== undefined && recordsMatch(latest, firstTransition.object));
+      assertConformance(version !== undefined && recordsMatch(version, firstTransition.object));
+      assertConformance(events.length === 1 && recordsMatch(events[0], firstTransition.event));
       assertConformance((await store.commitInitial({ object: second })).status === "committed");
       const result = await store.commitTransition(transitionCommit(second, eventId));
       assertConformance(
@@ -283,8 +346,13 @@ const conformanceCases: readonly ConformanceCase[] = [
       };
       const outcome = await commitCognitionTransition({ store, publisher: interrupted }, request);
       assertConformance(outcome.status === "committed_but_unpublished");
+      const latest = await store.getLatestObject(object.payload.id);
+      const events = await store.listObjectEvents(object.payload.id);
       assertConformance(
-        JSON.stringify(await store.getLatestObject(object.payload.id)) === JSON.stringify(request.object),
+        latest !== undefined && recordsMatch(latest, request.object),
+      );
+      assertConformance(
+        events.length === 1 && recordsMatch(events[0], request.event),
       );
     },
   },

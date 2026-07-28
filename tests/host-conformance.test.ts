@@ -96,6 +96,145 @@ class BrokenAtomicityStore implements CognitionStore {
   }
 }
 
+class ObjectOnlyTransitionStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+
+  commitInitial(request: InitialCognitionCommit) {
+    return this.#store.commitInitial(request);
+  }
+
+  commitTransition(request: TransitionCognitionCommit) {
+    return this.#store.commitTransition(request);
+  }
+
+  getLatestObject(objectId: string) {
+    return this.#store.getLatestObject(objectId);
+  }
+
+  getObjectVersion(objectId: string, version: number) {
+    return this.#store.getObjectVersion(objectId, version);
+  }
+
+  async listObjectEvents(): Promise<readonly PortableCognitionEventRecord[]> {
+    return Object.freeze([]);
+  }
+}
+
+class AliasVersionReadStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+  readonly #objects = new Map<string, PortableCognitiveObjectRecord>();
+
+  commitInitial(request: InitialCognitionCommit) {
+    return this.#store.commitInitial(request);
+  }
+
+  commitTransition(request: TransitionCognitionCommit) {
+    return this.#store.commitTransition(request);
+  }
+
+  getLatestObject(objectId: string) {
+    return this.#store.getLatestObject(objectId);
+  }
+
+  async getObjectVersion(
+    objectId: string,
+    version: number,
+  ): Promise<PortableCognitiveObjectRecord | undefined> {
+    const key = `${objectId}:${version}`;
+    const existing = this.#objects.get(key);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const object = await this.#store.getObjectVersion(objectId, version);
+    if (object === undefined) {
+      return undefined;
+    }
+    const alias = structuredClone(object) as PortableCognitiveObjectRecord;
+    this.#objects.set(key, alias);
+    return alias;
+  }
+
+  listObjectEvents(objectId: string) {
+    return this.#store.listObjectEvents(objectId);
+  }
+}
+
+class AliasEventReadStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+  readonly #events = new Map<string, PortableCognitionEventRecord[]>();
+
+  commitInitial(request: InitialCognitionCommit) {
+    return this.#store.commitInitial(request);
+  }
+
+  commitTransition(request: TransitionCognitionCommit) {
+    return this.#store.commitTransition(request);
+  }
+
+  getLatestObject(objectId: string) {
+    return this.#store.getLatestObject(objectId);
+  }
+
+  getObjectVersion(objectId: string, version: number) {
+    return this.#store.getObjectVersion(objectId, version);
+  }
+
+  async listObjectEvents(
+    objectId: string,
+  ): Promise<readonly PortableCognitionEventRecord[]> {
+    const existing = this.#events.get(objectId);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const events = structuredClone(
+      await this.#store.listObjectEvents(objectId),
+    ) as PortableCognitionEventRecord[];
+    this.#events.set(objectId, events);
+    return events;
+  }
+}
+
+function reorderAndFreeze<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map(reorderAndFreeze)) as T;
+  }
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+  const reordered: Record<string, unknown> = {};
+  for (const key of Object.keys(value).sort().reverse()) {
+    reordered[key] = reorderAndFreeze((value as Record<string, unknown>)[key]);
+  }
+  return Object.freeze(reordered) as T;
+}
+
+class ReorderedReadStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+
+  commitInitial(request: InitialCognitionCommit) {
+    return this.#store.commitInitial(request);
+  }
+
+  commitTransition(request: TransitionCognitionCommit) {
+    return this.#store.commitTransition(request);
+  }
+
+  async getLatestObject(objectId: string) {
+    const object = await this.#store.getLatestObject(objectId);
+    return object === undefined ? undefined : reorderAndFreeze(object);
+  }
+
+  async getObjectVersion(objectId: string, version: number) {
+    const object = await this.#store.getObjectVersion(objectId, version);
+    return object === undefined ? undefined : reorderAndFreeze(object);
+  }
+
+  async listObjectEvents(objectId: string) {
+    const events = await this.#store.listObjectEvents(objectId);
+    return Object.freeze(events.map(reorderAndFreeze));
+  }
+}
+
 function brokenAtomicityFactory(): CognitionHostConformanceFactory {
   return {
     createStore: () => new BrokenAtomicityStore(),
@@ -132,6 +271,56 @@ test("a non-atomic host fails the atomicity case without aborting the suite", as
     report.cases.find(({ id }) => id === "HIC-CONF-011")?.status,
     "passed",
   );
+});
+
+test("requires object and event read-back after successful and partial transitions", async () => {
+  const report = await runCognitionHostConformance({
+    createStore: () => new ObjectOnlyTransitionStore(),
+    createPublisher: () => new InMemoryCognitionEventPublisher(),
+  });
+
+  assert.equal(
+    report.cases.find(({ id }) => id === "HIC-CONF-007")?.status,
+    "failed",
+  );
+  assert.equal(
+    report.cases.find(({ id }) => id === "HIC-CONF-010")?.status,
+    "failed",
+  );
+  assert.equal(
+    report.cases.find(({ id }) => id === "HIC-CONF-011")?.status,
+    "passed",
+  );
+});
+
+test("rejects aliased version and event reads without aborting later cases", async () => {
+  for (const createStore of [
+    () => new AliasVersionReadStore(),
+    () => new AliasEventReadStore(),
+  ]) {
+    const report = await runCognitionHostConformance({
+      createStore,
+      createPublisher: () => new InMemoryCognitionEventPublisher(),
+    });
+
+    assert.equal(
+      report.cases.find(({ id }) => id === "HIC-CONF-006")?.status,
+      "failed",
+    );
+    assert.equal(
+      report.cases.find(({ id }) => id === "HIC-CONF-011")?.status,
+      "passed",
+    );
+  }
+});
+
+test("accepts semantically identical records with reordered object keys", async () => {
+  const report = await runCognitionHostConformance({
+    createStore: () => new ReorderedReadStore(),
+    createPublisher: () => new InMemoryCognitionEventPublisher(),
+  });
+
+  assert.equal(report.passed, true);
 });
 
 test("isolates each case and sends only Portable Cognition records to ports", async () => {
