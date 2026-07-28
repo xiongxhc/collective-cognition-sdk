@@ -265,6 +265,58 @@ class CallerAliasingInitialStore implements CognitionStore {
   }
 }
 
+class VersionOneAliasReadStore implements CognitionStore {
+  readonly #store = new InMemoryCognitionStore();
+  readonly #latest = new Map<string, PortableCognitiveObjectRecord>();
+  readonly #versions = new Map<string, PortableCognitiveObjectRecord>();
+
+  commitInitial(request: InitialCognitionCommit) {
+    return this.#store.commitInitial(request);
+  }
+
+  commitTransition(request: TransitionCognitionCommit) {
+    return this.#store.commitTransition(request);
+  }
+
+  async getLatestObject(
+    objectId: string,
+  ): Promise<PortableCognitiveObjectRecord | undefined> {
+    const object = await this.#store.getLatestObject(objectId);
+    if (object?.payload.version !== 1) {
+      return object;
+    }
+    const existing = this.#latest.get(objectId);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const alias = structuredClone(object) as PortableCognitiveObjectRecord;
+    this.#latest.set(objectId, alias);
+    return alias;
+  }
+
+  async getObjectVersion(
+    objectId: string,
+    version: number,
+  ): Promise<PortableCognitiveObjectRecord | undefined> {
+    const object = await this.#store.getObjectVersion(objectId, version);
+    if (object === undefined || version !== 1) {
+      return object;
+    }
+    const key = `${objectId}:${version}`;
+    const existing = this.#versions.get(key);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const alias = structuredClone(object) as PortableCognitiveObjectRecord;
+    this.#versions.set(key, alias);
+    return alias;
+  }
+
+  listObjectEvents(objectId: string) {
+    return this.#store.listObjectEvents(objectId);
+  }
+}
+
 function shallowFreezeRecord<T>(record: T): T {
   if (typeof record !== "object" || record === null) {
     return record;
@@ -408,6 +460,7 @@ test("rejects aliased latest, version, event, and caller reads without aborting"
     ["version", () => new AliasVersionReadStore()],
     ["event", () => new AliasEventReadStore()],
     ["caller", () => new CallerAliasingInitialStore()],
+    ["version-one", () => new VersionOneAliasReadStore()],
     ["shallow", () => new ShallowFrozenReadStore()],
   ];
   for (const [description, createStore] of factories) {

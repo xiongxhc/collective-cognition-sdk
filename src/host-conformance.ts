@@ -260,6 +260,8 @@ const conformanceCases: readonly ConformanceCase[] = [
       const initialVersion = await store.getObjectVersion(initial.payload.id, 1);
       assertConformance(initialLatest !== undefined && recordsMatch(initialLatest, initial));
       assertConformance(initialVersion !== undefined && recordsMatch(initialVersion, initial));
+      assertConformance(isDeepFrozen(initialLatest));
+      assertConformance(isDeepFrozen(initialVersion));
       const transition = transitionCommit(initial, "event:host-conformance:immutable");
       assertConformance((await store.commitTransition(transition)).status === "committed");
       const latest = await store.getLatestObject(initial.payload.id);
