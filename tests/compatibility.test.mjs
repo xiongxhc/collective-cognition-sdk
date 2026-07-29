@@ -33,12 +33,24 @@ const historicalBaselineUrl = new URL(
   "../spec/compatibility/0.1.0/baseline.json",
   import.meta.url,
 );
+const historicalChangeCasesUrl = new URL(
+  "../spec/compatibility/0.1.0/change-cases.jsonl",
+  import.meta.url,
+);
 const previousBaselineUrl = new URL(
   "../spec/compatibility/0.2.0/baseline.json",
   import.meta.url,
 );
+const previousChangeCasesUrl = new URL(
+  "../spec/compatibility/0.2.0/change-cases.jsonl",
+  import.meta.url,
+);
 const latestHistoricalBaselineUrl = new URL(
   "../spec/compatibility/0.3.0/baseline.json",
+  import.meta.url,
+);
+const latestHistoricalChangeCasesUrl = new URL(
+  "../spec/compatibility/0.3.0/change-cases.jsonl",
   import.meta.url,
 );
 const currentBaselineUrl = new URL(
@@ -47,10 +59,29 @@ const currentBaselineUrl = new URL(
 );
 const expectedHistoricalBaselineSha256 =
   "4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b";
+const expectedHistoricalChangeCasesSha256 =
+  "3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b";
 const expectedPreviousBaselineSha256 =
   "3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4";
+const expectedPreviousChangeCasesSha256 =
+  "e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5";
 const expectedLatestHistoricalBaselineSha256 =
   "02991abb5133a4aef2b6a2fc736567fbbde9e29859909f806f08822fcd40d3d4";
+const expectedLatestHistoricalChangeCasesSha256 =
+  "1f1ff3822de318806640357bb11804a0213d7084f05350035f8bb8d519dd95f2";
+const expectedHistoricalChangeCaseDigests = Object.freeze({
+  "spec/compatibility/0.1.0/change-cases.jsonl":
+    expectedHistoricalChangeCasesSha256,
+  "spec/compatibility/0.2.0/change-cases.jsonl":
+    expectedPreviousChangeCasesSha256,
+  "spec/compatibility/0.3.0/change-cases.jsonl":
+    expectedLatestHistoricalChangeCasesSha256,
+});
+const productionDependencyFieldNames = Object.freeze([
+  "dependencies",
+  "optionalDependencies",
+  "peerDependencies",
+]);
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -91,6 +122,9 @@ function selectedPackageMetadata(packageJson) {
     engines: packageJson.engines,
     exports: packageJson.exports,
     bin: packageJson.bin,
+    productionDependencyFields: productionDependencyFieldNames.filter(
+      (field) => Object.hasOwn(packageJson, field),
+    ),
   };
 }
 
@@ -299,24 +333,36 @@ function withDeclarationFixture(files, action) {
   }
 }
 
-test("historical baseline 0.1.0 remains immutable", () => {
+test("historical compatibility 0.1.0 artifacts remain immutable", () => {
   assert.equal(
     sha256(readFileSync(historicalBaselineUrl)),
     expectedHistoricalBaselineSha256,
   );
+  assert.equal(
+    sha256(readFileSync(historicalChangeCasesUrl)),
+    expectedHistoricalChangeCasesSha256,
+  );
 });
 
-test("historical baseline 0.2.0 remains immutable", () => {
+test("historical compatibility 0.2.0 artifacts remain immutable", () => {
   assert.equal(
     sha256(readFileSync(previousBaselineUrl)),
     expectedPreviousBaselineSha256,
   );
+  assert.equal(
+    sha256(readFileSync(previousChangeCasesUrl)),
+    expectedPreviousChangeCasesSha256,
+  );
 });
 
-test("historical baseline 0.3.0 remains immutable", () => {
+test("historical compatibility 0.3.0 artifacts remain immutable", () => {
   assert.equal(
     sha256(readFileSync(latestHistoricalBaselineUrl)),
     expectedLatestHistoricalBaselineSha256,
+  );
+  assert.equal(
+    sha256(readFileSync(latestHistoricalChangeCasesUrl)),
+    expectedLatestHistoricalChangeCasesSha256,
   );
 });
 
@@ -328,6 +374,9 @@ test("current baseline describes the additive package 0.4.0 release", () => {
   assert.deepEqual(baseline.packageChange, {
     classification: "additive",
     packageVersionEffect: "minor",
+  });
+  assert.deepEqual(baseline.package.metadata.engines, {
+    node: ">=24",
   });
   assert.deepEqual(baseline.historicalBaselines, {
     "0.1.0": {
@@ -391,6 +440,15 @@ test("normative machine artifacts match exact digests", () => {
       "spec/schemas/0.1.0/portable-cognition.schema.json",
       "spec/schemas/0.1.0/source-record.schema.json",
     ],
+  );
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.keys(expectedHistoricalChangeCaseDigests).map((path) => [
+        path,
+        baseline.normative.artifacts[path],
+      ]),
+    ),
+    expectedHistoricalChangeCaseDigests,
   );
   Object.entries(baseline.normative.artifacts).forEach(
     ([path, expectedDigest]) => {
@@ -731,7 +789,7 @@ test("change cases exercise the additive package process", () => {
     {
       id: "additive-sqlite-cognition-store-subpath",
       description:
-        "Add the Node-specific SQLite CognitionStore 0.1.0 package subpath and package compatibility baseline 0.4.0 without changing the root runtime or type exports.",
+        "Add optional Node-specific SQLite CognitionStore 0.1.0 and compatibility 0.4.0 package subpaths while preserving the root Node >=24 engine and root runtime and type exports.",
       surface: "supported-experimental",
       classification: "additive",
       packageVersionEffect: "minor",
@@ -739,7 +797,7 @@ test("change cases exercise the additive package process", () => {
       requiresMigrationNotes: false,
       requiresDeprecation: false,
       rationale:
-        "Both subpaths are independent additions; existing root and versioned imports retain their prior targets, declarations, behavior, and policy identities.",
+        "The package keeps Node >=24, adds no production dependency surface, and leaves existing root and versioned imports unchanged. The SQLite subpath independently requires enforced defensive capability and fails before target mutation when unavailable.",
     },
   ]);
   cases.forEach((changeCase) => {

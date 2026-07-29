@@ -88,7 +88,7 @@
   },
   "homepage": "https://github.com/xiongxhc/collective-cognition-sdk#readme",
   "engines": {
-    "node": ">=24.12.0 <25 || >=25.1.0"
+    "node": ">=24"
   },
   "scripts": {
     "build": "node --eval \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && node scripts/rewrite-declaration-imports.mjs",

@@ -595,15 +595,12 @@ function isSerializationFailure(error: unknown): boolean {
     error.code === DomainErrorCode.SERIALIZATION_ERROR;
 }
 
-test("SQLite adapter publishes the defensive-capable Node engine range", () => {
+test("SQLite adapter preserves the package and root Node engine range", () => {
   const packageJson = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
   ) as { readonly engines?: { readonly node?: unknown } };
 
-  assert.equal(
-    packageJson.engines?.node,
-    ">=24.12.0 <25 || >=25.1.0",
-  );
+  assert.equal(packageJson.engines?.node, ">=24");
 });
 
 test(

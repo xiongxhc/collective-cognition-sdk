@@ -150,7 +150,7 @@
       "spec/compatibility/0.1.0/change-cases.jsonl": "3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b",
       "spec/compatibility/0.2.0/change-cases.jsonl": "e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5",
       "spec/compatibility/0.3.0/change-cases.jsonl": "1f1ff3822de318806640357bb11804a0213d7084f05350035f8bb8d519dd95f2",
-      "spec/compatibility/0.4.0/change-cases.jsonl": "2b502f39e50db98704dc21b3c2d684bc9593e5db0ec55ae9e7e567d127c15523"
+      "spec/compatibility/0.4.0/change-cases.jsonl": "704d478ed8738f3f591d6b49886bce919dcd0318b8c54a107619d1aa9961c645"
     },
     "hostIntegration": {
       "version": "0.1.0",
@@ -189,7 +189,7 @@
       "types": "./dist/index.d.ts",
       "license": "Apache-2.0",
       "engines": {
-        "node": ">=24.12.0 <25 || >=25.1.0"
+        "node": ">=24"
       },
       "exports": {
         ".": {
@@ -222,7 +222,8 @@
       },
       "bin": {
         "collective-cognition": "./dist/cli.js"
-      }
+      },
+      "productionDependencyFields": []
     },
     "emittedFiles": [
       "dist/authorization.d.ts",
