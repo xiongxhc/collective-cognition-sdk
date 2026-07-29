@@ -1,0 +1,322 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import type { SpawnSyncReturns } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  statSync,
+} from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+import { tmpdir } from "node:os";
+import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+import test from "node:test";
+
+const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
+const examplePath = fileURLToPath(
+  new URL("../examples/durable-team-memory-evidence.ts", import.meta.url),
+);
+const eventsSchema = `
+  CREATE TABLE events (
+    id      INTEGER PRIMARY KEY,
+    person  TEXT NOT NULL,
+    project TEXT,
+    ts      TEXT NOT NULL,
+    source  TEXT NOT NULL,
+    kind    TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    refs    TEXT,
+    raw     TEXT,
+    hash    TEXT NOT NULL,
+    UNIQUE(person, source, hash)
+  );
+`;
+const expectedOutput = {
+  hypothesis: {
+    id: "hypothesis:unified-portal-delivery-readiness",
+    latestVersion: 2,
+    state: "under_review",
+  },
+  evidence: {
+    state: "collected",
+    polarity: "neutral",
+    sourceCount: 12,
+  },
+  events: 1,
+  decisionsInferred: 0,
+  reopened: true,
+};
+
+interface Fixture {
+  readonly root: string;
+  readonly ledgerPath: string;
+  readonly cognitionPath: string;
+  readonly cognitionDirectory: string;
+  readonly runDirectory: string;
+  readonly forbiddenHome: string;
+}
+
+function createFixture(t: test.TestContext): Fixture {
+  const root = mkdtempSync(
+    join(tmpdir(), "collective-cognition-durable-example-"),
+  );
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const ledgerDirectory = join(root, "ledger");
+  const cognitionDirectory = join(root, "cognition");
+  const runDirectory = join(root, "run");
+  mkdirSync(ledgerDirectory);
+  mkdirSync(cognitionDirectory);
+  mkdirSync(runDirectory);
+
+  const ledgerPath = join(ledgerDirectory, "ledger.db");
+  const database = new DatabaseSync(ledgerPath);
+  try {
+    database.exec(eventsSchema);
+    const insert = database.prepare(`
+      INSERT INTO events (
+        id,
+        person,
+        project,
+        ts,
+        source,
+        kind,
+        summary,
+        refs,
+        raw,
+        hash
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const statuses = [
+      "merged",
+      "merged",
+      "merged",
+      "merged",
+      "merged",
+      "merged",
+      "merged",
+      "merged",
+      "merged",
+      "opened",
+      "opened",
+      "closed",
+    ];
+    for (const [index, status] of statuses.entries()) {
+      const number = index + 1;
+      const timestamp = index === 0
+        ? "2026-07-28T17:59:40.952+08:00"
+        : index === statuses.length - 1
+          ? "2026-07-28T20:17:51.910+08:00"
+          : `2026-07-28T18:${String(index).padStart(2, "0")}:00.000+08:00`;
+      insert.run(
+        number,
+        index % 2 === 0 ? "alex" : "blair",
+        "unified-portal",
+        timestamp,
+        `gitlab:merge-request:${number}`,
+        "mr",
+        `[${status}] Activity record ${number}.`,
+        JSON.stringify({
+          url: `https://gitlab.example/merge_requests/${number}`,
+        }),
+        null,
+        `hash-${number}`,
+      );
+    }
+  } finally {
+    database.close();
+  }
+
+  return {
+    root,
+    ledgerPath,
+    cognitionPath: join(cognitionDirectory, "cognition.db"),
+    cognitionDirectory,
+    runDirectory,
+    forbiddenHome: join(root, "personal-vault-must-not-be-accessed"),
+  };
+}
+
+function exampleArguments(
+  fixture: Fixture,
+  create: boolean,
+): string[] {
+  return [
+    "--ledger",
+    fixture.ledgerPath,
+    "--cognition-db",
+    fixture.cognitionPath,
+    "--project",
+    "unified-portal",
+    "--from",
+    "2026-07-28T17:59:00+08:00",
+    "--limit",
+    "12",
+    ...(create ? ["--create"] : []),
+  ];
+}
+
+function runExample(
+  fixture: Fixture,
+  args: readonly string[],
+): SpawnSyncReturns<string> {
+  return spawnSync(
+    process.execPath,
+    [
+      "--disable-warning=ExperimentalWarning",
+      "--permission",
+      `--allow-fs-read=${repositoryRoot}`,
+      `--allow-fs-read=${join(fixture.root, "ledger")}`,
+      `--allow-fs-read=${fixture.runDirectory}`,
+      `--allow-fs-read=${fixture.cognitionDirectory}`,
+      `--allow-fs-write=${fixture.cognitionDirectory}`,
+      examplePath,
+      ...args,
+    ],
+    {
+      cwd: fixture.runDirectory,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        HOME: fixture.forbiddenHome,
+      },
+    },
+  );
+}
+
+function parseSingleJsonOutput(
+  result: SpawnSyncReturns<string>,
+): unknown {
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.signal, null);
+  assert.equal(result.stderr, "");
+  const lines = result.stdout.trimEnd().split("\n");
+  assert.equal(lines.length, 1);
+  return JSON.parse(lines[0] as string);
+}
+
+function filesBelow(root: string): string[] {
+  return readdirSync(root, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(root, join(entry.parentPath, entry.name)))
+    .sort();
+}
+
+test(
+  "persists real ledger evidence, reopens it, and replays idempotently",
+  (t) => {
+    const fixture = createFixture(t);
+    const ledgerBefore = statSync(fixture.ledgerPath, { bigint: true });
+    const createArguments = exampleArguments(fixture, true);
+
+    assert.deepEqual(
+      parseSingleJsonOutput(runExample(fixture, createArguments)),
+      expectedOutput,
+    );
+    assert.deepEqual(
+      parseSingleJsonOutput(runExample(fixture, createArguments)),
+      expectedOutput,
+    );
+    assert.deepEqual(
+      parseSingleJsonOutput(
+        runExample(fixture, exampleArguments(fixture, false)),
+      ),
+      expectedOutput,
+    );
+
+    const ledgerAfter = statSync(fixture.ledgerPath, { bigint: true });
+    assert.equal(ledgerAfter.size, ledgerBefore.size);
+    assert.equal(ledgerAfter.mtimeNs, ledgerBefore.mtimeNs);
+    assert.equal(existsSync(fixture.cognitionPath), true);
+    assert.equal(existsSync(fixture.forbiddenHome), false);
+    assert.deepEqual(filesBelow(fixture.root), [
+      "cognition/cognition.db",
+      "ledger/ledger.db",
+    ]);
+
+    const cognition = new DatabaseSync(fixture.cognitionPath, {
+      readOnly: true,
+    });
+    try {
+      const objects = cognition.prepare(`
+        SELECT object_type, object_version, record_json
+        FROM cognition_objects
+        ORDER BY object_type, object_version
+      `).all() as Array<{
+        readonly object_type: string;
+        readonly object_version: number;
+        readonly record_json: string;
+      }>;
+      const events = cognition.prepare(`
+        SELECT record_json
+        FROM cognition_events
+        ORDER BY object_version, event_id
+      `).all() as Array<{ readonly record_json: string }>;
+
+      assert.deepEqual(
+        objects.map((row) => [row.object_type, row.object_version]),
+        [
+          ["evidence", 1],
+          ["hypothesis", 1],
+          ["hypothesis", 2],
+        ],
+      );
+      assert.equal(events.length, 1);
+      assert.equal(
+        objects.some((row) =>
+          JSON.parse(row.record_json).payload.type === "decision"
+        ),
+        false,
+      );
+      assert.deepEqual(
+        events.map((row) => {
+          const payload = JSON.parse(row.record_json).payload;
+          return [
+            payload.objectId,
+            payload.objectVersion,
+            payload.previousState,
+            payload.nextState,
+          ];
+        }),
+        [[
+          "hypothesis:unified-portal-delivery-readiness",
+          2,
+          "proposed",
+          "under_review",
+        ]],
+      );
+    } finally {
+      cognition.close();
+    }
+  },
+);
+
+test("rejects arguments outside the exact closed interface", (t) => {
+  const fixture = createFixture(t);
+  const valid = exampleArguments(fixture, true);
+  const invalidArguments = [
+    [...valid, "--unknown", "value"],
+    [...valid, "--ledger", fixture.ledgerPath],
+    valid.slice(0, -1).concat("--limit"),
+    valid.map((value) =>
+      value === fixture.ledgerPath ? "relative-ledger.db" : value
+    ),
+    valid.map((value) =>
+      value === fixture.cognitionPath ? "relative-cognition.db" : value
+    ),
+    valid.map((value) =>
+      value === "2026-07-28T17:59:00+08:00" ? "not-a-timestamp" : value
+    ),
+    valid.map((value) => value === "12" ? "0" : value),
+  ];
+
+  for (const args of invalidArguments) {
+    const result = runExample(fixture, args);
+    assert.notEqual(result.status, 0, args.join(" "));
+    assert.equal(result.stdout, "");
+  }
+  assert.equal(existsSync(fixture.cognitionPath), false);
+  assert.deepEqual(filesBelow(fixture.root), ["ledger/ledger.db"]);
+});

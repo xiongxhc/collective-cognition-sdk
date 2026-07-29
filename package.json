@@ -97,6 +97,7 @@
     "example:portable": "node --disable-warning=ExperimentalWarning examples/portable-cognition.ts",
     "example:host": "npm run --silent build && node --disable-warning=ExperimentalWarning examples/host-integration.ts",
     "example:teammem": "node --disable-warning=ExperimentalWarning examples/team-memory-evidence.ts",
+    "example:teammem:durable": "node --disable-warning=ExperimentalWarning examples/durable-team-memory-evidence.ts",
     "teammem:export": "node --disable-warning=ExperimentalWarning src/teammem-cli.ts",
     "cc": "node --disable-warning=ExperimentalWarning src/cli.ts"
   },
