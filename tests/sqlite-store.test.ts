@@ -1362,6 +1362,99 @@ sqliteTest(
   },
 );
 
+sqliteTest(
+  "SQLite initial commit rejects mutually inconsistent object and event records without mutation",
+  async (t) => {
+    const cases = [
+      {
+        name: "contradictory next state",
+        changes: {
+          type: "GoalAtRisk",
+          previousState: "active",
+          nextState: "at_risk",
+        },
+      },
+      {
+        name: "contradictory occurred at",
+        changes: {
+          occurredAt: "2026-07-29T08:02:00.000Z",
+        },
+      },
+      {
+        name: "contradictory object type",
+        changes: {
+          type: "ExperimentActive",
+          objectType: "experiment",
+          previousState: "planned",
+        },
+      },
+    ] as const;
+
+    for (const [index, entry] of cases.entries()) {
+      const databasePath = join(
+        temporaryDatabasePath(t),
+        `../inconsistent-object-event-${index}.db`,
+      );
+      const objectId = `goal:sqlite-object-event:${index}`;
+      const initial = objectRecord({ id: objectId });
+      const transition = transitionCommit({ id: objectId });
+      const store = new SqliteCognitionStore({
+        databasePath,
+        createIfMissing: true,
+      });
+      try {
+        await store.commitInitial({ object: initial });
+        await store.commitTransition(transition);
+      } finally {
+        store.close();
+      }
+
+      const event = createPortableCognitionRecord({
+        schemaVersion: "0.1.0",
+        recordType: "cognition-event",
+        payload: {
+          ...transition.event.payload,
+          ...entry.changes,
+        },
+      }) as PortableCognitionEventRecord;
+      const database = new DatabaseSync(databasePath);
+      try {
+        database
+          .prepare(
+            `
+              UPDATE cognition_events
+              SET record_json = ?
+              WHERE event_id = ?
+            `,
+          )
+          .run(
+            canonicalizeForTest(event as unknown as JsonValue),
+            event.payload.id,
+          );
+      } finally {
+        database.close();
+      }
+
+      const before = snapshotCognitionRows(databasePath);
+      const reopened = new SqliteCognitionStore({ databasePath });
+      try {
+        await assert.rejects(
+          () => reopened.commitInitial({ object: initial }),
+          /Stored cognition history is inconsistent/,
+          entry.name,
+        );
+        assert.deepEqual(
+          snapshotCognitionRows(databasePath),
+          before,
+          entry.name,
+        );
+      } finally {
+        reopened.close();
+      }
+    }
+  },
+);
+
 sqliteTest("SQLite malformed stored object JSON fails closed", async (t) => {
   const databasePath = temporaryDatabasePath(t);
   const store = new SqliteCognitionStore({

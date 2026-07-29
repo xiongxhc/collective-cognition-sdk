@@ -687,12 +687,19 @@ function assertConsistentObjectHistory(
       ) {
         return invalidStoredHistory();
       }
-      deserializeStoredEvent(
+      const storedEvent = deserializeStoredEvent(
         event.record_json,
         event.event_id,
         objectId,
         expectedVersion,
       );
+      if (
+        storedEvent.payload.objectType !== object.payload.type ||
+        storedEvent.payload.nextState !== object.payload.state ||
+        storedEvent.payload.occurredAt !== object.payload.updatedAt
+      ) {
+        return invalidStoredHistory();
+      }
     }
   } catch {
     return invalidStoredHistory();
