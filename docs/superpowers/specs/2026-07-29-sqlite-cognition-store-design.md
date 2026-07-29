@@ -230,7 +230,7 @@ Required compatibility work:
 - add `./compatibility/0.4.0`;
 - add `./stores/sqlite/0.1.0`;
 - pin the SQLite declaration closure and digest independently;
-- classify the new optional adapter subpath as an additive minor-before-`1.0.0` change;
+- classify the new optional adapter subpath as an additive minor release before `1.0.0`;
 - extend package tarball and clean-consumer tests; and
 - keep Node- and team-memory-specific APIs out of the root export allowlist.
 

@@ -93,7 +93,7 @@ readiness, confidence, causality, or authority.
 
 Package `0.4.0` remains private and unpublished. It adds the optional
 `./stores/sqlite/0.1.0` and `./compatibility/0.4.0` subpaths as an additive
-`minor-before-1.0` change. Root runtime and type exports and the generic CLI
+minor release before `1.0`. Root runtime and type exports and the generic CLI
 contract remain unchanged. Compatibility baselines `0.1.0` through `0.3.0`
 remain immutable.
 

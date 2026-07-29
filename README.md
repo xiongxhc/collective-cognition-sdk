@@ -52,7 +52,7 @@ The team-memory connector proves that real source data can enter the neutral ing
 - Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0`, `collective-cognition-sdk/compatibility/0.2.0`, `collective-cognition-sdk/compatibility/0.3.0`, and `collective-cognition-sdk/compatibility/0.4.0`.
 - Compatibility tests detect exact baseline drift and declared process consequences; they do not automatically determine semantic compatibility.
 - Package `0.3.0` is classified as a `minor-before-1.0` breaking correction: the Host Integration additions are optional, while `PortableDomainError.code` is narrowed from package `0.2.0`'s package-wide `DomainErrorCode` to the immutable Portable Cognition `0.1.0` allowlist under `COMP-012`.
-- Package `0.4.0` is an additive `minor-before-1.0` change: it adds the optional SQLite subpath and its compatibility baseline without changing root exports or the generic CLI contract.
+- Package `0.4.0` is an additive minor release before `1.0`: it adds the optional SQLite subpath and its compatibility baseline without changing root exports or the generic CLI contract.
 
 Read the [compatibility policy](spec/compatibility.md) and [RFC 0002](rfcs/0002-compatibility-versioning-and-deprecation.md). npm publication, registry confirmation, runtime and security policy, broader schemas, and production readiness remain open. The manifest retains `"private": true`, and the package is unpublished.
 
@@ -196,7 +196,14 @@ npm run example
 npm run example:portable
 npm run example:host
 npm run --silent example:teammem -- /path/to/team-memory-agent/ledger.db
-npm run --silent example:teammem:durable -- /path/to/team-memory-agent/ledger.db /absolute/path/to/cognition.db
+npm run --silent example:teammem:durable -- \
+  --ledger /absolute/path/to/team-memory-agent/ledger.db \
+  --cognition-db /absolute/path/to/cognition.db \
+  --project unified-portal \
+  --from 2026-07-28T17:59:00+08:00 \
+  --limit 12 \
+  --create
+npm run --silent example:teammem:durable -- --help
 npm run --silent teammem:export -- --db /path/to/ledger.db --limit 5
 npm run --silent teammem:export -- --db /path/to/ledger.db --limit 5 --include-raw
 ```
@@ -217,10 +224,12 @@ node --disable-warning=ExperimentalWarning --test tests/portable-cognition-confo
 
 The migrated team-memory commands are experimental connector tools:
 
-- `example:teammem` reads at most five ledger rows, creates SourceRecords, and explicitly promotes the non-empty record set into one Evidence object with `neutral-evidence-v1`.
+- `example:teammem` reads at most five ledger rows, creates SourceRecords, and explicitly promotes the non-empty record set with the internal `teamMemoryActivityEvidencePolicyV1`. The policy accepts exactly `message`, `commit`, and `mr`, emits stable neutral counts in that order, parses explicit status prefixes only for merge requests, and rejects `journal-highlight` and every other kind.
 - `example:teammem:durable` requires explicit, distinct absolute source-ledger and cognition-database paths. It reads the source ledger only, creates a real Hypothesis and structured neutral Evidence, persists one valid Hypothesis transition and audit event in the separate cognition database, then closes and reopens that database to verify durable records. It infers no Decisions or Principles.
 - `teammem:export` writes SourceRecord JSONL and supports `--from`, `--to`, `--person`, `--project`, and `--limit`. It omits the ledger `raw` column by default; `--include-raw` is the explicit privacy-sensitive opt-in.
 - `--silent` prevents npm banners from contaminating stdout.
+
+The durable command shown above creates a new cognition database. To verify a later reopen, rerun the same complete flag set without `--create`; `--help` prints the supported closed interface and the same reopen rule.
 
 The former experimental `--hypothesis-id` and `--context-id` export arguments were removed because export no longer creates Evidence. Use the generic CLI for source-neutral operations:
 
