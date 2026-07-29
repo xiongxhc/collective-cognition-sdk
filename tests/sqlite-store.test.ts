@@ -23,6 +23,8 @@ import {
   DomainErrorCode,
   transitionObject,
 } from "../src/index.ts";
+import { runCognitionHostConformance } from "../src/host-conformance.ts";
+import { InMemoryCognitionEventPublisher } from "../src/reference-host.ts";
 import { SqliteCognitionStore } from "../src/stores/sqlite.ts";
 import type {
   PortableCognitionEventRecord,
@@ -134,6 +136,15 @@ function temporaryDatabasePath(t: test.TestContext): string {
   );
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   return join(directory, "cognition.db");
+}
+
+function createTemporarySqliteStore(
+  t: test.TestContext,
+): SqliteCognitionStore {
+  return new SqliteCognitionStore({
+    databasePath: temporaryDatabasePath(t),
+    createIfMissing: true,
+  });
 }
 
 function probeStore(
@@ -1671,6 +1682,182 @@ sqliteTest(
     assert.equal(
       await reopened.getObjectVersion(objectId, 3),
       undefined,
+    );
+  },
+);
+
+sqliteTest("SQLite host conformance", async (t) => {
+  const stores: SqliteCognitionStore[] = [];
+
+  try {
+    const result = await runCognitionHostConformance({
+      createStore() {
+        const store = createTemporarySqliteStore(t);
+        stores.push(store);
+        return store;
+      },
+      createPublisher() {
+        return new InMemoryCognitionEventPublisher();
+      },
+    });
+
+    assert.deepEqual(
+      result.cases.filter((item) => item.status !== "passed"),
+      [],
+    );
+  } finally {
+    for (const store of stores) {
+      store.close();
+    }
+  }
+});
+
+sqliteTest(
+  "SQLite concurrent writers preserve the winning target revision",
+  async (t) => {
+    const databasePath = temporaryDatabasePath(t);
+    const objectId = "goal:sqlite-concurrent-target";
+    const initial = objectRecord({ id: objectId });
+    const winning = transitionCommit({
+      id: objectId,
+      eventId: "event:sqlite-concurrent-target:winner",
+    });
+    const losingBase = transitionCommit({
+      id: objectId,
+      eventId: "event:sqlite-concurrent-target:loser",
+    });
+    const losing = {
+      ...losingBase,
+      object: mutateTitle(
+        losingBase.object,
+        "Different concurrent target revision",
+      ),
+    };
+    const first = new SqliteCognitionStore({
+      databasePath,
+      createIfMissing: true,
+    });
+    const second = new SqliteCognitionStore({ databasePath });
+    t.after(() => {
+      second.close();
+      first.close();
+    });
+
+    await first.commitInitial({ object: initial });
+    assert.deepEqual(await first.getLatestObject(objectId), initial);
+    assert.deepEqual(await second.getLatestObject(objectId), initial);
+
+    assert.deepEqual(await first.commitTransition(winning), {
+      status: "committed",
+    });
+    assert.deepEqual(await second.commitTransition(losing), {
+      status: "conflict",
+      conflict: {
+        code: "object_revision_collision",
+        objectId,
+      },
+    });
+
+    for (const store of [first, second]) {
+      assert.deepEqual(
+        await store.getLatestObject(objectId),
+        winning.object,
+      );
+      assert.deepEqual(
+        await store.getObjectVersion(objectId, 2),
+        winning.object,
+      );
+      assert.deepEqual(
+        await store.listObjectEvents(objectId),
+        [winning.event],
+      );
+    }
+    assert.deepEqual(snapshotCognitionRows(databasePath), {
+      objects: [
+        [
+          objectId,
+          1,
+          initial.payload.type,
+          canonicalizeForTest(initial as unknown as JsonValue),
+        ],
+        [
+          objectId,
+          2,
+          winning.object.payload.type,
+          canonicalizeForTest(
+            winning.object as unknown as JsonValue,
+          ),
+        ],
+      ],
+      events: [
+        [
+          winning.event.payload.id,
+          objectId,
+          2,
+          canonicalizeForTest(
+            winning.event as unknown as JsonValue,
+          ),
+        ],
+      ],
+    });
+  },
+);
+
+sqliteTest(
+  "SQLite concurrent writers report the latest version for an unused future target",
+  async (t) => {
+    const databasePath = temporaryDatabasePath(t);
+    const objectId = "goal:sqlite-concurrent-version";
+    const initial = objectRecord({ id: objectId });
+    const winning = transitionCommit({
+      id: objectId,
+      eventId: "event:sqlite-concurrent-version:winner",
+    });
+    const unusedFutureTarget = transitionCommit({
+      id: objectId,
+      expectedVersion: 3,
+      eventId: "event:sqlite-concurrent-version:future",
+    });
+    const first = new SqliteCognitionStore({
+      databasePath,
+      createIfMissing: true,
+    });
+    const second = new SqliteCognitionStore({ databasePath });
+    t.after(() => {
+      second.close();
+      first.close();
+    });
+
+    await first.commitInitial({ object: initial });
+    assert.deepEqual(await first.getLatestObject(objectId), initial);
+    assert.deepEqual(await second.getLatestObject(objectId), initial);
+    assert.deepEqual(await first.commitTransition(winning), {
+      status: "committed",
+    });
+
+    assert.deepEqual(
+      await second.commitTransition(unusedFutureTarget),
+      {
+        status: "conflict",
+        conflict: {
+          code: "version_conflict",
+          objectId,
+          expectedVersion: 3,
+          actualVersion: 2,
+        },
+      },
+    );
+    assert.deepEqual(
+      await second.getObjectVersion(objectId, 4),
+      undefined,
+    );
+    assert.deepEqual(
+      await second.getLatestObject(objectId),
+      winning.object,
+    );
+    assert.deepEqual(
+      await second.listObjectEvents(objectId),
+      [winning.event],
     );
   },
 );
