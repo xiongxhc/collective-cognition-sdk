@@ -45,8 +45,6 @@ interface SchemaObject {
 const adapterId = "collective-cognition-sdk:sqlite-store";
 const schemaVersion = 1;
 const maximumBusyTimeoutMs = 60_000;
-const minimumNodeMajor = 24;
-const minimumNodeMinor = 12;
 const cognitionSchemaTableSql = `
   CREATE TABLE cognition_schema (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
@@ -163,19 +161,12 @@ function unsupportedOperation(): never {
 
 function unsupportedRuntime(): never {
   throw new Error(
-    "SQLite cognition store requires Node.js 24.12.0 or newer with enforced defensive mode.",
+    "SQLite cognition store requires node:sqlite with enforced defensive mode.",
   );
 }
 
 function assertDefensiveRuntime(): void {
-  const [major = 0, minor = 0] = process.versions.node
-    .split(".")
-    .map(Number);
-  if (
-    major < minimumNodeMajor ||
-    (major === minimumNodeMajor && minor < minimumNodeMinor) ||
-    typeof DatabaseSync.prototype.enableDefensive !== "function"
-  ) {
+  if (typeof DatabaseSync.prototype.enableDefensive !== "function") {
     unsupportedRuntime();
   }
 

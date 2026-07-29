@@ -66,11 +66,50 @@ interface FileSnapshot {
   readonly modifiedAtNanoseconds: bigint;
 }
 
-const [nodeMajor = 0, nodeMinor = 0] = process.versions.node
-  .split(".")
-  .map(Number);
-const supportsDefensiveMode =
-  nodeMajor > 24 || (nodeMajor === 24 && nodeMinor >= 12);
+interface SqliteRuntimeCapabilityProbe {
+  readonly nodeVersion: string;
+  readonly enableDefensive: unknown;
+  readonly defensiveModeIsEnforced: () => boolean;
+}
+
+function supportsSqliteStoreRuntime(
+  probe: SqliteRuntimeCapabilityProbe,
+): boolean {
+  return (
+    typeof probe.enableDefensive === "function" &&
+    probe.defensiveModeIsEnforced()
+  );
+}
+
+function defensiveModeIsEnforced(): boolean {
+  let database: DatabaseSync | undefined;
+  try {
+    database = new DatabaseSync(":memory:", {
+      allowExtension: false,
+      defensive: true,
+      enableDoubleQuotedStringLiterals: false,
+      enableForeignKeyConstraints: true,
+    });
+    database.enableDefensive(true);
+    database.exec("PRAGMA writable_schema = ON");
+    const result = database
+      .prepare("PRAGMA writable_schema")
+      .get() as { readonly writable_schema?: unknown };
+    return result.writable_schema === 0;
+  } catch {
+    return false;
+  } finally {
+    if (database?.isOpen) {
+      database.close();
+    }
+  }
+}
+
+const supportsDefensiveMode = supportsSqliteStoreRuntime({
+  nodeVersion: process.versions.node,
+  enableDefensive: DatabaseSync.prototype.enableDefensive,
+  defensiveModeIsEnforced,
+});
 const sqliteTest = supportsDefensiveMode ? test : test.skip;
 const unsupportedRuntimeTest = supportsDefensiveMode ? test.skip : test;
 const sqliteStoreUrl = new URL("../src/stores/sqlite.ts", import.meta.url);
@@ -296,13 +335,29 @@ function createMarkedCognitionDatabase(
   );
 }
 
-test("SQLite adapter declares the defensive-mode Node floor", () => {
+test("SQLite adapter preserves the package 0.3 Node engine baseline", () => {
   const packageJson = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
   ) as { readonly engines?: { readonly node?: unknown } };
 
-  assert.equal(packageJson.engines?.node, ">=24.12.0");
+  assert.equal(packageJson.engines?.node, ">=24");
 });
+
+test(
+  "SQLite runtime gating does not treat Node 25 version data as capability",
+  () => {
+    assert.equal(
+      supportsSqliteStoreRuntime({
+        nodeVersion: "25.0.0",
+        enableDefensive: undefined,
+        defensiveModeIsEnforced() {
+          assert.fail("enforcement probe must not run without the API");
+        },
+      }),
+      false,
+    );
+  },
+);
 
 unsupportedRuntimeTest(
   "SQLite runtime fails before creating a target without defensive support",
@@ -311,7 +366,10 @@ unsupportedRuntimeTest(
     const result = probeStore(process.execPath, databasePath);
 
     assert.equal(result.status, "rejected");
-    assert.match(result.message ?? "", /Node\.js 24\.12\.0 or newer/);
+    assert.match(
+      result.message ?? "",
+      /node:sqlite with enforced defensive mode/,
+    );
     assert.equal(existsSync(databasePath), false);
   },
 );
