@@ -212,6 +212,31 @@ function snapshotJsonValue(
   }
 }
 
+function isDeeplyFrozenData(value: unknown, seen = new Set<object>()): boolean {
+  if (typeof value !== "object" || value === null) {
+    return true;
+  }
+  if (seen.has(value)) {
+    return false;
+  }
+  seen.add(value);
+  try {
+    if (!Object.isFrozen(value)) {
+      return false;
+    }
+    return Reflect.ownKeys(value).every((key) => {
+      const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+      return descriptor !== undefined &&
+        "value" in descriptor &&
+        isDeeplyFrozenData(descriptor.value, seen);
+    });
+  } catch {
+    return false;
+  } finally {
+    seen.delete(value);
+  }
+}
+
 function snapshotCase(value: unknown): CaseSnapshot | undefined {
   try {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -293,6 +318,9 @@ async function snapshotCollection(
 
   values.forEach((value, itemIndex) => {
     try {
+      if (!isDeeplyFrozenData(value)) {
+        throw new Error("SourceRecord is not deeply frozen.");
+      }
       const snapshot = snapshotJsonValue(value, new Set<object>(), 1);
       if (snapshot === undefined) {
         throw new Error("Invalid SourceRecord snapshot.");

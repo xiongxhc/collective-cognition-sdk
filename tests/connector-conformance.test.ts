@@ -371,6 +371,17 @@ test("rejects record accessors without invoking them", async () => {
   }]);
 });
 
+test("rejects valid but mutable connector records", async () => {
+  const mutableRecord = structuredClone(record());
+  const results = await runSourceConnectorConformance([{
+    name: "mutable record connector",
+    collect: () => [mutableRecord],
+  }]);
+
+  assert.equal(results[0].status, "failed");
+  assert.equal(results[0].diagnostics[0]?.code, "invalid_source_record");
+});
+
 test("returns detached results that cannot be changed through connector-owned arrays", async () => {
   const connectorRecords = [record()];
   const results = await runSourceConnectorConformance([{
