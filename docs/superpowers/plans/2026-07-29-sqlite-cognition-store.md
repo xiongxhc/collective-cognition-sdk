@@ -514,7 +514,7 @@ Open two stores on one database:
 4. store B returns the contract-prescribed collision or version outcome according to target identity use;
 5. only store A’s object and event remain.
 
-Add a second case where store B targets unused version `3` with stale expected version `1` and receives `version_conflict` with actual version `2`.
+Add a second contract-valid case where store B targets unused version `4` with stale expected version `3` and receives `version_conflict` with actual version `2`.
 
 - [ ] **Step 5: Run full SQLite and host suites**
 
