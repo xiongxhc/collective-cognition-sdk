@@ -1,6 +1,6 @@
 # SQLite Cognition Store Design
 
-**Status:** Approved design; implementation pending written review
+**Status:** Implemented; final review pending
 
 **Date:** 2026-07-29
 
@@ -305,3 +305,7 @@ This slice is complete when:
 6. package `0.4.0` installs and imports through the SQLite subpath in a clean consumer;
 7. all existing and new tests, type checks, syntax checks, examples, compatibility checks, and package checks pass; and
 8. independent final review finds no unresolved Critical or Important issue.
+
+Implementation has completed the executable acceptance work. The independent
+whole-branch review has not yet run, so this design is intentionally not marked
+final-review verified.
