@@ -3,11 +3,17 @@ import { spawnSync } from "node:child_process";
 import type { SpawnSyncReturns } from "node:child_process";
 import {
   existsSync,
+  linkSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
+  readlinkSync,
+  realpathSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
+  symlinkSync,
 } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
@@ -142,12 +148,16 @@ function createFixture(t: test.TestContext): Fixture {
 function exampleArguments(
   fixture: Fixture,
   create: boolean,
+  paths: {
+    readonly ledgerPath?: string;
+    readonly cognitionPath?: string;
+  } = {},
 ): string[] {
   return [
     "--ledger",
-    fixture.ledgerPath,
+    paths.ledgerPath ?? fixture.ledgerPath,
     "--cognition-db",
-    fixture.cognitionPath,
+    paths.cognitionPath ?? fixture.cognitionPath,
     "--project",
     "unified-portal",
     "--from",
@@ -161,7 +171,21 @@ function exampleArguments(
 function runExample(
   fixture: Fixture,
   args: readonly string[],
+  additionalCognitionDirectories: readonly string[] = [],
 ): SpawnSyncReturns<string> {
+  const cognitionDirectories = new Set(
+    [
+      fixture.cognitionDirectory,
+      ...additionalCognitionDirectories,
+    ].flatMap((directory) => [
+      directory,
+      realpathSync.native(directory),
+    ]),
+  );
+  const cognitionPermissions = [...cognitionDirectories].flatMap((directory) => [
+    `--allow-fs-read=${directory}`,
+    `--allow-fs-write=${directory}`,
+  ]);
   return spawnSync(
     process.execPath,
     [
@@ -170,8 +194,7 @@ function runExample(
       `--allow-fs-read=${repositoryRoot}`,
       `--allow-fs-read=${join(fixture.root, "ledger")}`,
       `--allow-fs-read=${fixture.runDirectory}`,
-      `--allow-fs-read=${fixture.cognitionDirectory}`,
-      `--allow-fs-write=${fixture.cognitionDirectory}`,
+      ...cognitionPermissions,
       examplePath,
       ...args,
     ],
@@ -202,6 +225,64 @@ function filesBelow(root: string): string[] {
     .filter((entry) => entry.isFile())
     .map((entry) => relative(root, join(entry.parentPath, entry.name)))
     .sort();
+}
+
+interface FilesystemEntrySnapshot {
+  readonly path: string;
+  readonly type: "directory" | "file" | "symlink";
+  readonly size: bigint;
+  readonly modifiedAtNanoseconds: bigint;
+  readonly device: bigint;
+  readonly inode: bigint;
+  readonly target?: string;
+}
+
+function filesystemSnapshot(root: string): FilesystemEntrySnapshot[] {
+  return readdirSync(root, { recursive: true, withFileTypes: true })
+    .map((entry): FilesystemEntrySnapshot => {
+      const path = join(entry.parentPath, entry.name);
+      const metadata = lstatSync(path, { bigint: true });
+      return {
+        path: relative(root, path),
+        type: entry.isDirectory()
+          ? "directory"
+          : entry.isSymbolicLink()
+            ? "symlink"
+            : "file",
+        size: metadata.size,
+        modifiedAtNanoseconds: metadata.mtimeNs,
+        device: metadata.dev,
+        inode: metadata.ino,
+        ...(entry.isSymbolicLink()
+          ? { target: readlinkSync(path) }
+          : {}),
+      };
+    })
+    .sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function assertOverlapRejectedWithoutMutation(
+  fixture: Fixture,
+  ledgerPath: string,
+  args: readonly string[],
+  additionalCognitionDirectories: readonly string[] = [],
+): void {
+  const ledgerBefore = statSync(ledgerPath, { bigint: true });
+  const filesystemBefore = filesystemSnapshot(fixture.root);
+
+  const result = runExample(
+    fixture,
+    args,
+    additionalCognitionDirectories,
+  );
+
+  assert.notEqual(result.status, 0);
+  assert.equal(result.stdout, "");
+  assert.match(result.stderr, /source ledger overlaps cognition target/i);
+  const ledgerAfter = statSync(ledgerPath, { bigint: true });
+  assert.equal(ledgerAfter.size, ledgerBefore.size);
+  assert.equal(ledgerAfter.mtimeNs, ledgerBefore.mtimeNs);
+  assert.deepEqual(filesystemSnapshot(fixture.root), filesystemBefore);
 }
 
 test(
@@ -290,6 +371,86 @@ test(
     } finally {
       cognition.close();
     }
+  },
+);
+
+test(
+  "rejects a ledger at the explicit cognition journal path before creation",
+  (t) => {
+    const fixture = createFixture(t);
+    const journalPath = `${fixture.cognitionPath}-journal`;
+    renameSync(fixture.ledgerPath, journalPath);
+
+    assertOverlapRejectedWithoutMutation(
+      fixture,
+      journalPath,
+      exampleArguments(fixture, true, { ledgerPath: journalPath }),
+    );
+  },
+);
+
+test(
+  "rejects a ledger at a canonical-parent sidecar before creation",
+  (t) => {
+    const fixture = createFixture(t);
+    const journalPath = `${fixture.cognitionPath}-journal`;
+    renameSync(fixture.ledgerPath, journalPath);
+    const aliasDirectory = join(fixture.root, "cognition-alias");
+    symlinkSync(fixture.cognitionDirectory, aliasDirectory, "dir");
+    const aliasCognitionPath = join(aliasDirectory, "cognition.db");
+
+    assertOverlapRejectedWithoutMutation(
+      fixture,
+      journalPath,
+      exampleArguments(fixture, true, {
+        ledgerPath: journalPath,
+        cognitionPath: aliasCognitionPath,
+      }),
+      [aliasDirectory],
+    );
+  },
+);
+
+test(
+  "rejects a hardlink alias at a canonical cognition-main sidecar",
+  (t) => {
+    const fixture = createFixture(t);
+    assert.deepEqual(
+      parseSingleJsonOutput(
+        runExample(fixture, exampleArguments(fixture, true)),
+      ),
+      expectedOutput,
+    );
+    const aliasDirectory = join(fixture.root, "cognition-main-alias");
+    mkdirSync(aliasDirectory);
+    const aliasCognitionPath = join(aliasDirectory, "cognition.db");
+    symlinkSync(fixture.cognitionPath, aliasCognitionPath);
+    const canonicalWalPath = `${fixture.cognitionPath}-wal`;
+    linkSync(fixture.ledgerPath, canonicalWalPath);
+
+    assertOverlapRejectedWithoutMutation(
+      fixture,
+      fixture.ledgerPath,
+      exampleArguments(fixture, false, {
+        cognitionPath: aliasCognitionPath,
+      }),
+      [aliasDirectory],
+    );
+  },
+);
+
+test(
+  "rejects a symlink alias at an explicit cognition sidecar",
+  (t) => {
+    const fixture = createFixture(t);
+    const sharedMemoryPath = `${fixture.cognitionPath}-shm`;
+    symlinkSync(fixture.ledgerPath, sharedMemoryPath);
+
+    assertOverlapRejectedWithoutMutation(
+      fixture,
+      fixture.ledgerPath,
+      exampleArguments(fixture, true),
+    );
   },
 );
 

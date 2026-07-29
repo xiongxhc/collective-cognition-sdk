@@ -1,4 +1,11 @@
-import { isAbsolute } from "node:path";
+import { realpathSync, statSync } from "node:fs";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  normalize,
+} from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
 import {
@@ -39,11 +46,105 @@ const valueArguments = new Set([
   "--from",
   "--limit",
 ]);
+const sqliteSidecarSuffixes = ["-journal", "-wal", "-shm"] as const;
 const isoTimestampPattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
 
 function invalidArguments(): never {
   throw new Error("Invalid arguments.");
+}
+
+function sourceLedgerOverlap(): never {
+  throw new Error("Source ledger overlaps cognition target.");
+}
+
+function pathIsAbsent(error: unknown): boolean {
+  return error instanceof Error &&
+    "code" in error &&
+    (
+      (error as NodeJS.ErrnoException).code === "ENOENT" ||
+      (error as NodeJS.ErrnoException).code === "ENOTDIR"
+    );
+}
+
+function existingRealPath(path: string): string | undefined {
+  try {
+    return realpathSync.native(path);
+  } catch (error) {
+    if (pathIsAbsent(error)) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+function existingFileIdentity(
+  path: string,
+): { readonly device: bigint; readonly inode: bigint } | undefined {
+  try {
+    const metadata = statSync(path, { bigint: true });
+    return { device: metadata.dev, inode: metadata.ino };
+  } catch (error) {
+    if (pathIsAbsent(error)) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+function cognitionTargetCandidates(cognitionPath: string): Set<string> {
+  const mainPaths = new Set([cognitionPath, normalize(cognitionPath)]);
+  const canonicalParent = existingRealPath(dirname(cognitionPath));
+  if (canonicalParent !== undefined) {
+    mainPaths.add(join(canonicalParent, basename(cognitionPath)));
+  }
+  const canonicalMain = existingRealPath(cognitionPath);
+  if (canonicalMain !== undefined) {
+    mainPaths.add(canonicalMain);
+  }
+
+  const candidates = new Set<string>();
+  for (const mainPath of mainPaths) {
+    candidates.add(mainPath);
+    for (const suffix of sqliteSidecarSuffixes) {
+      candidates.add(`${mainPath}${suffix}`);
+    }
+  }
+  return candidates;
+}
+
+function assertSourceLedgerDisjoint(
+  ledgerPath: string,
+  cognitionPath: string,
+): void {
+  const ledgerPaths = new Set([ledgerPath, normalize(ledgerPath)]);
+  const ledgerRealPath = existingRealPath(ledgerPath);
+  const ledgerIdentity = existingFileIdentity(ledgerPath);
+
+  for (const candidate of cognitionTargetCandidates(cognitionPath)) {
+    if (
+      ledgerPaths.has(candidate) ||
+      ledgerPaths.has(normalize(candidate))
+    ) {
+      sourceLedgerOverlap();
+    }
+    const candidateRealPath = existingRealPath(candidate);
+    if (
+      ledgerRealPath !== undefined &&
+      candidateRealPath === ledgerRealPath
+    ) {
+      sourceLedgerOverlap();
+    }
+    const candidateIdentity = existingFileIdentity(candidate);
+    if (
+      ledgerIdentity !== undefined &&
+      candidateIdentity !== undefined &&
+      ledgerIdentity.device === candidateIdentity.device &&
+      ledgerIdentity.inode === candidateIdentity.inode
+    ) {
+      sourceLedgerOverlap();
+    }
+  }
 }
 
 function isIsoTimestamp(value: string): boolean {
@@ -100,7 +201,6 @@ function parseArguments(args: readonly string[]): Arguments {
     limitText === undefined ||
     !isAbsolute(ledgerPath) ||
     !isAbsolute(cognitionPath) ||
-    ledgerPath === cognitionPath ||
     project.trim().length === 0 ||
     !isIsoTimestamp(from) ||
     !/^[1-9]\d*$/.test(limitText)
@@ -162,6 +262,10 @@ function assertReopenedRecord(
 
 async function run(args: readonly string[]) {
   const options = parseArguments(args);
+  assertSourceLedgerDisjoint(
+    options.ledgerPath,
+    options.cognitionPath,
+  );
   const rows = readTeamMemoryEvents({
     dbPath: options.ledgerPath,
     project: options.project,
