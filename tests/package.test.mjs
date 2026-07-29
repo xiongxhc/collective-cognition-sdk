@@ -40,6 +40,22 @@ const historicalCompatibilityBaselineUrl = new URL(
 const licenseUrl = new URL("../LICENSE", import.meta.url);
 const noticeUrl = new URL("../NOTICE", import.meta.url);
 const citationUrl = new URL("../CITATION.cff", import.meta.url);
+const readmeUrl = new URL("../README.md", import.meta.url);
+const connectorAuthorGuideUrl = new URL(
+  "../docs/connector-author-guide.md",
+  import.meta.url,
+);
+const roadmapUrl = new URL("../docs/ROADMAP.md", import.meta.url);
+const connectorRfcUrl = new URL(
+  "../rfcs/0006-maintained-source-connectors.md",
+  import.meta.url,
+);
+const rfcIndexUrl = new URL("../rfcs/README.md", import.meta.url);
+const specificationIndexUrl = new URL("../spec/README.md", import.meta.url);
+const compatibilityPolicyUrl = new URL(
+  "../spec/compatibility.md",
+  import.meta.url,
+);
 const typescriptCli = fileURLToPath(
   new URL("../node_modules/typescript/bin/tsc", import.meta.url),
 );
@@ -300,6 +316,114 @@ test("built CLI executable validates canonical SourceRecord input", () => {
   assert.equal(output.status, "accepted");
 });
 
+test("public documentation explains the source-neutral connector model", () => {
+  const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
+  const readme = readFileSync(readmeUrl, "utf8");
+  const authorGuide = readFileSync(connectorAuthorGuideUrl, "utf8");
+  const roadmap = readFileSync(roadmapUrl, "utf8");
+  const connectorRfc = readFileSync(connectorRfcUrl, "utf8");
+  const rfcIndex = readFileSync(rfcIndexUrl, "utf8");
+  const specificationIndex = readFileSync(specificationIndexUrl, "utf8");
+  const compatibilityPolicy = readFileSync(compatibilityPolicyUrl, "utf8");
+
+  assert.equal(packageJson.private, true);
+  assert.match(readme, /private and unpublished/i);
+  assert.match(
+    readme,
+    /\[connector author guide\]\(docs\/connector-author-guide\.md\)/i,
+  );
+  assert.match(
+    readme,
+    /\[RFC 0006[^\]]*\]\(rfcs\/0006-maintained-source-connectors\.md\)/i,
+  );
+  assert.match(
+    readme,
+    /team-memory is one maintained compatible connector/i,
+  );
+  assert.match(
+    readme,
+    /collection does not imply interpretation, promotion, or persistence/i,
+  );
+  assert.match(readme, /does not require\s+`team-memory-agent`/i);
+  assert.match(readme, /`sourceInstance` is public, non-secret identity/i);
+  assert.match(
+    readme,
+    /`--include-raw` is\s+an explicit\s+privacy-sensitive opt-in/i,
+  );
+
+  assert.match(
+    authorGuide,
+    /`SourceRecord` is the universal boundary/i,
+  );
+  assert.match(
+    authorGuide,
+    /from "collective-cognition-sdk";/,
+  );
+  assert.match(
+    authorGuide,
+    /from "collective-cognition-sdk\/connector-conformance\/0\.1\.0";/,
+  );
+  assert.doesNotMatch(
+    authorGuide,
+    /collective-cognition-sdk\/connectors\/team-memory/,
+  );
+  assert.match(
+    authorGuide,
+    /separate repository and package/i,
+  );
+  assert.match(
+    authorGuide,
+    /conformance is not\s+certification, does not imply\s+endorsement, and is not an LTS commitment/i,
+  );
+
+  assert.match(
+    rfcIndex,
+    /\[RFC 0006: Maintained Source Connectors\]\(0006-maintained-source-connectors\.md\)/,
+  );
+  assert.match(
+    specificationIndex,
+    /collective-cognition-sdk\/connector-conformance\/0\.1\.0/,
+  );
+  assert.match(
+    specificationIndex,
+    /collective-cognition-sdk\/connectors\/team-memory\/0\.1\.0/,
+  );
+
+  [
+    /scheduler/i,
+    /connector registry/i,
+    /network connectors/i,
+    /credential policy/i,
+    /automatic promotion/i,
+    /durable publication outbox/i,
+    /npm publication/i,
+    /production certification/i,
+    /real-ledger acceptance/i,
+    /final verification/i,
+  ].forEach((deferral) => assert.match(roadmap, deferral));
+
+  for (const document of [
+    readme,
+    authorGuide,
+    connectorRfc,
+    compatibilityPolicy,
+  ]) {
+    assert.match(document, /private and unpublished|private, unpublished/i);
+    assert.match(
+      document,
+      /not\s+certification|does not\s+certify|no\s+certification|not a\s+certification/i,
+    );
+    assert.match(
+      document,
+      /not\s+endorsement|does not\s+imply\s+endorsement|no\s+endorsement/i,
+    );
+    assert.match(
+      document,
+      /not\s+(?:an\s+)?LTS|no\s+LTS|does not\s+promise[\s\S]*long-term support/i,
+    );
+  }
+});
+
 test("npm package manifest and tarball expose only approved artifacts", () => {
   const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
   const packageLock = JSON.parse(readFileSync(packageLockUrl, "utf8"));
@@ -406,12 +530,14 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "LICENSE",
     "NOTICE",
     "README.md",
+    "docs/connector-author-guide.md",
     "rfcs/README.md",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
     "rfcs/0003-portable-cognition-contract.md",
     "rfcs/0004-host-integration-contract.md",
     "rfcs/0005-sqlite-cognition-store.md",
+    "rfcs/0006-maintained-source-connectors.md",
     "spec/README.md",
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
@@ -486,7 +612,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   const packResults = JSON.parse(packed.stdout);
   assert.equal(packResults.length, 1);
   const paths = packResults[0].files.map((file) => file.path).sort();
-  const expectedPaths = [
+  const expectedBaselinePaths = [
     "CITATION.cff",
     "LICENSE",
     "NOTICE",
@@ -522,17 +648,26 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/schemas/0.1.0/source-record.schema.json",
     "spec/source-record.md",
   ].sort();
+  const expectedPaths = [
+    ...expectedBaselinePaths,
+    "docs/connector-author-guide.md",
+    "rfcs/0006-maintained-source-connectors.md",
+  ].sort();
 
   assert.deepEqual(
     baseline.package.packageFiles,
     expectedPaths,
-    "compatibility package inventory must match the approved allowlist",
+    "package 0.5 compatibility inventory must remain byte-immutable",
   );
   assert.deepEqual(paths, expectedPaths, "package contents must match allowlist");
   assert.ok(
     paths.every(
       (path) =>
-        !/^(?:src|tests|examples|docs)\//.test(path) &&
+        !/^(?:src|tests|examples)\//.test(path) &&
+        (
+          !/^docs\//.test(path) ||
+          path === "docs/connector-author-guide.md"
+        ) &&
         !/(?:^|\/)adapters?\//i.test(path) &&
         !/(?:git-commit|team-memory-activity|teammem-cli)/i.test(path),
     ),

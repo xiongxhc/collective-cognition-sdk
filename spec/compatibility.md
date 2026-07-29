@@ -4,7 +4,7 @@
 
 This document defines the normative compatibility policy for the Collective Cognition SDK. It separates portable serialized contracts from the installable package, public experimental APIs, and repository internals.
 
-The historical compatibility baseline `0.1.0` records the inaugural surface of the unpublished package `0.1.0`; it does not represent a migration from an earlier published release. Baseline `0.2.0` records the additive Portable Cognition package surface. Historical baseline `0.3.0` records the additive Host Integration package surface plus the source-breaking correction that narrows `PortableDomainError.code` to the already-normative Portable Cognition `0.1.0` allowlist, while retaining prior baselines and serialized artifacts byte-for-byte. The current baseline `0.4.0` adds the optional SQLite cognition-store subpath and its packaged RFC without changing root exports or the generic CLI contract. Package `0.4.0` remains private, unpublished, and not production-ready.
+The historical compatibility baseline `0.1.0` records the inaugural surface of the unpublished package `0.1.0`; it does not represent a migration from an earlier published release. Baseline `0.2.0` records the additive Portable Cognition package surface. Historical baseline `0.3.0` records the additive Host Integration package surface plus the source-breaking correction that narrows `PortableDomainError.code` to the already-normative Portable Cognition `0.1.0` allowlist, while retaining prior baselines and serialized artifacts byte-for-byte. Historical baseline `0.4.0` adds the optional SQLite cognition-store subpath and its packaged RFC. The current baseline `0.5.0` adds source-neutral connector conformance, one maintained compatible connector subpath, and a dedicated connector CLI without changing root exports or the generic CLI contract. Package `0.5.0` remains private, unpublished, and not production-ready.
 
 The terms **MUST**, **MUST NOT**, **SHOULD**, and **MAY** express normative requirements.
 
@@ -13,8 +13,8 @@ The terms **MUST**, **MUST NOT**, **SHOULD**, and **MAY** express normative requ
 | Level | Meaning | Current surfaces |
 | --- | --- | --- |
 | Normative Stable | Portable behavior and immutable versioned artifacts on which implementations and stored data can rely. | SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and Host Integration `0.1.0` prose, schemas or conformance fixtures where applicable, stable contract error codes, versioned artifact package subpaths, this policy, versioned compatibility baselines, change cases, and compatibility package subpaths. |
-| Supported Experimental | Public and tested package behavior that can evolve under this policy before `1.0.0`. | Root runtime exports, root TypeScript declarations, non-normative package subpaths, the `collective-cognition` executable, generic CLI behavior, and non-SourceRecord domain error codes. |
-| Internal | Repository implementation details with no compatibility promise. | Unexported source modules, source-specific connectors and entrypoints, examples, tests, scripts, plans, repository utilities, and generated layout beyond declared package entrypoints. |
+| Supported Experimental | Public and tested package behavior that can evolve under this policy before `1.0.0`. | Root runtime exports, root TypeScript declarations, declared non-normative package subpaths, the `collective-cognition` and `collective-cognition-teammem` executables, generic and connector CLI behavior, and non-SourceRecord domain error codes. |
+| Internal | Repository implementation details with no compatibility promise. | Unexported source modules and connectors, examples, tests, scripts, plans, repository utilities, and generated layout beyond declared package entrypoints. |
 
 The versioned baseline records these three identifiers and definitions machine-readably.
 
@@ -163,6 +163,18 @@ Baseline `0.2.0` classifies the package change as additive with a minor package-
 
 Baseline `0.3.0` records two changes. The Host Integration `0.1.0` runtime, type, contract, conformance, and reference-host subpaths are additive. The `PortableDomainError.code` declaration narrowing is a `COMP-012` correctness correction but is source-breaking for a generic package `0.2.0` TypeScript assignment, so the package change is classified `breaking` with `minor-before-1.0`. Migration narrows a package-wide `DomainErrorCode` with a guard returning `code is PortableDomainError["code"]`. Deprecation is not applicable because retaining the wider portable payload declaration would continue contradicting the immutable Portable Cognition `0.1.0` allowlist.
 
+Baseline `0.4.0` adds the optional
+`collective-cognition-sdk/stores/sqlite/0.1.0` reference adapter without
+changing the source-neutral root exports or generic CLI.
+
+Baseline `0.5.0` adds
+`collective-cognition-sdk/connector-conformance/0.1.0`,
+`collective-cognition-sdk/connectors/team-memory/0.1.0`, and
+`collective-cognition-teammem`. The conformance subpath is source-neutral.
+Team-memory is one maintained compatible connector, not root SDK behavior.
+External connectors may live in independent repositories and packages.
+Collection does not imply interpretation, promotion, or persistence.
+
 ### COMP-018 — Deliberate Baseline Updates
 
 A baseline failure MUST receive human classification. Contributors MUST NOT update a baseline snapshot automatically. A deliberate change MUST identify the affected consumer, classify the change, follow the required RFC, migration, deprecation, and release process, and create a new baseline version when the inventory or policy snapshot changes.
@@ -182,3 +194,6 @@ This policy does not:
 - claim that all TypeScript declaration digest changes are semantically breaking;
 - claim cross-language interoperability without conformance evidence; or
 - make this repository a standards body.
+
+Package `0.5.0` is private and unpublished. Connector conformance is not
+certification, does not imply endorsement, and is not an LTS commitment.

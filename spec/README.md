@@ -1,16 +1,17 @@
 # Collective Cognition Specification
 
-This directory contains the implemented and final-review verified Normative Stable SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and [Host Integration `0.1.0`](host-integration.md) contracts plus compatibility baselines `0.1.0` through `0.4.0`. The runnable TypeScript code and emitted package artifacts are the current reference implementation; package `0.4.0` remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
+This directory contains the implemented and final-review verified Normative Stable SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and [Host Integration `0.1.0`](host-integration.md) contracts plus compatibility baselines `0.1.0` through `0.5.0`. The runnable TypeScript code and emitted package artifacts are the current reference implementation; package `0.5.0` remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
 
 ## Current Architecture
 
-Four documents define the current direction:
+The current direction is defined by:
 
 - the [implemented cognitive-core design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-collective-cognition-core-design.md);
 - the [approved universal-ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
 - the [approved compatibility, versioning, and deprecation design](../docs/superpowers/specs/2026-07-27-compatibility-versioning-deprecation-design.md).
 - the [implemented and final-review verified Portable Cognition design](../docs/superpowers/specs/2026-07-27-portable-cognition-contract-design.md).
 - the [SQLite cognition-store design](../docs/superpowers/specs/2026-07-29-sqlite-cognition-store-design.md), which is implemented and final-review verified.
+- [RFC 0006: Maintained Source Connectors](../rfcs/0006-maintained-source-connectors.md), implemented with final verification and real-ledger acceptance still pending.
 
 The core design and Phase 2 universal ingestion are implemented and final-review verified locally. [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md) records the implemented ingestion semantics.
 
@@ -20,7 +21,7 @@ The governing boundary is:
 external material → neutral SourceRecord → explicit promotion → CognitiveObject
 ```
 
-The historical team-memory direct-to-Evidence path was replaced. The current connector emits SourceRecords and is imported directly rather than exported from the source-neutral root API.
+The historical team-memory direct-to-Evidence path was replaced. `SourceRecord` remains the universal boundary. Team-memory is one maintained compatible connector below a versioned subpath, not SDK root behavior.
 
 ## Start Here
 
@@ -30,6 +31,7 @@ The historical team-memory direct-to-Evidence path was replaced. The current con
 - Read the normative [`Portable Cognition 0.1.0` contract](portable-cognition.md), its [`JSON Schema`](schemas/0.1.0/portable-cognition.schema.json), and its [conformance fixtures](conformance/0.1.0/portable-cognition/).
 - Read the normative [Host Integration Contract `0.1.0`](host-integration.md) and [RFC 0004](../rfcs/0004-host-integration-contract.md) before changing host-owned cognition persistence, publication, replay, or read behavior.
 - Read [RFC 0005](../rfcs/0005-sqlite-cognition-store.md) before changing the optional SQLite adapter, its source/cognition separation, or its package subpath.
+- Read [RFC 0006](../rfcs/0006-maintained-source-connectors.md) and the [connector author guide](../docs/connector-author-guide.md) before changing connector packaging, conformance, source identity, or maintained mapping behavior.
 - Read the normative [compatibility policy](compatibility.md), [baseline `0.1.0`](compatibility/0.1.0/baseline.json), and [change cases](compatibility/0.1.0/change-cases.jsonl).
 - Run `npm run test:schema` for the combined SourceRecord and Portable Cognition schema gate; `pack:check` and npm prepack inherit it.
 - Run `node --test tests/conformance.test.ts` for the canonical SourceRecord suite.
@@ -57,6 +59,26 @@ The historical team-memory direct-to-Evidence path was replaced. The current con
 
 The invalid corpus covers every machine-checkable rule `SR-001` through `SR-011`, including lossless lexical cases for duplicate member names and lone surrogates and a runtime-layer depth-257 fixture for the schema-inexpressible recursive bound. The valid corpus includes the depth-256 boundary. The schema suite proves strict compilation and rejection of schema-layer fixtures even when `format` assertion is disabled. The runtime conformance suite verifies all fixtures through SDK and CLI outcomes plus equivalent canonical JSON and JSONL results. Focused runtime suites additionally enforce direct-object parity, immutable accepted values, revision collision behavior, bounded normalization, promotion identity, sanitized diagnostics, and fail-closed authorization. Connector tests prove team-memory defaults to raw omission and that team-memory and Git emit valid records under the same SourceRecord contract.
 
+## Supported Experimental Connector Surfaces
+
+Connector conformance is available at
+`collective-cognition-sdk/connector-conformance/0.1.0`. It validates connector
+output, duplicate revision keys, normative round trips, and optional repeated
+determinism without defining discovery, credentials, scheduling, transport,
+interpretation, promotion, or persistence.
+
+The first maintained compatible connector is available at
+`collective-cognition-sdk/connectors/team-memory/0.1.0`. It reads an explicitly
+selected structural `teammem-event-ledger/1` SQLite database, requires public
+non-secret `sourceInstance` identity, omits raw content by default, and does
+not depend on `team-memory-agent`. The dedicated
+`collective-cognition-teammem` CLI exports canonical SourceRecord JSONL only.
+
+External connectors may live in independent repositories and packages. They
+can import the root SourceRecord API plus the conformance subpath without
+importing the maintained connector. Conformance is not certification, does
+not imply endorsement, and is not an LTS commitment.
+
 ## Normative Portable Cognition 0.1.0
 
 `portable-cognition.md` defines the Normative Stable serialized exchange contract for cognitive objects, cognition events, transition contexts, authorization decisions, and serializable domain errors. `schemas/0.1.0/portable-cognition.schema.json` is its language-neutral Draft 2020-12 structural contract. The package exposes the schema at `collective-cognition-sdk/schemas/portable-cognition/0.1.0` and its valid, invalid, and cognitive-loop fixtures through versioned conformance subpaths.
@@ -67,15 +89,15 @@ The contract provides an envelope and runtime codec, not identity authentication
 
 [`host-integration.md`](host-integration.md) defines the accepted host-owned persistence and publication boundary for Portable Cognition records. It requires detached immutable snapshots, versioned object-revision and event identities, coherent transition commits, observable atomicity, optimistic concurrency, persistence-before-publication, event-ID publication idempotency, recoverable `committed_but_unpublished` outcomes, and deterministic detached reads.
 
-The contract is storage and transport neutral: it does not require a database, queue, transaction manager, automatic retries, or exactly-once downstream effects. Hosts operate only on explicit cognition targets and never discover, inspect, or couple to a SourceRecord store through these ports. The reusable host conformance runner, focused host suites, and host recovery example provide current executable evidence, and Host Integration `0.1.0` is implemented and final-review verified. The optional SQLite `CognitionStore` reference adapter is available only through `collective-cognition-sdk/stores/sqlite/0.1.0`; it is implemented and final-review verified. `team-memory-agent` may implement or compose these ports later when it promotes material into shared cognition; individual collectors need them only for that promotion. Security policy, publication readiness, durable publication, and additional production adapters remain deferred.
+The contract is storage and transport neutral: it does not require a database, queue, transaction manager, automatic retries, or exactly-once downstream effects. Hosts operate only on explicit cognition targets and never discover, inspect, or couple to a SourceRecord store through these ports. The reusable host conformance runner, focused host suites, and host recovery example provide current executable evidence, and Host Integration `0.1.0` is implemented and final-review verified. The optional SQLite `CognitionStore` reference adapter is available only through `collective-cognition-sdk/stores/sqlite/0.1.0`; it is implemented and final-review verified. A host needs these ports only when it chooses to persist or publish cognition after explicit promotion; source collectors do not depend on them. Security policy, publication readiness, durable publication, and additional production adapters remain deferred.
 
 ## Normative Compatibility Baselines
 
-`compatibility.md` defines the normative compatibility, versioning, and deprecation policy. `compatibility/0.1.0/baseline.json` is the byte-immutable baseline for the SourceRecord contract and initial package surface. `compatibility/0.2.0/baseline.json` retains that surface and records the additive Portable Cognition runtime, type, schema, conformance, package, and artifact inventories. `compatibility/0.3.0/baseline.json` retains those surfaces, records the additive Host Integration runtime, type, and package subpaths, and classifies the `PortableDomainError.code` narrowing as a `COMP-012` source-breaking correction with a `minor-before-1.0` effect. `compatibility/0.4.0/baseline.json` adds the optional SQLite store subpath and declaration closure without changing root exports or the generic CLI. The package exposes the baselines at `collective-cognition-sdk/compatibility/0.1.0`, `collective-cognition-sdk/compatibility/0.2.0`, `collective-cognition-sdk/compatibility/0.3.0`, and `collective-cognition-sdk/compatibility/0.4.0`.
+`compatibility.md` defines the normative compatibility, versioning, and deprecation policy. `compatibility/0.1.0/baseline.json` is the byte-immutable baseline for the SourceRecord contract and initial package surface. `compatibility/0.2.0/baseline.json` retains that surface and records the additive Portable Cognition runtime, type, schema, conformance, package, and artifact inventories. `compatibility/0.3.0/baseline.json` retains those surfaces, records the additive Host Integration runtime, type, and package subpaths, and classifies the `PortableDomainError.code` narrowing as a `COMP-012` source-breaking correction with a `minor-before-1.0` effect. `compatibility/0.4.0/baseline.json` adds the optional SQLite store subpath and declaration closure. `compatibility/0.5.0/baseline.json` adds connector conformance, the maintained connector, and the dedicated CLI without changing root exports or the generic CLI. The package exposes each baseline at `collective-cognition-sdk/compatibility/<version>`.
 
-SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.4.0` are Normative Stable. Before `1.0.0`, the package root and generic CLI are Supported Experimental. Connectors and unexported source modules are Internal. Compatibility checks detect exact baseline drift, independently hash each public declaration entrypoint closure, and exercise the package `0.2.0` generic error-code assignment plus the supported package `0.3.0` narrowing migration; they do not automatically determine semantic compatibility.
+SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.5.0` are Normative Stable. Before `1.0.0`, the package root, generic CLI, dedicated connector CLI, and declared non-normative subpaths are Supported Experimental. Unexported connector modules remain Internal. Compatibility checks detect exact baseline drift, independently hash each public declaration entrypoint closure, and exercise the package `0.2.0` generic error-code assignment plus the supported package `0.3.0` narrowing migration; they do not automatically determine semantic compatibility.
 
-Phase 3 remains in progress. SourceRecord, Portable Cognition, Host Integration, and the compatibility baselines are implemented normative contracts, and the compatibility, Portable Cognition, Host Integration, and SQLite cognition-store slices are final-review verified. The ESM build, declarations, package entrypoints, CLI contract, package-content checks, clean-consumer schema discovery, Apache-2.0 license, attribution notice, and citation metadata are also implemented. Connector packaging, runtime policy, security policy, publication, and production readiness remain deferred.
+Phase 3 remains in progress. SourceRecord, Portable Cognition, Host Integration, and the compatibility baselines are implemented normative contracts, and the compatibility, Portable Cognition, Host Integration, and SQLite cognition-store slices are final-review verified. Connector conformance, the first maintained connector, its CLI, and private package surfaces are implemented; final independent verification and manual real-ledger acceptance remain unfinished. Runtime policy, security policy, publication, and production readiness remain deferred.
 
 ## Planned Normative Content
 

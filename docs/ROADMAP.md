@@ -130,7 +130,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 - Independent final review found no remaining Critical or Important issue after the correction wave.
 - The complete local matrix passes: `npm test` reports 194 source, 10 combined SourceRecord and Portable Cognition schema, 14 compatibility, and 6 package tests; TypeScript checking, syntax checking, both examples, `pack:check`, and `git diff --check` also exit successfully.
-- Package version `0.2.0` retained `"private": true` at the time of this slice. It was later superseded by the private `0.3.0` Host Integration slice and is now superseded by the current private, unpublished package `0.4.0`; the SQLite persistence adapter is implemented and final-review verified, while maintained connector adapters remain deferred.
+- Package version `0.2.0` retained `"private": true` at the time of this slice. It was later superseded by the private `0.3.0` Host Integration slice, private `0.4.0` SQLite slice, and current private, unpublished package `0.5.0`; the maintained connector implementation is complete, while its final verification and real-ledger acceptance remain unfinished.
 - Compatibility hashes: baseline `0.1.0` `4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b`; change cases `0.1.0` `3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b`; baseline `0.2.0` `3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4`; change cases `0.2.0` `e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5`.
 - SourceRecord artifact hashes remain byte-identical: schema `56cf53c5da98dfbec19a021fbb90673beab8248c7a77df44989b535a0e155648`; valid fixtures `f52c212026b70bf2b339e1132b2895c91be509f250dde841319dbbb4edd3f74a`; invalid fixtures `4705f32eb5ea48ddd693759728294d2557b0a6f4a5cc666843b2e03bb03e99c0`.
 - Portable Cognition artifact hashes: prose `d73a6de049c7408715d7e717dd326e79830d99fe84ff85cb5936dfb8a757be89`; schema `6dec3f942ca88994fef588a2ffb93240d716e116dbec7ded46a1f362446f6bdd`; valid fixtures `cc3854706ace472b0d5335ecb9596c7ea3bf2b48c04fd9dd950f9683e8b203f4`; invalid fixtures `0f8e21f7379824223482e26ae26ec0b7b5031077ab63f6dac4558239b4908ba4`; cognitive-loop fixtures `1693d97e207cfeee63d370ba23d07ffd9023e8b087e5dbd3c0ad53e945184053`.
@@ -193,38 +193,53 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 4: Adapter Ecosystem Foundations
 
-**Status:** Active. The SQLite database persistence adapter is implemented and final-review verified. Maintained team-memory and Obsidian/Markdown adapters remain planned.
+**Status:** Active. The SQLite database persistence adapter is implemented and final-review verified. Generic connector conformance, the maintained team-memory-compatible connector, its dedicated CLI, and package surfaces are implemented; final independent verification and manual real-ledger acceptance remain unfinished. The Obsidian/Markdown adapter remains planned.
 
 **Entry criteria**
 
-- Stable source-record and connector contracts exist.
+- Stable SourceRecord and Supported Experimental connector contracts exist.
 - Connector packaging and trust boundaries are documented.
 - Every connector has a concrete consumer and owner.
 
 **Deliverables**
 
-- [ ] Team-memory as the first maintained connector.
+- [x] Source-neutral connector conformance at `collective-cognition-sdk/connector-conformance/0.1.0`.
+- [x] Team-memory as one maintained compatible connector at `collective-cognition-sdk/connectors/team-memory/0.1.0`, without a `team-memory-agent` dependency.
+- [x] Dedicated `collective-cognition-teammem` export CLI with explicit source selection, public non-secret `sourceInstance`, default raw omission, and sanitized failures.
+- [x] Private package `0.5.0` subpaths, executable, compatibility baseline, declaration closures, clean-consumer checks, and exact packaging allowlists.
 - [x] A concrete database persistence adapter that operates only on an explicitly supplied target and never discovers application data implicitly. The optional `collective-cognition-sdk/stores/sqlite/0.1.0` reference adapter requires a separate absolute cognition target, preserves canonical object and event records, and leaves source ledgers untouched.
 - [ ] An Obsidian/Markdown adapter operating only on an explicitly provided fixture or configured vault.
-- A connector author guide, conformance harness, and reference fixture connector.
-- Deterministic object-to-Markdown and Markdown-to-object fixtures with stable IDs, versions, relationships, and provenance.
+- [x] A connector author guide and RFC explaining independent repositories and packages, SourceRecord neutrality, connector-owned concerns, and conformance limits.
+- [ ] Deterministic object-to-Markdown and Markdown-to-object fixtures with stable IDs, versions, relationships, and provenance.
 
 **Acceptance checks**
 
-- Connectors pass the same source-record conformance suite.
-- Persistence adapter tests prove that durable cognitive objects and audit events survive round trips without depending on a source store's private schema.
-- Object → Markdown → object round trips preserve normative semantics.
-- Repeated exports do not rewrite unchanged notes.
-- Tests prove the Markdown adapter never discovers or operates on a personal vault implicitly.
+- [x] Generic and maintained connectors pass the same SourceRecord conformance boundary.
+- [x] Maintained connector tests prove explicit read-only source selection, deterministic output, identity isolation, default raw omission, explicit privacy opt-in, and no source mutation.
+- [x] Package tests cover the versioned conformance and connector imports, exact package contents, and both installed CLIs.
+- [x] Persistence adapter tests prove that durable cognitive objects and audit events survive round trips without depending on a source store's private schema.
+- [ ] Manual real-ledger acceptance for the maintained connector.
+- [ ] Independent final verification with no unresolved Critical or Important issue.
+- [ ] Object → Markdown → object round trips preserve normative semantics.
+- [ ] Repeated exports do not rewrite unchanged notes.
+- [ ] Tests prove the Markdown adapter never discovers or operates on a personal vault implicitly.
 
 **Current SQLite verification evidence**
 
 - The durable fixture-ledger workflow proves source-ledger byte size and modification time are unchanged while a separate cognition database persists a Hypothesis, neutral Evidence, one transitioned Hypothesis revision, and one audit event across close/reopen.
-- On supported Node.js `v24.14.0`, the focused SQLite/activity/durable suite passes `59` of `60` tests with one expected unsupported-runtime skip. `npm test` passes `309` of `310` source tests with that same skip, plus `10` schema, `15` compatibility, and `8` package tests. `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, `npm run pack:check`, and `git diff --check` pass.
+- The SQLite `0.4.0` slice was final-review verified on the supported bundled Node.js runtime. Current package `0.5.0` final verification remains an explicit unfinished gate below.
 - The recorded manual real-ledger acceptance persists a version-`2` `under_review` Hypothesis, neutral Evidence from `12` source records, and one event in a separate cognition database; it infers `0` Decisions, reopens successfully, and leaves the source ledger's byte size and nanosecond modification time unchanged. Independent final review and the exceptional re-review found no unresolved Critical or Important issue, and the branch was declared **READY TO MERGE**.
 
 **Explicit deferrals**
 
+- No changes to `team-memory-agent`, MemberKit, or `teammem-bundle/v1`.
+- No scheduler integration or automatic connector execution.
+- No connector registry, marketplace, plugin discovery, or dynamic loading.
+- No network connectors, authentication integration, or credential policy.
+- No automatic promotion, interpretation, or cognition persistence.
+- No durable publication outbox, retry worker, or delivery guarantee.
+- No npm publication, registry-name confirmation, or removal of the private package guard.
+- No production certification, endorsement, or LTS commitment.
 - No automatic belief extraction, background vault synchronization, collaborative merge service, or replacement of normal note-taking.
 
 ## Phase 5: Cross-Connector Interoperability
