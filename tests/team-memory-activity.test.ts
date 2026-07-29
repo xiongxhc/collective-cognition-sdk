@@ -63,6 +63,48 @@ function activityRecords(): SourceRecord[] {
   );
 }
 
+function mixedActivityRecords(): SourceRecord[] {
+  const activities = [
+    {
+      kind: "message",
+      summary: "[approved] Message prefixes are not merge-request statuses.",
+    },
+    {
+      kind: "commit",
+      summary: "Commit 8f22e6d updated the delivery workflow.",
+    },
+    {
+      kind: "mr",
+      summary: "[merged] Activity record 3.",
+    },
+    {
+      kind: "message",
+      summary: "Delivery coordination continued.",
+    },
+    {
+      kind: "mr",
+      summary: "[opened] Activity record 5.",
+    },
+    {
+      kind: "mr",
+      summary: "[closed] Activity record 6.",
+    },
+  ];
+  return activities.map((activity, index) =>
+    recordFor(index + 1, {
+      capturedAt: index === 0
+        ? firstCapturedAt
+        : index === activities.length - 1
+          ? lastCapturedAt
+          : `2026-07-28T18:${String(index).padStart(2, "0")}:00.000+08:00`,
+      content: {
+        project: "Unified Portal",
+        ...activity,
+      },
+    }),
+  );
+}
+
 function promotionRequest(records: readonly SourceRecord[]) {
   return {
     records,
@@ -105,6 +147,67 @@ test("sorts activity records by captured timestamp and source-record ID", () => 
   assert.deepEqual(
     teamMemoryActivityEvidencePolicyV1.map([...records].reverse()),
     teamMemoryActivityEvidencePolicyV1.map(records),
+  );
+});
+
+test(
+  "counts exact mixed activity kinds in stable order and parses only merge-request statuses",
+  () => {
+    const records = mixedActivityRecords();
+    const expected = {
+      title: "Unified Portal activity (6 records)",
+      statement: [
+        "6 activity records from 2026-07-28T17:59:40.952+08:00 to 2026-07-28T20:17:51.910+08:00.",
+        "Actors: 2. Activity: 2 messages, 1 commit, 3 merge requests.",
+        "Merge-request status: 1 merged, 1 opened, 1 closed.",
+        "Unresolved status signal: opened and closed changes are both present; source review is required.",
+      ].join("\n"),
+      evidenceKind: "team-memory-activity",
+      polarity: "neutral",
+    };
+
+    assert.deepEqual(
+      teamMemoryActivityEvidencePolicyV1.map(records),
+      expected,
+    );
+    assert.deepEqual(
+      teamMemoryActivityEvidencePolicyV1.map([...records].reverse()),
+      expected,
+    );
+
+    const evidence = promoteSourceRecordsToEvidence(
+      promotionRequest(records),
+      teamMemoryActivityEvidencePolicyV1,
+    );
+    assert.equal(evidence.data.polarity, "neutral");
+    assert.equal(evidence.provenance.length, records.length);
+    assert.deepEqual(
+      evidence.provenance.map((entry) => entry.sourceId),
+      records.map((record) => record.id),
+    );
+    const statement = evidence.data.statement;
+    assert.ok(typeof statement === "string");
+    assert.doesNotMatch(
+      statement,
+      /\b(ready|successful|supports|challenges|decision)\b/i,
+    );
+  },
+);
+
+test("names a mixed-project selection as a team-memory activity set", () => {
+  const first = recordFor(1, { capturedAt: firstCapturedAt });
+  const second = recordFor(2, {
+    capturedAt: lastCapturedAt,
+    content: {
+      project: "BCM",
+      kind: "commit",
+      summary: "Commit 6ac1b0f updated the release.",
+    },
+  });
+
+  assert.equal(
+    teamMemoryActivityEvidencePolicyV1.map([first, second]).title,
+    "Team-memory activity (2 records)",
   );
 });
 
@@ -151,8 +254,8 @@ test("fails closed for non-team-memory records and malformed activities", () => 
   const unknownKind = recordFor(3, {
     content: {
       project: "Unified Portal",
-      kind: "commit",
-      summary: "[merged] Not a merge request.",
+      kind: "journal-highlight",
+      summary: "Journal highlights remain outside this policy.",
     },
   });
   const missingTimestamp = {
@@ -171,6 +274,65 @@ test("fails closed for non-team-memory records and malformed activities", () => 
       /Team-memory activity/i,
     );
   }
+});
+
+test("rejects unsupported merge-request status prefixes", () => {
+  const record = recordFor(1, {
+    content: {
+      project: "Unified Portal",
+      kind: "mr",
+      summary: "[approved] Approval is not an accepted source status.",
+    },
+  });
+
+  assert.throws(
+    () => teamMemoryActivityEvidencePolicyV1.map([record]),
+    /explicit merge-request status/i,
+  );
+});
+
+test("rejects inherited required activity fields", () => {
+  const content = Object.assign(
+    Object.create({ project: "Unified Portal" }) as Record<string, unknown>,
+    {
+      kind: "message",
+      summary: "Inherited project metadata must not be trusted.",
+    },
+  );
+  const record = {
+    ...recordFor(1),
+    content,
+  } as SourceRecord;
+
+  assert.throws(
+    () => teamMemoryActivityEvidencePolicyV1.map([record]),
+    /own enumerable data property/i,
+  );
+});
+
+test("rejects required summary accessors without invoking them", () => {
+  let accessorReads = 0;
+  const content = {
+    project: "Unified Portal",
+    kind: "message",
+  } as Record<string, unknown>;
+  Object.defineProperty(content, "summary", {
+    enumerable: true,
+    get() {
+      accessorReads += 1;
+      return "Accessor-backed activity summary.";
+    },
+  });
+  const record = {
+    ...recordFor(1),
+    content,
+  } as SourceRecord;
+
+  assert.throws(
+    () => teamMemoryActivityEvidencePolicyV1.map([record]),
+    /own enumerable data property/i,
+  );
+  assert.equal(accessorReads, 0);
 });
 
 test("counts explicit reopened merge requests without inferring another status", () => {

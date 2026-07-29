@@ -3,6 +3,7 @@ import type { EvidencePromotionPolicy } from "../promotion.ts";
 import type { SourceRecord } from "../source-records.ts";
 
 type MergeRequestStatus = "merged" | "opened" | "closed" | "reopened";
+type TeamMemoryActivityKind = "message" | "commit" | "mr";
 
 interface TeamMemoryActivityRecord {
   readonly id: string;
@@ -10,10 +11,16 @@ interface TeamMemoryActivityRecord {
   readonly capturedAt: string;
   readonly capturedAtInstant: bigint;
   readonly actorId: string;
-  readonly status: MergeRequestStatus;
+  readonly kind: TeamMemoryActivityKind;
+  readonly status?: MergeRequestStatus;
 }
 
 const mediaType = "application/vnd.team-memory.event+json";
+const activityKinds: readonly TeamMemoryActivityKind[] = [
+  "message",
+  "commit",
+  "mr",
+];
 const mergeRequestStatuses: readonly MergeRequestStatus[] = [
   "merged",
   "opened",
@@ -139,9 +146,14 @@ function readTeamMemoryActivityRecord(
     "content.project",
   );
   const kind = ownEnumerableDataProperty(content, "kind");
-  if (kind !== "mr") {
+  if (
+    typeof kind !== "string" ||
+    !activityKinds.includes(kind as TeamMemoryActivityKind)
+  ) {
     invalidActivity("Team-memory activity kind is not supported.");
   }
+  const summary = ownEnumerableDataProperty(content, "summary");
+  nonEmptyString(summary, "content.summary");
 
   return {
     id,
@@ -149,7 +161,8 @@ function readTeamMemoryActivityRecord(
     capturedAt: timestamp.text,
     capturedAtInstant: timestamp.instant,
     actorId,
-    status: mergeRequestStatus(ownEnumerableDataProperty(content, "summary")),
+    kind: kind as TeamMemoryActivityKind,
+    ...(kind === "mr" ? { status: mergeRequestStatus(summary) } : {}),
   };
 }
 
@@ -174,15 +187,14 @@ function sortActivities(
 }
 
 function titleFor(activities: readonly TeamMemoryActivityRecord[]): string {
-  const project = activities[0]?.project;
-  if (
-    project === undefined ||
-    activities.some((activity) => activity.project !== project)
-  ) {
-    invalidActivity("Team-memory activity records must share one project.");
+  const first = activities[0];
+  if (first === undefined) {
+    invalidActivity("Team-memory activity requires at least one record.");
   }
+  const projects = new Set(activities.map((activity) => activity.project));
+  const subject = projects.size === 1 ? first.project : "Team-memory";
   const count = activities.length;
-  return `${project} activity (${count} ${count === 1 ? "record" : "records"})`;
+  return `${subject} activity (${count} ${count === 1 ? "record" : "records"})`;
 }
 
 function statementFor(activities: readonly TeamMemoryActivityRecord[]): string {
@@ -192,16 +204,36 @@ function statementFor(activities: readonly TeamMemoryActivityRecord[]): string {
     invalidActivity("Team-memory activity requires at least one record.");
   }
   const count = activities.length;
+  const kindCounts = new Map<TeamMemoryActivityKind, number>();
+  for (const kind of activityKinds) {
+    kindCounts.set(kind, 0);
+  }
   const statusCounts = new Map<MergeRequestStatus, number>();
   for (const status of mergeRequestStatuses) {
     statusCounts.set(status, 0);
   }
-  for (const activity of activities) {
-    statusCounts.set(
-      activity.status,
-      (statusCounts.get(activity.status) ?? 0) + 1,
-    );
+  for (const { kind, status } of activities) {
+    kindCounts.set(kind, (kindCounts.get(kind) ?? 0) + 1);
+    if (status !== undefined) {
+      statusCounts.set(status, (statusCounts.get(status) ?? 0) + 1);
+    }
   }
+  const kinds = activityKinds
+    .flatMap((kind) => {
+      const kindCount = kindCounts.get(kind) ?? 0;
+      if (kindCount === 0) {
+        return [];
+      }
+      const labels = kind === "message"
+        ? ["message", "messages"]
+        : kind === "commit"
+          ? ["commit", "commits"]
+          : ["merge request", "merge requests"];
+      return [
+        `${kindCount} ${kindCount === 1 ? labels[0] : labels[1]}`,
+      ];
+    })
+    .join(", ");
   const statuses = mergeRequestStatuses
     .flatMap((status) => {
       const statusCount = statusCounts.get(status) ?? 0;
@@ -210,9 +242,11 @@ function statementFor(activities: readonly TeamMemoryActivityRecord[]): string {
     .join(", ");
   const lines = [
     `${count} activity ${count === 1 ? "record" : "records"} from ${first.capturedAt} to ${last.capturedAt}.`,
-    `Actors: ${new Set(activities.map((activity) => activity.actorId)).size}. Activity: ${count} merge ${count === 1 ? "request" : "requests"}.`,
-    `Merge-request status: ${statuses}.`,
+    `Actors: ${new Set(activities.map((activity) => activity.actorId)).size}. Activity: ${kinds}.`,
   ];
+  if ((kindCounts.get("mr") ?? 0) > 0) {
+    lines.push(`Merge-request status: ${statuses}.`);
+  }
   if (
     (statusCounts.get("opened") ?? 0) > 0 &&
     (statusCounts.get("closed") ?? 0) > 0
