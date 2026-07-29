@@ -15,7 +15,21 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
+import {
+  createObject,
+  createPortableCognitionRecord,
+  deserializeObject,
+  DomainError,
+  DomainErrorCode,
+  transitionObject,
+} from "../src/index.ts";
 import { SqliteCognitionStore } from "../src/stores/sqlite.ts";
+import type {
+  PortableCognitionEventRecord,
+  PortableCognitiveObjectRecord,
+  TransitionCognitionCommit,
+} from "../src/host-integration.ts";
+import type { JsonValue } from "../src/types.ts";
 
 const cognitionSchema = `
   CREATE TABLE cognition_schema (
@@ -333,6 +347,241 @@ function createMarkedCognitionDatabase(
       );
     `,
   );
+}
+
+function objectRecord({
+  id = "goal:sqlite-store",
+  version = 1,
+  title = "SQLite cognition store",
+}: {
+  readonly id?: string;
+  readonly version?: number;
+  readonly title?: string;
+} = {}): PortableCognitiveObjectRecord {
+  const object = createObject({
+    id,
+    type: "goal",
+    version: 1,
+    state: "draft",
+    title,
+    data: { objective: "Verify durable SQLite cognition." },
+    createdAt: "2026-07-29T08:00:00.000Z",
+    updatedAt: "2026-07-29T08:00:00.000Z",
+    attribution: {
+      initiatorId: "human:creator",
+      executorId: "human:creator",
+      accountableId: "human:owner",
+    },
+    provenance: [
+      {
+        source: "test",
+        sourceId: id,
+        capturedAt: "2026-07-29T08:00:00.000Z",
+      },
+    ],
+    contextId: "organization:test",
+    relationships: [],
+  });
+  return createPortableCognitionRecord({
+    schemaVersion: "0.1.0",
+    recordType: "cognitive-object",
+    payload: version === 1
+      ? object
+      : deserializeObject(JSON.stringify({ ...object, version })),
+  }) as PortableCognitiveObjectRecord;
+}
+
+function transitionCommit({
+  id = "goal:sqlite-store",
+  expectedVersion = 1,
+  eventId = `event:${id}:${expectedVersion + 1}`,
+}: {
+  readonly id?: string;
+  readonly expectedVersion?: number;
+  readonly eventId?: string;
+} = {}): TransitionCognitionCommit {
+  const previous = deserializeObject(
+    JSON.stringify(objectRecord({ id, version: expectedVersion }).payload),
+  );
+  const transition = transitionObject(previous, "active", {
+    eventId,
+    occurredAt: `2026-07-29T08:0${expectedVersion}:00.000Z`,
+    initiator: { id: "human:creator", kind: "human" },
+    executor: { id: "human:creator", kind: "human" },
+    accountableParty: { id: "human:owner", kind: "human" },
+    automationMode: "manual",
+    consequenceLevel: "routine",
+    rationale: "Activate durable SQLite cognition.",
+  });
+  return {
+    expectedVersion,
+    object: createPortableCognitionRecord({
+      schemaVersion: "0.1.0",
+      recordType: "cognitive-object",
+      payload: transition.object,
+    }) as PortableCognitiveObjectRecord,
+    event: createPortableCognitionRecord({
+      schemaVersion: "0.1.0",
+      recordType: "cognition-event",
+      payload: transition.event,
+    }) as PortableCognitionEventRecord,
+  };
+}
+
+function mutateTitle(
+  record: PortableCognitiveObjectRecord,
+  title: string,
+): PortableCognitiveObjectRecord {
+  const value = structuredClone(record) as unknown as {
+    payload: Record<string, unknown>;
+  };
+  value.payload.title = title;
+  return value as unknown as PortableCognitiveObjectRecord;
+}
+
+function reorderRecord<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map(reorderRecord) as T;
+  }
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+  const reordered: Record<string, unknown> = {};
+  for (const key of Object.keys(value).sort().reverse()) {
+    reordered[key] = reorderRecord(
+      (value as Record<string, unknown>)[key],
+    );
+  }
+  return reordered as T;
+}
+
+function canonicalizeForTest(value: JsonValue): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalizeForTest).join(",")}]`;
+  }
+  const record = value as Record<string, JsonValue>;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) =>
+      `${JSON.stringify(key)}:${canonicalizeForTest(record[key]!)}`
+    )
+    .join(",")}}`;
+}
+
+function assertDeeplyFrozen(value: unknown): void {
+  if (typeof value !== "object" || value === null) {
+    return;
+  }
+  assert.equal(Object.isFrozen(value), true);
+  for (const child of Object.values(value)) {
+    assertDeeplyFrozen(child);
+  }
+}
+
+interface StoredCognitionRows {
+  readonly objects: readonly (readonly unknown[])[];
+  readonly events: readonly (readonly unknown[])[];
+}
+
+function snapshotCognitionRows(
+  databasePath: string,
+): StoredCognitionRows {
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    const objects = database
+      .prepare(
+        `
+          SELECT object_id, object_version, object_type, record_json
+          FROM cognition_objects
+          ORDER BY object_id, object_version
+        `,
+      )
+      .all()
+      .map((row) => {
+        const value = row as Record<string, unknown>;
+        return [
+          value.object_id,
+          value.object_version,
+          value.object_type,
+          value.record_json,
+        ];
+      });
+    const events = database
+      .prepare(
+        `
+          SELECT event_id, object_id, object_version, record_json
+          FROM cognition_events
+          ORDER BY object_id, object_version, event_id
+        `,
+      )
+      .all()
+      .map((row) => {
+        const value = row as Record<string, unknown>;
+        return [
+          value.event_id,
+          value.object_id,
+          value.object_version,
+          value.record_json,
+        ];
+      });
+    return { objects, events };
+  } finally {
+    database.close();
+  }
+}
+
+function insertObjectRow(
+  database: DatabaseSync,
+  object: PortableCognitiveObjectRecord,
+): void {
+  database
+    .prepare(
+      `
+        INSERT INTO cognition_objects (
+          object_id,
+          object_version,
+          object_type,
+          record_json
+        ) VALUES (?, ?, ?, ?)
+      `,
+    )
+    .run(
+      object.payload.id,
+      object.payload.version,
+      object.payload.type,
+      canonicalizeForTest(object as unknown as JsonValue),
+    );
+}
+
+function insertEventRow(
+  database: DatabaseSync,
+  event: PortableCognitionEventRecord,
+): void {
+  database
+    .prepare(
+      `
+        INSERT INTO cognition_events (
+          event_id,
+          object_id,
+          object_version,
+          record_json
+        ) VALUES (?, ?, ?, ?)
+      `,
+    )
+    .run(
+      event.payload.id,
+      event.payload.objectId,
+      event.payload.objectVersion,
+      canonicalizeForTest(event as unknown as JsonValue),
+    );
+}
+
+function isSerializationFailure(error: unknown): boolean {
+  return error instanceof DomainError &&
+    error.code === DomainErrorCode.SERIALIZATION_ERROR;
 }
 
 test("SQLite adapter preserves the package 0.3 Node engine baseline", () => {
@@ -825,3 +1074,484 @@ sqliteTest("closed SQLite stores reject every operation and close idempotently",
   );
   await assert.rejects(() => store.listObjectEvents("object:missing"));
 });
+
+sqliteTest(
+  "SQLite initial commit survives restart with canonical latest and version-one reads",
+  async (t) => {
+    const databasePath = temporaryDatabasePath(t);
+    const object = objectRecord();
+    const store = new SqliteCognitionStore({
+      databasePath,
+      createIfMissing: true,
+    });
+
+    assert.deepEqual(await store.commitInitial({ object }), {
+      status: "committed",
+    });
+    store.close();
+
+    const database = new DatabaseSync(databasePath, { readOnly: true });
+    try {
+      const row = database
+        .prepare(
+          `
+            SELECT object_id, object_version, object_type, record_json
+            FROM cognition_objects
+          `,
+        )
+        .get() as Record<string, unknown>;
+      assert.deepEqual(
+        [
+          row.object_id,
+          row.object_version,
+          row.object_type,
+          row.record_json,
+        ],
+        [
+          object.payload.id,
+          1,
+          object.payload.type,
+          canonicalizeForTest(object as unknown as JsonValue),
+        ],
+      );
+    } finally {
+      database.close();
+    }
+
+    const reopened = new SqliteCognitionStore({ databasePath });
+    t.after(() => reopened.close());
+    assert.deepEqual(
+      await reopened.getLatestObject(object.payload.id),
+      object,
+    );
+    assert.deepEqual(
+      await reopened.getObjectVersion(object.payload.id, 1),
+      object,
+    );
+    assert.equal(
+      await reopened.getObjectVersion(object.payload.id, 2),
+      undefined,
+    );
+  },
+);
+
+sqliteTest(
+  "SQLite initial replay is canonical and changed content collides without mutation",
+  async (t) => {
+    const databasePath = temporaryDatabasePath(t);
+    const object = objectRecord();
+    const reordered = reorderRecord(object);
+    const store = new SqliteCognitionStore({
+      databasePath,
+      createIfMissing: true,
+    });
+    t.after(() => store.close());
+
+    await store.commitInitial({ object });
+    assert.notEqual(JSON.stringify(reordered), JSON.stringify(object));
+    assert.deepEqual(await store.commitInitial({ object: reordered }), {
+      status: "already_committed",
+    });
+    assert.deepEqual(
+      await store.commitInitial({
+        object: objectRecord({ title: "Changed SQLite title" }),
+      }),
+      {
+        status: "conflict",
+        conflict: {
+          code: "object_revision_collision",
+          objectId: object.payload.id,
+        },
+      },
+    );
+    assert.deepEqual(await store.getLatestObject(object.payload.id), object);
+    assert.deepEqual(
+      await store.getObjectVersion(object.payload.id, 1),
+      object,
+    );
+  },
+);
+
+sqliteTest("SQLite malformed stored object JSON fails closed", async (t) => {
+  const databasePath = temporaryDatabasePath(t);
+  const store = new SqliteCognitionStore({
+    databasePath,
+    createIfMissing: true,
+  });
+  store.close();
+  const database = new DatabaseSync(databasePath);
+  try {
+    database
+      .prepare(
+        `
+          INSERT INTO cognition_objects (
+            object_id,
+            object_version,
+            object_type,
+            record_json
+          ) VALUES (?, ?, ?, ?)
+        `,
+      )
+      .run("goal:malformed", 1, "goal", "{");
+  } finally {
+    database.close();
+  }
+
+  const reopened = new SqliteCognitionStore({ databasePath });
+  t.after(() => reopened.close());
+  await assert.rejects(
+    () => reopened.getLatestObject("goal:malformed"),
+    isSerializationFailure,
+  );
+  await assert.rejects(
+    () => reopened.getObjectVersion("goal:malformed", 1),
+    isSerializationFailure,
+  );
+});
+
+sqliteTest(
+  "SQLite initial reads are detached and deeply frozen",
+  async (t) => {
+    const databasePath = temporaryDatabasePath(t);
+    const object = objectRecord();
+    const store = new SqliteCognitionStore({
+      databasePath,
+      createIfMissing: true,
+    });
+    t.after(() => store.close());
+    await store.commitInitial({ object });
+
+    const latest = await store.getLatestObject(object.payload.id);
+    const version = await store.getObjectVersion(object.payload.id, 1);
+    assert.ok(latest);
+    assert.ok(version);
+    assert.notStrictEqual(latest, object);
+    assert.notStrictEqual(version, object);
+    assert.notStrictEqual(latest, version);
+    assert.notStrictEqual(latest.payload, version.payload);
+    assertDeeplyFrozen(latest);
+    assertDeeplyFrozen(version);
+  },
+);
+
+sqliteTest(
+  "SQLite transition persists object and event together across restart",
+  async (t) => {
+    const databasePath = temporaryDatabasePath(t);
+    const initial = objectRecord();
+    const transition = transitionCommit();
+    const store = new SqliteCognitionStore({
+      databasePath,
+      createIfMissing: true,
+    });
+    t.after(() => store.close());
+    await store.commitInitial({ object: initial });
+
+    assert.deepEqual(await store.commitTransition(transition), {
+      status: "committed",
+    });
+    store.close();
+
+    const stored = snapshotCognitionRows(databasePath);
+    assert.equal(stored.objects.length, 2);
+    assert.deepEqual(stored.events, [
+      [
+        transition.event.payload.id,
+        transition.object.payload.id,
+        2,
+        canonicalizeForTest(
+          transition.event as unknown as JsonValue,
+        ),
+      ],
+    ]);
+
+    const reopened = new SqliteCognitionStore({ databasePath });
+    t.after(() => reopened.close());
+    assert.deepEqual(
+      await reopened.getObjectVersion(initial.payload.id, 1),
+      initial,
+    );
+    assert.deepEqual(
+      await reopened.getObjectVersion(initial.payload.id, 2),
+      transition.object,
+    );
+    assert.deepEqual(
+      await reopened.getLatestObject(initial.payload.id),
+      transition.object,
+    );
+    const events = await reopened.listObjectEvents(initial.payload.id);
+    assert.deepEqual(events, [transition.event]);
+    assert.equal(Object.isFrozen(events), true);
+    assert.notStrictEqual(events[0], transition.event);
+    assertDeeplyFrozen(events[0]);
+  },
+);
+
+sqliteTest(
+  "SQLite transition reordered replay is already committed after restart",
+  async (t) => {
+    const databasePath = temporaryDatabasePath(t);
+    const initial = objectRecord();
+    const transition = transitionCommit();
+    const store = new SqliteCognitionStore({
+      databasePath,
+      createIfMissing: true,
+    });
+    await store.commitInitial({ object: initial });
+    await store.commitTransition(transition);
+    store.close();
+
+    const reopened = new SqliteCognitionStore({ databasePath });
+    t.after(() => reopened.close());
+    const reordered = {
+      expectedVersion: transition.expectedVersion,
+      object: reorderRecord(transition.object),
+      event: reorderRecord(transition.event),
+    };
+    assert.notEqual(
+      JSON.stringify(reordered.object),
+      JSON.stringify(transition.object),
+    );
+    assert.notEqual(
+      JSON.stringify(reordered.event),
+      JSON.stringify(transition.event),
+    );
+    assert.deepEqual(await reopened.commitTransition(reordered), {
+      status: "already_committed",
+    });
+    assert.deepEqual(
+      await reopened.getLatestObject(initial.payload.id),
+      transition.object,
+    );
+    assert.deepEqual(
+      await reopened.listObjectEvents(initial.payload.id),
+      [transition.event],
+    );
+  },
+);
+
+sqliteTest(
+  "SQLite conflict precedence leaves every stored row unchanged",
+  async (t) => {
+    const replayPath = temporaryDatabasePath(t);
+    const replayInitial = objectRecord({
+      id: "goal:sqlite-precedence:replay",
+    });
+    const replaySecond = transitionCommit({
+      id: replayInitial.payload.id,
+      eventId: "event:sqlite-precedence:replay:2",
+    });
+    const replayThird = transitionCommit({
+      id: replayInitial.payload.id,
+      expectedVersion: 2,
+      eventId: "event:sqlite-precedence:replay:3",
+    });
+    const replayStore = new SqliteCognitionStore({
+      databasePath: replayPath,
+      createIfMissing: true,
+    });
+    t.after(() => replayStore.close());
+    await replayStore.commitInitial({ object: replayInitial });
+    await replayStore.commitTransition(replaySecond);
+    await replayStore.commitTransition(replayThird);
+    const replayRows = snapshotCognitionRows(replayPath);
+
+    assert.deepEqual(await replayStore.commitTransition(replaySecond), {
+      status: "already_committed",
+    });
+    assert.deepEqual(snapshotCognitionRows(replayPath), replayRows);
+
+    const objectCollision = transitionCommit({
+      id: replayInitial.payload.id,
+      expectedVersion: 2,
+      eventId: replaySecond.event.payload.id,
+    });
+    assert.deepEqual(
+      await replayStore.commitTransition({
+        ...objectCollision,
+        object: mutateTitle(
+          objectCollision.object,
+          "Changed target revision",
+        ),
+      }),
+      {
+        status: "conflict",
+        conflict: {
+          code: "object_revision_collision",
+          objectId: replayInitial.payload.id,
+        },
+      },
+    );
+    assert.deepEqual(snapshotCognitionRows(replayPath), replayRows);
+
+    const eventPath = temporaryDatabasePath(t);
+    const eventOwner = objectRecord({
+      id: "goal:sqlite-precedence:event-owner",
+    });
+    const sharedEventId = "event:sqlite-precedence:shared";
+    const ownerTransition = transitionCommit({
+      id: eventOwner.payload.id,
+      eventId: sharedEventId,
+    });
+    const staleTarget = objectRecord({
+      id: "goal:sqlite-precedence:stale-target",
+    });
+    const eventStore = new SqliteCognitionStore({
+      databasePath: eventPath,
+      createIfMissing: true,
+    });
+    t.after(() => eventStore.close());
+    await eventStore.commitInitial({ object: eventOwner });
+    await eventStore.commitTransition(ownerTransition);
+    await eventStore.commitInitial({ object: staleTarget });
+    const eventRows = snapshotCognitionRows(eventPath);
+
+    const eventCollision = transitionCommit({
+      id: staleTarget.payload.id,
+      expectedVersion: 2,
+      eventId: sharedEventId,
+    });
+    assert.deepEqual(await eventStore.commitTransition(eventCollision), {
+      status: "conflict",
+      conflict: {
+        code: "event_id_collision",
+        objectId: staleTarget.payload.id,
+        eventId: sharedEventId,
+      },
+    });
+    assert.deepEqual(snapshotCognitionRows(eventPath), eventRows);
+
+    const staleOnly = transitionCommit({
+      id: staleTarget.payload.id,
+      expectedVersion: 2,
+      eventId: "event:sqlite-precedence:stale-only",
+    });
+    assert.deepEqual(await eventStore.commitTransition(staleOnly), {
+      status: "conflict",
+      conflict: {
+        code: "version_conflict",
+        objectId: staleTarget.payload.id,
+        expectedVersion: 2,
+        actualVersion: 1,
+      },
+    });
+    assert.deepEqual(snapshotCognitionRows(eventPath), eventRows);
+  },
+);
+
+sqliteTest(
+  "SQLite rollback removes the object revision when event insertion fails",
+  async (t) => {
+    const databasePath = temporaryDatabasePath(t);
+    const initial = objectRecord();
+    const transition = transitionCommit();
+    const store = new SqliteCognitionStore({
+      databasePath,
+      createIfMissing: true,
+    });
+    t.after(() => store.close());
+    await store.commitInitial({ object: initial });
+    const before = snapshotCognitionRows(databasePath);
+
+    const injector = new DatabaseSync(databasePath);
+    try {
+      injector.exec(`
+        CREATE TRIGGER fail_cognition_event_insert
+        BEFORE INSERT ON cognition_events
+        BEGIN
+          SELECT RAISE(FAIL, 'injected event insert failure');
+        END;
+      `);
+    } finally {
+      injector.close();
+    }
+
+    await assert.rejects(
+      () => store.commitTransition(transition),
+      /injected event insert failure/,
+    );
+    assert.deepEqual(snapshotCognitionRows(databasePath), before);
+    assert.deepEqual(
+      await store.getLatestObject(initial.payload.id),
+      initial,
+    );
+    assert.equal(
+      await store.getObjectVersion(initial.payload.id, 2),
+      undefined,
+    );
+    assert.deepEqual(await store.listObjectEvents(initial.payload.id), []);
+  },
+);
+
+sqliteTest(
+  "SQLite transition partial pre-existing object or event state fails closed",
+  async (t) => {
+    const objectPath = temporaryDatabasePath(t);
+    const objectInitial = objectRecord({
+      id: "goal:sqlite-partial:object",
+    });
+    const objectTransition = transitionCommit({
+      id: objectInitial.payload.id,
+    });
+    const objectStore = new SqliteCognitionStore({
+      databasePath: objectPath,
+      createIfMissing: true,
+    });
+    await objectStore.commitInitial({ object: objectInitial });
+    objectStore.close();
+    const objectDatabase = new DatabaseSync(objectPath);
+    try {
+      insertObjectRow(objectDatabase, objectTransition.object);
+    } finally {
+      objectDatabase.close();
+    }
+    const partialObjectRows = snapshotCognitionRows(objectPath);
+    const reopenedObjectStore = new SqliteCognitionStore({
+      databasePath: objectPath,
+    });
+    t.after(() => reopenedObjectStore.close());
+    await assert.rejects(
+      () => reopenedObjectStore.commitTransition(objectTransition),
+      /only partially committed/,
+    );
+    assert.deepEqual(
+      snapshotCognitionRows(objectPath),
+      partialObjectRows,
+    );
+
+    const eventPath = temporaryDatabasePath(t);
+    const eventInitial = objectRecord({
+      id: "goal:sqlite-partial:event",
+    });
+    const eventTransition = transitionCommit({
+      id: eventInitial.payload.id,
+    });
+    const eventStore = new SqliteCognitionStore({
+      databasePath: eventPath,
+      createIfMissing: true,
+    });
+    await eventStore.commitInitial({ object: eventInitial });
+    eventStore.close();
+    const eventDatabase = new DatabaseSync(eventPath, {
+      enableForeignKeyConstraints: false,
+    });
+    try {
+      insertEventRow(eventDatabase, eventTransition.event);
+    } finally {
+      eventDatabase.close();
+    }
+    const partialEventRows = snapshotCognitionRows(eventPath);
+    const reopenedEventStore = new SqliteCognitionStore({
+      databasePath: eventPath,
+    });
+    t.after(() => reopenedEventStore.close());
+    await assert.rejects(
+      () => reopenedEventStore.commitTransition(eventTransition),
+      /only partially committed/,
+    );
+    assert.deepEqual(
+      snapshotCognitionRows(eventPath),
+      partialEventRows,
+    );
+  },
+);

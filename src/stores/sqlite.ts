@@ -8,6 +8,14 @@ import { basename, dirname, isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { isDeepStrictEqual } from "node:util";
 
+import {
+  prepareInitialCognitionCommit,
+  prepareTransitionCognitionCommit,
+} from "../host-integration.ts";
+import {
+  deserializePortableCognitionRecord,
+} from "../portable-cognition.ts";
+import { canonicalizeJson } from "../source-records.ts";
 import type {
   CognitionStore,
   CognitionStoreCommitResult,
@@ -16,6 +24,7 @@ import type {
   PortableCognitiveObjectRecord,
   TransitionCognitionCommit,
 } from "../host-integration.ts";
+import type { JsonValue } from "../types.ts";
 
 export interface SqliteCognitionStoreOptions {
   readonly databasePath: string;
@@ -155,14 +164,78 @@ function closedStore(): never {
   throw new Error("SQLite cognition store is closed.");
 }
 
-function unsupportedOperation(): never {
-  throw new Error("SQLite cognition persistence is not implemented.");
-}
-
 function unsupportedRuntime(): never {
   throw new Error(
     "SQLite cognition store requires node:sqlite with enforced defensive mode.",
   );
+}
+
+function invalidStoredObject(): never {
+  throw new TypeError("Stored cognitive object is invalid.");
+}
+
+function invalidStoredEvent(): never {
+  throw new TypeError("Stored cognition event is invalid.");
+}
+
+function deserializeStoredObject(
+  recordJson: unknown,
+  objectId: string,
+  objectVersion?: number,
+  objectType?: string,
+): PortableCognitiveObjectRecord {
+  if (typeof recordJson !== "string") {
+    return invalidStoredObject();
+  }
+  const record = deserializePortableCognitionRecord(recordJson);
+  if (
+    record.recordType !== "cognitive-object" ||
+    record.payload.id !== objectId ||
+    (objectVersion !== undefined &&
+      record.payload.version !== objectVersion) ||
+    (objectType !== undefined && record.payload.type !== objectType)
+  ) {
+    return invalidStoredObject();
+  }
+  return record;
+}
+
+function deserializeStoredEvent(
+  recordJson: unknown,
+  eventId: string,
+  objectId: string,
+  objectVersion: number,
+): PortableCognitionEventRecord {
+  if (typeof recordJson !== "string") {
+    return invalidStoredEvent();
+  }
+  const record = deserializePortableCognitionRecord(recordJson);
+  if (
+    record.recordType !== "cognition-event" ||
+    record.payload.id !== eventId ||
+    record.payload.objectId !== objectId ||
+    record.payload.objectVersion !== objectVersion
+  ) {
+    return invalidStoredEvent();
+  }
+  return record;
+}
+
+function runImmediateTransaction<Result>(
+  database: DatabaseSync,
+  operation: () => Result,
+): Result {
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const result = operation();
+    database.exec("COMMIT");
+    return result;
+  } catch (error) {
+    if (database.isTransaction) {
+      database.exec("ROLLBACK");
+    }
+    throw error;
+  }
 }
 
 function assertDefensiveRuntime(): void {
@@ -584,39 +657,350 @@ export class SqliteCognitionStore implements CognitionStore {
   }
 
   async commitInitial(
-    _request: InitialCognitionCommit,
+    request: InitialCognitionCommit,
   ): Promise<CognitionStoreCommitResult> {
     this.#assertOpen();
-    return unsupportedOperation();
+    const prepared = prepareInitialCognitionCommit(request);
+    const canonical = canonicalizeJson(
+      prepared.object as unknown as JsonValue,
+    );
+    const objectId = prepared.object.payload.id;
+    const objectVersion = prepared.object.payload.version;
+    const objectType = prepared.object.payload.type;
+
+    return runImmediateTransaction<CognitionStoreCommitResult>(
+      this.#database,
+      () => {
+        const existing = this.#database
+          .prepare(
+            `
+              SELECT object_type, record_json
+              FROM cognition_objects
+              WHERE object_id = ? AND object_version = ?
+            `,
+          )
+          .get(objectId, objectVersion) as
+            | {
+              readonly object_type: unknown;
+              readonly record_json: unknown;
+            }
+            | undefined;
+        if (existing !== undefined) {
+          if (typeof existing.object_type !== "string") {
+            return invalidStoredObject();
+          }
+          const stored = deserializeStoredObject(
+            existing.record_json,
+            objectId,
+            objectVersion,
+            existing.object_type,
+          );
+          if (
+            canonicalizeJson(stored as unknown as JsonValue) === canonical
+          ) {
+            return { status: "already_committed" };
+          }
+          return {
+            status: "conflict",
+            conflict: {
+              code: "object_revision_collision",
+              objectId,
+            },
+          };
+        }
+
+        this.#database
+          .prepare(
+            `
+              INSERT INTO cognition_objects (
+                object_id,
+                object_version,
+                object_type,
+                record_json
+              ) VALUES (?, ?, ?, ?)
+            `,
+          )
+          .run(objectId, objectVersion, objectType, canonical);
+        return { status: "committed" };
+      },
+    );
   }
 
   async commitTransition(
-    _request: TransitionCognitionCommit,
+    request: TransitionCognitionCommit,
   ): Promise<CognitionStoreCommitResult> {
     this.#assertOpen();
-    return unsupportedOperation();
+    const prepared = prepareTransitionCognitionCommit(request);
+    const objectCanonical = canonicalizeJson(
+      prepared.object as unknown as JsonValue,
+    );
+    const eventCanonical = canonicalizeJson(
+      prepared.event as unknown as JsonValue,
+    );
+    const objectId = prepared.object.payload.id;
+    const objectVersion = prepared.object.payload.version;
+    const objectType = prepared.object.payload.type;
+    const eventId = prepared.event.payload.id;
+
+    return runImmediateTransaction<CognitionStoreCommitResult>(
+      this.#database,
+      () => {
+        const existingObject = this.#database
+          .prepare(
+            `
+              SELECT object_type, record_json
+              FROM cognition_objects
+              WHERE object_id = ? AND object_version = ?
+            `,
+          )
+          .get(objectId, objectVersion) as
+            | {
+              readonly object_type: unknown;
+              readonly record_json: unknown;
+            }
+            | undefined;
+        const existingEvent = this.#database
+          .prepare(
+            `
+              SELECT object_id, object_version, record_json
+              FROM cognition_events
+              WHERE event_id = ?
+            `,
+          )
+          .get(eventId) as
+            | {
+              readonly object_id: unknown;
+              readonly object_version: unknown;
+              readonly record_json: unknown;
+            }
+            | undefined;
+
+        let objectMatches = false;
+        if (existingObject !== undefined) {
+          if (typeof existingObject.object_type !== "string") {
+            return invalidStoredObject();
+          }
+          const storedObject = deserializeStoredObject(
+            existingObject.record_json,
+            objectId,
+            objectVersion,
+            existingObject.object_type,
+          );
+          objectMatches = canonicalizeJson(
+            storedObject as unknown as JsonValue,
+          ) === objectCanonical;
+        }
+
+        let eventMatches = false;
+        if (existingEvent !== undefined) {
+          if (
+            typeof existingEvent.object_id !== "string" ||
+            typeof existingEvent.object_version !== "number" ||
+            !Number.isSafeInteger(existingEvent.object_version)
+          ) {
+            return invalidStoredEvent();
+          }
+          const storedEvent = deserializeStoredEvent(
+            existingEvent.record_json,
+            eventId,
+            existingEvent.object_id,
+            existingEvent.object_version,
+          );
+          eventMatches = canonicalizeJson(
+            storedEvent as unknown as JsonValue,
+          ) === eventCanonical;
+        }
+
+        if (objectMatches && eventMatches) {
+          return { status: "already_committed" };
+        }
+        if (existingObject !== undefined && !objectMatches) {
+          return {
+            status: "conflict",
+            conflict: {
+              code: "object_revision_collision",
+              objectId,
+            },
+          };
+        }
+        if (existingEvent !== undefined && !eventMatches) {
+          return {
+            status: "conflict",
+            conflict: {
+              code: "event_id_collision",
+              objectId,
+              eventId,
+            },
+          };
+        }
+        if (
+          existingObject !== undefined ||
+          existingEvent !== undefined
+        ) {
+          throw new TypeError(
+            "Transition identities are only partially committed.",
+          );
+        }
+
+        const latest = this.#database
+          .prepare(
+            `
+              SELECT object_version, object_type, record_json
+              FROM cognition_objects
+              WHERE object_id = ?
+              ORDER BY object_version DESC
+              LIMIT 1
+            `,
+          )
+          .get(objectId) as
+            | {
+              readonly object_version: unknown;
+              readonly object_type: unknown;
+              readonly record_json: unknown;
+            }
+            | undefined;
+        if (latest === undefined) {
+          throw new TypeError("Transition target object does not exist.");
+        }
+        if (
+          typeof latest.object_version !== "number" ||
+          !Number.isSafeInteger(latest.object_version) ||
+          typeof latest.object_type !== "string"
+        ) {
+          return invalidStoredObject();
+        }
+        deserializeStoredObject(
+          latest.record_json,
+          objectId,
+          latest.object_version,
+          latest.object_type,
+        );
+        if (latest.object_version !== prepared.expectedVersion) {
+          return {
+            status: "conflict",
+            conflict: {
+              code: "version_conflict",
+              objectId,
+              expectedVersion: prepared.expectedVersion,
+              actualVersion: latest.object_version,
+            },
+          };
+        }
+
+        this.#database
+          .prepare(
+            `
+              INSERT INTO cognition_objects (
+                object_id,
+                object_version,
+                object_type,
+                record_json
+              ) VALUES (?, ?, ?, ?)
+            `,
+          )
+          .run(
+            objectId,
+            objectVersion,
+            objectType,
+            objectCanonical,
+          );
+        this.#database
+          .prepare(
+            `
+              INSERT INTO cognition_events (
+                event_id,
+                object_id,
+                object_version,
+                record_json
+              ) VALUES (?, ?, ?, ?)
+            `,
+          )
+          .run(
+            eventId,
+            objectId,
+            objectVersion,
+            eventCanonical,
+          );
+        return { status: "committed" };
+      },
+    );
   }
 
   async getLatestObject(
-    _objectId: string,
+    objectId: string,
   ): Promise<PortableCognitiveObjectRecord | undefined> {
     this.#assertOpen();
-    return unsupportedOperation();
+    const row = this.#database
+      .prepare(
+        `
+          SELECT record_json
+          FROM cognition_objects
+          WHERE object_id = ?
+          ORDER BY object_version DESC
+          LIMIT 1
+        `,
+      )
+      .get(objectId) as
+        | { readonly record_json: unknown }
+        | undefined;
+    return row === undefined
+      ? undefined
+      : deserializeStoredObject(row.record_json, objectId);
   }
 
   async getObjectVersion(
-    _objectId: string,
-    _version: number,
+    objectId: string,
+    version: number,
   ): Promise<PortableCognitiveObjectRecord | undefined> {
     this.#assertOpen();
-    return unsupportedOperation();
+    const row = this.#database
+      .prepare(
+        `
+          SELECT record_json
+          FROM cognition_objects
+          WHERE object_id = ? AND object_version = ?
+        `,
+      )
+      .get(objectId, version) as
+        | { readonly record_json: unknown }
+        | undefined;
+    return row === undefined
+      ? undefined
+      : deserializeStoredObject(row.record_json, objectId, version);
   }
 
   async listObjectEvents(
-    _objectId: string,
+    objectId: string,
   ): Promise<readonly PortableCognitionEventRecord[]> {
     this.#assertOpen();
-    return unsupportedOperation();
+    const events = this.#database
+      .prepare(
+        `
+          SELECT event_id, object_id, object_version, record_json
+          FROM cognition_events
+          WHERE object_id = ?
+          ORDER BY object_version, event_id
+        `,
+      )
+      .all(objectId)
+      .map((row) => {
+        const stored = row as Record<string, unknown>;
+        if (
+          typeof stored.event_id !== "string" ||
+          stored.object_id !== objectId ||
+          typeof stored.object_version !== "number" ||
+          !Number.isSafeInteger(stored.object_version)
+        ) {
+          return invalidStoredEvent();
+        }
+        return deserializeStoredEvent(
+          stored.record_json,
+          stored.event_id,
+          objectId,
+          stored.object_version,
+        );
+      });
+    return Object.freeze(events);
   }
 
   #assertOpen(): void {
