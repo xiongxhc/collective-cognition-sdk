@@ -1,6 +1,6 @@
 {
   "name": "collective-cognition-sdk",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Portable cognitive objects, provenance, lifecycle, and governance boundaries for long-term human-AI collaboration.",
   "private": true,
   "license": "Apache-2.0",
@@ -17,6 +17,15 @@
     "./compatibility/0.2.0": "./spec/compatibility/0.2.0/baseline.json",
     "./compatibility/0.3.0": "./spec/compatibility/0.3.0/baseline.json",
     "./compatibility/0.4.0": "./spec/compatibility/0.4.0/baseline.json",
+    "./compatibility/0.5.0": "./spec/compatibility/0.5.0/baseline.json",
+    "./connector-conformance/0.1.0": {
+      "types": "./dist/connector-conformance.d.ts",
+      "import": "./dist/connector-conformance.js"
+    },
+    "./connectors/team-memory/0.1.0": {
+      "types": "./dist/connectors/team-memory.d.ts",
+      "import": "./dist/connectors/team-memory.js"
+    },
     "./contracts/host-integration/0.1.0": "./spec/host-integration.md",
     "./host-conformance/0.1.0": {
       "types": "./dist/host-conformance.d.ts",
@@ -38,7 +47,8 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "collective-cognition": "./dist/cli.js"
+    "collective-cognition": "./dist/cli.js",
+    "collective-cognition-teammem": "./dist/team-memory-cli.js"
   },
   "files": [
     "CITATION.cff",
@@ -46,12 +56,14 @@
     "LICENSE",
     "NOTICE",
     "README.md",
+    "docs/connector-author-guide.md",
     "rfcs/README.md",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
     "rfcs/0003-portable-cognition-contract.md",
     "rfcs/0004-host-integration-contract.md",
     "rfcs/0005-sqlite-cognition-store.md",
+    "rfcs/0006-maintained-source-connectors.md",
     "spec/README.md",
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
@@ -62,6 +74,8 @@
     "spec/compatibility/0.3.0/change-cases.jsonl",
     "spec/compatibility/0.4.0/baseline.json",
     "spec/compatibility/0.4.0/change-cases.jsonl",
+    "spec/compatibility/0.5.0/baseline.json",
+    "spec/compatibility/0.5.0/change-cases.jsonl",
     "spec/host-integration.md",
     "spec/source-record.md",
     "spec/portable-cognition.md",
@@ -92,7 +106,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "node --eval \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && node scripts/rewrite-declaration-imports.mjs",
+    "build": "node --eval \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && node scripts/rewrite-declaration-imports.mjs && node --eval \"import { chmodSync } from 'node:fs'; chmodSync('dist/cli.js', 0o755); chmodSync('dist/team-memory-cli.js', 0o755)\"",
     "test": "npm run build && npm run test:source && npm run test:schema && npm run test:compatibility && npm run test:package",
     "test:source": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
     "test:schema": "node --test tests/schema-conformance.test.mjs tests/portable-cognition-schema.test.mjs",
@@ -100,13 +114,13 @@
     "test:package": "node --test tests/package.test.mjs",
     "pack:check": "npm run build && npm run test:schema && npm run test:compatibility && npm run test:package",
     "prepack": "npm run build && npm run test:schema && npm run test:compatibility && npm run test:package",
-    "check": "node --disable-warning=ExperimentalWarning --check src/types.ts && node --disable-warning=ExperimentalWarning --check src/errors.ts && node --disable-warning=ExperimentalWarning --check src/json-text.ts && node --disable-warning=ExperimentalWarning --check src/objects.ts && node --disable-warning=ExperimentalWarning --check src/authorization.ts && node --disable-warning=ExperimentalWarning --check src/events.ts && node --disable-warning=ExperimentalWarning --check src/transitions.ts && node --disable-warning=ExperimentalWarning --check src/source-records.ts && node --disable-warning=ExperimentalWarning --check src/portable-cognition.ts && node --disable-warning=ExperimentalWarning --check src/host-integration.ts && node --disable-warning=ExperimentalWarning --check src/reference-host.ts && node --disable-warning=ExperimentalWarning --check src/host-conformance.ts && node --disable-warning=ExperimentalWarning --check src/ingestion.ts && node --disable-warning=ExperimentalWarning --check src/promotion.ts && node --disable-warning=ExperimentalWarning --check src/adapters/team-memory.ts && node --disable-warning=ExperimentalWarning --check src/adapters/team-memory-activity.ts && node --disable-warning=ExperimentalWarning --check src/stores/sqlite.ts && node --disable-warning=ExperimentalWarning --check src/adapters/git-commit.ts && node --disable-warning=ExperimentalWarning --check src/teammem-cli.ts && node --disable-warning=ExperimentalWarning --check src/cli-contract.ts && node --disable-warning=ExperimentalWarning --check src/cli.ts && node --disable-warning=ExperimentalWarning --check tests/objects.test.ts && node --disable-warning=ExperimentalWarning --check tests/transitions.test.ts && node --disable-warning=ExperimentalWarning --check tests/cognitive-loop.test.ts && node --disable-warning=ExperimentalWarning --check tests/source-records.test.ts && node --disable-warning=ExperimentalWarning --check tests/portable-cognition.test.ts && node --disable-warning=ExperimentalWarning --check tests/portable-cognition-conformance.test.ts && node --disable-warning=ExperimentalWarning --check tests/host-integration.test.ts && node --disable-warning=ExperimentalWarning --check tests/reference-host.test.ts && node --disable-warning=ExperimentalWarning --check tests/host-conformance.test.ts && node --disable-warning=ExperimentalWarning --check tests/ingestion.test.ts && node --disable-warning=ExperimentalWarning --check tests/promotion.test.ts && node --disable-warning=ExperimentalWarning --check tests/team-memory.test.ts && node --disable-warning=ExperimentalWarning --check tests/team-memory-activity.test.ts && node --disable-warning=ExperimentalWarning --check tests/sqlite-store.test.ts && node --disable-warning=ExperimentalWarning --check tests/durable-team-memory-example.test.ts && node --disable-warning=ExperimentalWarning --check tests/git-connector.test.ts && node --disable-warning=ExperimentalWarning --check tests/cli-contract.test.ts && node --disable-warning=ExperimentalWarning --check tests/cli.test.ts && node --disable-warning=ExperimentalWarning --check tests/conformance.test.ts && node --check tests/schema-conformance.test.mjs && node --check tests/portable-cognition-schema.test.mjs && node --check tests/compatibility.test.mjs && node --disable-warning=ExperimentalWarning --check examples/cognitive-loop.ts && node --disable-warning=ExperimentalWarning --check examples/portable-cognition.ts && node --disable-warning=ExperimentalWarning --check examples/host-integration.ts && node --disable-warning=ExperimentalWarning --check examples/team-memory-evidence.ts && node --disable-warning=ExperimentalWarning --check examples/durable-team-memory-evidence.ts",
+    "check": "node --disable-warning=ExperimentalWarning --check src/types.ts && node --disable-warning=ExperimentalWarning --check src/errors.ts && node --disable-warning=ExperimentalWarning --check src/json-text.ts && node --disable-warning=ExperimentalWarning --check src/objects.ts && node --disable-warning=ExperimentalWarning --check src/authorization.ts && node --disable-warning=ExperimentalWarning --check src/events.ts && node --disable-warning=ExperimentalWarning --check src/transitions.ts && node --disable-warning=ExperimentalWarning --check src/source-records.ts && node --disable-warning=ExperimentalWarning --check src/connector-conformance.ts && node --disable-warning=ExperimentalWarning --check src/portable-cognition.ts && node --disable-warning=ExperimentalWarning --check src/host-integration.ts && node --disable-warning=ExperimentalWarning --check src/reference-host.ts && node --disable-warning=ExperimentalWarning --check src/host-conformance.ts && node --disable-warning=ExperimentalWarning --check src/ingestion.ts && node --disable-warning=ExperimentalWarning --check src/promotion.ts && node --disable-warning=ExperimentalWarning --check src/adapters/team-memory.ts && node --disable-warning=ExperimentalWarning --check src/adapters/team-memory-activity.ts && node --disable-warning=ExperimentalWarning --check src/connectors/team-memory.ts && node --disable-warning=ExperimentalWarning --check src/stores/sqlite.ts && node --disable-warning=ExperimentalWarning --check src/adapters/git-commit.ts && node --disable-warning=ExperimentalWarning --check src/team-memory-cli.ts && node --disable-warning=ExperimentalWarning --check src/cli-contract.ts && node --disable-warning=ExperimentalWarning --check src/cli.ts && node --disable-warning=ExperimentalWarning --check tests/objects.test.ts && node --disable-warning=ExperimentalWarning --check tests/transitions.test.ts && node --disable-warning=ExperimentalWarning --check tests/cognitive-loop.test.ts && node --disable-warning=ExperimentalWarning --check tests/source-records.test.ts && node --disable-warning=ExperimentalWarning --check tests/connector-conformance.test.ts && node --disable-warning=ExperimentalWarning --check tests/portable-cognition.test.ts && node --disable-warning=ExperimentalWarning --check tests/portable-cognition-conformance.test.ts && node --disable-warning=ExperimentalWarning --check tests/host-integration.test.ts && node --disable-warning=ExperimentalWarning --check tests/reference-host.test.ts && node --disable-warning=ExperimentalWarning --check tests/host-conformance.test.ts && node --disable-warning=ExperimentalWarning --check tests/ingestion.test.ts && node --disable-warning=ExperimentalWarning --check tests/promotion.test.ts && node --disable-warning=ExperimentalWarning --check tests/team-memory.test.ts && node --disable-warning=ExperimentalWarning --check tests/team-memory-connector.test.ts && node --disable-warning=ExperimentalWarning --check tests/team-memory-cli.test.ts && node --disable-warning=ExperimentalWarning --check tests/team-memory-activity.test.ts && node --disable-warning=ExperimentalWarning --check tests/sqlite-store.test.ts && node --disable-warning=ExperimentalWarning --check tests/durable-team-memory-example.test.ts && node --disable-warning=ExperimentalWarning --check tests/git-connector.test.ts && node --disable-warning=ExperimentalWarning --check tests/cli-contract.test.ts && node --disable-warning=ExperimentalWarning --check tests/cli.test.ts && node --disable-warning=ExperimentalWarning --check tests/conformance.test.ts && node --check tests/schema-conformance.test.mjs && node --check tests/portable-cognition-schema.test.mjs && node --check tests/compatibility.test.mjs && node --disable-warning=ExperimentalWarning --check examples/cognitive-loop.ts && node --disable-warning=ExperimentalWarning --check examples/portable-cognition.ts && node --disable-warning=ExperimentalWarning --check examples/host-integration.ts && node --disable-warning=ExperimentalWarning --check examples/team-memory-evidence.ts && node --disable-warning=ExperimentalWarning --check examples/durable-team-memory-evidence.ts",
     "example": "node --disable-warning=ExperimentalWarning examples/cognitive-loop.ts",
     "example:portable": "node --disable-warning=ExperimentalWarning examples/portable-cognition.ts",
     "example:host": "npm run --silent build && node --disable-warning=ExperimentalWarning examples/host-integration.ts",
     "example:teammem": "node --disable-warning=ExperimentalWarning examples/team-memory-evidence.ts",
     "example:teammem:durable": "node --disable-warning=ExperimentalWarning examples/durable-team-memory-evidence.ts",
-    "teammem:export": "node --disable-warning=ExperimentalWarning src/teammem-cli.ts",
+    "teammem:export": "node --disable-warning=ExperimentalWarning src/team-memory-cli.ts",
     "cc": "node --disable-warning=ExperimentalWarning src/cli.ts"
   },
   "devDependencies": {

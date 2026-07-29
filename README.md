@@ -2,9 +2,9 @@
 
 Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript reference implementation for attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, source system, or organizational beliefs.
 
-This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.4.0` remains private and unpublished; its source, emitted ESM build, declarations, and CLI are runnable, but it is not production-ready.
+This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.5.0` remains private and unpublished; its source, emitted ESM build, declarations, and CLIs are runnable, but it is not production-ready.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, and compatibility baselines `0.1.0` through `0.4.0` are implemented. Host Integration `0.1.0` is implemented and final-review verified. The SQLite cognition-store slice is implemented and final-review verified. Registry publication, runtime policy, security policy, maintained connectors, and production readiness remain deferred.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.5.0` are implemented. The SQLite cognition-store and maintained-source-connector slices are implemented and final-review verified.
 
 ## Current Status
 
@@ -25,10 +25,13 @@ Runnable now:
 - package compatibility tests covering built imports, runtime exports, declarations, CLI behavior, npm tarball contents, and installation into a clean temporary consumer;
 - Portable Cognition `0.1.0`: a closed versioned envelope for cognitive objects, events, transition contexts, authorization decisions, and domain-error projections, with schema, fixtures, runtime codecs, and a runnable round trip;
 - Host Integration `0.1.0`: storage-neutral `CognitionStore` and `CognitionEventPublisher` ports, commit coordinators, observable and retryable publication failure, an in-memory reference host, conformance checks, and a runnable recovery example;
+- source-neutral connector conformance at `collective-cognition-sdk/connector-conformance/0.1.0`;
+- one maintained compatible connector for structurally compatible `teammem-event-ledger/1` databases at `collective-cognition-sdk/connectors/team-memory/0.1.0`;
+- the dedicated `collective-cognition-teammem` export CLI, with generic validation and promotion left to the root CLI or APIs;
 - an internal structured team-memory activity policy that produces neutral Evidence without inferring a Decision or Principle;
 - an optional durable SQLite `CognitionStore` reference adapter, available only at `collective-cognition-sdk/stores/sqlite/0.1.0` and requiring an explicit separate cognition-database path;
 - schema, SDK, and CLI tests over the complete canonical valid and invalid corpus, plus package and clean-consumer smoke tests for shipped fixtures, schema discovery, and the installed CLI;
-- an experimental read-only team-memory SQLite connector that emits SourceRecord JSONL;
+- a read-only maintained team-memory-compatible SQLite connector that emits SourceRecord JSONL;
 - a small Git commit fixture connector used to prove a second source-specific module satisfies the same SourceRecord contract.
 
 Not implemented yet:
@@ -36,39 +39,44 @@ Not implemented yet:
 - package publication or external distribution;
 - a confirmed registry package name, runtime policy, or security policy;
 - stricter standalone and type-specific semantic schemas for cognitive objects, relationships, transitions, authorization, events, and errors; the Portable Cognition serialized envelope remains normative;
-- services, UI, synchronization, a durable publication outbox, or connector ecosystem;
-- a maintained team-memory connector and an Obsidian/Markdown adapter;
+- services, UI, synchronization, a durable publication outbox, connector registry, or network-connector ecosystem;
+- connector credential policy and an Obsidian/Markdown adapter;
 - Obsidian/Markdown integration;
 - automatic cognition from conversations.
 
-The team-memory connector proves that real source data can enter the neutral ingestion boundary. It is imported directly from `src/adapters/team-memory.ts`. The Git fixture connector is imported directly from `src/adapters/git-commit.ts`. Source-specific connectors and unexported source modules are Internal; neither connector is exported from the root public API.
+`SourceRecord` is the universal boundary. Team-memory is one maintained compatible connector, not SDK root behavior. External connectors may live in separate repositories and packages, importing only the root SDK and optional source-neutral conformance subpath. Read the [connector author guide](docs/connector-author-guide.md) and [RFC 0006: Maintained Source Connectors](rfcs/0006-maintained-source-connectors.md).
 
 ## Compatibility Status
 
-- SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.4.0` are **Normative Stable** contracts.
-- Before `1.0.0`, the package root and generic `collective-cognition` CLI are **Supported Experimental**.
-- Connectors and unexported source modules are **Internal** and create no public compatibility promise.
-- The baseline locks runtime and type exports, selected package metadata, independent declaration closures and literal digests for the root, host-conformance, reference-host, and SQLite entrypoints, CLI behavior, domain error codes, policy identities, and normative artifact hashes.
-- Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0`, `collective-cognition-sdk/compatibility/0.2.0`, `collective-cognition-sdk/compatibility/0.3.0`, and `collective-cognition-sdk/compatibility/0.4.0`.
+- SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.5.0` are **Normative Stable** contracts.
+- Before `1.0.0`, the package root, both CLIs, and declared non-normative package subpaths are **Supported Experimental**.
+- Unexported connector modules and repository-only examples remain **Internal** and create no public compatibility promise.
+- The baseline locks runtime and type exports, selected package metadata, independent declaration closures and literal digests for public TypeScript entrypoints, CLI behavior, domain error codes, policy identities, and normative artifact hashes.
+- Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0` through `collective-cognition-sdk/compatibility/0.5.0`.
 - Compatibility tests detect exact baseline drift and declared process consequences; they do not automatically determine semantic compatibility.
 - Package `0.3.0` is classified as a `minor-before-1.0` breaking correction: the Host Integration additions are optional, while `PortableDomainError.code` is narrowed from package `0.2.0`'s package-wide `DomainErrorCode` to the immutable Portable Cognition `0.1.0` allowlist under `COMP-012`.
 - Package `0.4.0` is an additive minor release before `1.0`: it adds the optional SQLite subpath and its compatibility baseline without changing root exports or the generic CLI contract.
+- Package `0.5.0` is an additive minor release before `1.0`: it adds source-neutral connector conformance, one maintained connector subpath, and a dedicated executable while preserving the root API and generic CLI.
 
 Read the [compatibility policy](spec/compatibility.md) and [RFC 0002](rfcs/0002-compatibility-versioning-and-deprecation.md). npm publication, registry confirmation, runtime and security policy, broader schemas, and production readiness remain open. The manifest retains `"private": true`, and the package is unpublished.
+
+Conformance is not certification, does not imply endorsement, and is not an LTS commitment.
 
 ## Universal Architecture
 
 The approved architecture separates collection from interpretation:
 
 ```text
-source connector → SourceRecord → explicit promotion → Portable Cognition
-                                                ↓
-                                      host CognitionStore
-                                                ↓
-                                  CognitionEventPublisher
+explicit source
+  → maintained or external connector
+  → SourceRecord
+  → generic ingestion
+  → explicit caller-selected promotion
+  → Portable Cognition
+  → host-selected CognitionStore and CognitionEventPublisher
 ```
 
-Canonical JSON and JSONL are the minimum no-code integration path. Reusable connectors remain planned for common systems. A team needs custom connector code only when its source cannot emit canonical records and no shared connector exists. `team-memory-agent` will implement or compose the host ports later when it promotes material into shared cognition; individual memory collectors need the cognition host only when they make that promotion.
+Collection does not imply interpretation, promotion, or persistence. Canonical JSON and JSONL remain the minimum no-code integration path. A source connector does not choose whether material becomes Evidence, what it means, or where cognition is stored.
 
 ### System Position
 
@@ -103,6 +111,57 @@ A convenience workflow may ingest and promote in one operation, but it must pres
 
 Read the [normative SourceRecord contract](spec/source-record.md), [universal ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md), [implemented RFC](rfcs/0001-universal-source-record-ingestion.md), and [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/ROADMAP.md).
 
+### Maintained Team-Memory-Compatible Connector
+
+The maintained connector is isolated below
+`collective-cognition-sdk/connectors/team-memory/0.1.0`. It accepts any
+explicitly supplied SQLite database with this structural
+`teammem-event-ledger/1` table:
+
+```sql
+CREATE TABLE events (
+  id      INTEGER PRIMARY KEY,
+  person  TEXT NOT NULL,
+  project TEXT,
+  ts      TEXT NOT NULL,
+  source  TEXT NOT NULL,
+  kind    TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  refs    TEXT,
+  raw     TEXT,
+  hash    TEXT NOT NULL,
+  UNIQUE(person, source, hash)
+);
+```
+
+Additional tables and columns are ignored. The connector does not require
+`team-memory-agent`; compatibility is structural rather than tied to one
+producer repository or deployment.
+
+`sourceInstance` is public, non-secret identity for one logical ledger. Use a
+stable value that contains no credentials, tokens, private paths, or sensitive
+tenant labels. It prevents identical `(person, source, hash)` tuples from
+different compatible ledgers from colliding.
+
+The connector omits `raw` by default. `--include-raw` is an explicit
+privacy-sensitive opt-in that authorizes inclusion in output for that
+invocation only; it does not authorize promotion, persistence, logging, or
+further disclosure.
+
+Import the two public surfaces separately:
+
+```ts
+import {
+  createSourceRecord,
+} from "collective-cognition-sdk";
+import {
+  runSourceConnectorConformance,
+} from "collective-cognition-sdk/connector-conformance/0.1.0";
+import {
+  readTeamMemorySourceRecords,
+} from "collective-cognition-sdk/connectors/team-memory/0.1.0";
+```
+
 ## Requirements
 
 - Node.js 24 or newer. The examples rely on Node 24 native TypeScript execution.
@@ -121,7 +180,7 @@ npm run test:package
 npm run pack:check
 ```
 
-`npm run test:schema` compiles both the SourceRecord and Portable Cognition schemas in strict Draft 2020-12 mode and checks both normative fixture corpora. `npm run pack:check` and npm prepack inherit this combined schema gate. `npm run test:compatibility` checks the compatibility baseline’s exact inventories, independent public declaration closures and digests, policy identities, CLI contract, and declared additive and breaking change cases; it does not decide semantic compatibility automatically. `npm run test:package` imports the built root, checks the exact runtime export allowlist, rejects relative `.ts` specifiers in emitted modules, proves the public-import host example builds from a checkout with no `dist/`, runs the built CLI, audits `npm pack --dry-run` against an exact file allowlist, and installs the packed artifact into a clean temporary project to verify default TypeScript consumer settings, package-name imports, schema-subpath discovery, compatibility-baseline resolution, the package `0.3.0` error-code narrowing migration, the package `0.4.0` SQLite subpath, and the installed `collective-cognition` binary. npm operations use an isolated temporary cache.
+`npm run test:schema` compiles both the SourceRecord and Portable Cognition schemas in strict Draft 2020-12 mode and checks both normative fixture corpora. `npm run pack:check` and npm prepack inherit this combined schema gate. `npm run test:compatibility` checks the compatibility baseline’s exact inventories, independent public declaration closures and digests, policy identities, CLI contracts, and declared additive and breaking change cases; it does not decide semantic compatibility automatically. `npm run test:package` imports the built root and versioned subpaths, checks exact runtime and tarball allowlists, runs both CLIs, and installs the packed artifact into a clean temporary project to verify runtime and TypeScript imports. npm operations use an isolated temporary cache.
 
 Installed consumers can import the schema through the versioned package subpath:
 
@@ -133,7 +192,7 @@ import sourceRecordSchema from "collective-cognition-sdk/schemas/source-record/0
 Consumers can resolve the versioned compatibility baseline through:
 
 ```js
-import compatibilityBaseline from "collective-cognition-sdk/compatibility/0.4.0"
+import compatibilityBaseline from "collective-cognition-sdk/compatibility/0.5.0"
   with { type: "json" };
 ```
 
@@ -157,13 +216,9 @@ The optional SQLite reference adapter is not exported from the root. Import it f
 
 ### SQLite Verification
 
-On the supported bundled Node.js `v24.14.0` runtime, the focused SQLite,
-activity-policy, and durable-workflow command passes `59` of `60` tests; the
-sole skip is the expected unsupported-runtime defensive-mode probe. `npm test`
-passes `309` of `310` source tests with that same expected skip, plus `10`
-schema, `15` compatibility, and `8` package tests. `npx tsc --noEmit`,
-`npm run check`, `npm run example`, `npm run example:portable`,
-`npm run example:host`, `npm run pack:check`, and `git diff --check` also pass.
+The SQLite `0.4.0` slice and maintained connector package `0.5.0` slice were
+final-review verified on the supported bundled Node.js runtime. Publication
+readiness remains a separate unfinished gate.
 
 The recorded manual real-ledger acceptance used an explicitly supplied
 team-memory ledger and a separate temporary cognition database. It persisted a
@@ -195,17 +250,15 @@ npm run check
 npm run example
 npm run example:portable
 npm run example:host
-npm run --silent example:teammem -- /path/to/team-memory-agent/ledger.db
-npm run --silent example:teammem:durable -- \
-  --ledger /absolute/path/to/team-memory-agent/ledger.db \
-  --cognition-db /absolute/path/to/cognition.db \
-  --project unified-portal \
-  --from 2026-07-28T17:59:00+08:00 \
-  --limit 12 \
-  --create
-npm run --silent example:teammem:durable -- --help
-npm run --silent teammem:export -- --db /path/to/ledger.db --limit 5
-npm run --silent teammem:export -- --db /path/to/ledger.db --limit 5 --include-raw
+collective-cognition-teammem export \
+  --db /absolute/path/to/compatible-ledger.db \
+  --source-instance public-demo \
+  --limit 5
+collective-cognition-teammem export \
+  --db /absolute/path/to/compatible-ledger.db \
+  --source-instance public-demo \
+  --limit 5 \
+  --include-raw
 ```
 
 Run the canonical conformance suite directly:
@@ -222,14 +275,25 @@ node --disable-warning=ExperimentalWarning --test tests/portable-cognition-confo
 
 `npm run example:host` prints one JSON outcome showing an initial commit, `committed_but_unpublished` after the first publication attempt, and this example's identical retry returning `committed`, with object version `2`, one stored event, and one published event. The contract makes publication failure retryable but does not guarantee that every retry succeeds.
 
-The migrated team-memory commands are experimental connector tools:
+`collective-cognition-teammem export` writes canonical SourceRecord JSONL and
+supports `--from`, `--to`, `--person`, `--project`, `--limit`, and
+`--include-raw`. It requires `--db` and `--source-instance`; help and version
+output do not open a source. Failures write one sanitized JSON diagnostic to
+stderr. Failures detected before output write nothing to stdout; an operating
+system pipe failure can occur after already-written bytes and cannot retract
+them.
 
-- `example:teammem` reads at most five ledger rows, creates SourceRecords, and explicitly promotes the non-empty record set with the internal `teamMemoryActivityEvidencePolicyV1`. The policy accepts exactly `message`, `commit`, and `mr`, emits stable neutral counts in that order, parses explicit status prefixes only for merge requests, and rejects `journal-highlight` and every other kind.
-- `example:teammem:durable` requires explicit, distinct absolute source-ledger and cognition-database paths. It reads the source ledger only, creates a real Hypothesis and structured neutral Evidence, persists one valid Hypothesis transition and audit event in the separate cognition database, then closes and reopens that database to verify durable records. It infers no Decisions or Principles.
-- `teammem:export` writes SourceRecord JSONL and supports `--from`, `--to`, `--person`, `--project`, and `--limit`. It omits the ledger `raw` column by default; `--include-raw` is the explicit privacy-sensitive opt-in.
-- `--silent` prevents npm banners from contaminating stdout.
+Compose export with the generic CLI explicitly:
 
-The durable command shown above creates a new cognition database. To verify a later reopen, rerun the same complete flag set without `--create`; `--help` prints the supported closed interface and the same reopen rule.
+```bash
+collective-cognition-teammem export \
+  --db /absolute/path/to/compatible-ledger.db \
+  --source-instance public-demo \
+  > records.jsonl
+collective-cognition validate --input records.jsonl --format jsonl
+```
+
+Export does not create Evidence or write a cognition database.
 
 The former experimental `--hypothesis-id` and `--context-id` export arguments were removed because export no longer creates Evidence. Use the generic CLI for source-neutral operations:
 
@@ -253,18 +317,19 @@ The generic CLI accepts `--max-input-bytes`, `--max-records`, and `--max-record-
 
 Promotion snapshots and freezes the validated request and contributing records before reading any policy property. Policy identity and `map` are then captured once inside a secret-safe fail-closed boundary. The mapper receives a frozen captured receiver containing that identity, so methods using `this.id` or `this.version` work without rereading mutable policy state. Mapping output is captured exactly once through own data-property descriptors inside the same boundary; accessors, unknown fields, malformed fields, and reflection failures are rejected, and all later validation, identity, and object construction use only the plain frozen mapping snapshot.
 
-Pre-output generic CLI failures write exactly one JSON diagnostic to stderr with `code`, `message`, `details`, and `stage`, and write nothing to stdout. Parser details, arbitrary promotion-policy exceptions, input paths, and non-domain exception messages are not exposed. Rejected collect-all items remain item diagnostics because they are batch outcomes rather than top-level failures. `teammem:export` uses `{ "stage": "...", "error": { "code": "...", "message": "...", "details": {} } }` for every failure.
+Pre-output generic CLI failures write exactly one JSON diagnostic to stderr with `code`, `message`, `details`, and `stage`, and write nothing to stdout. Parser details, arbitrary promotion-policy exceptions, input paths, and non-domain exception messages are not exposed. Rejected collect-all items remain item diagnostics because they are batch outcomes rather than top-level failures. `collective-cognition-teammem` uses `{ "code": "...", "message": "...", "stage": "..." }` for every failure.
 
 ## Current Team-Memory Safety
 
 - SQLite is opened read-only and queried with `SELECT` only.
 - Every selected row maps to a cloned, deeply frozen SourceRecord before any interpretation.
+- `sourceInstance` is required public non-secret identity and isolates otherwise identical revisions from different compatible ledgers.
 - Ledger `raw` content is omitted by default. Callers must pass connector option `{ includeRaw: true }` or CLI flag `--include-raw` to include it.
-- Promotion is a separate caller-selected operation; the built-in policy emits new `collected`, neutral Evidence linked to a caller-supplied hypothesis, every contributing SourceRecord, and a non-empty rationale.
+- Collection and promotion are separate caller-selected operations; collection never persists cognition.
 - The connector does not infer support, challenge, truth, confidence, decisions, or evidence quality.
 - The provided ledger path is the only external source.
 - The personal Obsidian vault is not read or written.
-- This repository does not modify the `team-memory-agent` LaunchAgent or scheduled team-vault output.
+- The connector does not modify source schedulers or rendered outputs.
 - Time filtering follows stored timestamp text; mixed offsets can differ from absolute-time ordering near a boundary.
 - `node:sqlite` is experimental in Node 24 and may emit an `ExperimentalWarning`; npm scripts suppress the warning only for readable output.
 - The durable SQLite adapter is a reference implementation, not a production certification. It requires a host-selected database path and does not provide encryption, network-database support, a durable outbox, authentication, or multi-process scale guarantees.
@@ -279,7 +344,7 @@ Production callers must inject a policy backed by authenticated identity and tru
 
 SourceRecord `0.1.0` and Portable Cognition `0.1.0` have normative language-neutral schemas and fixtures. Portable Cognition provides an exchange record only: it neither persists nor publishes a record, and it does not authenticate a confirmation or execute authorization policy. Host Integration `0.1.0` defines the separate host-owned persistence and publication boundary without selecting a mandatory database or delivery system. The optional SQLite adapter is one Node-specific reference implementation of that store port; it does not make SQLite normative or alter the source-neutral root API. Its domain-error shape has no dedicated stack, cause, exception-name, or path fields, and runtime boundary failures do not automatically project caught exceptions; `message` and `details` are caller supplied, so hosts must filter secrets, paths, and operational details before creating records. Type-specific cognitive-object `data` payloads remain permissive JSON-compatible structures; stricter per-type semantics, additional adapters, runtime policy, and security policy remain deferred.
 
-The project does not claim universal compatibility, production readiness, or broad adoption. Those claims require a stable package, independently implemented connectors, and real-team evidence.
+The project does not claim universal compatibility, production readiness, or broad adoption. Connector conformance is not certification, does not imply endorsement, and is not an LTS commitment. Stronger claims require a published stable package, independently implemented connectors, final verification, and real-team evidence.
 
 ## Roadmap
 

@@ -26,6 +26,8 @@ import {
 import { API } from "typescript/unstable/sync";
 
 import * as publicApi from "../dist/index.js";
+import * as connectorConformanceApi from "../dist/connector-conformance.js";
+import * as teamMemoryConnectorApi from "../dist/connectors/team-memory.js";
 import { CLI_CONTRACT } from "../dist/cli-contract.js";
 
 const repositoryRoot = new URL("../", import.meta.url);
@@ -53,8 +55,16 @@ const latestHistoricalChangeCasesUrl = new URL(
   "../spec/compatibility/0.3.0/change-cases.jsonl",
   import.meta.url,
 );
-const currentBaselineUrl = new URL(
+const previousCurrentBaselineUrl = new URL(
   "../spec/compatibility/0.4.0/baseline.json",
+  import.meta.url,
+);
+const previousCurrentChangeCasesUrl = new URL(
+  "../spec/compatibility/0.4.0/change-cases.jsonl",
+  import.meta.url,
+);
+const currentBaselineUrl = new URL(
+  "../spec/compatibility/0.5.0/baseline.json",
   import.meta.url,
 );
 const expectedHistoricalBaselineSha256 =
@@ -69,6 +79,10 @@ const expectedLatestHistoricalBaselineSha256 =
   "02991abb5133a4aef2b6a2fc736567fbbde9e29859909f806f08822fcd40d3d4";
 const expectedLatestHistoricalChangeCasesSha256 =
   "1f1ff3822de318806640357bb11804a0213d7084f05350035f8bb8d519dd95f2";
+const expectedPreviousCurrentBaselineSha256 =
+  "3f807dc1eeeaa3ebcd700e8e38f5c6358da60a2645a5b101ec1ba6429b97a918";
+const expectedPreviousCurrentChangeCasesSha256 =
+  "704d478ed8738f3f591d6b49886bce919dcd0318b8c54a107619d1aa9961c645";
 const expectedHistoricalChangeCaseDigests = Object.freeze({
   "spec/compatibility/0.1.0/change-cases.jsonl":
     expectedHistoricalChangeCasesSha256,
@@ -76,6 +90,8 @@ const expectedHistoricalChangeCaseDigests = Object.freeze({
     expectedPreviousChangeCasesSha256,
   "spec/compatibility/0.3.0/change-cases.jsonl":
     expectedLatestHistoricalChangeCasesSha256,
+  "spec/compatibility/0.4.0/change-cases.jsonl":
+    expectedPreviousCurrentChangeCasesSha256,
 });
 const productionDependencyFieldNames = Object.freeze([
   "dependencies",
@@ -101,6 +117,23 @@ function readJsonLines(url) {
 
 function sorted(values) {
   return [...values].sort();
+}
+
+function directDeclarationTypeExports(path) {
+  return sorted(
+    [...readFileSync(new URL(path, repositoryRoot), "utf8").matchAll(
+      /^export (?:interface|type) ([A-Za-z_$][\w$]*)/gm,
+    )].map((match) => match[1]),
+  );
+}
+
+function declarationStringUnion(path, pattern) {
+  const text = readFileSync(new URL(path, repositoryRoot), "utf8");
+  const match = text.match(pattern);
+  assert.ok(match?.[1], `${path} must contain the expected string union`);
+  return sorted(
+    [...match[1].matchAll(/"([^"]+)"/g)].map((part) => part[1]),
+  );
 }
 
 function ruleIds(path, prefix) {
@@ -366,11 +399,22 @@ test("historical compatibility 0.3.0 artifacts remain immutable", () => {
   );
 });
 
-test("current baseline describes the additive package 0.4.0 release", () => {
+test("historical compatibility 0.4.0 artifacts remain immutable", () => {
+  assert.equal(
+    sha256(readFileSync(previousCurrentBaselineUrl)),
+    expectedPreviousCurrentBaselineSha256,
+  );
+  assert.equal(
+    sha256(readFileSync(previousCurrentChangeCasesUrl)),
+    expectedPreviousCurrentChangeCasesSha256,
+  );
+});
+
+test("current baseline describes the additive package 0.5.0 release", () => {
   const baseline = readJson(currentBaselineUrl);
 
-  assert.equal(baseline.baselineVersion, "0.4.0");
-  assert.equal(baseline.appliesToPackageVersion, "0.4.0");
+  assert.equal(baseline.baselineVersion, "0.5.0");
+  assert.equal(baseline.appliesToPackageVersion, "0.5.0");
   assert.deepEqual(baseline.packageChange, {
     classification: "additive",
     packageVersionEffect: "minor",
@@ -390,6 +434,10 @@ test("current baseline describes the additive package 0.4.0 release", () => {
     "0.3.0": {
       path: "spec/compatibility/0.3.0/baseline.json",
       sha256: expectedLatestHistoricalBaselineSha256,
+    },
+    "0.4.0": {
+      path: "spec/compatibility/0.4.0/baseline.json",
+      sha256: expectedPreviousCurrentBaselineSha256,
     },
   });
   assert.deepEqual(baseline.deprecations, []);
@@ -432,6 +480,7 @@ test("normative machine artifacts match exact digests", () => {
       "spec/compatibility/0.2.0/change-cases.jsonl",
       "spec/compatibility/0.3.0/change-cases.jsonl",
       "spec/compatibility/0.4.0/change-cases.jsonl",
+      "spec/compatibility/0.5.0/change-cases.jsonl",
       "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
       "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
       "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
@@ -527,9 +576,7 @@ test("normative prose matches its hash and stable rule identifiers", () => {
 
 test("root runtime and domain error inventories match exactly", () => {
   const baseline = readJson(currentBaselineUrl);
-  const latestHistoricalBaseline = readJson(
-    latestHistoricalBaselineUrl,
-  );
+  const previousCurrentBaseline = readJson(previousCurrentBaselineUrl);
 
   assert.deepEqual(
     Object.keys(publicApi).sort(),
@@ -563,11 +610,11 @@ test("root runtime and domain error inventories match exactly", () => {
   assert.deepEqual(sourceTypeExports(), baseline.package.typeExports);
   assert.deepEqual(
     baseline.package.runtimeExports,
-    latestHistoricalBaseline.package.runtimeExports,
+    previousCurrentBaseline.package.runtimeExports,
   );
   assert.deepEqual(
     baseline.package.typeExports,
-    latestHistoricalBaseline.package.typeExports,
+    previousCurrentBaseline.package.typeExports,
   );
   assert.ok(
     [
@@ -590,6 +637,105 @@ test("root runtime and domain error inventories match exactly", () => {
   );
 });
 
+test("connector subpath contracts match exact additive inventories", () => {
+  const baseline = readJson(currentBaselineUrl);
+
+  assert.deepEqual(baseline.connectorConformance, {
+    version: "0.1.0",
+    packageSubpath: "./connector-conformance/0.1.0",
+    runtimeExports: ["runSourceConnectorConformance"],
+    typeExports: [
+      "SourceConnectorConformanceCase",
+      "SourceConnectorConformanceDiagnostic",
+      "SourceConnectorConformanceDiagnosticCode",
+      "SourceConnectorConformanceResult",
+    ],
+    diagnosticCodes: [
+      "connector_exception",
+      "duplicate_revision",
+      "invalid_collection",
+      "invalid_source_record",
+      "nondeterministic_output",
+    ],
+    statuses: ["failed", "passed"],
+  });
+  assert.deepEqual(
+    Object.keys(connectorConformanceApi).sort(),
+    baseline.connectorConformance.runtimeExports,
+  );
+  assert.deepEqual(
+    directDeclarationTypeExports("dist/connector-conformance.d.ts"),
+    baseline.connectorConformance.typeExports,
+  );
+  assert.deepEqual(
+    declarationStringUnion(
+      "dist/connector-conformance.d.ts",
+      /export type SourceConnectorConformanceDiagnosticCode = ([^;]+);/,
+    ),
+    baseline.connectorConformance.diagnosticCodes,
+  );
+  assert.deepEqual(
+    declarationStringUnion(
+      "dist/connector-conformance.d.ts",
+      /readonly status: ([^;]+);/,
+    ),
+    baseline.connectorConformance.statuses,
+  );
+
+  assert.deepEqual(baseline.teamMemoryConnector, {
+    version: "0.1.0",
+    packageSubpath: "./connectors/team-memory/0.1.0",
+    runtimeExports: [
+      "TEAM_MEMORY_LEDGER_FORMAT",
+      "TeamMemoryConnectorError",
+      "readTeamMemorySourceRecords",
+    ],
+    typeExports: [
+      "TeamMemoryConnectorErrorCode",
+      "TeamMemorySourceRecordOptions",
+    ],
+    errorCodes: [
+      "incompatible_ledger",
+      "invalid_options",
+      "invalid_row",
+      "read_failed",
+      "target_unavailable",
+    ],
+    stages: ["mapping", "open", "options", "query", "schema"],
+    ledgerFormat: "teammem-event-ledger/1",
+  });
+  assert.deepEqual(
+    Object.keys(teamMemoryConnectorApi).sort(),
+    baseline.teamMemoryConnector.runtimeExports,
+  );
+  assert.deepEqual(
+    directDeclarationTypeExports("dist/connectors/team-memory.d.ts"),
+    baseline.teamMemoryConnector.typeExports,
+  );
+  assert.deepEqual(
+    declarationStringUnion(
+      "dist/connectors/team-memory.d.ts",
+      /export type TeamMemoryConnectorErrorCode = ([^;]+);/,
+    ),
+    baseline.teamMemoryConnector.errorCodes,
+  );
+  assert.deepEqual(
+    declarationStringUnion(
+      "dist/connectors/team-memory.d.ts",
+      /type TeamMemoryConnectorStage = ([^;]+);/,
+    ),
+    baseline.teamMemoryConnector.stages,
+  );
+  assert.equal(
+    teamMemoryConnectorApi.TEAM_MEMORY_LEDGER_FORMAT,
+    baseline.teamMemoryConnector.ledgerFormat,
+  );
+  assert.deepEqual(baseline.teamMemoryCli, {
+    binaryName: "collective-cognition-teammem",
+    commandNames: ["export"],
+  });
+});
+
 test("public declaration entrypoint closures match exact independent digests", () => {
   const baseline = readJson(currentBaselineUrl);
   const entrypoints = {
@@ -608,6 +754,14 @@ test("public declaration entrypoint closures match exact independent digests", (
     sqlite: {
       packageSubpath: "./stores/sqlite/0.1.0",
       declarationEntrypoint: "dist/stores/sqlite.d.ts",
+    },
+    connectorConformance: {
+      packageSubpath: "./connector-conformance/0.1.0",
+      declarationEntrypoint: "dist/connector-conformance.d.ts",
+    },
+    teamMemoryConnector: {
+      packageSubpath: "./connectors/team-memory/0.1.0",
+      declarationEntrypoint: "dist/connectors/team-memory.d.ts",
     },
   };
 
@@ -730,15 +884,18 @@ test("package compatibility metadata matches exactly", () => {
 
 test("CLI registry matches the exact baseline", () => {
   const baseline = readJson(currentBaselineUrl);
-  const latestHistoricalBaseline = readJson(
-    latestHistoricalBaselineUrl,
-  );
+  const previousCurrentBaseline = readJson(previousCurrentBaselineUrl);
 
   assert.deepEqual(CLI_CONTRACT, baseline.cli);
-  assert.deepEqual(baseline.cli, latestHistoricalBaseline.cli);
+  assert.deepEqual(baseline.cli, previousCurrentBaseline.cli);
+  assert.equal(
+    JSON.stringify(baseline.cli),
+    JSON.stringify(previousCurrentBaseline.cli),
+    "generic CLI contract serialization must remain byte-identical to 0.4",
+  );
   assert.deepEqual(
     baseline.package.policyIdentities,
-    latestHistoricalBaseline.package.policyIdentities,
+    previousCurrentBaseline.package.policyIdentities,
   );
 });
 
@@ -772,7 +929,7 @@ test("CLI and SDK promotion policy identities remain linked", () => {
 test("change cases exercise the additive package process", () => {
   const cases = readJsonLines(
     new URL(
-      "../spec/compatibility/0.4.0/change-cases.jsonl",
+      "../spec/compatibility/0.5.0/change-cases.jsonl",
       import.meta.url,
     ),
   );
@@ -787,9 +944,9 @@ test("change cases exercise the additive package process", () => {
 
   assert.deepEqual(cases, [
     {
-      id: "additive-sqlite-cognition-store-subpath",
+      id: "additive-versioned-source-connector-surfaces",
       description:
-        "Add optional Node-specific SQLite CognitionStore 0.1.0 and compatibility 0.4.0 package subpaths while preserving the root Node >=24 engine and root runtime and type exports.",
+        "Add source-neutral connector conformance 0.1.0, maintained team-memory connector 0.1.0, compatibility 0.5.0, and a dedicated team-memory binary while preserving root exports and the generic CLI contract.",
       surface: "supported-experimental",
       classification: "additive",
       packageVersionEffect: "minor",
@@ -797,7 +954,20 @@ test("change cases exercise the additive package process", () => {
       requiresMigrationNotes: false,
       requiresDeprecation: false,
       rationale:
-        "The package keeps Node >=24, adds no production dependency surface, and leaves existing root and versioned imports unchanged. The SQLite subpath independently requires enforced defensive capability and fails before target mutation when unavailable.",
+        "Existing root and versioned imports remain unchanged, the connector APIs are isolated under new versioned subpaths, the dedicated binary has a distinct name, and the package adds no production dependency fields.",
+    },
+    {
+      id: "breaking-change-versioned-connector-contract",
+      description:
+        "Remove or rename a connector subpath export, connector runtime or type export, diagnostic code, connector error stage, ledger-format identity, or installed team-memory binary.",
+      surface: "supported-experimental",
+      classification: "breaking",
+      packageVersionEffect: "minor-before-1.0",
+      requiresRfc: true,
+      requiresMigrationNotes: true,
+      requiresDeprecation: true,
+      rationale:
+        "Consumers may import the versioned connector surfaces, narrow on their exact unions, identify the compatible ledger format, or execute the installed binary, so changing those contracts requires a new versioned surface and migration path.",
     },
   ]);
   cases.forEach((changeCase) => {
@@ -815,6 +985,6 @@ test("change cases exercise the additive package process", () => {
   assert.equal(
     cases.filter((changeCase) => changeCase.classification === "breaking")
       .length,
-    0,
+    1,
   );
 });
