@@ -1,6 +1,12 @@
-import { existsSync, rmSync } from "node:fs";
-import { isAbsolute } from "node:path";
+import {
+  existsSync,
+  linkSync,
+  mkdtempSync,
+  rmSync,
+} from "node:fs";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { isDeepStrictEqual } from "node:util";
 
 import type {
   CognitionStore,
@@ -29,23 +35,28 @@ interface SchemaMarker {
   readonly schema_version: number;
 }
 
+interface SchemaObject {
+  readonly type: unknown;
+  readonly name: unknown;
+  readonly tbl_name: unknown;
+  readonly sql: unknown;
+}
+
 const adapterId = "collective-cognition-sdk:sqlite-store";
 const schemaVersion = 1;
 const maximumBusyTimeoutMs = 60_000;
-const expectedTables = [
-  "cognition_events",
-  "cognition_objects",
-  "cognition_schema",
-] as const;
-
-const schemaSql = `
+const minimumNodeMajor = 24;
+const minimumNodeMinor = 12;
+const cognitionSchemaTableSql = `
   CREATE TABLE cognition_schema (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
     adapter_id TEXT NOT NULL,
     schema_version INTEGER NOT NULL,
     created_at TEXT NOT NULL
   ) STRICT;
+`;
 
+const cognitionObjectsTableSql = `
   CREATE TABLE cognition_objects (
     object_id TEXT NOT NULL,
     object_version INTEGER NOT NULL CHECK (object_version > 0),
@@ -53,7 +64,9 @@ const schemaSql = `
     record_json TEXT NOT NULL,
     PRIMARY KEY (object_id, object_version)
   ) STRICT;
+`;
 
+const cognitionEventsTableSql = `
   CREATE TABLE cognition_events (
     event_id TEXT PRIMARY KEY,
     object_id TEXT NOT NULL,
@@ -64,6 +77,73 @@ const schemaSql = `
       REFERENCES cognition_objects (object_id, object_version)
   ) STRICT;
 `;
+
+const schemaSql = [
+  cognitionSchemaTableSql,
+  cognitionObjectsTableSql,
+  cognitionEventsTableSql,
+].join("\n");
+
+const expectedColumns = {
+  cognition_events: [
+    [0, "event_id", "TEXT", 1, null, 1, 0],
+    [1, "object_id", "TEXT", 1, null, 0, 0],
+    [2, "object_version", "INTEGER", 1, null, 0, 0],
+    [3, "record_json", "TEXT", 1, null, 0, 0],
+  ],
+  cognition_objects: [
+    [0, "object_id", "TEXT", 1, null, 1, 0],
+    [1, "object_version", "INTEGER", 1, null, 2, 0],
+    [2, "object_type", "TEXT", 1, null, 0, 0],
+    [3, "record_json", "TEXT", 1, null, 0, 0],
+  ],
+  cognition_schema: [
+    [0, "singleton", "INTEGER", 0, null, 1, 0],
+    [1, "adapter_id", "TEXT", 1, null, 0, 0],
+    [2, "schema_version", "INTEGER", 1, null, 0, 0],
+    [3, "created_at", "TEXT", 1, null, 0, 0],
+  ],
+} as const;
+
+const expectedIndexes = {
+  cognition_events: [
+    ["pk", 1, 0, ["event_id"]],
+    ["u", 1, 0, ["object_id", "object_version"]],
+  ],
+  cognition_objects: [
+    ["pk", 1, 0, ["object_id", "object_version"]],
+  ],
+  cognition_schema: [],
+} as const;
+
+const expectedForeignKeys = {
+  cognition_events: [
+    [
+      0,
+      0,
+      "cognition_objects",
+      "object_id",
+      "object_id",
+      "NO ACTION",
+      "NO ACTION",
+      "NONE",
+    ],
+    [
+      0,
+      1,
+      "cognition_objects",
+      "object_version",
+      "object_version",
+      "NO ACTION",
+      "NO ACTION",
+      "NONE",
+    ],
+  ],
+  cognition_objects: [],
+  cognition_schema: [],
+} as const;
+
+type CognitionTableName = keyof typeof expectedColumns;
 
 function invalidOptions(): never {
   throw new TypeError("SQLite cognition store options are invalid.");
@@ -79,6 +159,44 @@ function closedStore(): never {
 
 function unsupportedOperation(): never {
   throw new Error("SQLite cognition persistence is not implemented.");
+}
+
+function unsupportedRuntime(): never {
+  throw new Error(
+    "SQLite cognition store requires Node.js 24.12.0 or newer with enforced defensive mode.",
+  );
+}
+
+function assertDefensiveRuntime(): void {
+  const [major = 0, minor = 0] = process.versions.node
+    .split(".")
+    .map(Number);
+  if (
+    major < minimumNodeMajor ||
+    (major === minimumNodeMajor && minor < minimumNodeMinor) ||
+    typeof DatabaseSync.prototype.enableDefensive !== "function"
+  ) {
+    unsupportedRuntime();
+  }
+
+  const database = new DatabaseSync(":memory:", {
+    allowExtension: false,
+    defensive: true,
+    enableDoubleQuotedStringLiterals: false,
+    enableForeignKeyConstraints: true,
+  });
+  try {
+    database.enableDefensive(true);
+    database.exec("PRAGMA writable_schema = ON");
+    const result = database
+      .prepare("PRAGMA writable_schema")
+      .get() as { readonly writable_schema?: unknown };
+    if (result.writable_schema !== 0) {
+      unsupportedRuntime();
+    }
+  } finally {
+    database.close();
+  }
 }
 
 function snapshotOptions(
@@ -153,7 +271,7 @@ function openDatabase(
   busyTimeoutMs: number,
   readOnly: boolean,
 ): DatabaseSync {
-  return new DatabaseSync(databasePath, {
+  const database = new DatabaseSync(databasePath, {
     allowExtension: false,
     defensive: true,
     enableDoubleQuotedStringLiterals: false,
@@ -161,28 +279,178 @@ function openDatabase(
     readOnly,
     timeout: busyTimeoutMs,
   });
+  database.enableDefensive(true);
+  return database;
+}
+
+function normalizeSchemaSql(sql: string): string {
+  return sql
+    .replace(/\s+/g, " ")
+    .replace(/\s*([(),=<>])\s*/g, "$1")
+    .trim()
+    .replace(/;$/, "")
+    .toLowerCase();
+}
+
+const expectedSchemaObjects = [
+  ["table", "cognition_events", cognitionEventsTableSql],
+  ["table", "cognition_objects", cognitionObjectsTableSql],
+  ["table", "cognition_schema", cognitionSchemaTableSql],
+].map(([type, name, sql]) => [
+  type,
+  name,
+  name,
+  normalizeSchemaSql(sql!),
+]);
+
+function readColumns(
+  database: DatabaseSync,
+  table: CognitionTableName,
+): unknown[][] {
+  return database
+    .prepare(
+      `
+        SELECT cid, name, type, "notnull", dflt_value, pk, hidden
+        FROM pragma_table_xinfo(?)
+        ORDER BY cid
+      `,
+    )
+    .all(table)
+    .map((row) => {
+      const column = row as Record<string, unknown>;
+      return [
+        column.cid,
+        column.name,
+        column.type,
+        column.notnull,
+        column.dflt_value,
+        column.pk,
+        column.hidden,
+      ];
+    });
+}
+
+function readIndexes(
+  database: DatabaseSync,
+  table: CognitionTableName,
+): unknown[][] {
+  return database
+    .prepare(
+      `
+        SELECT name, "unique", origin, partial
+        FROM pragma_index_list(?)
+      `,
+    )
+    .all(table)
+    .map((row) => {
+      const index = row as Record<string, unknown>;
+      const columns = database
+        .prepare(
+          `
+            SELECT name
+            FROM pragma_index_info(?)
+            ORDER BY seqno
+          `,
+        )
+        .all(index.name as string)
+        .map(
+          (column) =>
+            (column as { readonly name: unknown }).name,
+        );
+      return [
+        index.origin,
+        index.unique,
+        index.partial,
+        columns,
+      ];
+    })
+    .sort((left, right) =>
+      String(left[0]).localeCompare(String(right[0])),
+    );
+}
+
+function readForeignKeys(
+  database: DatabaseSync,
+  table: CognitionTableName,
+): unknown[][] {
+  return database
+    .prepare(
+      `
+        SELECT
+          id,
+          seq,
+          "table",
+          "from",
+          "to",
+          on_update,
+          on_delete,
+          "match"
+        FROM pragma_foreign_key_list(?)
+        ORDER BY id, seq
+      `,
+    )
+    .all(table)
+    .map((row) => {
+      const foreignKey = row as Record<string, unknown>;
+      return [
+        foreignKey.id,
+        foreignKey.seq,
+        foreignKey.table,
+        foreignKey.from,
+        foreignKey.to,
+        foreignKey.on_update,
+        foreignKey.on_delete,
+        foreignKey.match,
+      ];
+    });
 }
 
 function assertSchemaIdentity(database: DatabaseSync): void {
   try {
-    const tables = database
+    const schemaObjects = database
       .prepare(
         `
-          SELECT name
-          FROM pragma_table_list
-          WHERE schema = 'main'
-            AND name NOT LIKE 'sqlite_%'
-            AND strict = 1
-          ORDER BY name
+          SELECT type, name, tbl_name, sql
+          FROM sqlite_schema
+          WHERE name NOT LIKE 'sqlite_%'
+          ORDER BY type, name
         `,
       )
       .all()
-      .map((row) => (row as { readonly name: unknown }).name);
-    if (
-      tables.length !== expectedTables.length ||
-      tables.some((table, index) => table !== expectedTables[index])
-    ) {
+      .map((row) => {
+        const schemaObject = row as unknown as SchemaObject;
+        return [
+          schemaObject.type,
+          schemaObject.name,
+          schemaObject.tbl_name,
+          typeof schemaObject.sql === "string"
+            ? normalizeSchemaSql(schemaObject.sql)
+            : schemaObject.sql,
+        ];
+      });
+    if (!isDeepStrictEqual(schemaObjects, expectedSchemaObjects)) {
       return invalidTarget();
+    }
+
+    for (const table of Object.keys(
+      expectedColumns,
+    ) as CognitionTableName[]) {
+      if (
+        !isDeepStrictEqual(
+          readColumns(database, table),
+          expectedColumns[table],
+        ) ||
+        !isDeepStrictEqual(
+          readIndexes(database, table),
+          expectedIndexes[table],
+        ) ||
+        !isDeepStrictEqual(
+          readForeignKeys(database, table),
+          expectedForeignKeys[table],
+        )
+      ) {
+        return invalidTarget();
+      }
     }
 
     const markers = database
@@ -227,9 +495,20 @@ function createTarget(
   databasePath: string,
   busyTimeoutMs: number,
 ): DatabaseSync {
+  const temporaryDirectory = mkdtempSync(
+    join(dirname(databasePath), `.${basename(databasePath)}.create-`),
+  );
+  const temporaryDatabasePath = join(
+    temporaryDirectory,
+    "cognition.db",
+  );
   let database: DatabaseSync | undefined;
   try {
-    database = openDatabase(databasePath, busyTimeoutMs, false);
+    database = openDatabase(
+      temporaryDatabasePath,
+      busyTimeoutMs,
+      false,
+    );
     database.exec("BEGIN IMMEDIATE");
     database.exec(schemaSql);
     database
@@ -245,7 +524,13 @@ function createTarget(
       )
       .run(1, adapterId, schemaVersion, new Date().toISOString());
     database.exec("COMMIT");
-    return database;
+    database.close();
+    database = undefined;
+    try {
+      linkSync(temporaryDatabasePath, databasePath);
+    } catch {
+      return invalidTarget();
+    }
   } catch {
     if (database?.isTransaction) {
       database.exec("ROLLBACK");
@@ -253,8 +538,18 @@ function createTarget(
     if (database?.isOpen) {
       database.close();
     }
-    rmSync(databasePath, { force: true });
     return invalidTarget();
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+
+  const published = openDatabase(databasePath, busyTimeoutMs, false);
+  try {
+    assertSchemaIdentity(published);
+    return published;
+  } catch (error) {
+    published.close();
+    throw error;
   }
 }
 
@@ -262,6 +557,7 @@ export class SqliteCognitionStore implements CognitionStore {
   readonly #database: DatabaseSync;
 
   constructor(options: SqliteCognitionStoreOptions) {
+    assertDefensiveRuntime();
     const snapshot = snapshotOptions(options);
     const targetExists = existsSync(snapshot.databasePath);
     if (!targetExists && !snapshot.createIfMissing) {
