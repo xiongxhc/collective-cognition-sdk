@@ -8,7 +8,7 @@ interface TeamMemoryActivityRecord {
   readonly id: string;
   readonly project: string;
   readonly capturedAt: string;
-  readonly capturedAtMillis: number;
+  readonly capturedAtInstant: bigint;
   readonly actorId: string;
   readonly status: MergeRequestStatus;
 }
@@ -59,24 +59,51 @@ function nonEmptyString(value: unknown, field: string): string {
 
 function capturedTimestamp(
   value: unknown,
-): { readonly text: string; readonly millis: number } {
+): { readonly text: string; readonly instant: bigint } {
   const text = nonEmptyString(value, "capturedAt");
   if (!isoTimestampPattern.test(text)) {
     invalidActivity(
       "Team-memory activity capturedAt must be an ISO timestamp.",
     );
   }
-  const millis = Date.parse(text);
+  const milliseconds = Date.parse(text);
   const datePart = text.slice(0, 10);
   const calendarDate = new Date(`${datePart}T00:00:00.000Z`);
   if (
-    Number.isNaN(millis) ||
+    Number.isNaN(milliseconds) ||
     Number.isNaN(calendarDate.getTime()) ||
     calendarDate.toISOString().slice(0, 10) !== datePart
   ) {
     invalidActivity("Team-memory activity capturedAt must be an ISO timestamp.");
   }
-  return { text, millis };
+  return { text, instant: timestampInstant(text) };
+}
+
+function timestampInstant(value: string): bigint {
+  const year = Number(value.slice(0, 4));
+  const month = Number(value.slice(5, 7));
+  const day = Number(value.slice(8, 10));
+  const hour = Number(value.slice(11, 13));
+  const minute = Number(value.slice(14, 16));
+  const second = Number(value.slice(17, 19));
+  const zoneStart = value.endsWith("Z") ? value.length - 1 : value.length - 6;
+  const fraction = value[19] === "."
+    ? value.slice(20, zoneStart).padEnd(9, "0")
+    : "000000000";
+  let offsetMinutes = 0;
+  if (value[zoneStart] !== "Z") {
+    const direction = value[zoneStart] === "+" ? 1 : -1;
+    offsetMinutes = direction * (
+      Number(value.slice(zoneStart + 1, zoneStart + 3)) * 60 +
+      Number(value.slice(zoneStart + 4, zoneStart + 6))
+    );
+  }
+
+  const local = new Date(0);
+  local.setUTCFullYear(year, month - 1, day);
+  local.setUTCHours(hour, minute, second, 0);
+  const instantMilliseconds = local.getTime() - offsetMinutes * 60_000;
+  return BigInt(instantMilliseconds) * 1_000_000n + BigInt(fraction);
 }
 
 function mergeRequestStatus(summary: unknown): MergeRequestStatus {
@@ -120,7 +147,7 @@ function readTeamMemoryActivityRecord(
     id,
     project,
     capturedAt: timestamp.text,
-    capturedAtMillis: timestamp.millis,
+    capturedAtInstant: timestamp.instant,
     actorId,
     status: mergeRequestStatus(ownEnumerableDataProperty(content, "summary")),
   };
@@ -130,8 +157,11 @@ function sortActivities(
   activities: readonly TeamMemoryActivityRecord[],
 ): TeamMemoryActivityRecord[] {
   return [...activities].sort((left, right) => {
-    if (left.capturedAtMillis !== right.capturedAtMillis) {
-      return left.capturedAtMillis - right.capturedAtMillis;
+    if (left.capturedAtInstant < right.capturedAtInstant) {
+      return -1;
+    }
+    if (left.capturedAtInstant > right.capturedAtInstant) {
+      return 1;
     }
     if (left.id < right.id) {
       return -1;

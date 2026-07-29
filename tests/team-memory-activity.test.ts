@@ -108,6 +108,24 @@ test("sorts activity records by captured timestamp and source-record ID", () => 
   );
 });
 
+test("orders nanosecond timestamps before SourceRecord IDs", () => {
+  const later = recordFor(1, {
+    id: "source-record:team-memory:a",
+    capturedAt: "2026-07-28T18:00:00.000000002Z",
+  });
+  const earlier = recordFor(2, {
+    id: "source-record:team-memory:z",
+    capturedAt: "2026-07-28T18:00:00.000000001Z",
+  });
+
+  const mapping = teamMemoryActivityEvidencePolicyV1.map([later, earlier]);
+
+  assert.match(
+    mapping.statement,
+    /^2 activity records from 2026-07-28T18:00:00\.000000001Z to 2026-07-28T18:00:00\.000000002Z\./,
+  );
+});
+
 test("leaves duplicate source-record revisions to the promotion layer", () => {
   const record = recordFor(1, {
     capturedAt: firstCapturedAt,
