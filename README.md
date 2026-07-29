@@ -4,7 +4,7 @@ Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript 
 
 This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.5.0` remains private and unpublished; its source, emitted ESM build, declarations, and CLIs are runnable, but it is not production-ready.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.5.0` are implemented. The SQLite cognition-store slice is implemented and final-review verified. The source-neutral connector-conformance harness, first maintained compatible connector, dedicated CLI, and package surfaces are implemented; final independent verification and manual real-ledger acceptance remain unfinished.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.5.0` are implemented. The SQLite cognition-store and maintained-source-connector slices are implemented and final-review verified.
 
 ## Current Status
 
@@ -216,9 +216,9 @@ The optional SQLite reference adapter is not exported from the root. Import it f
 
 ### SQLite Verification
 
-The SQLite `0.4.0` slice was final-review verified on the supported bundled
-Node.js runtime. Current package `0.5.0` final verification remains an
-explicit unfinished gate.
+The SQLite `0.4.0` slice and maintained connector package `0.5.0` slice were
+final-review verified on the supported bundled Node.js runtime. Publication
+readiness remains a separate unfinished gate.
 
 The recorded manual real-ledger acceptance used an explicitly supplied
 team-memory ledger and a separate temporary cognition database. It persisted a

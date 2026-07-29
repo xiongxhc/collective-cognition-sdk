@@ -1,6 +1,6 @@
 # Maintained Source Connectors Design
 
-**Status:** Proposed for written review; design direction approved
+**Status:** Implemented and verified
 
 **Date:** 2026-07-29
 
@@ -315,8 +315,10 @@ Supported export filters are:
 The command writes canonical SourceRecord JSONL to stdout. `--include-raw` is
 an explicit privacy-sensitive opt-in. Help and version output touch no source.
 
-Every failure writes exactly one sanitized JSON diagnostic to stderr and
-nothing to stdout. Unknown flags, duplicate flags, relative paths, missing
+Every failure writes exactly one sanitized JSON diagnostic to stderr.
+Pre-output failures write nothing to stdout. An operating-system output
+failure may occur after bytes have already left the process, and those bytes
+cannot be retracted. Unknown flags, duplicate flags, relative paths, missing
 values, incompatible schemas, malformed rows, and output failures are closed
 errors.
 

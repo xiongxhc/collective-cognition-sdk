@@ -19,7 +19,7 @@ TypeScript compiler API compatibility checks, npm package/tarball tests.
 
 **Global Constraints:**
 
-- Work only in `/Users/cx/Workspace/collective-cognition-sdk`.
+- Work only in this repository checkout.
 - Use branch `feature/maintained-team-memory-connector`; do not create a
   `codex/` branch.
 - Keep `"private": true`; do not publish the package.
@@ -835,7 +835,7 @@ git commit -m "docs: explain maintained source connectors"
 Use the supported Node runtime:
 
 ```bash
-export PATH="/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH"
+export PATH="<supported-node-bin>:$PATH"
 node --version
 npm test
 npx tsc --noEmit
@@ -843,8 +843,8 @@ npm run check
 npm run example
 npm run example:portable
 npm run example:host
-npm run example:teammem
-npm run example:teammem:durable
+npm run example:teammem -- /absolute/path/to/fictional-ledger.db
+npm run example:teammem:durable -- <complete fictional-fixture arguments>
 npm run pack:check
 git diff --check
 ```
@@ -854,11 +854,8 @@ than copying an earlier count.
 
 ### Step 2: Perform read-only real-ledger acceptance
 
-Use the explicitly approved local ledger:
-
-```text
-/Users/cx/Workspace/local-agent-team/team-memory-agent/ledger.db
-```
+Use only an explicitly approved local ledger path supplied outside the
+repository. Do not record that operator-local path in public artifacts.
 
 Before reading, record only:
 
@@ -935,4 +932,3 @@ feature branch after local verification. Open a ready pull request if the
 remote supports it, merge only if required checks pass, delete the merged
 branch, and re-verify the base branch checkout. Never force-push or bypass
 required checks.
-

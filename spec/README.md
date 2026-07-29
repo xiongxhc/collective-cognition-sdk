@@ -11,7 +11,7 @@ The current direction is defined by:
 - the [approved compatibility, versioning, and deprecation design](../docs/superpowers/specs/2026-07-27-compatibility-versioning-deprecation-design.md).
 - the [implemented and final-review verified Portable Cognition design](../docs/superpowers/specs/2026-07-27-portable-cognition-contract-design.md).
 - the [SQLite cognition-store design](../docs/superpowers/specs/2026-07-29-sqlite-cognition-store-design.md), which is implemented and final-review verified.
-- [RFC 0006: Maintained Source Connectors](../rfcs/0006-maintained-source-connectors.md), implemented with final verification and real-ledger acceptance still pending.
+- [RFC 0006: Maintained Source Connectors](../rfcs/0006-maintained-source-connectors.md), implemented and final-review verified.
 
 The core design and Phase 2 universal ingestion are implemented and final-review verified locally. [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md) records the implemented ingestion semantics.
 
@@ -97,7 +97,7 @@ The contract is storage and transport neutral: it does not require a database, q
 
 SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.5.0` are Normative Stable. Before `1.0.0`, the package root, generic CLI, dedicated connector CLI, and declared non-normative subpaths are Supported Experimental. Unexported connector modules remain Internal. Compatibility checks detect exact baseline drift, independently hash each public declaration entrypoint closure, and exercise the package `0.2.0` generic error-code assignment plus the supported package `0.3.0` narrowing migration; they do not automatically determine semantic compatibility.
 
-Phase 3 remains in progress. SourceRecord, Portable Cognition, Host Integration, and the compatibility baselines are implemented normative contracts, and the compatibility, Portable Cognition, Host Integration, and SQLite cognition-store slices are final-review verified. Connector conformance, the first maintained connector, its CLI, and private package surfaces are implemented; final independent verification and manual real-ledger acceptance remain unfinished. Runtime policy, security policy, publication, and production readiness remain deferred.
+Phase 3 remains in progress. SourceRecord, Portable Cognition, Host Integration, and the compatibility baselines are implemented normative contracts, and the compatibility, Portable Cognition, Host Integration, SQLite cognition-store, and maintained connector slices are final-review verified. Connector conformance, the first maintained connector, its CLI, and private package surfaces are implemented; manual real-ledger acceptance is recorded in the roadmap. Runtime policy, security policy, publication, and production readiness remain deferred.
 
 ## Planned Normative Content
 

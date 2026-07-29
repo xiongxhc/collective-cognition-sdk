@@ -1,6 +1,6 @@
 # RFC 0006: Maintained Source Connectors
 
-**Status:** Implemented; final verification and real-ledger acceptance pending
+**Status:** Implemented and final-review verified
 **Created:** 2026-07-29
 
 ## Problem
@@ -324,4 +324,3 @@ rationale, authority, promotion policy, or persistence choice.
 - durable publication outbox, retry worker, or delivery guarantee;
 - npm publication, registry-name confirmation, or removal of `"private": true`;
 - production certification, endorsement, long-term support, or support tiers;
-- final independent verification and manual real-ledger acceptance.
