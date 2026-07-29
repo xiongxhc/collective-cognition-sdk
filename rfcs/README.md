@@ -6,8 +6,9 @@ RFCs are the contribution path for changes that affect collective-cognition sema
 
 - [RFC 0001: Universal Source-Record Ingestion](0001-universal-source-record-ingestion.md) — implemented and final-review verified in Phase 2 with closed immutable records, pre-parse limits, full-payload promotion identity, secret-safe diagnostics, privacy-default connectors, fail-closed authorization, canonical fixtures, and two source-specific connector implementations.
 - [RFC 0002: Compatibility, Versioning, and Deprecation](0002-compatibility-versioning-and-deprecation.md) — implemented and final-review verified in Phase 3 with a Normative Stable `0.1.0` baseline, explicit stability classes, immutable artifact hashes, compatibility checks, and additive and breaking process examples.
-- [RFC 0003: Portable Cognition Contract](0003-portable-cognition-contract.md) — implemented and final-review verified in Phase 3 with a Normative Stable `0.1.0` exchange envelope and a historical private package `0.2.0` surface; the current private package is `0.3.0` with Host Integration added.
-- [RFC 0004: Host Integration Contract](0004-host-integration-contract.md) — implemented and final-review verified in Phase 3 with a Normative Stable `0.1.0` host-owned persistence and publication contract, deterministic conformance evidence, and a private, unpublished package `0.3.0` reference surface.
+- [RFC 0003: Portable Cognition Contract](0003-portable-cognition-contract.md) — implemented and final-review verified in Phase 3 with a Normative Stable `0.1.0` exchange envelope and a historical private package `0.2.0` surface; the current private package is `0.4.0`.
+- [RFC 0004: Host Integration Contract](0004-host-integration-contract.md) — implemented and final-review verified in Phase 3 with a Normative Stable `0.1.0` host-owned persistence and publication contract, deterministic conformance evidence, and a private, unpublished package reference surface.
+- [RFC 0005: SQLite Cognition Store](0005-sqlite-cognition-store.md) — Implemented and final-review verified. It adds the optional `collective-cognition-sdk/stores/sqlite/0.1.0` reference adapter and private, unpublished package `0.4.0` without changing the root API.
 
 ## When an RFC Is Required
 

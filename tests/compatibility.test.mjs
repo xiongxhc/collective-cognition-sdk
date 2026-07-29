@@ -33,18 +33,55 @@ const historicalBaselineUrl = new URL(
   "../spec/compatibility/0.1.0/baseline.json",
   import.meta.url,
 );
+const historicalChangeCasesUrl = new URL(
+  "../spec/compatibility/0.1.0/change-cases.jsonl",
+  import.meta.url,
+);
 const previousBaselineUrl = new URL(
   "../spec/compatibility/0.2.0/baseline.json",
   import.meta.url,
 );
-const currentBaselineUrl = new URL(
+const previousChangeCasesUrl = new URL(
+  "../spec/compatibility/0.2.0/change-cases.jsonl",
+  import.meta.url,
+);
+const latestHistoricalBaselineUrl = new URL(
   "../spec/compatibility/0.3.0/baseline.json",
+  import.meta.url,
+);
+const latestHistoricalChangeCasesUrl = new URL(
+  "../spec/compatibility/0.3.0/change-cases.jsonl",
+  import.meta.url,
+);
+const currentBaselineUrl = new URL(
+  "../spec/compatibility/0.4.0/baseline.json",
   import.meta.url,
 );
 const expectedHistoricalBaselineSha256 =
   "4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b";
+const expectedHistoricalChangeCasesSha256 =
+  "3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b";
 const expectedPreviousBaselineSha256 =
   "3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4";
+const expectedPreviousChangeCasesSha256 =
+  "e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5";
+const expectedLatestHistoricalBaselineSha256 =
+  "02991abb5133a4aef2b6a2fc736567fbbde9e29859909f806f08822fcd40d3d4";
+const expectedLatestHistoricalChangeCasesSha256 =
+  "1f1ff3822de318806640357bb11804a0213d7084f05350035f8bb8d519dd95f2";
+const expectedHistoricalChangeCaseDigests = Object.freeze({
+  "spec/compatibility/0.1.0/change-cases.jsonl":
+    expectedHistoricalChangeCasesSha256,
+  "spec/compatibility/0.2.0/change-cases.jsonl":
+    expectedPreviousChangeCasesSha256,
+  "spec/compatibility/0.3.0/change-cases.jsonl":
+    expectedLatestHistoricalChangeCasesSha256,
+});
+const productionDependencyFieldNames = Object.freeze([
+  "dependencies",
+  "optionalDependencies",
+  "peerDependencies",
+]);
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -85,6 +122,9 @@ function selectedPackageMetadata(packageJson) {
     engines: packageJson.engines,
     exports: packageJson.exports,
     bin: packageJson.bin,
+    productionDependencyFields: productionDependencyFieldNames.filter(
+      (field) => Object.hasOwn(packageJson, field),
+    ),
   };
 }
 
@@ -293,29 +333,50 @@ function withDeclarationFixture(files, action) {
   }
 }
 
-test("historical baseline 0.1.0 remains immutable", () => {
+test("historical compatibility 0.1.0 artifacts remain immutable", () => {
   assert.equal(
     sha256(readFileSync(historicalBaselineUrl)),
     expectedHistoricalBaselineSha256,
   );
+  assert.equal(
+    sha256(readFileSync(historicalChangeCasesUrl)),
+    expectedHistoricalChangeCasesSha256,
+  );
 });
 
-test("historical baseline 0.2.0 remains immutable", () => {
+test("historical compatibility 0.2.0 artifacts remain immutable", () => {
   assert.equal(
     sha256(readFileSync(previousBaselineUrl)),
     expectedPreviousBaselineSha256,
   );
+  assert.equal(
+    sha256(readFileSync(previousChangeCasesUrl)),
+    expectedPreviousChangeCasesSha256,
+  );
 });
 
-test("current baseline describes the breaking correction in package 0.3.0", () => {
+test("historical compatibility 0.3.0 artifacts remain immutable", () => {
+  assert.equal(
+    sha256(readFileSync(latestHistoricalBaselineUrl)),
+    expectedLatestHistoricalBaselineSha256,
+  );
+  assert.equal(
+    sha256(readFileSync(latestHistoricalChangeCasesUrl)),
+    expectedLatestHistoricalChangeCasesSha256,
+  );
+});
+
+test("current baseline describes the additive package 0.4.0 release", () => {
   const baseline = readJson(currentBaselineUrl);
 
-  assert.equal(baseline.baselineVersion, "0.3.0");
-  assert.equal(baseline.appliesToPackageVersion, "0.3.0");
+  assert.equal(baseline.baselineVersion, "0.4.0");
+  assert.equal(baseline.appliesToPackageVersion, "0.4.0");
   assert.deepEqual(baseline.packageChange, {
-    classification: "breaking",
-    packageVersionEffect: "minor-before-1.0",
-    correctionRule: "COMP-012",
+    classification: "additive",
+    packageVersionEffect: "minor",
+  });
+  assert.deepEqual(baseline.package.metadata.engines, {
+    node: ">=24",
   });
   assert.deepEqual(baseline.historicalBaselines, {
     "0.1.0": {
@@ -325,6 +386,10 @@ test("current baseline describes the breaking correction in package 0.3.0", () =
     "0.2.0": {
       path: "spec/compatibility/0.2.0/baseline.json",
       sha256: expectedPreviousBaselineSha256,
+    },
+    "0.3.0": {
+      path: "spec/compatibility/0.3.0/baseline.json",
+      sha256: expectedLatestHistoricalBaselineSha256,
     },
   });
   assert.deepEqual(baseline.deprecations, []);
@@ -366,6 +431,7 @@ test("normative machine artifacts match exact digests", () => {
       "spec/compatibility/0.1.0/change-cases.jsonl",
       "spec/compatibility/0.2.0/change-cases.jsonl",
       "spec/compatibility/0.3.0/change-cases.jsonl",
+      "spec/compatibility/0.4.0/change-cases.jsonl",
       "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
       "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
       "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
@@ -374,6 +440,15 @@ test("normative machine artifacts match exact digests", () => {
       "spec/schemas/0.1.0/portable-cognition.schema.json",
       "spec/schemas/0.1.0/source-record.schema.json",
     ],
+  );
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.keys(expectedHistoricalChangeCaseDigests).map((path) => [
+        path,
+        baseline.normative.artifacts[path],
+      ]),
+    ),
+    expectedHistoricalChangeCaseDigests,
   );
   Object.entries(baseline.normative.artifacts).forEach(
     ([path, expectedDigest]) => {
@@ -452,6 +527,9 @@ test("normative prose matches its hash and stable rule identifiers", () => {
 
 test("root runtime and domain error inventories match exactly", () => {
   const baseline = readJson(currentBaselineUrl);
+  const latestHistoricalBaseline = readJson(
+    latestHistoricalBaselineUrl,
+  );
 
   assert.deepEqual(
     Object.keys(publicApi).sort(),
@@ -483,6 +561,14 @@ test("root runtime and domain error inventories match exactly", () => {
     ),
   );
   assert.deepEqual(sourceTypeExports(), baseline.package.typeExports);
+  assert.deepEqual(
+    baseline.package.runtimeExports,
+    latestHistoricalBaseline.package.runtimeExports,
+  );
+  assert.deepEqual(
+    baseline.package.typeExports,
+    latestHistoricalBaseline.package.typeExports,
+  );
   assert.ok(
     [
       "CognitionEventPublisher",
@@ -518,6 +604,10 @@ test("public declaration entrypoint closures match exact independent digests", (
     referenceHost: {
       packageSubpath: "./reference-host/0.1.0",
       declarationEntrypoint: "dist/reference-host.d.ts",
+    },
+    sqlite: {
+      packageSubpath: "./stores/sqlite/0.1.0",
+      declarationEntrypoint: "dist/stores/sqlite.d.ts",
     },
   };
 
@@ -640,13 +730,15 @@ test("package compatibility metadata matches exactly", () => {
 
 test("CLI registry matches the exact baseline", () => {
   const baseline = readJson(currentBaselineUrl);
-  const previousBaseline = readJson(previousBaselineUrl);
+  const latestHistoricalBaseline = readJson(
+    latestHistoricalBaselineUrl,
+  );
 
   assert.deepEqual(CLI_CONTRACT, baseline.cli);
-  assert.deepEqual(baseline.cli, previousBaseline.cli);
+  assert.deepEqual(baseline.cli, latestHistoricalBaseline.cli);
   assert.deepEqual(
     baseline.package.policyIdentities,
-    previousBaseline.package.policyIdentities,
+    latestHistoricalBaseline.package.policyIdentities,
   );
 });
 
@@ -677,10 +769,10 @@ test("CLI and SDK promotion policy identities remain linked", () => {
   });
 });
 
-test("change cases exercise additive and breaking process rules", () => {
+test("change cases exercise the additive package process", () => {
   const cases = readJsonLines(
     new URL(
-      "../spec/compatibility/0.3.0/change-cases.jsonl",
+      "../spec/compatibility/0.4.0/change-cases.jsonl",
       import.meta.url,
     ),
   );
@@ -695,9 +787,9 @@ test("change cases exercise additive and breaking process rules", () => {
 
   assert.deepEqual(cases, [
     {
-      id: "additive-host-integration-boundary",
+      id: "additive-sqlite-cognition-store-subpath",
       description:
-        "Add Host Integration 0.1.0 runtime exports, public types, contract prose, reference host, conformance runner, and package subpaths as independent capabilities.",
+        "Add optional Node-specific SQLite CognitionStore 0.1.0 and compatibility 0.4.0 package subpaths while preserving the root Node >=24 engine and root runtime and type exports.",
       surface: "supported-experimental",
       classification: "additive",
       packageVersionEffect: "minor",
@@ -705,21 +797,7 @@ test("change cases exercise additive and breaking process rules", () => {
       requiresMigrationNotes: false,
       requiresDeprecation: false,
       rationale:
-        "The host boundary itself is optional and does not remove or redirect a prior import, artifact, CLI behavior, or policy identity.",
-    },
-    {
-      id: "breaking-portable-domain-error-code-narrowing",
-      description:
-        "Narrow PortableDomainError.code from the package-wide DomainErrorCode union to the fixed Portable Cognition 0.1.0 error-code allowlist.",
-      surface: "supported-experimental",
-      classification: "breaking",
-      packageVersionEffect: "minor-before-1.0",
-      requiresRfc: true,
-      requiresMigrationNotes: true,
-      requiresDeprecation: false,
-      correctionRule: "COMP-012",
-      rationale:
-        "A generic 0.2.0 TypeScript assignment can stop compiling, but retaining the wider declaration would continue to contradict the already-normative Portable Cognition 0.1.0 allowlist; package 0.3.0 is private, unpublished, and uses the reviewed pre-1.0 minor correction path.",
+        "The package keeps Node >=24, adds no production dependency surface, and leaves existing root and versioned imports unchanged. The SQLite subpath independently requires enforced defensive capability and fails before target mutation when unavailable.",
     },
   ]);
   cases.forEach((changeCase) => {
@@ -730,12 +808,6 @@ test("change cases exercise additive and breaking process rules", () => {
     assert.ok(changeCase.rationale.trim().length > 0);
   });
   assert.equal(
-    cases.find(({ id }) =>
-      id === "breaking-portable-domain-error-code-narrowing"
-    )?.correctionRule,
-    "COMP-012",
-  );
-  assert.equal(
     cases.filter((changeCase) => changeCase.classification === "additive")
       .length,
     1,
@@ -743,6 +815,6 @@ test("change cases exercise additive and breaking process rules", () => {
   assert.equal(
     cases.filter((changeCase) => changeCase.classification === "breaking")
       .length,
-    1,
+    0,
   );
 });

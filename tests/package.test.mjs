@@ -26,6 +26,10 @@ const distCliUrl = new URL("../dist/cli.js", import.meta.url);
 const packageJsonUrl = new URL("../package.json", import.meta.url);
 const packageLockUrl = new URL("../package-lock.json", import.meta.url);
 const compatibilityBaselineUrl = new URL(
+  "../spec/compatibility/0.4.0/baseline.json",
+  import.meta.url,
+);
+const historicalCompatibilityBaselineUrl = new URL(
   "../spec/compatibility/0.3.0/baseline.json",
   import.meta.url,
 );
@@ -76,6 +80,57 @@ const expectedRuntimeExports = [
   "validatePortableCognitionRecord",
   "validateSourceRecord",
 ].sort();
+const expectedHistoricalEmittedFiles030 = Object.freeze([
+  "dist/authorization.d.ts",
+  "dist/authorization.js",
+  "dist/cli-contract.d.ts",
+  "dist/cli-contract.js",
+  "dist/cli.d.ts",
+  "dist/cli.js",
+  "dist/errors.d.ts",
+  "dist/errors.js",
+  "dist/events.d.ts",
+  "dist/events.js",
+  "dist/host-conformance.d.ts",
+  "dist/host-conformance.js",
+  "dist/host-integration.d.ts",
+  "dist/host-integration.js",
+  "dist/index.d.ts",
+  "dist/index.js",
+  "dist/ingestion.d.ts",
+  "dist/ingestion.js",
+  "dist/json-text.d.ts",
+  "dist/json-text.js",
+  "dist/objects.d.ts",
+  "dist/objects.js",
+  "dist/portable-cognition.d.ts",
+  "dist/portable-cognition.js",
+  "dist/promotion.d.ts",
+  "dist/promotion.js",
+  "dist/reference-host.d.ts",
+  "dist/reference-host.js",
+  "dist/source-records.d.ts",
+  "dist/source-records.js",
+  "dist/transitions.d.ts",
+  "dist/transitions.js",
+  "dist/types.d.ts",
+  "dist/types.js",
+]);
+const expectedSqliteEmittedFiles040 = Object.freeze([
+  "dist/stores/sqlite.d.ts",
+  "dist/stores/sqlite.js",
+]);
+const expectedEmittedFiles040 = Object.freeze(
+  [
+    ...expectedHistoricalEmittedFiles030,
+    ...expectedSqliteEmittedFiles040,
+  ].sort(),
+);
+const productionDependencyFields = Object.freeze([
+  "dependencies",
+  "optionalDependencies",
+  "peerDependencies",
+]);
 
 function emittedFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -89,6 +144,12 @@ function spawnNpm(args, options) {
     ...options,
     shell: process.platform === "win32",
   });
+}
+
+function declaredProductionDependencyFields(packageMetadata) {
+  return productionDependencyFields.filter((field) =>
+    Object.hasOwn(packageMetadata, field)
+  );
 }
 
 test("built package exposes only the source-neutral runtime API", async () => {
@@ -222,9 +283,23 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   const baseline = JSON.parse(
     readFileSync(compatibilityBaselineUrl, "utf8"),
   );
-  assert.equal(packageJson.version, "0.3.0");
-  assert.equal(packageLock.version, "0.3.0");
-  assert.equal(packageLock.packages[""].version, "0.3.0");
+  const historicalBaseline = JSON.parse(
+    readFileSync(historicalCompatibilityBaselineUrl, "utf8"),
+  );
+  assert.equal(packageJson.version, "0.4.0");
+  assert.equal(packageLock.version, "0.4.0");
+  assert.equal(packageLock.packages[""].version, "0.4.0");
+  assert.deepEqual(packageJson.engines, {
+    node: ">=24",
+  });
+  assert.deepEqual(packageLock.packages[""].engines, {
+    node: ">=24",
+  });
+  assert.deepEqual(declaredProductionDependencyFields(packageJson), []);
+  assert.deepEqual(
+    declaredProductionDependencyFields(packageLock.packages[""]),
+    [],
+  );
   assert.equal(
     packageJson.scripts["test:schema"],
     "node --test tests/schema-conformance.test.mjs tests/portable-cognition-schema.test.mjs",
@@ -254,6 +329,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       "./spec/compatibility/0.2.0/baseline.json",
     "./compatibility/0.3.0":
       "./spec/compatibility/0.3.0/baseline.json",
+    "./compatibility/0.4.0":
+      "./spec/compatibility/0.4.0/baseline.json",
     "./contracts/host-integration/0.1.0":
       "./spec/host-integration.md",
     "./host-conformance/0.1.0": {
@@ -263,6 +340,10 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "./reference-host/0.1.0": {
       types: "./dist/reference-host.d.ts",
       import: "./dist/reference-host.js",
+    },
+    "./stores/sqlite/0.1.0": {
+      types: "./dist/stores/sqlite.d.ts",
+      import: "./dist/stores/sqlite.js",
     },
     "./schemas/source-record/0.1.0":
       "./spec/schemas/0.1.0/source-record.schema.json",
@@ -287,6 +368,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
     "rfcs/0003-portable-cognition-contract.md",
     "rfcs/0004-host-integration-contract.md",
+    "rfcs/0005-sqlite-cognition-store.md",
     "spec/README.md",
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
@@ -295,6 +377,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.2.0/change-cases.jsonl",
     "spec/compatibility/0.3.0/baseline.json",
     "spec/compatibility/0.3.0/change-cases.jsonl",
+    "spec/compatibility/0.4.0/baseline.json",
+    "spec/compatibility/0.4.0/change-cases.jsonl",
     "spec/host-integration.md",
     "spec/source-record.md",
     "spec/portable-cognition.md",
@@ -313,9 +397,26 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     .map((path) => relative(repositoryRoot, path).replaceAll("\\", "/"))
     .sort();
   assert.deepEqual(
-    actualEmittedFiles,
+    historicalBaseline.package.emittedFiles,
+    expectedHistoricalEmittedFiles030,
+    "package 0.3 emitted inventory must match its literal immutable allowlist",
+  );
+  assert.deepEqual(
     baseline.package.emittedFiles,
-    "dist/ contents must match the immutable baseline inventory",
+    expectedEmittedFiles040,
+    "package 0.4 may add only the two approved SQLite emitted files",
+  );
+  assert.deepEqual(
+    baseline.package.emittedFiles.filter(
+      (path) => !expectedHistoricalEmittedFiles030.includes(path),
+    ),
+    expectedSqliteEmittedFiles040,
+    "package 0.4 emitted additions must be exactly the SQLite entrypoint pair",
+  );
+  assert.deepEqual(
+    actualEmittedFiles,
+    expectedEmittedFiles040,
+    "dist/ contents must match the independent package 0.4 allowlist",
   );
 
   const npmCache = mkdtempSync(join(tmpdir(), "ccsdk-npm-cache-"));
@@ -344,12 +445,13 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "LICENSE",
     "NOTICE",
     "README.md",
-    ...baseline.package.emittedFiles,
+    ...expectedEmittedFiles040,
     "package.json",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
     "rfcs/0003-portable-cognition-contract.md",
     "rfcs/0004-host-integration-contract.md",
+    "rfcs/0005-sqlite-cognition-store.md",
     "rfcs/README.md",
     "spec/README.md",
     "spec/compatibility.md",
@@ -359,6 +461,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.2.0/change-cases.jsonl",
     "spec/compatibility/0.3.0/baseline.json",
     "spec/compatibility/0.3.0/change-cases.jsonl",
+    "spec/compatibility/0.4.0/baseline.json",
+    "spec/compatibility/0.4.0/change-cases.jsonl",
     "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
     "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
@@ -371,6 +475,11 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/source-record.md",
   ].sort();
 
+  assert.deepEqual(
+    baseline.package.packageFiles,
+    expectedPaths,
+    "compatibility package inventory must match the approved allowlist",
+  );
   assert.deepEqual(paths, expectedPaths, "package contents must match allowlist");
   assert.ok(
     paths.every(
@@ -379,6 +488,10 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
         !/(?:adapter|connector|git-commit|team-memory|teammem)/i.test(path),
     ),
     "package must exclude source tests, design documents, connectors, and adapters",
+  );
+  assert.ok(
+    paths.every((path) => !/\.db(?:-journal|-wal|-shm)?$/i.test(path)),
+    "package must exclude SQLite database artifacts",
   );
   assert.equal(statSync(distRoot).isDirectory(), true);
 });
@@ -472,6 +585,10 @@ import {
   type CognitionHostConformanceFactory,
   type CognitionHostConformanceReport,
 } from ${JSON.stringify(`${packageJson.name}/host-conformance/0.1.0`)};
+import {
+  SqliteCognitionStore,
+  type SqliteCognitionStoreOptions,
+} from ${JSON.stringify(`${packageJson.name}/stores/sqlite/0.1.0`)};
 
 function roundTrip(record: PortableCognitionRecord) {
   return deserializePortableCognitionRecord(
@@ -546,7 +663,8 @@ type HostTypes =
   | TransitionCommitOutcome
   | CognitionHostConformanceCaseResult
   | CognitionHostConformanceFactory
-  | CognitionHostConformanceReport;
+  | CognitionHostConformanceReport
+  | SqliteCognitionStoreOptions;
 
 void roundTrip;
 void package020GenericAssignment;
@@ -559,6 +677,7 @@ void commitInitialCognition;
 void InMemoryCognitionEventPublisher;
 void InMemoryCognitionStore;
 void runCognitionHostConformance;
+void SqliteCognitionStore;
 `,
     "utf8",
   );
@@ -580,7 +699,16 @@ import {
 import {
   runCognitionHostConformance,
 } from ${JSON.stringify(`${packageJson.name}/host-conformance/0.1.0`)};
-import { readFileSync } from "node:fs";
+import {
+  SqliteCognitionStore,
+} from ${JSON.stringify(`${packageJson.name}/stores/sqlite/0.1.0`)};
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const contractUrl = import.meta.resolve(
   ${JSON.stringify(`${packageJson.name}/contracts/host-integration/0.1.0`)},
@@ -602,6 +730,21 @@ const record = createPortableCognitionRecord(validRecords[0]);
 const restored = deserializePortableCognitionRecord(
   serializePortableCognitionRecord(record),
 );
+const sqliteRoot = mkdtempSync(join(tmpdir(), "ccsdk-sqlite-consumer-"));
+const databasePath = join(sqliteRoot, "cognition.db");
+let reopened = false;
+try {
+  const createdStore = new SqliteCognitionStore({
+    databasePath,
+    createIfMissing: true,
+  });
+  createdStore.close();
+  const reopenedStore = new SqliteCognitionStore({ databasePath });
+  reopenedStore.close();
+  reopened = true;
+} finally {
+  rmSync(sqliteRoot, { recursive: true, force: true });
+}
 console.log(JSON.stringify({
   schemaId: portableSchema.$id,
   recordType: restored.recordType,
@@ -616,8 +759,70 @@ console.log(JSON.stringify({
     typeof InMemoryCognitionEventPublisher,
     typeof InMemoryCognitionStore,
     typeof runCognitionHostConformance,
+    typeof SqliteCognitionStore,
   ],
+  sqliteReopened: reopened,
 }));
+`,
+    "utf8",
+  );
+  writeFileSync(
+    `${consumerRoot}/unsupported-runtime.mjs`,
+    `import assert from "node:assert/strict";
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+
+const sqliteRoot = mkdtempSync(join(tmpdir(), "ccsdk-unsupported-sqlite-"));
+const databasePath = join(sqliteRoot, "cognition.db");
+const prototype = DatabaseSync.prototype;
+const descriptor = Object.getOwnPropertyDescriptor(
+  prototype,
+  "enableDefensive",
+);
+assert.ok(descriptor);
+assert.equal(typeof descriptor.value, "function");
+Object.defineProperty(prototype, "enableDefensive", {
+  ...descriptor,
+  value: undefined,
+});
+
+let openedStore;
+try {
+  const rootApi = await import(${JSON.stringify(packageJson.name)});
+  const { SqliteCognitionStore } = await import(
+    ${JSON.stringify(`${packageJson.name}/stores/sqlite/0.1.0`)}
+  );
+  assert.equal(typeof rootApi.createObject, "function");
+  assert.equal(typeof SqliteCognitionStore, "function");
+  assert.throws(
+    () => {
+      openedStore = new SqliteCognitionStore({
+        databasePath,
+        createIfMissing: true,
+      });
+    },
+    /node:sqlite with enforced defensive mode/,
+  );
+  assert.equal(existsSync(databasePath), false);
+  assert.deepEqual(readdirSync(sqliteRoot), []);
+  console.log(JSON.stringify({
+    rootImported: true,
+    sqliteImportable: true,
+    sqliteRejected: true,
+    targetMutated: false,
+  }));
+} finally {
+  openedStore?.close();
+  Object.defineProperty(prototype, "enableDefensive", descriptor);
+  rmSync(sqliteRoot, { recursive: true, force: true });
+}
 `,
     "utf8",
   );
@@ -695,7 +900,33 @@ console.log(JSON.stringify({
         "function",
         "function",
         "function",
+        "function",
       ],
+      sqliteReopened: true,
+    });
+
+    const unsupportedConsumed = spawnSync(
+      process.execPath,
+      [
+        "--disable-warning=ExperimentalWarning",
+        `${consumerRoot}/unsupported-runtime.mjs`,
+      ],
+      {
+        cwd: consumerRoot,
+        encoding: "utf8",
+      },
+    );
+    assert.equal(
+      unsupportedConsumed.status,
+      0,
+      unsupportedConsumed.stderr || unsupportedConsumed.stdout,
+    );
+    assert.equal(unsupportedConsumed.stderr, "");
+    assert.deepEqual(JSON.parse(unsupportedConsumed.stdout.trim()), {
+      rootImported: true,
+      sqliteImportable: true,
+      sqliteRejected: true,
+      targetMutated: false,
     });
 
     const imported = spawnSync(
@@ -768,7 +999,7 @@ console.log(JSON.stringify({
         "--input-type=module",
         "--eval",
         `import { readFile } from "node:fs/promises";
-const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.3.0`)});
+const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.4.0`)});
 const baseline = JSON.parse(await readFile(new URL(baselineUrl), "utf8"));
 const changeCases = (await readFile(new URL("./change-cases.jsonl", baselineUrl), "utf8"))
   .trim()
@@ -792,8 +1023,8 @@ console.log(JSON.stringify({
     assert.deepEqual(
       JSON.parse(importedCurrentCompatibility.stdout.trim()),
       {
-        baselineVersion: "0.3.0",
-        classifications: ["additive", "breaking"],
+        baselineVersion: "0.4.0",
+        classifications: ["additive"],
       },
     );
 
