@@ -1,6 +1,6 @@
 # SQLite Cognition Store Design
 
-**Status:** Implemented; final review pending
+**Status:** Implemented and final-review verified
 
 **Date:** 2026-07-29
 
@@ -306,6 +306,6 @@ This slice is complete when:
 7. all existing and new tests, type checks, syntax checks, examples, compatibility checks, and package checks pass; and
 8. independent final review finds no unresolved Critical or Important issue.
 
-Implementation has completed the executable acceptance work. The independent
-whole-branch review has not yet run, so this design is intentionally not marked
-final-review verified.
+Implementation has completed the executable acceptance work. Independent final
+review and the exceptional re-review found no unresolved Critical or Important
+issue, and the branch was declared **READY TO MERGE**.

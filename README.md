@@ -4,7 +4,7 @@ Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript 
 
 This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.4.0` remains private and unpublished; its source, emitted ESM build, declarations, and CLI are runnable, but it is not production-ready.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, and compatibility baselines `0.1.0` through `0.4.0` are implemented. Host Integration `0.1.0` is implemented and final-review verified. The SQLite cognition-store slice is Implemented; final review pending. Registry publication, runtime policy, security policy, maintained connectors, and production readiness remain deferred.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, and compatibility baselines `0.1.0` through `0.4.0` are implemented. Host Integration `0.1.0` is implemented and final-review verified. The SQLite cognition-store slice is implemented and final-review verified. Registry publication, runtime policy, security policy, maintained connectors, and production readiness remain deferred.
 
 ## Current Status
 
@@ -158,9 +158,9 @@ The optional SQLite reference adapter is not exported from the root. Import it f
 ### SQLite Verification
 
 On the supported bundled Node.js `v24.14.0` runtime, the focused SQLite,
-activity-policy, and durable-workflow command passes `46` of `47` tests; the
+activity-policy, and durable-workflow command passes `59` of `60` tests; the
 sole skip is the expected unsupported-runtime defensive-mode probe. `npm test`
-passes `296` of `297` source tests with that same expected skip, plus `10`
+passes `309` of `310` source tests with that same expected skip, plus `10`
 schema, `15` compatibility, and `8` package tests. `npx tsc --noEmit`,
 `npm run check`, `npm run example`, `npm run example:portable`,
 `npm run example:host`, `npm run pack:check`, and `git diff --check` also pass.
@@ -170,8 +170,8 @@ team-memory ledger and a separate temporary cognition database. It persisted a
 Hypothesis at version `2` in state `under_review`, one neutral Evidence from
 `12` source records, and one event; it inferred `0` Decisions and completed
 close/reopen verification. The source ledger's byte size and nanosecond
-modification time remained unchanged. The SQLite slice is Implemented; final
-review pending, so this evidence is not a production-readiness claim.
+modification time remained unchanged. The SQLite slice is implemented and
+final-review verified; this evidence is not a production-readiness claim.
 
 The package manifest intentionally retains `"private": true` as an npm publication guard. The package is unpublished. Removing the guard still requires registry confirmation, runtime and security policies, final verification, and explicit publication approval.
 
