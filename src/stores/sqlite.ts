@@ -51,6 +51,13 @@ interface SchemaObject {
   readonly sql: unknown;
 }
 
+interface StoredObjectRow {
+  readonly object_id: unknown;
+  readonly object_version: unknown;
+  readonly object_type: unknown;
+  readonly record_json: unknown;
+}
+
 const adapterId = "collective-cognition-sdk:sqlite-store";
 const schemaVersion = 1;
 const maximumBusyTimeoutMs = 60_000;
@@ -179,21 +186,23 @@ function invalidStoredEvent(): never {
 }
 
 function deserializeStoredObject(
-  recordJson: unknown,
-  objectId: string,
-  objectVersion?: number,
-  objectType?: string,
+  row: StoredObjectRow,
 ): PortableCognitiveObjectRecord {
-  if (typeof recordJson !== "string") {
+  if (
+    typeof row.object_id !== "string" ||
+    typeof row.object_version !== "number" ||
+    !Number.isSafeInteger(row.object_version) ||
+    typeof row.object_type !== "string" ||
+    typeof row.record_json !== "string"
+  ) {
     return invalidStoredObject();
   }
-  const record = deserializePortableCognitionRecord(recordJson);
+  const record = deserializePortableCognitionRecord(row.record_json);
   if (
     record.recordType !== "cognitive-object" ||
-    record.payload.id !== objectId ||
-    (objectVersion !== undefined &&
-      record.payload.version !== objectVersion) ||
-    (objectType !== undefined && record.payload.type !== objectType)
+    record.payload.id !== row.object_id ||
+    record.payload.version !== row.object_version ||
+    record.payload.type !== row.object_type
   ) {
     return invalidStoredObject();
   }
@@ -674,27 +683,18 @@ export class SqliteCognitionStore implements CognitionStore {
         const existing = this.#database
           .prepare(
             `
-              SELECT object_type, record_json
+              SELECT
+                object_id,
+                object_version,
+                object_type,
+                record_json
               FROM cognition_objects
               WHERE object_id = ? AND object_version = ?
             `,
           )
-          .get(objectId, objectVersion) as
-            | {
-              readonly object_type: unknown;
-              readonly record_json: unknown;
-            }
-            | undefined;
+          .get(objectId, objectVersion) as StoredObjectRow | undefined;
         if (existing !== undefined) {
-          if (typeof existing.object_type !== "string") {
-            return invalidStoredObject();
-          }
-          const stored = deserializeStoredObject(
-            existing.record_json,
-            objectId,
-            objectVersion,
-            existing.object_type,
-          );
+          const stored = deserializeStoredObject(existing);
           if (
             canonicalizeJson(stored as unknown as JsonValue) === canonical
           ) {
@@ -748,17 +748,16 @@ export class SqliteCognitionStore implements CognitionStore {
         const existingObject = this.#database
           .prepare(
             `
-              SELECT object_type, record_json
+              SELECT
+                object_id,
+                object_version,
+                object_type,
+                record_json
               FROM cognition_objects
               WHERE object_id = ? AND object_version = ?
             `,
           )
-          .get(objectId, objectVersion) as
-            | {
-              readonly object_type: unknown;
-              readonly record_json: unknown;
-            }
-            | undefined;
+          .get(objectId, objectVersion) as StoredObjectRow | undefined;
         const existingEvent = this.#database
           .prepare(
             `
@@ -774,18 +773,26 @@ export class SqliteCognitionStore implements CognitionStore {
               readonly record_json: unknown;
             }
             | undefined;
+        const occupiedEventSlot = this.#database
+          .prepare(
+            `
+              SELECT event_id, object_id, object_version, record_json
+              FROM cognition_events
+              WHERE object_id = ? AND object_version = ?
+            `,
+          )
+          .get(objectId, objectVersion) as
+            | {
+              readonly event_id: unknown;
+              readonly object_id: unknown;
+              readonly object_version: unknown;
+              readonly record_json: unknown;
+            }
+            | undefined;
 
         let objectMatches = false;
         if (existingObject !== undefined) {
-          if (typeof existingObject.object_type !== "string") {
-            return invalidStoredObject();
-          }
-          const storedObject = deserializeStoredObject(
-            existingObject.record_json,
-            objectId,
-            objectVersion,
-            existingObject.object_type,
-          );
+          const storedObject = deserializeStoredObject(existingObject);
           objectMatches = canonicalizeJson(
             storedObject as unknown as JsonValue,
           ) === objectCanonical;
@@ -833,9 +840,26 @@ export class SqliteCognitionStore implements CognitionStore {
             },
           };
         }
+        if (occupiedEventSlot !== undefined) {
+          if (
+            typeof occupiedEventSlot.event_id !== "string" ||
+            typeof occupiedEventSlot.object_id !== "string" ||
+            typeof occupiedEventSlot.object_version !== "number" ||
+            !Number.isSafeInteger(occupiedEventSlot.object_version)
+          ) {
+            return invalidStoredEvent();
+          }
+          deserializeStoredEvent(
+            occupiedEventSlot.record_json,
+            occupiedEventSlot.event_id,
+            occupiedEventSlot.object_id,
+            occupiedEventSlot.object_version,
+          );
+        }
         if (
           existingObject !== undefined ||
-          existingEvent !== undefined
+          existingEvent !== undefined ||
+          occupiedEventSlot !== undefined
         ) {
           throw new TypeError(
             "Transition identities are only partially committed.",
@@ -845,44 +869,31 @@ export class SqliteCognitionStore implements CognitionStore {
         const latest = this.#database
           .prepare(
             `
-              SELECT object_version, object_type, record_json
+              SELECT
+                object_id,
+                object_version,
+                object_type,
+                record_json
               FROM cognition_objects
               WHERE object_id = ?
               ORDER BY object_version DESC
               LIMIT 1
             `,
           )
-          .get(objectId) as
-            | {
-              readonly object_version: unknown;
-              readonly object_type: unknown;
-              readonly record_json: unknown;
-            }
-            | undefined;
+          .get(objectId) as StoredObjectRow | undefined;
         if (latest === undefined) {
           throw new TypeError("Transition target object does not exist.");
         }
-        if (
-          typeof latest.object_version !== "number" ||
-          !Number.isSafeInteger(latest.object_version) ||
-          typeof latest.object_type !== "string"
-        ) {
-          return invalidStoredObject();
-        }
-        deserializeStoredObject(
-          latest.record_json,
-          objectId,
-          latest.object_version,
-          latest.object_type,
-        );
-        if (latest.object_version !== prepared.expectedVersion) {
+        const latestObject = deserializeStoredObject(latest);
+        const actualVersion = latestObject.payload.version;
+        if (actualVersion !== prepared.expectedVersion) {
           return {
             status: "conflict",
             conflict: {
               code: "version_conflict",
               objectId,
               expectedVersion: prepared.expectedVersion,
-              actualVersion: latest.object_version,
+              actualVersion,
             },
           };
         }
@@ -933,19 +944,21 @@ export class SqliteCognitionStore implements CognitionStore {
     const row = this.#database
       .prepare(
         `
-          SELECT record_json
+          SELECT
+            object_id,
+            object_version,
+            object_type,
+            record_json
           FROM cognition_objects
           WHERE object_id = ?
           ORDER BY object_version DESC
           LIMIT 1
         `,
       )
-      .get(objectId) as
-        | { readonly record_json: unknown }
-        | undefined;
+      .get(objectId) as StoredObjectRow | undefined;
     return row === undefined
       ? undefined
-      : deserializeStoredObject(row.record_json, objectId);
+      : deserializeStoredObject(row);
   }
 
   async getObjectVersion(
@@ -956,17 +969,19 @@ export class SqliteCognitionStore implements CognitionStore {
     const row = this.#database
       .prepare(
         `
-          SELECT record_json
+          SELECT
+            object_id,
+            object_version,
+            object_type,
+            record_json
           FROM cognition_objects
           WHERE object_id = ? AND object_version = ?
         `,
       )
-      .get(objectId, version) as
-        | { readonly record_json: unknown }
-        | undefined;
+      .get(objectId, version) as StoredObjectRow | undefined;
     return row === undefined
       ? undefined
-      : deserializeStoredObject(row.record_json, objectId, version);
+      : deserializeStoredObject(row);
   }
 
   async listObjectEvents(

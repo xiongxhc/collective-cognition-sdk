@@ -1235,6 +1235,74 @@ sqliteTest(
 );
 
 sqliteTest(
+  "SQLite object row identity rejects mismatched metadata on latest and version reads",
+  async (t) => {
+    const cases = [
+      {
+        name: "object ID",
+        updateSql: "UPDATE cognition_objects SET object_id = ?",
+        value: "goal:sqlite-row-identity:stored-id",
+        lookupId: "goal:sqlite-row-identity:stored-id",
+        lookupVersion: 1,
+      },
+      {
+        name: "object version",
+        updateSql: "UPDATE cognition_objects SET object_version = ?",
+        value: 2,
+        lookupId: "goal:sqlite-row-identity:object-version",
+        lookupVersion: 2,
+      },
+      {
+        name: "object type",
+        updateSql: "UPDATE cognition_objects SET object_type = ?",
+        value: "hypothesis",
+        lookupId: "goal:sqlite-row-identity:object-type",
+        lookupVersion: 1,
+      },
+    ] as const;
+
+    for (const entry of cases) {
+      const databasePath = temporaryDatabasePath(t);
+      const objectId = entry.name === "object ID"
+        ? "goal:sqlite-row-identity:payload-id"
+        : entry.lookupId;
+      const store = new SqliteCognitionStore({
+        databasePath,
+        createIfMissing: true,
+      });
+      await store.commitInitial({ object: objectRecord({ id: objectId }) });
+      store.close();
+
+      const database = new DatabaseSync(databasePath);
+      try {
+        database.prepare(entry.updateSql).run(entry.value);
+      } finally {
+        database.close();
+      }
+      const before = snapshotCognitionRows(databasePath);
+      const reopened = new SqliteCognitionStore({ databasePath });
+      t.after(() => reopened.close());
+
+      await assert.rejects(
+        () => reopened.getLatestObject(entry.lookupId),
+        /Stored cognitive object is invalid/,
+        `${entry.name} latest`,
+      );
+      await assert.rejects(
+        () =>
+          reopened.getObjectVersion(
+            entry.lookupId,
+            entry.lookupVersion,
+          ),
+        /Stored cognitive object is invalid/,
+        `${entry.name} version`,
+      );
+      assert.deepEqual(snapshotCognitionRows(databasePath), before);
+    }
+  },
+);
+
+sqliteTest(
   "SQLite transition persists object and event together across restart",
   async (t) => {
     const databasePath = temporaryDatabasePath(t);
@@ -1552,6 +1620,57 @@ sqliteTest(
     assert.deepEqual(
       snapshotCognitionRows(eventPath),
       partialEventRows,
+    );
+  },
+);
+
+sqliteTest(
+  "SQLite transition detects a different event occupying the target version slot before stale",
+  async (t) => {
+    const databasePath = temporaryDatabasePath(t);
+    const objectId = "goal:sqlite-occupied-event-slot";
+    const initial = objectRecord({ id: objectId });
+    const occupant = transitionCommit({
+      id: objectId,
+      expectedVersion: 2,
+      eventId: "event:sqlite-occupied-event-slot:occupant",
+    });
+    const proposed = transitionCommit({
+      id: objectId,
+      expectedVersion: 2,
+      eventId: "event:sqlite-occupied-event-slot:proposed",
+    });
+    const store = new SqliteCognitionStore({
+      databasePath,
+      createIfMissing: true,
+    });
+    await store.commitInitial({ object: initial });
+    store.close();
+
+    const database = new DatabaseSync(databasePath, {
+      enableForeignKeyConstraints: false,
+    });
+    try {
+      insertEventRow(database, occupant.event);
+    } finally {
+      database.close();
+    }
+    const before = snapshotCognitionRows(databasePath);
+    const reopened = new SqliteCognitionStore({ databasePath });
+    t.after(() => reopened.close());
+
+    await assert.rejects(
+      () => reopened.commitTransition(proposed),
+      /only partially committed/,
+    );
+    assert.deepEqual(snapshotCognitionRows(databasePath), before);
+    assert.deepEqual(
+      await reopened.getLatestObject(objectId),
+      initial,
+    );
+    assert.equal(
+      await reopened.getObjectVersion(objectId, 3),
+      undefined,
     );
   },
 );
