@@ -23,14 +23,18 @@ const distRoot = fileURLToPath(new URL("../dist/", import.meta.url));
 const distIndexUrl = new URL("../dist/index.js", import.meta.url);
 const distTypesUrl = new URL("../dist/index.d.ts", import.meta.url);
 const distCliUrl = new URL("../dist/cli.js", import.meta.url);
+const distTeamMemoryCliUrl = new URL(
+  "../dist/team-memory-cli.js",
+  import.meta.url,
+);
 const packageJsonUrl = new URL("../package.json", import.meta.url);
 const packageLockUrl = new URL("../package-lock.json", import.meta.url);
 const compatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.4.0/baseline.json",
+  "../spec/compatibility/0.5.0/baseline.json",
   import.meta.url,
 );
 const historicalCompatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.3.0/baseline.json",
+  "../spec/compatibility/0.4.0/baseline.json",
   import.meta.url,
 );
 const licenseUrl = new URL("../LICENSE", import.meta.url);
@@ -126,6 +130,20 @@ const expectedEmittedFiles040 = Object.freeze(
     ...expectedSqliteEmittedFiles040,
   ].sort(),
 );
+const expectedConnectorEmittedFiles050 = Object.freeze([
+  "dist/connector-conformance.d.ts",
+  "dist/connector-conformance.js",
+  "dist/connectors/team-memory.d.ts",
+  "dist/connectors/team-memory.js",
+  "dist/team-memory-cli.d.ts",
+  "dist/team-memory-cli.js",
+]);
+const expectedEmittedFiles050 = Object.freeze(
+  [
+    ...expectedEmittedFiles040,
+    ...expectedConnectorEmittedFiles050,
+  ].sort(),
+);
 const productionDependencyFields = Object.freeze([
   "dependencies",
   "optionalDependencies",
@@ -167,6 +185,11 @@ test("built package exposes only the source-neutral runtime API", async () => {
     existsSync(distCliUrl),
     true,
     "dist/cli.js must exist; run npm run build",
+  );
+  assert.equal(
+    existsSync(distTeamMemoryCliUrl),
+    true,
+    "dist/team-memory-cli.js must exist; run npm run build",
   );
 
   const builtApi = await import(distIndexUrl.href);
@@ -286,9 +309,19 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   const historicalBaseline = JSON.parse(
     readFileSync(historicalCompatibilityBaselineUrl, "utf8"),
   );
-  assert.equal(packageJson.version, "0.4.0");
-  assert.equal(packageLock.version, "0.4.0");
-  assert.equal(packageLock.packages[""].version, "0.4.0");
+  assert.deepEqual(
+    baseline.package.runtimeExports,
+    historicalBaseline.package.runtimeExports,
+    "package 0.5 root runtime exports must remain identical to 0.4",
+  );
+  assert.deepEqual(
+    baseline.package.typeExports,
+    historicalBaseline.package.typeExports,
+    "package 0.5 root type exports must remain identical to 0.4",
+  );
+  assert.equal(packageJson.version, "0.5.0");
+  assert.equal(packageLock.version, "0.5.0");
+  assert.equal(packageLock.packages[""].version, "0.5.0");
   assert.deepEqual(packageJson.engines, {
     node: ">=24",
   });
@@ -331,6 +364,16 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       "./spec/compatibility/0.3.0/baseline.json",
     "./compatibility/0.4.0":
       "./spec/compatibility/0.4.0/baseline.json",
+    "./compatibility/0.5.0":
+      "./spec/compatibility/0.5.0/baseline.json",
+    "./connector-conformance/0.1.0": {
+      types: "./dist/connector-conformance.d.ts",
+      import: "./dist/connector-conformance.js",
+    },
+    "./connectors/team-memory/0.1.0": {
+      types: "./dist/connectors/team-memory.d.ts",
+      import: "./dist/connectors/team-memory.js",
+    },
     "./contracts/host-integration/0.1.0":
       "./spec/host-integration.md",
     "./host-conformance/0.1.0": {
@@ -379,6 +422,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.3.0/change-cases.jsonl",
     "spec/compatibility/0.4.0/baseline.json",
     "spec/compatibility/0.4.0/change-cases.jsonl",
+    "spec/compatibility/0.5.0/baseline.json",
+    "spec/compatibility/0.5.0/change-cases.jsonl",
     "spec/host-integration.md",
     "spec/source-record.md",
     "spec/portable-cognition.md",
@@ -392,31 +437,32 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   ]);
   assert.deepEqual(packageJson.bin, {
     "collective-cognition": "./dist/cli.js",
+    "collective-cognition-teammem": "./dist/team-memory-cli.js",
   });
   const actualEmittedFiles = emittedFiles(distRoot)
     .map((path) => relative(repositoryRoot, path).replaceAll("\\", "/"))
     .sort();
   assert.deepEqual(
     historicalBaseline.package.emittedFiles,
-    expectedHistoricalEmittedFiles030,
-    "package 0.3 emitted inventory must match its literal immutable allowlist",
+    expectedEmittedFiles040,
+    "package 0.4 emitted inventory must match its literal immutable allowlist",
   );
   assert.deepEqual(
     baseline.package.emittedFiles,
-    expectedEmittedFiles040,
-    "package 0.4 may add only the two approved SQLite emitted files",
+    expectedEmittedFiles050,
+    "package 0.5 may add only the approved connector and CLI pairs",
   );
   assert.deepEqual(
     baseline.package.emittedFiles.filter(
-      (path) => !expectedHistoricalEmittedFiles030.includes(path),
+      (path) => !expectedEmittedFiles040.includes(path),
     ),
-    expectedSqliteEmittedFiles040,
-    "package 0.4 emitted additions must be exactly the SQLite entrypoint pair",
+    expectedConnectorEmittedFiles050,
+    "package 0.5 emitted additions must be exactly the approved six files",
   );
   assert.deepEqual(
     actualEmittedFiles,
-    expectedEmittedFiles040,
-    "dist/ contents must match the independent package 0.4 allowlist",
+    expectedEmittedFiles050,
+    "dist/ contents must match the independent package 0.5 allowlist",
   );
 
   const npmCache = mkdtempSync(join(tmpdir(), "ccsdk-npm-cache-"));
@@ -445,7 +491,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "LICENSE",
     "NOTICE",
     "README.md",
-    ...expectedEmittedFiles040,
+    ...expectedEmittedFiles050,
     "package.json",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
@@ -463,6 +509,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.3.0/change-cases.jsonl",
     "spec/compatibility/0.4.0/baseline.json",
     "spec/compatibility/0.4.0/change-cases.jsonl",
+    "spec/compatibility/0.5.0/baseline.json",
+    "spec/compatibility/0.5.0/change-cases.jsonl",
     "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
     "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
@@ -485,14 +533,32 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     paths.every(
       (path) =>
         !/^(?:src|tests|examples|docs)\//.test(path) &&
-        !/(?:adapter|connector|git-commit|team-memory|teammem)/i.test(path),
+        !/(?:^|\/)adapters?\//i.test(path) &&
+        !/(?:git-commit|team-memory-activity|teammem-cli)/i.test(path),
     ),
-    "package must exclude source tests, design documents, connectors, and adapters",
+    "package must exclude sources, tests, designs, adapters, and internal connectors",
   );
   assert.ok(
-    paths.every((path) => !/\.db(?:-journal|-wal|-shm)?$/i.test(path)),
-    "package must exclude SQLite database artifacts",
+    paths.every(
+      (path) =>
+        !/\.db(?:-journal|-wal|-shm)?$/i.test(path) &&
+        !/(?:^|\/)\.env(?:\.|$)/i.test(path) &&
+        !/\.(?:log|pem|key)$/i.test(path) &&
+        !/(?:credential|secret)/i.test(path),
+    ),
+    "package must exclude databases, logs, environments, and credentials",
   );
+  const packedTeamMemoryCli = packResults[0].files.find(
+    (file) => file.path === "dist/team-memory-cli.js",
+  );
+  assert.ok(packedTeamMemoryCli, "packed team-memory CLI is missing");
+  if (process.platform !== "win32") {
+    assert.notEqual(
+      packedTeamMemoryCli.mode & 0o111,
+      0,
+      "packed team-memory CLI must retain an executable mode",
+    );
+  }
   assert.equal(statSync(distRoot).isDirectory(), true);
 });
 
@@ -589,6 +655,20 @@ import {
   SqliteCognitionStore,
   type SqliteCognitionStoreOptions,
 } from ${JSON.stringify(`${packageJson.name}/stores/sqlite/0.1.0`)};
+import {
+  runSourceConnectorConformance,
+  type SourceConnectorConformanceCase,
+  type SourceConnectorConformanceDiagnostic,
+  type SourceConnectorConformanceDiagnosticCode,
+  type SourceConnectorConformanceResult,
+} from ${JSON.stringify(`${packageJson.name}/connector-conformance/0.1.0`)};
+import {
+  TEAM_MEMORY_LEDGER_FORMAT,
+  TeamMemoryConnectorError,
+  readTeamMemorySourceRecords,
+  type TeamMemoryConnectorErrorCode,
+  type TeamMemorySourceRecordOptions,
+} from ${JSON.stringify(`${packageJson.name}/connectors/team-memory/0.1.0`)};
 
 function roundTrip(record: PortableCognitionRecord) {
   return deserializePortableCognitionRecord(
@@ -665,11 +745,20 @@ type HostTypes =
   | CognitionHostConformanceFactory
   | CognitionHostConformanceReport
   | SqliteCognitionStoreOptions;
+type ConnectorTypes =
+  | SourceConnectorConformanceCase
+  | SourceConnectorConformanceDiagnostic
+  | SourceConnectorConformanceDiagnosticCode
+  | SourceConnectorConformanceResult
+  | TeamMemoryConnectorError
+  | TeamMemoryConnectorErrorCode
+  | TeamMemorySourceRecordOptions;
 
 void roundTrip;
 void package020GenericAssignment;
 void oldGenericAssignment;
 void (undefined as unknown as HostTypes);
+void (undefined as unknown as ConnectorTypes);
 void HOST_INTEGRATION_CONTRACT_VERSION;
 void HostFailureCode;
 void commitCognitionTransition;
@@ -678,6 +767,10 @@ void InMemoryCognitionEventPublisher;
 void InMemoryCognitionStore;
 void runCognitionHostConformance;
 void SqliteCognitionStore;
+void runSourceConnectorConformance;
+void TEAM_MEMORY_LEDGER_FORMAT;
+void TeamMemoryConnectorError;
+void readTeamMemorySourceRecords;
 `,
     "utf8",
   );
@@ -703,12 +796,22 @@ import {
   SqliteCognitionStore,
 } from ${JSON.stringify(`${packageJson.name}/stores/sqlite/0.1.0`)};
 import {
+  runSourceConnectorConformance,
+} from ${JSON.stringify(`${packageJson.name}/connector-conformance/0.1.0`)};
+import {
+  TEAM_MEMORY_LEDGER_FORMAT,
+  TeamMemoryConnectorError,
+  readTeamMemorySourceRecords,
+} from ${JSON.stringify(`${packageJson.name}/connectors/team-memory/0.1.0`)};
+import {
+  existsSync,
   mkdtempSync,
   readFileSync,
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 const contractUrl = import.meta.resolve(
   ${JSON.stringify(`${packageJson.name}/contracts/host-integration/0.1.0`)},
@@ -732,19 +835,86 @@ const restored = deserializePortableCognitionRecord(
 );
 const sqliteRoot = mkdtempSync(join(tmpdir(), "ccsdk-sqlite-consumer-"));
 const databasePath = join(sqliteRoot, "cognition.db");
+const teamMemoryDatabasePath = join(process.cwd(), "fictional-ledger.db");
 let reopened = false;
+let rejectedWithoutMutation = false;
+let unsupportedStore;
 try {
-  const createdStore = new SqliteCognitionStore({
-    databasePath,
-    createIfMissing: true,
-  });
-  createdStore.close();
-  const reopenedStore = new SqliteCognitionStore({ databasePath });
-  reopenedStore.close();
-  reopened = true;
+  if (typeof DatabaseSync.prototype.enableDefensive === "function") {
+    const createdStore = new SqliteCognitionStore({
+      databasePath,
+      createIfMissing: true,
+    });
+    createdStore.close();
+    const reopenedStore = new SqliteCognitionStore({ databasePath });
+    reopenedStore.close();
+    reopened = true;
+  } else {
+    try {
+      unsupportedStore = new SqliteCognitionStore({
+        databasePath,
+        createIfMissing: true,
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        /node:sqlite with enforced defensive mode/.test(error.message)
+      ) {
+        rejectedWithoutMutation = !existsSync(databasePath);
+      } else {
+        throw error;
+      }
+    }
+  }
 } finally {
+  unsupportedStore?.close();
   rmSync(sqliteRoot, { recursive: true, force: true });
 }
+const teamMemoryDatabase = new DatabaseSync(teamMemoryDatabasePath);
+try {
+  teamMemoryDatabase.exec(\`
+    CREATE TABLE events (
+      id INTEGER PRIMARY KEY,
+      person TEXT NOT NULL,
+      project TEXT,
+      ts TEXT NOT NULL,
+      source TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      refs TEXT,
+      raw TEXT,
+      hash TEXT NOT NULL,
+      UNIQUE(person, source, hash)
+    );
+  \`);
+  teamMemoryDatabase.prepare(\`
+    INSERT INTO events (
+      person, project, ts, source, kind, summary, refs, raw, hash
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  \`).run(
+    "fictional-analyst",
+    "fictional-project",
+    "2026-01-02T03:04:05Z",
+    "fictional-journal",
+    "note",
+    "Fictional compatibility record.",
+    JSON.stringify({ ticket: "FICTION-1" }),
+    "Fictional private detail.",
+    "fictional-revision-1",
+  );
+} finally {
+  teamMemoryDatabase.close();
+}
+const teamMemoryOptions = {
+  databasePath: teamMemoryDatabasePath,
+  sourceInstance: "fictional-compatible-ledger",
+};
+const teamMemoryRecords = readTeamMemorySourceRecords(teamMemoryOptions);
+const connectorConformance = await runSourceConnectorConformance([{
+  name: "fictional compatible ledger",
+  collect: () => readTeamMemorySourceRecords(teamMemoryOptions),
+  collectAgain: () => readTeamMemorySourceRecords(teamMemoryOptions),
+}]);
 console.log(JSON.stringify({
   schemaId: portableSchema.$id,
   recordType: restored.recordType,
@@ -760,8 +930,15 @@ console.log(JSON.stringify({
     typeof InMemoryCognitionStore,
     typeof runCognitionHostConformance,
     typeof SqliteCognitionStore,
+    typeof runSourceConnectorConformance,
+    typeof TeamMemoryConnectorError,
+    typeof readTeamMemorySourceRecords,
   ],
   sqliteReopened: reopened,
+  sqliteRejectedWithoutMutation: rejectedWithoutMutation,
+  connectorLedgerFormat: TEAM_MEMORY_LEDGER_FORMAT,
+  connectorRecordCount: teamMemoryRecords.length,
+  connectorConformanceStatus: connectorConformance[0]?.status,
 }));
 `,
     "utf8",
@@ -786,12 +963,13 @@ const descriptor = Object.getOwnPropertyDescriptor(
   prototype,
   "enableDefensive",
 );
-assert.ok(descriptor);
-assert.equal(typeof descriptor.value, "function");
-Object.defineProperty(prototype, "enableDefensive", {
-  ...descriptor,
-  value: undefined,
-});
+if (descriptor !== undefined) {
+  assert.equal(typeof descriptor.value, "function");
+  Object.defineProperty(prototype, "enableDefensive", {
+    ...descriptor,
+    value: undefined,
+  });
+}
 
 let openedStore;
 try {
@@ -820,7 +998,9 @@ try {
   }));
 } finally {
   openedStore?.close();
-  Object.defineProperty(prototype, "enableDefensive", descriptor);
+  if (descriptor !== undefined) {
+    Object.defineProperty(prototype, "enableDefensive", descriptor);
+  }
   rmSync(sqliteRoot, { recursive: true, force: true });
 }
 `,
@@ -887,7 +1067,13 @@ try {
       },
     );
     assert.equal(consumed.status, 0, consumed.stderr);
-    assert.deepEqual(JSON.parse(consumed.stdout.trim()), {
+    const consumedOutput = JSON.parse(consumed.stdout.trim());
+    const {
+      sqliteReopened,
+      sqliteRejectedWithoutMutation,
+      ...stableConsumedOutput
+    } = consumedOutput;
+    assert.deepEqual(stableConsumedOutput, {
       schemaId:
         "urn:collective-cognition:schema:portable-cognition:0.1.0",
       recordType: "cognitive-object",
@@ -901,9 +1087,20 @@ try {
         "function",
         "function",
         "function",
+        "function",
+        "function",
+        "function",
       ],
-      sqliteReopened: true,
+      connectorLedgerFormat: "teammem-event-ledger/1",
+      connectorRecordCount: 1,
+      connectorConformanceStatus: "passed",
     });
+    assert.equal(
+      sqliteReopened || sqliteRejectedWithoutMutation,
+      true,
+      "SQLite consumer must either reopen defensively or reject before mutation",
+    );
+    assert.notEqual(sqliteReopened, sqliteRejectedWithoutMutation);
 
     const unsupportedConsumed = spawnSync(
       process.execPath,
@@ -999,7 +1196,7 @@ console.log(JSON.stringify({
         "--input-type=module",
         "--eval",
         `import { readFile } from "node:fs/promises";
-const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.4.0`)});
+const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.5.0`)});
 const baseline = JSON.parse(await readFile(new URL(baselineUrl), "utf8"));
 const changeCases = (await readFile(new URL("./change-cases.jsonl", baselineUrl), "utf8"))
   .trim()
@@ -1023,8 +1220,8 @@ console.log(JSON.stringify({
     assert.deepEqual(
       JSON.parse(importedCurrentCompatibility.stdout.trim()),
       {
-        baselineVersion: "0.4.0",
-        classifications: ["additive"],
+        baselineVersion: "0.5.0",
+        classifications: ["additive", "breaking"],
       },
     );
 
@@ -1037,6 +1234,69 @@ console.log(JSON.stringify({
       existsSync(executable),
       true,
       "installed collective-cognition executable is missing",
+    );
+    const teamMemoryExecutableName =
+      process.platform === "win32"
+        ? "collective-cognition-teammem.cmd"
+        : "collective-cognition-teammem";
+    const teamMemoryExecutable =
+      `${consumerRoot}/node_modules/.bin/${teamMemoryExecutableName}`;
+    assert.equal(
+      existsSync(teamMemoryExecutable),
+      true,
+      "installed collective-cognition-teammem executable is missing",
+    );
+    if (process.platform !== "win32") {
+      assert.notEqual(
+        statSync(teamMemoryExecutable).mode & 0o111,
+        0,
+        "installed collective-cognition-teammem must be executable",
+      );
+    }
+    const teamMemoryExecuted = spawnSync(
+      teamMemoryExecutable,
+      [
+        "export",
+        "--db",
+        `${consumerRoot}/fictional-ledger.db`,
+        "--source-instance",
+        "fictional-compatible-ledger",
+      ],
+      {
+        cwd: consumerRoot,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          NODE_NO_WARNINGS: "1",
+        },
+        shell: process.platform === "win32",
+      },
+    );
+    assert.equal(
+      teamMemoryExecuted.status,
+      0,
+      teamMemoryExecuted.stderr || teamMemoryExecuted.stdout,
+    );
+    assert.equal(teamMemoryExecuted.stderr, "");
+    const validatedTeamMemoryOutput = spawnSync(
+      executable,
+      ["validate", "--input", "-", "--format", "jsonl"],
+      {
+        cwd: consumerRoot,
+        encoding: "utf8",
+        input: teamMemoryExecuted.stdout,
+        shell: process.platform === "win32",
+      },
+    );
+    assert.equal(
+      validatedTeamMemoryOutput.status,
+      0,
+      validatedTeamMemoryOutput.stderr || validatedTeamMemoryOutput.stdout,
+    );
+    assert.equal(validatedTeamMemoryOutput.stderr, "");
+    assert.equal(
+      JSON.parse(validatedTeamMemoryOutput.stdout.trim()).status,
+      "accepted",
     );
     const validRecord = readFileSync(validFixturesUrl, "utf8")
       .split("\n")
