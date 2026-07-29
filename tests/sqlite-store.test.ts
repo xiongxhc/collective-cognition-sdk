@@ -310,6 +310,102 @@ function startRacingCreator(
   return { child, result };
 }
 
+function startContendingWriter(
+  databasePath: string,
+  readyPath: string,
+  transition: TransitionCognitionCommit,
+): {
+  readonly child: ReturnType<typeof spawn>;
+  readonly result: Promise<{
+    readonly elapsedMilliseconds: number;
+    readonly outcome?: unknown;
+    readonly message?: string;
+  }>;
+} {
+  const script = `
+    import fs from "node:fs";
+    import { DatabaseSync } from "node:sqlite";
+    import { SqliteCognitionStore } from ${JSON.stringify(sqliteStoreUrl.href)};
+    const store = new SqliteCognitionStore({
+      databasePath: ${JSON.stringify(databasePath)},
+    });
+    const originalExec = DatabaseSync.prototype.exec;
+    DatabaseSync.prototype.exec = function (sql) {
+      if (sql.trim() === "BEGIN IMMEDIATE") {
+        fs.writeFileSync(${JSON.stringify(readyPath)}, "");
+      }
+      return originalExec.call(this, sql);
+    };
+    const startedAt = performance.now();
+    let result;
+    try {
+      const outcome = await store.commitTransition(
+        ${JSON.stringify(transition)}
+      );
+      result = {
+        elapsedMilliseconds: performance.now() - startedAt,
+        outcome,
+      };
+    } catch (error) {
+      result = {
+        elapsedMilliseconds: performance.now() - startedAt,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    } finally {
+      DatabaseSync.prototype.exec = originalExec;
+      store.close();
+    }
+    process.stdout.write(JSON.stringify(result));
+  `;
+  const child = spawn(
+    process.execPath,
+    [
+      "--disable-warning=ExperimentalWarning",
+      "--input-type=module",
+      "--eval",
+      script,
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  const result = new Promise<{
+    readonly elapsedMilliseconds: number;
+    readonly outcome?: unknown;
+    readonly message?: string;
+  }>((resolve, reject) => {
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code, signal) => {
+      if (code !== 0 || signal !== null) {
+        reject(
+          new Error(
+            `SQLite contention child failed: ${
+              stderr || stdout || `${code}/${signal}`
+            }`,
+          ),
+        );
+        return;
+      }
+      resolve(
+        JSON.parse(stdout) as {
+          readonly elapsedMilliseconds: number;
+          readonly outcome?: unknown;
+          readonly message?: string;
+        },
+      );
+    });
+  });
+  return { child, result };
+}
+
 function createDatabase(databasePath: string, sql: string): void {
   const database = new DatabaseSync(databasePath);
   try {
@@ -1183,6 +1279,89 @@ sqliteTest(
   },
 );
 
+sqliteTest(
+  "SQLite initial commit rejects higher gapped partial and orphaned history without mutation",
+  async (t) => {
+    const cases = [
+      {
+        name: "higher-only object",
+        foreignKeys: true,
+        seed(database: DatabaseSync, objectId: string) {
+          insertObjectRow(database, objectRecord({ id: objectId, version: 2 }));
+        },
+      },
+      {
+        name: "gapped object and event history",
+        foreignKeys: true,
+        seed(database: DatabaseSync, objectId: string) {
+          insertObjectRow(database, objectRecord({ id: objectId }));
+          const third = transitionCommit({
+            id: objectId,
+            expectedVersion: 2,
+          });
+          insertObjectRow(database, third.object);
+          insertEventRow(database, third.event);
+        },
+      },
+      {
+        name: "partial object history",
+        foreignKeys: true,
+        seed(database: DatabaseSync, objectId: string) {
+          insertObjectRow(database, objectRecord({ id: objectId }));
+          insertObjectRow(database, transitionCommit({ id: objectId }).object);
+        },
+      },
+      {
+        name: "orphaned event history",
+        foreignKeys: false,
+        seed(database: DatabaseSync, objectId: string) {
+          insertObjectRow(database, objectRecord({ id: objectId }));
+          insertEventRow(database, transitionCommit({ id: objectId }).event);
+        },
+      },
+    ] as const;
+
+    for (const [index, entry] of cases.entries()) {
+      const databasePath = join(
+        temporaryDatabasePath(t),
+        `../invalid-initial-history-${index}.db`,
+      );
+      const objectId = `goal:sqlite-initial-history:${index}`;
+      const initial = objectRecord({ id: objectId });
+      const created = new SqliteCognitionStore({
+        databasePath,
+        createIfMissing: true,
+      });
+      created.close();
+      const database = new DatabaseSync(databasePath, {
+        enableForeignKeyConstraints: entry.foreignKeys,
+      });
+      try {
+        entry.seed(database, objectId);
+      } finally {
+        database.close();
+      }
+      const before = snapshotCognitionRows(databasePath);
+      const store = new SqliteCognitionStore({ databasePath });
+
+      try {
+        await assert.rejects(
+          () => store.commitInitial({ object: initial }),
+          /Stored cognition history is inconsistent/,
+          entry.name,
+        );
+        assert.deepEqual(
+          snapshotCognitionRows(databasePath),
+          before,
+          entry.name,
+        );
+      } finally {
+        store.close();
+      }
+    }
+  },
+);
+
 sqliteTest("SQLite malformed stored object JSON fails closed", async (t) => {
   const databasePath = temporaryDatabasePath(t);
   const store = new SqliteCognitionStore({
@@ -1772,6 +1951,114 @@ sqliteTest(
         [winning.event],
       );
     }
+    assert.deepEqual(snapshotCognitionRows(databasePath), {
+      objects: [
+        [
+          objectId,
+          1,
+          initial.payload.type,
+          canonicalizeForTest(initial as unknown as JsonValue),
+        ],
+        [
+          objectId,
+          2,
+          winning.object.payload.type,
+          canonicalizeForTest(
+            winning.object as unknown as JsonValue,
+          ),
+        ],
+      ],
+      events: [
+        [
+          winning.event.payload.id,
+          objectId,
+          2,
+          canonicalizeForTest(
+            winning.event as unknown as JsonValue,
+          ),
+        ],
+      ],
+    });
+  },
+);
+
+sqliteTest(
+  "SQLite default timeout waits for an overlapping writer then returns the committed conflict without mutation",
+  async (t) => {
+    const databasePath = temporaryDatabasePath(t);
+    const readyPath = join(databasePath, "../contending-writer.ready");
+    const objectId = "goal:sqlite-overlapping-writers";
+    const initial = objectRecord({ id: objectId });
+    const winning = transitionCommit({
+      id: objectId,
+      eventId: "event:sqlite-overlapping-writers:winner",
+    });
+    const losingBase = transitionCommit({
+      id: objectId,
+      eventId: "event:sqlite-overlapping-writers:loser",
+    });
+    const losing = {
+      ...losingBase,
+      object: mutateTitle(
+        losingBase.object,
+        "Different overlapping target revision",
+      ),
+    };
+    const store = new SqliteCognitionStore({
+      databasePath,
+      createIfMissing: true,
+    });
+    await store.commitInitial({ object: initial });
+    store.close();
+
+    const winner = new DatabaseSync(databasePath, {
+      timeout: 5_000,
+    });
+    winner.exec("BEGIN IMMEDIATE");
+    insertObjectRow(winner, winning.object);
+    insertEventRow(winner, winning.event);
+    const contender = startContendingWriter(
+      databasePath,
+      readyPath,
+      losing,
+    );
+    t.after(() => {
+      if (
+        contender.child.exitCode === null &&
+        contender.child.signalCode === null
+      ) {
+        contender.child.kill();
+      }
+      if (winner.isOpen) {
+        if (winner.isTransaction) {
+          winner.exec("ROLLBACK");
+        }
+        winner.close();
+      }
+    });
+
+    await waitForFiles([readyPath]);
+    const earlyResult = await Promise.race([
+      contender.result.then(() => "settled" as const),
+      delay(200).then(() => "waiting" as const),
+    ]);
+    assert.equal(earlyResult, "waiting");
+    winner.exec("COMMIT");
+    winner.close();
+
+    const result = await contender.result;
+    assert.equal(result.message, undefined);
+    assert.ok(
+      result.elapsedMilliseconds >= 150,
+      JSON.stringify(result),
+    );
+    assert.deepEqual(result.outcome, {
+      status: "conflict",
+      conflict: {
+        code: "object_revision_collision",
+        objectId,
+      },
+    });
     assert.deepEqual(snapshotCognitionRows(databasePath), {
       objects: [
         [

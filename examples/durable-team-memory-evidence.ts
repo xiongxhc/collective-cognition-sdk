@@ -47,8 +47,22 @@ const valueArguments = new Set([
   "--limit",
 ]);
 const sqliteSidecarSuffixes = ["-journal", "-wal", "-shm"] as const;
+const busyTimeoutMs = 5_000;
 const isoTimestampPattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
+const usage = [
+  "Usage:",
+  "  npm run --silent example:teammem:durable -- \\",
+  "    --ledger /absolute/path/to/team-memory-agent/ledger.db \\",
+  "    --cognition-db /absolute/path/to/cognition.db \\",
+  "    --project <project> \\",
+  "    --from <ISO timestamp> \\",
+  "    --limit <positive integer> \\",
+  "    --create",
+  "",
+  "Reopen an existing cognition database by omitting --create.",
+  "",
+].join("\n");
 
 function invalidArguments(): never {
   throw new Error("Invalid arguments.");
@@ -92,13 +106,13 @@ function existingFileIdentity(
   }
 }
 
-function cognitionTargetCandidates(cognitionPath: string): Set<string> {
-  const mainPaths = new Set([cognitionPath, normalize(cognitionPath)]);
-  const canonicalParent = existingRealPath(dirname(cognitionPath));
+function sqliteFileFamilyCandidates(mainPath: string): Set<string> {
+  const mainPaths = new Set([mainPath, normalize(mainPath)]);
+  const canonicalParent = existingRealPath(dirname(mainPath));
   if (canonicalParent !== undefined) {
-    mainPaths.add(join(canonicalParent, basename(cognitionPath)));
+    mainPaths.add(join(canonicalParent, basename(mainPath)));
   }
-  const canonicalMain = existingRealPath(cognitionPath);
+  const canonicalMain = existingRealPath(mainPath);
   if (canonicalMain !== undefined) {
     mainPaths.add(canonicalMain);
   }
@@ -117,32 +131,35 @@ function assertSourceLedgerDisjoint(
   ledgerPath: string,
   cognitionPath: string,
 ): void {
-  const ledgerPaths = new Set([ledgerPath, normalize(ledgerPath)]);
-  const ledgerRealPath = existingRealPath(ledgerPath);
-  const ledgerIdentity = existingFileIdentity(ledgerPath);
+  const ledgerCandidates = sqliteFileFamilyCandidates(ledgerPath);
+  const cognitionCandidates = sqliteFileFamilyCandidates(cognitionPath);
 
-  for (const candidate of cognitionTargetCandidates(cognitionPath)) {
-    if (
-      ledgerPaths.has(candidate) ||
-      ledgerPaths.has(normalize(candidate))
-    ) {
-      sourceLedgerOverlap();
-    }
-    const candidateRealPath = existingRealPath(candidate);
-    if (
-      ledgerRealPath !== undefined &&
-      candidateRealPath === ledgerRealPath
-    ) {
-      sourceLedgerOverlap();
-    }
-    const candidateIdentity = existingFileIdentity(candidate);
-    if (
-      ledgerIdentity !== undefined &&
-      candidateIdentity !== undefined &&
-      ledgerIdentity.device === candidateIdentity.device &&
-      ledgerIdentity.inode === candidateIdentity.inode
-    ) {
-      sourceLedgerOverlap();
+  for (const ledgerCandidate of ledgerCandidates) {
+    const ledgerRealPath = existingRealPath(ledgerCandidate);
+    const ledgerIdentity = existingFileIdentity(ledgerCandidate);
+    for (const cognitionCandidate of cognitionCandidates) {
+      if (
+        ledgerCandidate === cognitionCandidate ||
+        normalize(ledgerCandidate) === normalize(cognitionCandidate)
+      ) {
+        sourceLedgerOverlap();
+      }
+      const cognitionRealPath = existingRealPath(cognitionCandidate);
+      if (
+        ledgerRealPath !== undefined &&
+        cognitionRealPath === ledgerRealPath
+      ) {
+        sourceLedgerOverlap();
+      }
+      const cognitionIdentity = existingFileIdentity(cognitionCandidate);
+      if (
+        ledgerIdentity !== undefined &&
+        cognitionIdentity !== undefined &&
+        ledgerIdentity.device === cognitionIdentity.device &&
+        ledgerIdentity.inode === cognitionIdentity.inode
+      ) {
+        sourceLedgerOverlap();
+      }
     }
   }
 }
@@ -352,6 +369,7 @@ async function run(args: readonly string[]) {
     store = new SqliteCognitionStore({
       databasePath: options.cognitionPath,
       createIfMissing: options.create,
+      busyTimeoutMs,
     });
     assertCommitted(await store.commitInitial({ object: hypothesisRecord }));
     assertCommitted(await store.commitInitial({ object: evidenceRecord }));
@@ -370,6 +388,7 @@ async function run(args: readonly string[]) {
   try {
     reopenedStore = new SqliteCognitionStore({
       databasePath: options.cognitionPath,
+      busyTimeoutMs,
     });
     const [
       initialHypothesis,
@@ -407,12 +426,17 @@ async function run(args: readonly string[]) {
   }
 }
 
-try {
-  const result = await run(process.argv.slice(2));
-  process.stdout.write(`${JSON.stringify(result)}\n`);
-} catch (error) {
-  process.stderr.write(
-    `${error instanceof Error ? error.message : "Durable workflow failed."}\n`,
-  );
-  process.exitCode = 1;
+const commandArguments = process.argv.slice(2);
+if (commandArguments.length === 1 && commandArguments[0] === "--help") {
+  process.stdout.write(usage);
+} else {
+  try {
+    const result = await run(commandArguments);
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+  } catch (error) {
+    process.stderr.write(
+      `${error instanceof Error ? error.message : "Durable workflow failed."}\n`,
+    );
+    process.exitCode = 1;
+  }
 }

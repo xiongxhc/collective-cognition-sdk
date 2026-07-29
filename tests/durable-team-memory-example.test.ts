@@ -14,6 +14,7 @@ import {
   rmSync,
   statSync,
   symlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
@@ -55,6 +56,19 @@ const expectedOutput = {
   decisionsInferred: 0,
   reopened: true,
 };
+const expectedUsage = [
+  "Usage:",
+  "  npm run --silent example:teammem:durable -- \\",
+  "    --ledger /absolute/path/to/team-memory-agent/ledger.db \\",
+  "    --cognition-db /absolute/path/to/cognition.db \\",
+  "    --project <project> \\",
+  "    --from <ISO timestamp> \\",
+  "    --limit <positive integer> \\",
+  "    --create",
+  "",
+  "Reopen an existing cognition database by omitting --create.",
+  "",
+].join("\n");
 
 interface Fixture {
   readonly root: string;
@@ -173,6 +187,11 @@ function runExample(
   args: readonly string[],
   additionalCognitionDirectories: readonly string[] = [],
 ): SpawnSyncReturns<string> {
+  const ledgerDirectory = join(fixture.root, "ledger");
+  const ledgerPermissions = new Set([
+    ledgerDirectory,
+    realpathSync.native(ledgerDirectory),
+  ]);
   const cognitionDirectories = new Set(
     [
       fixture.cognitionDirectory,
@@ -192,7 +211,9 @@ function runExample(
       "--disable-warning=ExperimentalWarning",
       "--permission",
       `--allow-fs-read=${repositoryRoot}`,
-      `--allow-fs-read=${join(fixture.root, "ledger")}`,
+      ...[...ledgerPermissions].map(
+        (directory) => `--allow-fs-read=${directory}`,
+      ),
       `--allow-fs-read=${fixture.runDirectory}`,
       ...cognitionPermissions,
       examplePath,
@@ -390,6 +411,84 @@ test(
 );
 
 test(
+  "rejects cognition at every explicit source-ledger sidecar without mutation",
+  (t) => {
+    for (const suffix of ["-journal", "-wal", "-shm"]) {
+      const fixture = createFixture(t);
+      const cognitionPath = `${fixture.ledgerPath}${suffix}`;
+
+      assertOverlapRejectedWithoutMutation(
+        fixture,
+        fixture.ledgerPath,
+        exampleArguments(fixture, true, { cognitionPath }),
+        [join(fixture.root, "ledger")],
+      );
+    }
+  },
+);
+
+test(
+  "rejects cognition at a canonical-parent source sidecar alias without mutation",
+  (t) => {
+    const fixture = createFixture(t);
+    const ledgerAliasDirectory = join(fixture.root, "ledger-alias");
+    symlinkSync(join(fixture.root, "ledger"), ledgerAliasDirectory, "dir");
+    const cognitionPath = join(
+      ledgerAliasDirectory,
+      "ledger.db-journal",
+    );
+
+    assertOverlapRejectedWithoutMutation(
+      fixture,
+      fixture.ledgerPath,
+      exampleArguments(fixture, true, { cognitionPath }),
+      [ledgerAliasDirectory],
+    );
+  },
+);
+
+test(
+  "rejects a symlink alias of an existing source sidecar without mutation",
+  (t) => {
+    const fixture = createFixture(t);
+    const sourceSidecarPath = `${fixture.ledgerPath}-wal`;
+    writeFileSync(sourceSidecarPath, "reserved source sidecar");
+    const cognitionPath = join(
+      fixture.cognitionDirectory,
+      "source-sidecar-symlink.db",
+    );
+    symlinkSync(sourceSidecarPath, cognitionPath);
+
+    assertOverlapRejectedWithoutMutation(
+      fixture,
+      fixture.ledgerPath,
+      exampleArguments(fixture, false, { cognitionPath }),
+      [join(fixture.root, "ledger")],
+    );
+  },
+);
+
+test(
+  "rejects a hardlink alias of an existing source sidecar without mutation",
+  (t) => {
+    const fixture = createFixture(t);
+    const sourceSidecarPath = `${fixture.ledgerPath}-shm`;
+    writeFileSync(sourceSidecarPath, "reserved source sidecar");
+    const cognitionPath = join(
+      fixture.cognitionDirectory,
+      "source-sidecar-hardlink.db",
+    );
+    linkSync(sourceSidecarPath, cognitionPath);
+
+    assertOverlapRejectedWithoutMutation(
+      fixture,
+      fixture.ledgerPath,
+      exampleArguments(fixture, false, { cognitionPath }),
+    );
+  },
+);
+
+test(
   "rejects a ledger at a canonical-parent sidecar before creation",
   (t) => {
     const fixture = createFixture(t);
@@ -453,6 +552,19 @@ test(
     );
   },
 );
+
+test("prints the complete closed durable usage without touching data", (t) => {
+  const fixture = createFixture(t);
+
+  const result = runExample(fixture, ["--help"]);
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.signal, null);
+  assert.equal(result.stderr, "");
+  assert.equal(result.stdout, expectedUsage);
+  assert.equal(existsSync(fixture.cognitionPath), false);
+  assert.deepEqual(filesBelow(fixture.root), ["ledger/ledger.db"]);
+});
 
 test("rejects arguments outside the exact closed interface", (t) => {
   const fixture = createFixture(t);

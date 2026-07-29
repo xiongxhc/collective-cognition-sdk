@@ -60,6 +60,7 @@ interface StoredObjectRow {
 
 const adapterId = "collective-cognition-sdk:sqlite-store";
 const schemaVersion = 1;
+const defaultBusyTimeoutMs = 5_000;
 const maximumBusyTimeoutMs = 60_000;
 const cognitionSchemaTableSql = `
   CREATE TABLE cognition_schema (
@@ -183,6 +184,10 @@ function invalidStoredObject(): never {
 
 function invalidStoredEvent(): never {
   throw new TypeError("Stored cognition event is invalid.");
+}
+
+function invalidStoredHistory(): never {
+  throw new TypeError("Stored cognition history is inconsistent.");
 }
 
 function deserializeStoredObject(
@@ -335,7 +340,7 @@ function snapshotOptions(
   return {
     databasePath: fields.databasePath,
     createIfMissing: fields.createIfMissing ?? false,
-    busyTimeoutMs: fields.busyTimeoutMs ?? 0,
+    busyTimeoutMs: fields.busyTimeoutMs ?? defaultBusyTimeoutMs,
   } as SqliteCognitionStoreOptionsSnapshot;
 }
 
@@ -626,6 +631,74 @@ function createTarget(
   }
 }
 
+function assertConsistentObjectHistory(
+  database: DatabaseSync,
+  objectId: string,
+): void {
+  try {
+    const objects = database
+      .prepare(
+        `
+          SELECT
+            object_id,
+            object_version,
+            object_type,
+            record_json
+          FROM cognition_objects
+          WHERE object_id = ?
+          ORDER BY object_version
+        `,
+      )
+      .all(objectId) as unknown as StoredObjectRow[];
+    const events = database
+      .prepare(
+        `
+          SELECT event_id, object_id, object_version, record_json
+          FROM cognition_events
+          WHERE object_id = ?
+          ORDER BY object_version, event_id
+        `,
+      )
+      .all(objectId) as Array<Record<string, unknown>>;
+
+    if (objects.length === 0 && events.length === 0) {
+      return;
+    }
+    if (objects.length === 0 || events.length !== objects.length - 1) {
+      return invalidStoredHistory();
+    }
+
+    for (const [index, row] of objects.entries()) {
+      const object = deserializeStoredObject(row);
+      const expectedVersion = index + 1;
+      if (object.payload.version !== expectedVersion) {
+        return invalidStoredHistory();
+      }
+      if (expectedVersion === 1) {
+        continue;
+      }
+
+      const event = events[index - 1];
+      if (
+        event === undefined ||
+        typeof event.event_id !== "string" ||
+        event.object_id !== objectId ||
+        event.object_version !== expectedVersion
+      ) {
+        return invalidStoredHistory();
+      }
+      deserializeStoredEvent(
+        event.record_json,
+        event.event_id,
+        objectId,
+        expectedVersion,
+      );
+    }
+  } catch {
+    return invalidStoredHistory();
+  }
+}
+
 export class SqliteCognitionStore implements CognitionStore {
   readonly #database: DatabaseSync;
 
@@ -680,6 +753,7 @@ export class SqliteCognitionStore implements CognitionStore {
     return runImmediateTransaction<CognitionStoreCommitResult>(
       this.#database,
       () => {
+        assertConsistentObjectHistory(this.#database, objectId);
         const existing = this.#database
           .prepare(
             `
