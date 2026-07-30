@@ -17,6 +17,15 @@ export {
   verifyMarkdownCognitionTarget,
 } from "./markdown-cognition-target.ts";
 
+export {
+  MARKDOWN_COGNITION_MAX_MANIFEST_ENTRIES,
+  MARKDOWN_COGNITION_MAX_PATH_SEGMENTS,
+  MARKDOWN_COGNITION_MAX_RECORDS,
+  MARKDOWN_COGNITION_MAX_RELATIVE_PATH_BYTES,
+  MARKDOWN_COGNITION_MAX_TOTAL_BYTES,
+  projectMarkdownCognition,
+} from "./markdown-cognition-projection.ts";
+
 export type {
   MarkdownCognitionErrorCode,
   MarkdownCognitionRecord,
@@ -28,3 +37,8 @@ export type {
   MarkdownCognitionVerificationDiagnostic,
   MarkdownCognitionVerificationReport,
 } from "./markdown-cognition-target.ts";
+
+export type {
+  MarkdownCognitionProjectionOptions,
+  MarkdownCognitionProjectionReport,
+} from "./markdown-cognition-projection.ts";

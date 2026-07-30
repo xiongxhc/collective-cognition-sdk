@@ -63,14 +63,14 @@ export interface MarkdownCognitionVerificationReport {
   readonly managedPaths: readonly string[];
 }
 
-interface MarkdownTargetMarker {
+export interface MarkdownTargetMarker {
   readonly format: typeof MARKDOWN_COGNITION_TARGET_FORMAT;
   readonly profileVersion: typeof MARKDOWN_COGNITION_PROFILE_VERSION;
   readonly targetId: string;
   readonly initializedByPackageVersion: string;
 }
 
-interface MarkdownManifestEntry {
+export interface MarkdownManifestEntry {
   readonly relativePath: string;
   readonly digest: string;
   readonly recordType: "cognitive-object" | "cognition-event" | "index";
@@ -78,7 +78,7 @@ interface MarkdownManifestEntry {
   readonly recordHash?: string;
 }
 
-interface MarkdownTargetManifest {
+export interface MarkdownTargetManifest {
   readonly format: typeof MARKDOWN_COGNITION_MANIFEST_FORMAT;
   readonly profileVersion: typeof MARKDOWN_COGNITION_PROFILE_VERSION;
   readonly targetId: string;
@@ -93,7 +93,7 @@ interface PathInspection {
   readonly kind: "present" | "missing" | "unsafe";
 }
 
-interface PathIdentity {
+export interface MarkdownCognitionPathIdentity {
   readonly path: string;
   readonly device: number;
   readonly inode: number;
@@ -103,7 +103,16 @@ interface PathIdentity {
 interface StagedFile {
   readonly finalName: string;
   readonly temporaryName: string;
-  readonly identity: PathIdentity;
+  readonly identity: MarkdownCognitionPathIdentity;
+}
+
+export interface MarkdownCognitionProjectionTarget {
+  readonly marker: MarkdownTargetMarker;
+  readonly markerBytes: Buffer;
+  readonly manifest: MarkdownTargetManifest;
+  readonly manifestBytes: Buffer;
+  readonly targetChain: readonly MarkdownCognitionPathIdentity[];
+  readonly targetDirectory: string;
 }
 
 function invalidTarget(): never {
@@ -206,7 +215,7 @@ function inspectPath(targetDirectory: string): PathInspection {
 function pathIdentity(
   path: string,
   entry: Stats,
-): PathIdentity {
+): MarkdownCognitionPathIdentity {
   return Object.freeze({
     device: entry.dev,
     inode: entry.ino,
@@ -216,8 +225,8 @@ function pathIdentity(
 }
 
 function sameIdentity(
-  left: Pick<PathIdentity, "device" | "inode" | "mode">,
-  right: Pick<PathIdentity, "device" | "inode" | "mode">,
+  left: Pick<MarkdownCognitionPathIdentity, "device" | "inode" | "mode">,
+  right: Pick<MarkdownCognitionPathIdentity, "device" | "inode" | "mode">,
 ): boolean {
   return (
     left.device === right.device &&
@@ -228,7 +237,7 @@ function sameIdentity(
 
 function snapshotDirectoryChain(
   directory: string,
-): readonly PathIdentity[] | undefined {
+): readonly MarkdownCognitionPathIdentity[] | undefined {
   const root = parse(directory).root;
   const paths = [root];
   let current = root;
@@ -236,7 +245,7 @@ function snapshotDirectoryChain(
     current = join(current, segment);
     paths.push(current);
   }
-  const identities: PathIdentity[] = [];
+  const identities: MarkdownCognitionPathIdentity[] = [];
   try {
     for (const path of paths) {
       const entry = lstatSync(path);
@@ -251,7 +260,7 @@ function snapshotDirectoryChain(
   }
 }
 
-function directoryChainMatches(chain: readonly PathIdentity[]): boolean {
+function directoryChainMatches(chain: readonly MarkdownCognitionPathIdentity[]): boolean {
   try {
     for (const identity of chain) {
       const entry = lstatSync(identity.path);
@@ -318,14 +327,14 @@ function closeFile(fileDescriptor: number | undefined): void {
 
 function stageCanonicalFile(
   targetDirectory: string,
-  targetChain: readonly PathIdentity[],
+  targetChain: readonly MarkdownCognitionPathIdentity[],
   finalName: string,
   contents: string,
 ): StagedFile {
   const stagedName = temporaryName();
   const stagedPath = join(targetDirectory, stagedName);
   let fileDescriptor: number | undefined;
-  let stagedIdentity: PathIdentity | undefined;
+  let stagedIdentity: MarkdownCognitionPathIdentity | undefined;
   try {
     if (!directoryChainMatches(targetChain)) {
       throw new Error("target changed");
@@ -395,9 +404,9 @@ function stageCanonicalFile(
 
 function ownedPathMatches(
   targetDirectory: string,
-  targetChain: readonly PathIdentity[],
+  targetChain: readonly MarkdownCognitionPathIdentity[],
   name: string,
-  expectedIdentity: PathIdentity | undefined,
+  expectedIdentity: MarkdownCognitionPathIdentity | undefined,
 ): boolean {
   if (!directoryChainMatches(targetChain)) {
     return false;
@@ -419,9 +428,9 @@ function ownedPathMatches(
 
 function cleanupOwnedPath(
   targetDirectory: string,
-  targetChain: readonly PathIdentity[],
+  targetChain: readonly MarkdownCognitionPathIdentity[],
   name: string,
-  expectedIdentity: PathIdentity | undefined,
+  expectedIdentity: MarkdownCognitionPathIdentity | undefined,
 ): void {
   if (!ownedPathMatches(targetDirectory, targetChain, name, expectedIdentity)) {
     return;
@@ -433,7 +442,7 @@ function cleanupOwnedPath(
 
 function commitStagedFile(
   targetDirectory: string,
-  targetChain: readonly PathIdentity[],
+  targetChain: readonly MarkdownCognitionPathIdentity[],
   staged: StagedFile,
 ): void {
   const stagedPath = join(targetDirectory, staged.temporaryName);
@@ -734,7 +743,7 @@ function inspectManagedPath(targetDirectory: string, relativePath: string): Path
 function readRegularFileNoFollow(
   targetDirectory: string,
   relativePath: string,
-  targetChain: readonly PathIdentity[],
+  targetChain: readonly MarkdownCognitionPathIdentity[],
   maximumBytes: number,
 ): RegularFile | typeof READ_LIMIT_EXCEEDED | undefined {
   if (inspectManagedPath(targetDirectory, relativePath).kind !== "present") {
@@ -818,6 +827,273 @@ function readRegularFileNoFollow(
   } catch {
     closeFile(fileDescriptor);
     return undefined;
+  }
+}
+
+function targetNotInitialized(): never {
+  throw new MarkdownCognitionError(
+    "target_not_initialized",
+    "Markdown cognition target is not initialized.",
+  );
+}
+
+function incompatibleTarget(): never {
+  throw new MarkdownCognitionError(
+    "incompatible_target",
+    "Markdown cognition target is incompatible.",
+  );
+}
+
+function unsafeTargetEntry(relativePath?: string): never {
+  throw new MarkdownCognitionError(
+    "unsafe_target_entry",
+    "Markdown cognition target contains an unsafe entry.",
+    relativePath,
+  );
+}
+
+export function openMarkdownCognitionProjectionTarget(
+  options: MarkdownCognitionTargetOptions,
+): MarkdownCognitionProjectionTarget {
+  const targetDirectory = normalizedTargetDirectory(options);
+  if (inspectPath(targetDirectory).kind === "missing") {
+    targetNotInitialized();
+  }
+  if (inspectPath(targetDirectory).kind === "unsafe") {
+    unsafeTargetEntry();
+  }
+  const targetChain = snapshotDirectoryChain(targetDirectory);
+  if (targetChain === undefined || !directoryChainMatches(targetChain)) {
+    unsafeTargetEntry();
+  }
+  const markerInspection = inspectManagedPath(targetDirectory, MARKDOWN_COGNITION_MARKER_FILE);
+  const manifestInspection = inspectManagedPath(targetDirectory, MARKDOWN_COGNITION_MANIFEST_FILE);
+  if (markerInspection.kind === "missing" || manifestInspection.kind === "missing") {
+    targetNotInitialized();
+  }
+  if (markerInspection.kind === "unsafe" || manifestInspection.kind === "unsafe") {
+    unsafeTargetEntry();
+  }
+  const markerFile = readRegularFileNoFollow(
+    targetDirectory,
+    MARKDOWN_COGNITION_MARKER_FILE,
+    targetChain,
+    MAX_TARGET_BYTES,
+  );
+  if (markerFile === READ_LIMIT_EXCEEDED) {
+    incompatibleTarget();
+  }
+  if (markerFile === undefined) {
+    unsafeTargetEntry();
+  }
+  const manifestFile = readRegularFileNoFollow(
+    targetDirectory,
+    MARKDOWN_COGNITION_MANIFEST_FILE,
+    targetChain,
+    MAX_TARGET_BYTES - markerFile.bytes.length,
+  );
+  if (manifestFile === READ_LIMIT_EXCEEDED) {
+    incompatibleTarget();
+  }
+  if (manifestFile === undefined) {
+    unsafeTargetEntry();
+  }
+  const marker = parseMarker(markerFile.bytes);
+  const manifest = parseManifest(manifestFile.bytes);
+  if (marker === undefined || manifest === undefined || marker.targetId !== manifest.targetId) {
+    incompatibleTarget();
+  }
+  return Object.freeze({
+    manifest,
+    manifestBytes: Buffer.from(manifestFile.bytes),
+    marker,
+    markerBytes: Buffer.from(markerFile.bytes),
+    targetChain,
+    targetDirectory,
+  });
+}
+
+export function markdownCognitionManagedRelativePath(value: string): string {
+  const relativePath = safeRelativePath(value);
+  if (relativePath === undefined) {
+    throw new MarkdownCognitionError(
+      "invalid_projection_input",
+      "Markdown cognition projection input is invalid.",
+    );
+  }
+  return relativePath;
+}
+
+export function readMarkdownCognitionProjectionFile(
+  target: MarkdownCognitionProjectionTarget,
+  relativePath: string,
+  maximumBytes: number,
+): Buffer | undefined {
+  const safePath = markdownCognitionManagedRelativePath(relativePath);
+  const file = readRegularFileNoFollow(
+    target.targetDirectory,
+    safePath,
+    target.targetChain,
+    maximumBytes,
+  );
+  if (file === READ_LIMIT_EXCEEDED) {
+    throw new MarkdownCognitionError(
+      "projection_limit_exceeded",
+      "Markdown cognition projection exceeds a supported limit.",
+      safePath,
+    );
+  }
+  if (file === undefined) {
+    const inspection = inspectManagedPath(target.targetDirectory, safePath);
+    if (inspection.kind === "missing") {
+      return undefined;
+    }
+    unsafeTargetEntry(safePath);
+  }
+  return Buffer.from(file.bytes);
+}
+
+function safeProjectionParent(
+  target: MarkdownCognitionProjectionTarget,
+  relativePath: string,
+): string {
+  const parts = relativePath.split("/");
+  let current = target.targetDirectory;
+  for (const part of parts.slice(0, -1)) {
+    current = join(current, part);
+    try {
+      const entry = lstatSync(current);
+      if (entry.isSymbolicLink() || !entry.isDirectory()) {
+        unsafeTargetEntry(relativePath);
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        unsafeTargetEntry(relativePath);
+      }
+      if (!directoryChainMatches(target.targetChain)) {
+        unsafeTargetEntry(relativePath);
+      }
+      try {
+        mkdirSync(current);
+      } catch {
+        unsafeTargetEntry(relativePath);
+      }
+      const entry = lstatSync(current);
+      if (entry.isSymbolicLink() || !entry.isDirectory()) {
+        unsafeTargetEntry(relativePath);
+      }
+    }
+  }
+  const chain = snapshotDirectoryChain(current);
+  if (chain === undefined || !directoryChainMatches(target.targetChain) || !directoryChainMatches(chain)) {
+    unsafeTargetEntry(relativePath);
+  }
+  return current;
+}
+
+export function replaceMarkdownCognitionProjectionFile(
+  target: MarkdownCognitionProjectionTarget,
+  relativePath: string,
+  bytes: Buffer,
+): void {
+  const safePath = markdownCognitionManagedRelativePath(relativePath);
+  const parentDirectory = safeProjectionParent(target, safePath);
+  const parentChain = snapshotDirectoryChain(parentDirectory);
+  if (parentChain === undefined || !directoryChainMatches(target.targetChain)) {
+    unsafeTargetEntry(safePath);
+  }
+  const temporaryPath = join(parentDirectory, temporaryName());
+  const finalPath = join(target.targetDirectory, ...safePath.split("/"));
+  let descriptor: number | undefined;
+  let temporaryIdentity: MarkdownCognitionPathIdentity | undefined;
+  try {
+    descriptor = openSync(
+      temporaryPath,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | (constants.O_NOFOLLOW ?? 0),
+      0o600,
+    );
+    const descriptorEntry = fstatSync(descriptor);
+    const pathEntry = lstatSync(temporaryPath);
+    temporaryIdentity = pathIdentity(temporaryPath, pathEntry);
+    if (
+      !descriptorEntry.isFile() || descriptorEntry.nlink !== 1 ||
+      pathEntry.isSymbolicLink() || !pathEntry.isFile() || pathEntry.nlink !== 1 ||
+      !sameIdentity(temporaryIdentity, { device: descriptorEntry.dev, inode: descriptorEntry.ino, mode: descriptorEntry.mode }) ||
+      !directoryChainMatches(target.targetChain) || !directoryChainMatches(parentChain)
+    ) {
+      throw new Error("unsafe staging");
+    }
+    let offset = 0;
+    while (offset < bytes.length) {
+      offset += writeSync(descriptor, bytes, offset);
+    }
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
+    const staged = lstatSync(temporaryPath);
+    if (
+      !staged.isFile() || staged.isSymbolicLink() || staged.nlink !== 1 ||
+      !sameIdentity(temporaryIdentity, pathIdentity(temporaryPath, staged)) ||
+      !directoryChainMatches(target.targetChain) || !directoryChainMatches(parentChain)
+    ) {
+      throw new Error("staging changed");
+    }
+    invokeMarkdownCognitionTargetTestHook("projection:before-replace", safePath);
+    if (!directoryChainMatches(target.targetChain) || !directoryChainMatches(parentChain)) {
+      throw new Error("target changed");
+    }
+    renameSync(temporaryPath, finalPath);
+    const finalEntry = lstatSync(finalPath);
+    if (
+      !finalEntry.isFile() || finalEntry.isSymbolicLink() || finalEntry.nlink !== 1 ||
+      !sameIdentity(temporaryIdentity, pathIdentity(finalPath, finalEntry)) ||
+      !directoryChainMatches(target.targetChain) || !directoryChainMatches(parentChain)
+    ) {
+      throw new Error("commit changed");
+    }
+  } catch {
+    closeFile(descriptor);
+    if (temporaryIdentity !== undefined) {
+      cleanupOwnedPath(parentDirectory, parentChain, parse(temporaryPath).base, temporaryIdentity);
+    }
+    throw new MarkdownCognitionError(
+      "projection_io_failed",
+      "Markdown cognition projection failed.",
+      safePath,
+    );
+  }
+}
+
+export function removeMarkdownCognitionProjectionFile(
+  target: MarkdownCognitionProjectionTarget,
+  relativePath: string,
+  expectedDigest: string,
+): void {
+  const safePath = markdownCognitionManagedRelativePath(relativePath);
+  const file = readMarkdownCognitionProjectionFile(target, safePath, MAX_TARGET_BYTES);
+  if (file === undefined || markdownCognitionDigest(file) !== expectedDigest) {
+    throw new MarkdownCognitionError(
+      "managed_file_conflict",
+      "A managed Markdown cognition file has changed.",
+      safePath,
+    );
+  }
+  const absolutePath = join(target.targetDirectory, ...safePath.split("/"));
+  try {
+    const entry = lstatSync(absolutePath);
+    if (entry.isSymbolicLink() || !entry.isFile() || entry.nlink !== 1 || !directoryChainMatches(target.targetChain)) {
+      unsafeTargetEntry(safePath);
+    }
+    unlinkSync(absolutePath);
+  } catch (error) {
+    if (error instanceof MarkdownCognitionError) {
+      throw error;
+    }
+    throw new MarkdownCognitionError(
+      "projection_io_failed",
+      "Markdown cognition projection failed.",
+      safePath,
+    );
   }
 }
 
@@ -1049,7 +1325,7 @@ export async function verifyMarkdownCognitionTarget(
     if (
       totalBytes > MAX_TARGET_BYTES ||
       decodeUtf8(file.bytes) === undefined ||
-      entry.digest !== createDigest(file.bytes)
+      entry.digest !== markdownCognitionDigest(file.bytes)
     ) {
       diagnostics.push(diagnostic(
         "incompatible_target",
@@ -1061,6 +1337,6 @@ export async function verifyMarkdownCognitionTarget(
   return finalizedReport(diagnostics, managedPaths);
 }
 
-function createDigest(contents: Buffer): string {
+export function markdownCognitionDigest(contents: Buffer): string {
   return createHash("sha256").update(contents).digest("hex");
 }

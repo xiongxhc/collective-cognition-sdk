@@ -1,6 +1,7 @@
 export type MarkdownCognitionTargetTestEvent =
   | "initialize:after-target-inspection"
   | "initialize:before-manifest-commit"
+  | "projection:before-replace"
   | "verify:after-target-inspection"
   | "verify:before-managed-open";
 
