@@ -295,6 +295,40 @@ test("rejects non-profile frontmatter grammar and field order", () => {
   assertInvalidMarkdown(replaceFirst(markdown, "object_id:", "object_id: |"));
 });
 
+test("rejects alternate JSON spellings of frontmatter strings", () => {
+  const markdown = renderMarkdownCognitionRecord(fixtureRecords()[1]!);
+  const alternateSpelling = replaceFirst(
+    markdown,
+    'object_id: "goal:loop"',
+    'object_id: "g\\u006fal:loop"',
+  );
+  assertInvalidMarkdown(alternateSpelling);
+});
+
+test("uses collision-free inline-code delimiters for untrusted identifiers", () => {
+  const record = structuredClone(fixtureRecords()[1]!) as MarkdownCognitionRecord;
+  if (record.recordType !== "cognitive-object") {
+    throw new Error("fixture mismatch");
+  }
+  const payload = record.payload as unknown as {
+    id: string;
+    attribution: { initiatorId: string };
+    relationships: { type: "parent-goal"; targetId: string }[];
+  };
+  payload.id = "goal`````id";
+  payload.attribution.initiatorId = "actor```id";
+  payload.relationships = [{
+    type: "parent-goal",
+    targetId: "target````id",
+  }];
+
+  const rendered = renderMarkdownCognitionRecord(record, { records: [record] });
+  assert.ok(rendered.includes("- ID: ``````goal`````id``````"));
+  assert.ok(rendered.includes("- Initiator: ````actor```id````"));
+  assert.ok(rendered.includes("- parent-goal: `````target````id`````"));
+  assert.doesNotMatch(rendered, /- (?:ID|Initiator|parent-goal): `[^\n]*\\`/);
+});
+
 test("rejects machine-block ambiguity, noncanonical JSON, and hash mismatch", () => {
   const markdown = renderMarkdownCognitionRecord(fixtureRecords()[0]!);
   assertInvalidMarkdown(markdown.replace("## Machine Record", "## Other"));

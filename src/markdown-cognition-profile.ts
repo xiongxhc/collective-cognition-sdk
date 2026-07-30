@@ -237,7 +237,7 @@ function canonicalRecord(record: MarkdownCognitionRecord): string {
   return serializePortableCognitionRecord(record);
 }
 
-function escapeMarkdownText(value: string): string {
+function escapeMarkdownText(value: string, escapeBackticks = true): string {
   let result = "";
   for (const character of value) {
     const codePoint = character.codePointAt(0)!;
@@ -251,7 +251,7 @@ function escapeMarkdownText(value: string): string {
       result += "\\t";
     } else if (codePoint < 0x20 || codePoint === 0x7f) {
       result += `\\u${codePoint.toString(16).padStart(4, "0")}`;
-    } else if ("#`[]!<>|".includes(character)) {
+    } else if ((escapeBackticks ? "#`[]!<>|" : "#[]!<>|").includes(character)) {
       result += `\\${character}`;
     } else {
       result += character;
@@ -260,8 +260,20 @@ function escapeMarkdownText(value: string): string {
   return result;
 }
 
-function escapeInlineCode(value: string): string {
-  return escapeMarkdownText(value).replaceAll("`", "\\`");
+function renderInlineCode(value: string): string {
+  const content = escapeMarkdownText(value, false);
+  let longestRun = 0;
+  let currentRun = 0;
+  for (const character of content) {
+    if (character === "`") {
+      currentRun += 1;
+      longestRun = Math.max(longestRun, currentRun);
+    } else {
+      currentRun = 0;
+    }
+  }
+  const delimiter = "`".repeat(longestRun + 1);
+  return `${delimiter}${content}${delimiter}`;
 }
 
 function jsonString(value: string): string {
@@ -339,7 +351,7 @@ function relationshipLines(
   return relationships.map((relationship) => {
     const target = objects.get(relationship.targetId);
     if (target === undefined) {
-      return `- ${escapeMarkdownText(relationship.type)}: \`${escapeInlineCode(relationship.targetId)}\``;
+      return `- ${escapeMarkdownText(relationship.type)}: ${renderInlineCode(relationship.targetId)}`;
     }
     const path = objectRevisionPath(target.type, target.id, target.version).slice(0, -3);
     return `- ${escapeMarkdownText(relationship.type)}: [[${path}|${escapeMarkdownText(target.title)}]]`;
@@ -371,7 +383,7 @@ function renderObjectBody(record: PortableCognitionRecord<"cognitive-object">, o
     "",
     `- Type: ${escapeMarkdownText(object.type)}`,
     `- State: ${escapeMarkdownText(object.state)}`,
-    `- ID: \`${escapeInlineCode(object.id)}\``,
+    `- ID: ${renderInlineCode(object.id)}`,
     `- Version: ${object.version}`,
     "",
     "## Relationships",
@@ -380,9 +392,9 @@ function renderObjectBody(record: PortableCognitionRecord<"cognitive-object">, o
     "",
     "## Attribution",
     "",
-    `- Initiator: \`${escapeInlineCode(object.attribution.initiatorId)}\``,
-    `- Executor: \`${escapeInlineCode(object.attribution.executorId)}\``,
-    `- Accountable: \`${escapeInlineCode(object.attribution.accountableId)}\``,
+    `- Initiator: ${renderInlineCode(object.attribution.initiatorId)}`,
+    `- Executor: ${renderInlineCode(object.attribution.executorId)}`,
+    `- Accountable: ${renderInlineCode(object.attribution.accountableId)}`,
     "",
     "## Provenance",
     "",
@@ -398,7 +410,7 @@ function renderObjectBody(record: PortableCognitionRecord<"cognitive-object">, o
     "",
     `- Created: ${escapeMarkdownText(object.createdAt)}`,
     `- Updated: ${escapeMarkdownText(object.updatedAt)}`,
-    `- Context: \`${escapeInlineCode(object.contextId)}\``,
+    `- Context: ${renderInlineCode(object.contextId)}`,
   ];
 }
 
@@ -406,11 +418,11 @@ function renderEventBody(record: PortableCognitionRecord<"cognition-event">, obj
   const event = record.payload;
   const object = objects.get(event.objectId);
   const relatedObject = object === undefined
-    ? `\`${escapeInlineCode(event.objectId)}\``
+    ? renderInlineCode(event.objectId)
     : `[[${objectRevisionPath(object.type, object.id, object.version).slice(0, -3)}|${escapeMarkdownText(object.title)}]]`;
   const confirmation = event.humanConfirmation === undefined
     ? "- None"
-    : `- Actor: \`${escapeInlineCode(event.humanConfirmation.actor.id)}\`; at: ${escapeMarkdownText(event.humanConfirmation.confirmedAt)}; event: \`${escapeInlineCode(event.humanConfirmation.eventId)}\``;
+    : `- Actor: ${renderInlineCode(event.humanConfirmation.actor.id)}; at: ${escapeMarkdownText(event.humanConfirmation.confirmedAt)}; event: ${renderInlineCode(event.humanConfirmation.eventId)}`;
   return [
     `# ${escapeMarkdownText(event.type)}`,
     "",
@@ -419,7 +431,7 @@ function renderEventBody(record: PortableCognitionRecord<"cognition-event">, obj
     "",
     "## Target",
     "",
-    `- Object ID: \`${escapeInlineCode(event.objectId)}\``,
+    `- Object ID: ${renderInlineCode(event.objectId)}`,
     `- Object Type: ${escapeMarkdownText(event.objectType)}`,
     `- Object Version: ${event.objectVersion}`,
     "",
@@ -430,11 +442,11 @@ function renderEventBody(record: PortableCognitionRecord<"cognition-event">, obj
     "",
     "## Event",
     "",
-    `- Event ID: \`${escapeInlineCode(event.id)}\``,
+    `- Event ID: ${renderInlineCode(event.id)}`,
     `- Occurred: ${escapeMarkdownText(event.occurredAt)}`,
-    `- Initiator: \`${escapeInlineCode(event.initiator.id)}\``,
-    `- Executor: \`${escapeInlineCode(event.executor.id)}\``,
-    `- Accountable: \`${escapeInlineCode(event.accountableParty.id)}\``,
+    `- Initiator: ${renderInlineCode(event.initiator.id)}`,
+    `- Executor: ${renderInlineCode(event.executor.id)}`,
+    `- Accountable: ${renderInlineCode(event.accountableParty.id)}`,
     `- Automation: ${escapeMarkdownText(event.automationMode)}`,
     `- Consequence: ${escapeMarkdownText(event.consequenceLevel)}`,
     `- Rationale: ${escapeMarkdownText(event.rationale)}`,
@@ -511,7 +523,11 @@ function parseFrontmatterValue(raw: string): string | number | boolean {
   if (raw.startsWith('"') && raw.endsWith('"')) {
     try {
       const parsed = JSON.parse(raw) as unknown;
-      if (typeof parsed === "string" && isUnicodeScalarString(parsed)) {
+      if (
+        typeof parsed === "string" &&
+        isUnicodeScalarString(parsed) &&
+        JSON.stringify(parsed) === raw
+      ) {
         return parsed;
       }
     } catch {
