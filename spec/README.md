@@ -1,6 +1,6 @@
 # Collective Cognition Specification
 
-This directory contains the implemented and final-review verified Normative Stable SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and [Host Integration `0.1.0`](host-integration.md) contracts plus compatibility baselines `0.1.0` through `0.5.0`. The runnable TypeScript code and emitted package artifacts are the current reference implementation; package `0.5.0` remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
+This directory contains the implemented and final-review verified Normative Stable SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and [Host Integration `0.1.0`](host-integration.md) contracts plus compatibility baselines `0.1.0` through `0.5.0`. The source checkout also implements a Supported Experimental Markdown cognition adapter pending its private `0.6.0` package baseline and final review. The runnable TypeScript code and emitted package artifacts are the current reference implementation; package `0.5.0` remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
 
 ## Current Architecture
 
@@ -12,7 +12,7 @@ The current direction is defined by:
 - the [implemented and final-review verified Portable Cognition design](../docs/superpowers/specs/2026-07-27-portable-cognition-contract-design.md).
 - the [SQLite cognition-store design](../docs/superpowers/specs/2026-07-29-sqlite-cognition-store-design.md), which is implemented and final-review verified.
 - [RFC 0006: Maintained Source Connectors](../rfcs/0006-maintained-source-connectors.md), implemented and final-review verified.
-- the proposed [Markdown cognition adapter design](../docs/superpowers/specs/2026-07-30-markdown-cognition-adapter-design.md), written for review and not yet implemented.
+- the implemented [Markdown cognition adapter guide](../docs/markdown-cognition-adapter-guide.md) and [RFC 0007](../rfcs/0007-markdown-cognition-adapter.md), whose package baseline and final review remain pending.
 
 The core design and Phase 2 universal ingestion are implemented and final-review verified locally. [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md) records the implemented ingestion semantics.
 
@@ -28,6 +28,7 @@ The historical team-memory direct-to-Evidence path was replaced. `SourceRecord` 
 
 - Review the [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/ROADMAP.md) and distinguish completed phases from planned ones.
 - Run `npm test`, `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, and `npm run example:teammem:durable` with explicit source-ledger and cognition-database paths for the durable workflow.
+- Run `npm run example:markdown` for a self-cleaning temporary Markdown target; it does not access a vault or database.
 - Read the normative [`SourceRecord 0.1.0` contract](source-record.md) and its [`JSON Schema`](schemas/0.1.0/source-record.schema.json).
 - Read the normative [`Portable Cognition 0.1.0` contract](portable-cognition.md), its [`JSON Schema`](schemas/0.1.0/portable-cognition.schema.json), and its [conformance fixtures](conformance/0.1.0/portable-cognition/).
 - Read the normative [Host Integration Contract `0.1.0`](host-integration.md) and [RFC 0004](../rfcs/0004-host-integration-contract.md) before changing host-owned cognition persistence, publication, replay, or read behavior.
@@ -79,6 +80,19 @@ External connectors may live in independent repositories and packages. They
 can import the root SourceRecord API plus the conformance subpath without
 importing the maintained connector. Conformance is not certification, does
 not imply endorsement, and is not an LTS commitment.
+
+## Supported Experimental Markdown Projection
+
+The source checkout implements a deterministic read-only Markdown cognition
+adapter. It projects selected Portable Cognition `0.1.0` cognitive objects and
+events into an explicitly initialized managed directory with stable paths,
+marker/manifest ownership, conflict detection, and optional safe pruning. It
+does not persist cognition, discover a vault, require Obsidian or Git, or
+import human Markdown edits. The intended package subpath is
+`collective-cognition-sdk/adapters/markdown/0.1.0`; its private `0.6.0`
+baseline and final review are pending, so this is not a Normative Stable
+contract. See the [operator guide](../docs/markdown-cognition-adapter-guide.md)
+and [RFC 0007](../rfcs/0007-markdown-cognition-adapter.md).
 
 ## Normative Portable Cognition 0.1.0
 

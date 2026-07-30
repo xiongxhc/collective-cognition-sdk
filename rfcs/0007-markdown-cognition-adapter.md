@@ -1,0 +1,118 @@
+# RFC 0007: Markdown Cognition Adapter
+
+**Status:** Implemented pending package compatibility baseline and final review
+
+**Created:** 2026-07-30
+
+## Problem
+
+Teams need a reviewable, portable presentation of governed cognitive objects
+without turning an editor directory into an uncontrolled persistence layer.
+Plain Markdown is broadly useful, but implicit vault discovery, title-derived
+paths, automatic Git actions, and silent overwrites would make a projection
+unsafe and difficult to reproduce.
+
+## Proposed Semantics
+
+The adapter projects validated Portable Cognition `0.1.0` cognitive-object and
+cognition-event records into a strict Markdown profile. SQLite or another
+host-selected `CognitionStore` remains authoritative. The projection is
+read-only: parsing generated Markdown supports validation and round trips, not
+importing human edits or persisting them back to a host.
+
+An operator supplies one absolute target directory and initializes it before
+projection. The adapter never discovers a vault, repository, `.obsidian`,
+`.git`, home directory, source store, or cognition store. Initialization adds a
+format marker and empty manifest. Subsequent operations only address files
+under that marked subtree.
+
+Generated paths use stable SHA-256 identifiers and explicit revisions.
+Rendered notes contain canonical Portable Cognition machine records. A
+canonical manifest records every managed path and complete file digest. An
+identical projection is write-if-changed and does not rewrite unchanged files.
+
+If a manifest-managed file differs from its recorded digest, the adapter fails
+with `managed_file_conflict` rather than overwriting a manual edit. Optional
+pruning removes only stale managed files that still match their prior digest.
+
+## Git and Obsidian Boundaries
+
+Git and Obsidian are non-dependencies. The output is standard Markdown and can
+be read by either tool, but the adapter does not bind to, discover, configure,
+or modify either. Git commits, pushes, schedules, review workflow, and vault
+layout remain host or operator responsibilities.
+
+## Privacy and Authority
+
+Projection preserves the data in validated Portable Cognition records; it does
+not create, infer, promote, or authorize cognition. Callers remain responsible
+for excluding secrets, personal data, raw source content, and private paths
+before records reach the projection. Reading a note is not an authorization
+decision, and editing one is not an approved cognitive transition.
+
+## Compatibility and Package Status
+
+The intended public surface is the Supported Experimental subpath
+`collective-cognition-sdk/adapters/markdown/0.1.0` plus the dedicated
+`collective-cognition-markdown` executable. This is an additive private package
+`0.6.0` change: it does not alter package-root exports, the generic CLI,
+SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, or
+existing connector behavior.
+
+The source implementation and focused tests are present before the `0.6.0`
+compatibility baseline is finalized. The package remains private and
+unpublished; no registry or publication commitment follows from this RFC.
+
+## Security Model
+
+The runtime rejects static links, hard links, unexpected entries, unsafe paths,
+invalid UTF-8, incompatible marker/manifest data, and detectable substitutions.
+Portable Node.js 24 does not expose descriptor-relative child operations, so the
+initial implementation assumes untrusted same-privilege processes do not
+concurrently mutate the target or its ancestors. Final-window swap-back
+mutation is outside this implementation's containment guarantee. A
+descriptor-relative native or platform backend is deferred.
+
+## Acceptance Checks
+
+- profile fixtures render deterministically and parse back to Portable
+  Cognition records;
+- target initialization and verification require one explicit managed target;
+- projection preserves unchanged files, fails on manual edits, and prunes only
+  unchanged stale managed files when explicitly requested;
+- CLI tests prove closed argument grammar, absolute explicit paths, bounded
+  input, no discovery, and sanitized diagnostics;
+- a runnable temporary-directory example initializes, projects, round-trips,
+  reprojects without updates, verifies, and cleans up;
+- package compatibility and final whole-branch review remain separate gates.
+
+## Alternatives
+
+### Make Markdown Authoritative
+
+Rejected. Free-form edits cannot preserve the Portable Cognition lifecycle,
+attribution, provenance, conflict semantics, or host-owned persistence
+guarantees without a separate governed import protocol.
+
+### Discover an Existing Vault
+
+Rejected. Ambient discovery is ambiguous, violates explicit-target safety, and
+would couple a public SDK to private local layout.
+
+### Require Obsidian or Git
+
+Rejected. Both are useful optional consumers, but neither is required for a
+portable Markdown profile or should control host persistence.
+
+## Explicit Deferrals
+
+- importing or reconciling human Markdown edits;
+- automatic source collection, promotion, or cognition persistence;
+- Git automation, scheduler integration, vault synchronization, or repository
+  discovery;
+- live-vault, live-ledger, or live-cognition-database automated tests;
+- package publication, registry confirmation, production certification, or
+  long-term support;
+- descriptor-relative filesystem operations and concurrent same-privilege
+  swap-back containment;
+- hosted collaboration, merge, search, or user-interface services.

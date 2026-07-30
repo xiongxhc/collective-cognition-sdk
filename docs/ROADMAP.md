@@ -193,7 +193,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 4: Adapter Ecosystem Foundations
 
-**Status:** Active. The SQLite database persistence adapter and maintained source-connector slice are implemented and final-review verified. The [Markdown cognition adapter design](superpowers/specs/2026-07-30-markdown-cognition-adapter-design.md) is written for review; implementation remains planned.
+**Status:** Active. The SQLite database persistence adapter and maintained source-connector slice are implemented and final-review verified. The [Markdown cognition adapter](markdown-cognition-adapter-guide.md) is implemented and locally verified in the source checkout; its private package `0.6.0` compatibility baseline and final whole-branch review remain pending.
 
 **Entry criteria**
 
@@ -208,9 +208,9 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Dedicated `collective-cognition-teammem` export CLI with explicit source selection, public non-secret `sourceInstance`, default raw omission, and sanitized failures.
 - [x] Private package `0.5.0` subpaths, executable, compatibility baseline, declaration closures, clean-consumer checks, and exact packaging allowlists.
 - [x] A concrete database persistence adapter that operates only on an explicitly supplied target and never discovers application data implicitly. The optional `collective-cognition-sdk/stores/sqlite/0.1.0` reference adapter requires a separate absolute cognition target, preserves canonical object and event records, and leaves source ledgers untouched.
-- [ ] The reviewed [Markdown cognition adapter](superpowers/specs/2026-07-30-markdown-cognition-adapter-design.md), operating only on an explicitly initialized managed directory.
+- [x] The reviewed [Markdown cognition adapter](superpowers/specs/2026-07-30-markdown-cognition-adapter-design.md), operating only on an explicitly initialized managed directory.
 - [x] A connector author guide and RFC explaining independent repositories and packages, SourceRecord neutrality, connector-owned concerns, and conformance limits.
-- [ ] Deterministic object-to-Markdown and Markdown-to-object fixtures with stable IDs, versions, relationships, and provenance.
+- [x] Deterministic object-to-Markdown and Markdown-to-object fixtures with stable IDs, versions, relationships, and provenance.
 
 **Acceptance checks**
 
@@ -220,9 +220,13 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Persistence adapter tests prove that durable cognitive objects and audit events survive round trips without depending on a source store's private schema.
 - [x] Manual real-ledger acceptance for the maintained connector: `12,807` records validated without raw content, repeated export SHA-256 `698ffd2d77dfdb588d85676582a37ee39fd8b9eff05708dc06fb580248453b17`, and source byte size plus nanosecond modification time unchanged.
 - [x] Independent final verification with no unresolved Critical or Important issue.
-- [ ] Object → Markdown → object round trips preserve normative semantics.
-- [ ] Repeated exports do not rewrite unchanged notes.
-- [ ] Tests prove the Markdown adapter never discovers or operates on a personal vault implicitly.
+- [x] Object → Markdown → object round trips preserve normative semantics.
+- [x] Repeated exports do not rewrite unchanged notes.
+- [x] Tests prove the Markdown adapter never discovers or operates on a personal vault implicitly.
+- [ ] Private package `0.6.0` export, executable, compatibility baseline, and
+  clean-consumer checks cover the Markdown adapter.
+- [ ] Final whole-branch review reconciles the Markdown adapter with the
+  package baseline and all project checks.
 
 **Current SQLite verification evidence**
 
