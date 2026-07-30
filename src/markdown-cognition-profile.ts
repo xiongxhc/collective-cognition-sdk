@@ -273,7 +273,8 @@ function renderInlineCode(value: string): string {
     }
   }
   const delimiter = "`".repeat(longestRun + 1);
-  return `${delimiter}${content}${delimiter}`;
+  const padding = content.startsWith("`") || content.endsWith("`") ? " " : "";
+  return `${delimiter}${padding}${content}${padding}${delimiter}`;
 }
 
 function jsonString(value: string): string {

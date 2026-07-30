@@ -329,6 +329,26 @@ test("uses collision-free inline-code delimiters for untrusted identifiers", () 
   assert.doesNotMatch(rendered, /- (?:ID|Initiator|parent-goal): `[^\n]*\\`/);
 });
 
+test("pads inline-code content that begins or ends with backticks", () => {
+  const record = structuredClone(fixtureRecords()[1]!) as MarkdownCognitionRecord;
+  if (record.recordType !== "cognitive-object") {
+    throw new Error("fixture mismatch");
+  }
+  const payload = record.payload as unknown as {
+    id: string;
+    attribution: { initiatorId: string };
+    relationships: { type: "parent-goal"; targetId: string }[];
+  };
+  payload.id = "`leading";
+  payload.attribution.initiatorId = "trailing`";
+  payload.relationships = [{ type: "parent-goal", targetId: "```" }];
+
+  const rendered = renderMarkdownCognitionRecord(record, { records: [record] });
+  assert.ok(rendered.includes("- ID: `` `leading ``"));
+  assert.ok(rendered.includes("- Initiator: `` trailing` ``"));
+  assert.ok(rendered.includes("- parent-goal: ```` ``` ````"));
+});
+
 test("rejects machine-block ambiguity, noncanonical JSON, and hash mismatch", () => {
   const markdown = renderMarkdownCognitionRecord(fixtureRecords()[0]!);
   assertInvalidMarkdown(markdown.replace("## Machine Record", "## Other"));
