@@ -170,8 +170,10 @@ UTF-8, and complete-digest properties of manifest-owned files only. It does not
 recursively inspect unrelated unmanifested entries. The first profile limits a
 projection to 10,000 records, 128 MiB total managed content, 10,001 manifest
 entries, four path segments, 512-byte relative paths, and 1 MiB per rendered
-note or parsed Markdown record. The dedicated CLI separately limits the entire
-JSONL input stream to 1 MiB.
+note or parsed Markdown record. Object revisions and cognition-event target
+versions are limited to 99,999,999 so generated revision paths always use
+exactly eight digits. The dedicated CLI separately limits the entire JSONL
+input stream to 1 MiB.
 
 The portable Node.js implementation assumes a stable target and ancestors:
 untrusted same-privilege processes must not concurrently swap paths while an

@@ -222,6 +222,8 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Independent final verification for the preceding connector and SQLite
   slices, with no unresolved Critical or Important issue.
 - [x] Object → Markdown → object round trips preserve normative semantics.
+- [x] Markdown object revisions and cognition-event target versions accept
+  `99,999,999`, reject `100,000,000`, and fail before target I/O.
 - [x] Repeated exports do not rewrite unchanged notes.
 - [x] Tests prove the Markdown adapter never discovers or operates on a personal vault implicitly.
 - [x] Private package `0.6.0` export, executable, compatibility baseline, and

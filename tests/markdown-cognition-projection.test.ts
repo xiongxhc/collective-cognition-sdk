@@ -17,12 +17,14 @@ import test from "node:test";
 
 import { setMarkdownCognitionTargetTestHook } from "../src/markdown-cognition-target.ts";
 import {
+  MARKDOWN_COGNITION_MAX_OBJECT_VERSION,
   MARKDOWN_COGNITION_MARKER_FILE,
   MARKDOWN_COGNITION_MANIFEST_FILE,
   MarkdownCognitionError,
   initializeMarkdownCognitionTarget,
   markdownCognitionRelativePath,
   projectMarkdownCognition,
+  verifyMarkdownCognitionTarget,
 } from "../src/markdown-cognition.ts";
 import type { MarkdownCognitionRecord } from "../src/markdown-cognition.ts";
 
@@ -105,6 +107,76 @@ test("fails on changed immutable identities before any write", async () => {
       }),
       (error: unknown) => error instanceof MarkdownCognitionError && error.code === "invalid_projection_input",
     );
+  } finally {
+    fixture.remove();
+  }
+});
+
+test("rejects oversized object and event versions before target access", async () => {
+  const fixture = temporaryInitializedTarget();
+  const object = structuredClone(fixtureRecords().find(
+    (record) => record.recordType === "cognitive-object",
+  )!) as MarkdownCognitionRecord;
+  const event = structuredClone(fixtureRecords().find(
+    (record) => record.recordType === "cognition-event",
+  )!) as MarkdownCognitionRecord;
+  if (object.recordType !== "cognitive-object" || event.recordType !== "cognition-event") {
+    throw new Error("fixture mismatch");
+  }
+  (object.payload as { version: number }).version =
+    MARKDOWN_COGNITION_MAX_OBJECT_VERSION + 1;
+  (event.payload as { objectVersion: number }).objectVersion =
+    MARKDOWN_COGNITION_MAX_OBJECT_VERSION + 1;
+  try {
+    for (const record of [object, event]) {
+      await assert.rejects(
+        () => projectMarkdownCognition({
+          targetDirectory: fixture.target,
+          records: [record],
+        }),
+        (error: unknown) =>
+          error instanceof MarkdownCognitionError &&
+          error.code === "projection_limit_exceeded",
+      );
+      assert.equal(lstatSync(fixture.target, { throwIfNoEntry: false }), undefined);
+    }
+  } finally {
+    fixture.remove();
+  }
+});
+
+test("projects and verifies the maximum object and event target version", async () => {
+  const fixture = temporaryInitializedTarget();
+  const event = structuredClone(fixtureRecords().find(
+    (record) => record.recordType === "cognition-event",
+  )!) as MarkdownCognitionRecord;
+  if (event.recordType !== "cognition-event") {
+    throw new Error("fixture mismatch");
+  }
+  const object = structuredClone(fixtureRecords().find(
+    (record) =>
+      record.recordType === "cognitive-object" &&
+      record.payload.id === event.payload.objectId,
+  )!) as MarkdownCognitionRecord;
+  if (object.recordType !== "cognitive-object") {
+    throw new Error("fixture mismatch");
+  }
+  (object.payload as { version: number }).version =
+    MARKDOWN_COGNITION_MAX_OBJECT_VERSION;
+  (event.payload as { objectVersion: number }).objectVersion =
+    MARKDOWN_COGNITION_MAX_OBJECT_VERSION;
+  try {
+    await initializeMarkdownCognitionTarget({ targetDirectory: fixture.target });
+    const projection = await projectMarkdownCognition({
+      targetDirectory: fixture.target,
+      records: [object, event],
+    });
+    const verification = await verifyMarkdownCognitionTarget({
+      targetDirectory: fixture.target,
+    });
+
+    assert.ok(projection.created.includes(markdownCognitionRelativePath(object)));
+    assert.equal(verification.status, "passed");
   } finally {
     fixture.remove();
   }

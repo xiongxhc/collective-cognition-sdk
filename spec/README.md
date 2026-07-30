@@ -88,7 +88,9 @@ adapter. It projects selected Portable Cognition `0.1.0` cognitive objects and
 events into an explicitly initialized managed directory with stable paths,
 marker/manifest ownership, conflict detection, and optional safe pruning. It
 does not persist cognition, discover a vault, require Obsidian or Git, or
-import human Markdown edits. The intended package subpath is
+import human Markdown edits. Its explicit `99,999,999` object and event target
+version ceiling keeps every managed object revision path within the fixed
+eight-digit grammar and fails before target I/O. The intended package subpath is
 `collective-cognition-sdk/adapters/markdown/0.1.0` in private package `0.6.0`.
 Its compatibility baseline and clean-consumer verification are complete, but
 it remains Supported Experimental rather than a Normative Stable contract.

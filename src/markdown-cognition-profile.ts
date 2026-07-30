@@ -19,6 +19,7 @@ export const MARKDOWN_COGNITION_PROFILE_VERSION =
   "portable-cognition-markdown/0.1.0";
 export const MARKDOWN_COGNITION_MAX_INPUT_BYTES = 1_048_576;
 export const MARKDOWN_COGNITION_MAX_NOTE_BYTES = 1_048_576;
+export const MARKDOWN_COGNITION_MAX_OBJECT_VERSION = 99_999_999;
 
 export type MarkdownCognitionRecord =
   | PortableCognitionRecord<"cognitive-object">
@@ -151,6 +152,14 @@ function snapshotMarkdownRecord(value: MarkdownCognitionRecord): MarkdownCogniti
     accepted.recordType !== "cognition-event"
   ) {
     projectionInputError();
+  }
+  if (
+    (accepted.recordType === "cognitive-object" &&
+      accepted.payload.version > MARKDOWN_COGNITION_MAX_OBJECT_VERSION) ||
+    (accepted.recordType === "cognition-event" &&
+      accepted.payload.objectVersion > MARKDOWN_COGNITION_MAX_OBJECT_VERSION)
+  ) {
+    projectionLimitExceeded();
   }
 
   try {

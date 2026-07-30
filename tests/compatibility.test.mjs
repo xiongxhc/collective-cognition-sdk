@@ -786,6 +786,7 @@ test("Markdown adapter subpath contract matches its exact additive inventory", (
       "MARKDOWN_COGNITION_MAX_INPUT_BYTES",
       "MARKDOWN_COGNITION_MAX_MANIFEST_ENTRIES",
       "MARKDOWN_COGNITION_MAX_NOTE_BYTES",
+      "MARKDOWN_COGNITION_MAX_OBJECT_VERSION",
       "MARKDOWN_COGNITION_MAX_PATH_SEGMENTS",
       "MARKDOWN_COGNITION_MAX_RECORDS",
       "MARKDOWN_COGNITION_MAX_RELATIVE_PATH_BYTES",
@@ -829,6 +830,7 @@ test("Markdown adapter subpath contract matches its exact additive inventory", (
       manifestFile: ".collective-cognition-manifest.json",
       maxInputBytes: 1048576,
       maxNoteBytes: 1048576,
+      maxObjectVersion: 99999999,
       maxRecords: 10000,
       maxTotalBytes: 134217728,
       maxManifestEntries: 10001,
@@ -875,6 +877,10 @@ test("Markdown adapter subpath contract matches its exact additive inventory", (
   assert.equal(
     markdownCognitionApi.MARKDOWN_COGNITION_MAX_NOTE_BYTES,
     baseline.markdownCognition.constants.maxNoteBytes,
+  );
+  assert.equal(
+    markdownCognitionApi.MARKDOWN_COGNITION_MAX_OBJECT_VERSION,
+    baseline.markdownCognition.constants.maxObjectVersion,
   );
   assert.equal(
     markdownCognitionApi.MARKDOWN_COGNITION_MAX_RECORDS,
@@ -1109,7 +1115,7 @@ test("change cases exercise the additive package process", () => {
     {
       id: "additive-markdown-cognition-adapter-surfaces",
       description:
-        "Add optional Markdown cognition adapter 0.1.0, compatibility 0.6.0, and a dedicated Markdown projection binary with stable index anchors and exact manifest ownership while preserving root exports and existing CLI contracts.",
+        "Add optional Markdown cognition adapter 0.1.0, compatibility 0.6.0, and a dedicated Markdown projection binary with stable index anchors, exact manifest ownership, and an explicit eight-digit revision ceiling while preserving root exports and existing CLI contracts.",
       surface: "supported-experimental",
       classification: "additive",
       packageVersionEffect: "minor",
@@ -1117,7 +1123,7 @@ test("change cases exercise the additive package process", () => {
       requiresMigrationNotes: false,
       requiresDeprecation: false,
       rationale:
-        "Existing root and versioned imports remain unchanged, Markdown APIs are isolated under a new versioned subpath, historical notes remain immutable as referenced successors advance through index anchors, manifest ownership is bound to generated identities and paths, the dedicated binary has a distinct name, and the package adds no production dependency fields.",
+        "Existing root and versioned imports remain unchanged, Markdown APIs are isolated under a new versioned subpath, historical notes remain immutable as referenced successors advance through index anchors, manifest ownership is bound to generated identities and paths, object and event target versions above 99,999,999 fail before target I/O, the dedicated binary has a distinct name, and the package adds no production dependency fields.",
     },
   ]);
   cases.forEach((changeCase) => {

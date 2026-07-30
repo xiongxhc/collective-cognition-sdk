@@ -99,6 +99,9 @@ deferred.
   report it as managed;
 - CLI tests prove closed argument grammar, absolute explicit paths, a 1 MiB
   aggregate JSONL input limit, no discovery, and sanitized diagnostics;
+- profile and projection tests prove object revisions and cognition-event
+  target versions accept `99,999,999`, reject `100,000,000`, and reject before
+  target access;
 - a runnable temporary-directory example initializes, projects, round-trips,
   reprojects without updates, verifies, and cleans up;
 - package compatibility is complete and final whole-branch review remains a

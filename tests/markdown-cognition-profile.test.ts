@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  MARKDOWN_COGNITION_MAX_OBJECT_VERSION,
   MARKDOWN_COGNITION_PROFILE_VERSION,
   MarkdownCognitionError,
   markdownCognitionRelativePath,
@@ -14,6 +15,7 @@ import {
 import type {
   MarkdownCognitionRecord,
 } from "../src/markdown-cognition.ts";
+import { serializePortableCognitionRecord } from "../src/portable-cognition.ts";
 
 const fixtureUrl = new URL(
   "./fixtures/markdown-cognition/0.1.0/records.jsonl",
@@ -48,6 +50,23 @@ function assertInvalidMarkdown(markdown: string): void {
   );
 }
 
+function replaceMachineRecord(
+  markdown: string,
+  record: MarkdownCognitionRecord,
+): string {
+  const previous = renderedMachineJson(markdown);
+  const next = serializePortableCognitionRecord(record);
+  return replaceFirst(
+    replaceFirst(
+      markdown,
+      `record_hash: "${createHash("sha256").update(previous, "utf8").digest("hex")}"`,
+      `record_hash: "${createHash("sha256").update(next, "utf8").digest("hex")}"`,
+    ),
+    previous,
+    next,
+  );
+}
+
 test("publishes the exact Markdown cognition profile", () => {
   assert.equal(
     MARKDOWN_COGNITION_PROFILE_VERSION,
@@ -75,6 +94,92 @@ test("uses stable digest paths instead of caller-controlled IDs", () => {
     const path = markdownCognitionRelativePath(record);
     assert.doesNotMatch(path, /\.\.|\\|:/);
     assert.equal(path.startsWith("/"), false);
+  }
+});
+
+test("enforces the exact eight-digit object and event version boundary", () => {
+  assert.equal(MARKDOWN_COGNITION_MAX_OBJECT_VERSION, 99_999_999);
+  const object = structuredClone(fixtureRecords().find(
+    (record) => record.recordType === "cognitive-object",
+  )!) as MarkdownCognitionRecord;
+  const event = structuredClone(fixtureRecords().find(
+    (record) => record.recordType === "cognition-event",
+  )!) as MarkdownCognitionRecord;
+  if (object.recordType !== "cognitive-object" || event.recordType !== "cognition-event") {
+    throw new Error("fixture mismatch");
+  }
+
+  (object.payload as { version: number }).version = MARKDOWN_COGNITION_MAX_OBJECT_VERSION;
+  (event.payload as { objectVersion: number }).objectVersion = MARKDOWN_COGNITION_MAX_OBJECT_VERSION;
+  assert.match(markdownCognitionRelativePath(object), /\/v99999999\.md$/);
+  assert.deepEqual(
+    parseMarkdownCognitionRecord(renderMarkdownCognitionRecord(object)),
+    object,
+  );
+  assert.deepEqual(
+    parseMarkdownCognitionRecord(renderMarkdownCognitionRecord(event)),
+    event,
+  );
+
+  (object.payload as { version: number }).version += 1;
+  (event.payload as { objectVersion: number }).objectVersion += 1;
+  for (const action of [
+    () => markdownCognitionRelativePath(object),
+    () => markdownCognitionRelativePath(event),
+    () => renderMarkdownCognitionRecord(object),
+    () => renderMarkdownCognitionIndex([object]),
+    () => renderMarkdownCognitionRecord(event),
+    () => renderMarkdownCognitionIndex([event]),
+  ]) {
+    assert.throws(
+      action,
+      (error: unknown) =>
+        error instanceof MarkdownCognitionError &&
+      error.code === "projection_limit_exceeded",
+    );
+  }
+
+  const acceptedObject = structuredClone(object) as MarkdownCognitionRecord;
+  const acceptedEvent = structuredClone(event) as MarkdownCognitionRecord;
+  if (
+    acceptedObject.recordType !== "cognitive-object" ||
+    acceptedEvent.recordType !== "cognition-event"
+  ) {
+    throw new Error("fixture mismatch");
+  }
+  (acceptedObject.payload as { version: number }).version =
+    MARKDOWN_COGNITION_MAX_OBJECT_VERSION;
+  (acceptedEvent.payload as { objectVersion: number }).objectVersion =
+    MARKDOWN_COGNITION_MAX_OBJECT_VERSION;
+  assert.throws(
+    () => renderMarkdownCognitionRecord(acceptedObject, { records: [event] }),
+    (error: unknown) =>
+      error instanceof MarkdownCognitionError &&
+      error.code === "projection_limit_exceeded",
+  );
+  const oversizedObjectMarkdown = replaceFirst(
+    replaceMachineRecord(
+      renderMarkdownCognitionRecord(acceptedObject),
+      object,
+    ),
+    `object_version: ${MARKDOWN_COGNITION_MAX_OBJECT_VERSION}`,
+    `object_version: ${MARKDOWN_COGNITION_MAX_OBJECT_VERSION + 1}`,
+  );
+  const oversizedEventMarkdown = replaceFirst(
+    replaceMachineRecord(
+      renderMarkdownCognitionRecord(acceptedEvent),
+      event,
+    ),
+    `object_version: ${MARKDOWN_COGNITION_MAX_OBJECT_VERSION}`,
+    `object_version: ${MARKDOWN_COGNITION_MAX_OBJECT_VERSION + 1}`,
+  );
+  for (const markdown of [oversizedObjectMarkdown, oversizedEventMarkdown]) {
+    assert.throws(
+      () => parseMarkdownCognitionRecord(markdown),
+      (error: unknown) =>
+        error instanceof MarkdownCognitionError &&
+        error.code === "projection_limit_exceeded",
+    );
   }
 });
 

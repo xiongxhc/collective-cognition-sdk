@@ -97,6 +97,7 @@ export const MARKDOWN_COGNITION_PROFILE_VERSION =
 
 export const MARKDOWN_COGNITION_MAX_INPUT_BYTES = 1_048_576;
 export const MARKDOWN_COGNITION_MAX_NOTE_BYTES = 1_048_576;
+export const MARKDOWN_COGNITION_MAX_OBJECT_VERSION = 99_999_999;
 
 export type MarkdownCognitionRecord =
   | PortableCognitionRecord<"cognitive-object">
@@ -244,6 +245,7 @@ Create `src/markdown-cognition.ts` as a pure re-export:
 export {
   MARKDOWN_COGNITION_MAX_INPUT_BYTES,
   MARKDOWN_COGNITION_MAX_NOTE_BYTES,
+  MARKDOWN_COGNITION_MAX_OBJECT_VERSION,
   MARKDOWN_COGNITION_PROFILE_VERSION,
   MarkdownCognitionError,
   markdownCognitionRelativePath,
@@ -266,8 +268,12 @@ In `src/markdown-cognition-profile.ts`:
 3. snapshot through own enumerable data-property descriptors before validation;
 4. call `createPortableCognitionRecord` to detach and freeze accepted records;
 5. reject SourceRecord-shaped and other Portable Cognition record families with
-   `invalid_projection_input`; and
-6. use fixed public messages without arbitrary exception text.
+   `invalid_projection_input`;
+6. reject cognitive-object versions and cognition-event `objectVersion` values
+   above `MARKDOWN_COGNITION_MAX_OBJECT_VERSION` with
+   `projection_limit_exceeded` before deriving a path or inspecting a target;
+   and
+7. use fixed public messages without arbitrary exception text.
 
 Use this validation boundary:
 

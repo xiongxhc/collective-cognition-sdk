@@ -160,7 +160,7 @@
       "spec/compatibility/0.3.0/change-cases.jsonl": "1f1ff3822de318806640357bb11804a0213d7084f05350035f8bb8d519dd95f2",
       "spec/compatibility/0.4.0/change-cases.jsonl": "704d478ed8738f3f591d6b49886bce919dcd0318b8c54a107619d1aa9961c645",
       "spec/compatibility/0.5.0/change-cases.jsonl": "992a3dfb12f5edcc96604007e61d28c102f0581d9bdba80f63697199be7e698e",
-      "spec/compatibility/0.6.0/change-cases.jsonl": "249bd6e7a9cbe132e9d55fe6f9e88544d981593520a1c1855f0ce18bd1162d32"
+      "spec/compatibility/0.6.0/change-cases.jsonl": "344c98585ab3c6572ea460a5902bea92bb9266bb29e33813492dd1c9bada62c8"
     },
     "hostIntegration": {
       "version": "0.1.0",
@@ -624,7 +624,7 @@
           "dist/portable-cognition.d.ts",
           "dist/types.d.ts"
         ],
-        "sha256": "3dc5ed1739e66d597be587e5e1f88b1066ca054b9117d24aab95a6d59ef41816"
+        "sha256": "92774073936f3f75621e9dd5f8a513729a355abdbc098c384fac87cc6f31be11"
       }
     }
   },
@@ -1011,6 +1011,7 @@
       "MARKDOWN_COGNITION_MAX_INPUT_BYTES",
       "MARKDOWN_COGNITION_MAX_MANIFEST_ENTRIES",
       "MARKDOWN_COGNITION_MAX_NOTE_BYTES",
+      "MARKDOWN_COGNITION_MAX_OBJECT_VERSION",
       "MARKDOWN_COGNITION_MAX_PATH_SEGMENTS",
       "MARKDOWN_COGNITION_MAX_RECORDS",
       "MARKDOWN_COGNITION_MAX_RELATIVE_PATH_BYTES",
@@ -1054,6 +1055,7 @@
       "manifestFile": ".collective-cognition-manifest.json",
       "maxInputBytes": 1048576,
       "maxNoteBytes": 1048576,
+      "maxObjectVersion": 99999999,
       "maxRecords": 10000,
       "maxTotalBytes": 134217728,
       "maxManifestEntries": 10001,
