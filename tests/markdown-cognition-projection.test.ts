@@ -17,6 +17,7 @@ import test from "node:test";
 
 import { setMarkdownCognitionTargetTestHook } from "../src/markdown-cognition-target.ts";
 import {
+  MARKDOWN_COGNITION_MARKER_FILE,
   MARKDOWN_COGNITION_MANIFEST_FILE,
   MarkdownCognitionError,
   initializeMarkdownCognitionTarget,
@@ -380,6 +381,45 @@ test("rejects symlink and hard-link managed entries", async () => {
     await assert.rejects(
       () => projectMarkdownCognition({ targetDirectory: fixture.target, records: [record] }),
       (error: unknown) => error instanceof MarkdownCognitionError && error.code === "unsafe_target_entry",
+    );
+  } finally {
+    fixture.remove();
+  }
+});
+
+test("rejects forged manifest ownership before prune mutation", async () => {
+  const fixture = temporaryInitializedTarget();
+  try {
+    await initializeMarkdownCognitionTarget({ targetDirectory: fixture.target });
+    const markerBefore = readFileSync(join(fixture.target, MARKDOWN_COGNITION_MARKER_FILE));
+    const marker = JSON.parse(markerBefore.toString("utf8")) as { targetId: string };
+    writeFileSync(
+      join(fixture.target, MARKDOWN_COGNITION_MANIFEST_FILE),
+      JSON.stringify({
+        entries: [{
+          digest: digest(markerBefore),
+          recordType: "index",
+          relativePath: MARKDOWN_COGNITION_MARKER_FILE,
+        }],
+        format: "collective-cognition-markdown-manifest/1",
+        profileVersion: "portable-cognition-markdown/0.1.0",
+        targetId: marker.targetId,
+      }),
+    );
+
+    await assert.rejects(
+      () => projectMarkdownCognition({
+        pruneManaged: true,
+        records: [],
+        targetDirectory: fixture.target,
+      }),
+      (error: unknown) =>
+        error instanceof MarkdownCognitionError &&
+        error.code === "incompatible_target",
+    );
+    assert.deepEqual(
+      readFileSync(join(fixture.target, MARKDOWN_COGNITION_MARKER_FILE)),
+      markerBefore,
     );
   } finally {
     fixture.remove();

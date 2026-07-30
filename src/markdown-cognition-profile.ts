@@ -134,6 +134,10 @@ function eventPath(objectId: string, eventId: string): string {
   return `Events/${sha256(objectId)}/${sha256(eventId)}.md`;
 }
 
+function objectIndexAnchor(objectId: string): string {
+  return `cc-object-${sha256(objectId)}`;
+}
+
 function snapshotMarkdownRecord(value: MarkdownCognitionRecord): MarkdownCognitionRecord {
   let accepted: PortableCognitionRecord;
   try {
@@ -354,8 +358,7 @@ function relationshipLines(
     if (target === undefined) {
       return `- ${escapeMarkdownText(relationship.type)}: ${renderInlineCode(relationship.targetId)}`;
     }
-    const path = objectRevisionPath(target.type, target.id, target.version).slice(0, -3);
-    return `- ${escapeMarkdownText(relationship.type)}: [[${path}|${escapeMarkdownText(target.title)}]]`;
+    return `- ${escapeMarkdownText(relationship.type)}: [[Index#^${objectIndexAnchor(target.id)}|${escapeMarkdownText(target.id)}]]`;
   });
 }
 
@@ -420,7 +423,7 @@ function renderEventBody(record: PortableCognitionRecord<"cognition-event">, obj
   const object = objects.get(event.objectId);
   const relatedObject = object === undefined
     ? renderInlineCode(event.objectId)
-    : `[[${objectRevisionPath(object.type, object.id, object.version).slice(0, -3)}|${escapeMarkdownText(object.title)}]]`;
+    : `[[Index#^${objectIndexAnchor(object.id)}|${escapeMarkdownText(object.id)}]]`;
   const confirmation = event.humanConfirmation === undefined
     ? "- None"
     : `- Actor: ${renderInlineCode(event.humanConfirmation.actor.id)}; at: ${escapeMarkdownText(event.humanConfirmation.confirmedAt)}; event: ${renderInlineCode(event.humanConfirmation.eventId)}`;
@@ -745,7 +748,7 @@ export function renderMarkdownCognitionIndex(records: readonly MarkdownCognition
     }
     for (const object of entries) {
       const path = objectRevisionPath(object.type, object.id, object.version).slice(0, -3);
-      lines.push(`- [[${path}|${escapeMarkdownText(object.title)}]] — ${escapeMarkdownText(object.state)} (v${object.version})`);
+      lines.push(`- [[${path}|${escapeMarkdownText(object.title)}]] — ${escapeMarkdownText(object.state)} (v${object.version}) ^${objectIndexAnchor(object.id)}`);
     }
     lines.push("");
   }

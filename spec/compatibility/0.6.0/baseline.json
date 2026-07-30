@@ -160,7 +160,7 @@
       "spec/compatibility/0.3.0/change-cases.jsonl": "1f1ff3822de318806640357bb11804a0213d7084f05350035f8bb8d519dd95f2",
       "spec/compatibility/0.4.0/change-cases.jsonl": "704d478ed8738f3f591d6b49886bce919dcd0318b8c54a107619d1aa9961c645",
       "spec/compatibility/0.5.0/change-cases.jsonl": "992a3dfb12f5edcc96604007e61d28c102f0581d9bdba80f63697199be7e698e",
-      "spec/compatibility/0.6.0/change-cases.jsonl": "5aa7b324f78dfc892c4202e5d3b52aebc32516b70f98c94306a9d82c08775e02"
+      "spec/compatibility/0.6.0/change-cases.jsonl": "249bd6e7a9cbe132e9d55fe6f9e88544d981593520a1c1855f0ce18bd1162d32"
     },
     "hostIntegration": {
       "version": "0.1.0",
@@ -624,7 +624,7 @@
           "dist/portable-cognition.d.ts",
           "dist/types.d.ts"
         ],
-        "sha256": "6488b9de26a96c7f0cdbf9dc8c8b51c8c4b39652ca5fc9beb6ad287d43386900"
+        "sha256": "3dc5ed1739e66d597be587e5e1f88b1066ca054b9117d24aab95a6d59ef41816"
       }
     }
   },

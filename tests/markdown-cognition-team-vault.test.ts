@@ -87,7 +87,7 @@ function changedManagedPaths(
 
 function wikiLinks(markdown: string): readonly string[] {
   return [...markdown.matchAll(/\[\[([^|\]]+)(?:\|[^\]]+)?\]\]/g)]
-    .map((match) => `${match[1]}.md`);
+    .map((match) => match[1]!);
 }
 
 function createTemporaryTeamVault(): { readonly cognitionTarget: string; readonly remove: () => void; readonly root: string } {
@@ -150,25 +150,29 @@ test("projects only into an initialized team-vault subtree", async () => {
     const hypothesis = byType.get("hypothesis")!;
     const evidence = latestObjects.find((record) => record.payload.id === "evidence:loop")!;
     const decision = byType.get("decision")!;
+    const objectAnchor = (objectId: string): string =>
+      `Index#^cc-object-${createHash("sha256").update(objectId, "utf8").digest("hex")}`;
     assert.ok(
       wikiLinks(readFileSync(
         join(vault.cognitionTarget, markdownCognitionRelativePath(lowerVersionSource)),
         "utf8",
-      )).includes(markdownCognitionRelativePath(hypothesis)),
+      )).includes(objectAnchor(hypothesis.payload.id)),
     );
     const inverseResolvedLinks = new Map<string, string[]>();
     for (const record of [hypothesis, evidence, decision]) {
       const sourcePath = markdownCognitionRelativePath(record);
-      for (const targetPath of wikiLinks(readFileSync(join(vault.cognitionTarget, sourcePath), "utf8"))) {
-        assert.equal(statSync(join(vault.cognitionTarget, targetPath)).isFile(), true);
-        const sources = inverseResolvedLinks.get(targetPath) ?? [];
+      for (const target of wikiLinks(readFileSync(join(vault.cognitionTarget, sourcePath), "utf8"))) {
+        const [targetPath, block] = target.split("#^");
+        assert.equal(targetPath, "Index");
+        assert.match(index, new RegExp(`\\^${block}$`, "m"));
+        const sources = inverseResolvedLinks.get(target) ?? [];
         sources.push(sourcePath);
-        inverseResolvedLinks.set(targetPath, sources);
+        inverseResolvedLinks.set(target, sources);
       }
     }
-    assert.ok(inverseResolvedLinks.get(markdownCognitionRelativePath(goal))?.includes(markdownCognitionRelativePath(hypothesis)));
-    assert.ok(inverseResolvedLinks.get(markdownCognitionRelativePath(hypothesis))?.includes(markdownCognitionRelativePath(evidence)));
-    assert.ok(inverseResolvedLinks.get(markdownCognitionRelativePath(evidence))?.includes(markdownCognitionRelativePath(decision)));
+    assert.ok(inverseResolvedLinks.get(objectAnchor(goal.payload.id))?.includes(markdownCognitionRelativePath(hypothesis)));
+    assert.ok(inverseResolvedLinks.get(objectAnchor(hypothesis.payload.id))?.includes(markdownCognitionRelativePath(evidence)));
+    assert.ok(inverseResolvedLinks.get(objectAnchor(evidence.payload.id))?.includes(markdownCognitionRelativePath(decision)));
     const managedPaths = [...first.created, MARKDOWN_COGNITION_MANIFEST_FILE].sort();
     const mtimes = managedPaths.map((path) => `${path}:${statSync(join(vault.cognitionTarget, path)).mtimeMs}`);
     const second = await projectMarkdownCognition({ targetDirectory: vault.cognitionTarget, records: [...records].reverse() });
@@ -179,10 +183,13 @@ test("projects only into an initialized team-vault subtree", async () => {
     );
 
     const successor = structuredClone(records.find((record) =>
-      record.recordType === "cognitive-object" && record.payload.type === "principle",
+      record.recordType === "cognitive-object" &&
+      record.payload.id === "hypothesis:loop" &&
+      record.payload.version === 3,
     )!) as MarkdownCognitionRecord;
     if (successor.recordType !== "cognitive-object") throw new Error("fixture mismatch");
-    (successor.payload as { version: number }).version += 10;
+    (successor.payload as { version: number }).version += 1;
+    (successor.payload as { title: string }).title = "Renamed referenced successor";
     (successor.payload as { updatedAt: string }).updatedAt = "2026-07-30T00:00:00Z";
     const beforeSuccessor = managedTree(vault.cognitionTarget);
     const successorReport = await projectMarkdownCognition({
@@ -197,6 +204,13 @@ test("projects only into an initialized team-vault subtree", async () => {
       "Index.md",
       markdownCognitionRelativePath(successor),
     ].sort());
+    const successorIndex = readFileSync(join(vault.cognitionTarget, "Index.md"), "utf8");
+    assert.match(
+      successorIndex,
+      new RegExp(
+        `\\[\\[${markdownCognitionRelativePath(successor).slice(0, -3)}\\|Renamed referenced successor\\]\\].*\\^cc-object-${createHash("sha256").update(successor.payload.id, "utf8").digest("hex")}`,
+      ),
+    );
     const changedBytes = changedManagedPaths(beforeSuccessor, afterSuccessor).reduce(
       (total, path) =>
         total + (beforeSuccessor.get(path)?.length ?? 0) + (afterSuccessor.get(path)?.length ?? 0),

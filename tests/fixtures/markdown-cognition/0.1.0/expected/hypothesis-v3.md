@@ -23,7 +23,7 @@ object_state: "testing"
 
 ## Relationships
 
-- supports-goal: [[Objects/Goals/5154134b109ab35801082d752e2105f0b95ac50f31b1223ddf76efbf84730d48/v00000002|Validate loop]]
+- supports-goal: [[Index#^cc-object-5154134b109ab35801082d752e2105f0b95ac50f31b1223ddf76efbf84730d48|goal:loop]]
 
 ## Attribution
 

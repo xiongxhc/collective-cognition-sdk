@@ -1109,7 +1109,7 @@ test("change cases exercise the additive package process", () => {
     {
       id: "additive-markdown-cognition-adapter-surfaces",
       description:
-        "Add optional Markdown cognition adapter 0.1.0, compatibility 0.6.0, and a dedicated Markdown projection binary while preserving root exports and existing CLI contracts.",
+        "Add optional Markdown cognition adapter 0.1.0, compatibility 0.6.0, and a dedicated Markdown projection binary with stable index anchors and exact manifest ownership while preserving root exports and existing CLI contracts.",
       surface: "supported-experimental",
       classification: "additive",
       packageVersionEffect: "minor",
@@ -1117,7 +1117,7 @@ test("change cases exercise the additive package process", () => {
       requiresMigrationNotes: false,
       requiresDeprecation: false,
       rationale:
-        "Existing root and versioned imports remain unchanged, Markdown APIs are isolated under a new versioned subpath, the dedicated binary has a distinct name, and the package adds no production dependency fields.",
+        "Existing root and versioned imports remain unchanged, Markdown APIs are isolated under a new versioned subpath, historical notes remain immutable as referenced successors advance through index anchors, manifest ownership is bound to generated identities and paths, the dedicated binary has a distinct name, and the package adds no production dependency fields.",
     },
   ]);
   cases.forEach((changeCase) => {

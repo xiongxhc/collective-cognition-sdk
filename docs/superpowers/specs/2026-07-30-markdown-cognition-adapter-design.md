@@ -500,8 +500,12 @@ records included in the same projection.
 
 For a relationship target present in the projection:
 
-- the link targets the highest projected version for that object ID;
-- the display text uses the target title when available; and
+- the note links to a deterministic `Index.md` block anchor derived from the
+  target object ID;
+- the display text uses the stable target object ID;
+- the index anchor links to the highest projected version for that object ID;
+- adding a referenced successor does not rewrite historical relationship
+  notes; and
 - the machine record continues to preserve only the normative relationship.
 
 For a relationship target absent from the projection, the note displays the
@@ -519,7 +523,8 @@ It contains:
 
 - the target profile;
 - counts by object type and state;
-- links to the highest projected revision of each object;
+- stable object-identity block anchors linked to the highest projected revision
+  of each object;
 - a separate audit-events link section; and
 - deterministic ordering by object type, normalized title, object ID, and
   version.
@@ -569,6 +574,15 @@ records:
 - the canonical record hash.
 
 It contains no absolute target path.
+
+Manifest ownership is restricted to the exact generated namespaces:
+`Index.md`, fixed object-family revision paths, and event paths. Marker,
+manifest, hidden, temporary, `.git`, `.obsidian`, and arbitrary paths cannot be
+claimed. Cognitive-object identities encode record family, object type, object
+ID, and version; event identities encode record family, object ID, and event
+ID. Their canonical identity fields must match the path hashes, directory,
+version, parsed managed record, and canonical record hash before verification
+or pruning accepts ownership.
 
 The manifest allows projection to distinguish:
 
@@ -842,7 +856,8 @@ The package remains `"private": true` and unpublished.
 
 - Paths are stable across title and state changes.
 - Object and event IDs cannot inject path components.
-- Relationship links resolve to the highest projected target version.
+- Relationship links use stable index anchors that resolve to the highest
+  projected target version without rewriting historical notes.
 - Missing relationship targets remain explicit unresolved IDs.
 - Input order does not change paths, links, notes, index, or manifest.
 - Duplicate immutable identities accept only canonical equality.
@@ -869,8 +884,8 @@ The package remains `"private": true` and unpublished.
 - First projection reports created files.
 - Identical second projection reports only unchanged files and preserves
   modification times.
-- Adding a successor object revision creates one revision note and updates only
-  the index and manifest.
+- Adding a successor object revision, including a referenced successor, creates
+  one revision note and updates only the index and manifest.
 - Manual changes produce conflicts without overwrite.
 - `pruneManaged: false` preserves stale managed files.
 - `pruneManaged: true` removes only unchanged stale manifest-owned files.

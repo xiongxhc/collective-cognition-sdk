@@ -37,6 +37,10 @@ Generated paths use stable SHA-256 identifiers and explicit revisions.
 Rendered notes contain canonical Portable Cognition machine records. A
 canonical manifest records every managed path and complete file digest. An
 identical projection is write-if-changed and does not rewrite unchanged files.
+Relationships target deterministic object-identity anchors in `Index.md`.
+Each anchor points to the highest projected revision, so adding a referenced
+successor changes only the successor note, index, and manifest rather than
+rewriting historical notes.
 
 If a manifest-managed file differs from its recorded digest, the adapter fails
 with `managed_file_conflict` rather than overwriting a manual edit. Optional
@@ -75,10 +79,11 @@ publication commitment follows from this RFC.
 
 At marker, manifest, manifest-owned, and desired paths, the runtime rejects
 static links, hard links, unexpected entry types, unsafe paths, invalid UTF-8,
-incompatible metadata, and detectable substitutions. It does not recursively
-inspect unrelated unmanifested entries. Portable Node.js 24 does not expose
-descriptor-relative child operations, so the initial implementation assumes
-untrusted same-privilege processes do not concurrently mutate the target or its
+forged manifest namespaces or identities, incompatible metadata, and
+detectable substitutions. It does not recursively inspect unrelated
+unmanifested entries. Portable Node.js 24 does not expose descriptor-relative
+child operations, so the initial implementation assumes untrusted
+same-privilege processes do not concurrently mutate the target or its
 ancestors. Final-window swap-back mutation is outside this implementation's
 containment guarantee. A descriptor-relative native or platform backend is
 deferred.
@@ -92,8 +97,8 @@ deferred.
   unchanged stale managed files when explicitly requested;
 - verification leaves an unrelated unmanifested file untouched and does not
   report it as managed;
-- CLI tests prove closed argument grammar, absolute explicit paths, bounded
-  input, no discovery, and sanitized diagnostics;
+- CLI tests prove closed argument grammar, absolute explicit paths, a 1 MiB
+  aggregate JSONL input limit, no discovery, and sanitized diagnostics;
 - a runnable temporary-directory example initializes, projects, round-trips,
   reprojects without updates, verifies, and cleans up;
 - package compatibility is complete and final whole-branch review remains a

@@ -120,10 +120,12 @@ Collective Cognition/
 └── Events/<sha256(object-id)>/<sha256(event-id)>.md
 ```
 
-Each managed note contains readable fields, local links to the highest
-projected revision of related objects, and one canonical Portable Cognition
-machine record. `Index.md` is also managed. The marker identifies the target
-format and profile; the manifest records every managed file digest.
+Each managed note contains readable fields, stable object-identity links into
+`Index.md`, and one canonical Portable Cognition machine record. The index
+anchor advances to the highest projected revision while historical note bytes
+remain unchanged. `Index.md` is also managed. The marker identifies the target
+format and profile; the manifest records every managed file digest and binds
+record ownership to the exact generated path and immutable identity.
 
 ## Read-Only Conflict and Pruning Rules
 
@@ -168,14 +170,15 @@ UTF-8, and complete-digest properties of manifest-owned files only. It does not
 recursively inspect unrelated unmanifested entries. The first profile limits a
 projection to 10,000 records, 128 MiB total managed content, 10,001 manifest
 entries, four path segments, 512-byte relative paths, and 1 MiB per rendered
-note/input record.
+note or parsed Markdown record. The dedicated CLI separately limits the entire
+JSONL input stream to 1 MiB.
 
 The portable Node.js implementation assumes a stable target and ancestors:
 untrusted same-privilege processes must not concurrently swap paths while an
-operation is running. Static links, hard links, unexpected entry types, and
-detectable substitutions at marker, manifest, managed, or desired paths fail
-closed. Unrelated unmanifested entries remain untouched. A future
-descriptor-relative filesystem backend is tracked for stronger
+operation is running. Static links, hard links, unexpected entry types, forged
+manifest ownership, and detectable substitutions at marker, manifest, managed,
+or desired paths fail closed. Unrelated unmanifested entries remain untouched.
+A future descriptor-relative filesystem backend is tracked for stronger
 concurrent-mutation containment.
 
 ## Git, Privacy, and Interoperability

@@ -140,6 +140,9 @@ target. Verification inspects only the marker, manifest, and manifest-owned
 files. Unrelated unmanifested entries remain operator-owned and untouched;
 mismatching collisions or unsafe substitutions at a managed or desired path
 fail closed. Exact desired bytes may be adopted only as idempotent recovery.
+Relationship notes link through stable object-identity anchors in `Index.md`;
+the index advances each anchor to the highest projected revision without
+rewriting historical notes.
 See the [Markdown cognition adapter guide](docs/markdown-cognition-adapter-guide.md) and [RFC 0007](rfcs/0007-markdown-cognition-adapter.md).
 
 The source checkout interface is:
@@ -169,12 +172,13 @@ executable.
 
 The first profile limits a projection to 10,000 records, 128 MiB total managed
 content, 10,001 manifest entries, four path segments, 512-byte relative paths,
-and 1 MiB per rendered note/input record. It assumes a stable target and
-ancestors: static links, hard links, unexpected entry types, and detectable
-substitutions at marker, manifest, managed, or desired paths fail closed.
-Unmanifested unrelated entries are not recursively inspected. Concurrent
-same-privilege final-window swap-back mutation awaits a future
-descriptor-relative backend.
+and 1 MiB per rendered note or parsed Markdown record. The dedicated CLI also
+limits the complete JSONL input stream to 1 MiB. It assumes a stable target and
+ancestors: static links, hard links, unexpected entry types, forged manifest
+ownership, and detectable substitutions at marker, manifest, managed, or
+desired paths fail closed. Unmanifested unrelated entries are not recursively
+inspected. Concurrent same-privilege final-window swap-back mutation awaits a
+future descriptor-relative backend.
 
 A `SourceRecord` accepts only the documented top-level and `source` fields. Every `extensions` key must contain a namespace separator (`:` or `.`) with non-empty sides. The interpretation keys `polarity`, `confidence`, and `authority` are also rejected directly in `context`; source-authored raw `content` may preserve fields with those names. The complete record is limited to 256 nested JSON containers, counting the root object as depth 1, so every SDK and CLI entry point rejects deeper values with `INVALID_SOURCE_RECORD` before recursive processing. `contentHash` is opaque caller-supplied integrity metadata, and this SDK does not verify that it is a digest or that it matches `content`.
 

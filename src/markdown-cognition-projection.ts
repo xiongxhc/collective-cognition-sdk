@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import {
   markdownCognitionDigest,
+  markdownCognitionManifestEntryMatchesContents,
   markdownCognitionManagedRelativePath,
   openMarkdownCognitionProjectionTarget,
   readMarkdownCognitionProjectionFile,
@@ -168,10 +169,15 @@ function projectionIdentity(record: MarkdownCognitionRecord): string {
   return record.recordType === "cognitive-object"
     ? canonicalizeJson([
       "cognitive-object",
+      record.payload.type,
       record.payload.id,
       record.payload.version,
     ] as JsonValue)
-    : canonicalizeJson(["cognition-event", record.payload.id] as JsonValue);
+    : canonicalizeJson([
+      "cognition-event",
+      record.payload.objectId,
+      record.payload.id,
+    ] as JsonValue);
 }
 
 function canonicalRecord(record: MarkdownCognitionRecord): string {
@@ -266,6 +272,17 @@ function buildPlan(options: ProjectionOptionsSnapshot): { readonly plan: Project
       else managedConflict(file.relativePath);
       continue;
     }
+    if (
+      previous.recordType !== file.recordType ||
+      previous.recordIdentity !== file.recordIdentity ||
+      previous.recordHash !== file.recordHash
+    ) {
+      throw new MarkdownCognitionError(
+        "incompatible_target",
+        "Markdown cognition target is incompatible.",
+        file.relativePath,
+      );
+    }
     if (existing === undefined) {
       managedConflict(file.relativePath);
     }
@@ -292,10 +309,27 @@ function buildPlan(options: ProjectionOptionsSnapshot): { readonly plan: Project
       if (existing !== undefined && markdownCognitionDigest(existing) !== entry.digest) {
         managedConflict(entry.relativePath);
       }
+      if (
+        existing !== undefined &&
+        !markdownCognitionManifestEntryMatchesContents(entry, existing)
+      ) {
+        throw new MarkdownCognitionError(
+          "incompatible_target",
+          "Markdown cognition target is incompatible.",
+          entry.relativePath,
+        );
+      }
       prune.push(entry);
     } else {
       if (existing === undefined || markdownCognitionDigest(existing) !== entry.digest) {
         managedConflict(entry.relativePath);
+      }
+      if (!markdownCognitionManifestEntryMatchesContents(entry, existing)) {
+        throw new MarkdownCognitionError(
+          "incompatible_target",
+          "Markdown cognition target is incompatible.",
+          entry.relativePath,
+        );
       }
       unchanged.push(Object.freeze({
         bytes: Buffer.alloc(0),

@@ -177,7 +177,7 @@ test("uses an immutable object path when title and state change", () => {
   assert.equal(markdownCognitionRelativePath(changed), markdownCognitionRelativePath(original));
 });
 
-test("links relationships to the highest projected object revision", () => {
+test("links relationships through stable index anchors to the highest projected revision", () => {
   const records = fixtureRecords();
   const experiment = records.find(
     (record) => record.recordType === "cognitive-object" && record.payload.type === "experiment",
@@ -186,9 +186,44 @@ test("links relationships to the highest projected object revision", () => {
   const hypothesis = records.find(
     (record) => record.recordType === "cognitive-object" && record.payload.id === "hypothesis:loop" && record.payload.version === 3,
   )!;
+  const anchor = `cc-object-${createHash("sha256").update(hypothesis.payload.id, "utf8").digest("hex")}`;
   assert.match(
     rendered,
-    new RegExp(`\\[\\[${markdownCognitionRelativePath(hypothesis).slice(0, -3)}\\|Loop is portable\\]\\]`),
+    new RegExp(`\\[\\[Index#\\^${anchor}\\|hypothesis:loop\\]\\]`),
+  );
+  assert.match(
+    renderMarkdownCognitionIndex(records),
+    new RegExp(
+      `\\[\\[${markdownCognitionRelativePath(hypothesis).slice(0, -3)}\\|Loop is portable\\]\\].*\\^${anchor}`,
+    ),
+  );
+});
+
+test("keeps relationship note bytes stable when a referenced successor is projected", () => {
+  const records = fixtureRecords();
+  const evidence = records.find(
+    (record) => record.recordType === "cognitive-object" && record.payload.type === "evidence",
+  )!;
+  const successor = structuredClone(records.find(
+    (record) =>
+      record.recordType === "cognitive-object" &&
+      record.payload.id === "hypothesis:loop" &&
+      record.payload.version === 3,
+  )!) as MarkdownCognitionRecord;
+  if (successor.recordType !== "cognitive-object") {
+    throw new Error("fixture mismatch");
+  }
+  (successor.payload as { version: number }).version = 4;
+  (successor.payload as { title: string }).title = "A renamed successor";
+  (successor.payload as { updatedAt: string }).updatedAt = "2026-07-30T00:00:00Z";
+
+  assert.equal(
+    renderMarkdownCognitionRecord(evidence, { records }),
+    renderMarkdownCognitionRecord(evidence, { records: [...records, successor] }),
+  );
+  assert.match(
+    renderMarkdownCognitionIndex([...records, successor]),
+    new RegExp(markdownCognitionRelativePath(successor).slice(0, -3)),
   );
 });
 

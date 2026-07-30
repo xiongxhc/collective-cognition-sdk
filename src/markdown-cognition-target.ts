@@ -21,8 +21,12 @@ import { parseProfiledJson } from "./json-text.ts";
 import {
   MARKDOWN_COGNITION_PROFILE_VERSION,
   MarkdownCognitionError,
+  markdownCognitionRelativePath,
+  parseMarkdownCognitionRecord,
 } from "./markdown-cognition-profile.ts";
+import type { MarkdownCognitionRecord } from "./markdown-cognition-profile.ts";
 import type { MarkdownCognitionErrorCode } from "./markdown-cognition-profile.ts";
+import { serializePortableCognitionRecord } from "./portable-cognition.ts";
 import { canonicalizeJson } from "./source-records.ts";
 import { isUnicodeScalarString } from "./types.ts";
 import type { JsonValue } from "./types.ts";
@@ -72,6 +76,19 @@ const READ_LIMIT_EXCEEDED = Symbol("markdown-cognition-read-limit-exceeded");
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 const WINDOWS_RESERVED_NAME_PATTERN =
   /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\..*)?$/iu;
+const OBJECT_MANAGED_PATH_PATTERN =
+  /^Objects\/(Identities|Goals|Hypotheses|Experiments|Evidence|Decisions|Principles)\/([0-9a-f]{64})\/v([0-9]{8})\.md$/;
+const EVENT_MANAGED_PATH_PATTERN =
+  /^Events\/([0-9a-f]{64})\/([0-9a-f]{64})\.md$/;
+const OBJECT_DIRECTORY_TYPES = Object.freeze({
+  Decisions: "decision",
+  Evidence: "evidence",
+  Experiments: "experiment",
+  Goals: "goal",
+  Hypotheses: "hypothesis",
+  Identities: "identity",
+  Principles: "principle",
+} as const);
 
 export interface MarkdownCognitionTargetOptions {
   readonly targetDirectory: string;
@@ -629,13 +646,15 @@ function parseManifestEntry(value: unknown): MarkdownManifestEntry | undefined {
   if (
     index !== undefined &&
     index.recordType === "index" &&
+    index.relativePath === "Index.md" &&
     typeof index.digest === "string" &&
     SHA256_PATTERN.test(index.digest)
   ) {
-    const relativePath = safeRelativePath(index.relativePath);
-    return relativePath === undefined
-      ? undefined
-      : Object.freeze({ digest: index.digest, recordType: "index", relativePath });
+    return Object.freeze({
+      digest: index.digest,
+      recordType: "index",
+      relativePath: "Index.md",
+    });
   }
   const record = ownDataObject(value, [
     "digest",
@@ -658,15 +677,80 @@ function parseManifestEntry(value: unknown): MarkdownManifestEntry | undefined {
     return undefined;
   }
   const relativePath = safeRelativePath(record.relativePath);
-  return relativePath === undefined
-    ? undefined
-    : Object.freeze({
-      digest: record.digest,
-      recordHash: record.recordHash,
-      recordIdentity: record.recordIdentity,
-      recordType: record.recordType,
+  if (
+    relativePath === undefined ||
+    !manifestRecordIdentityMatchesPath(
+      record.recordType,
+      record.recordIdentity,
       relativePath,
-    });
+    )
+  ) {
+    return undefined;
+  }
+  return Object.freeze({
+    digest: record.digest,
+    recordHash: record.recordHash,
+    recordIdentity: record.recordIdentity,
+    recordType: record.recordType,
+    relativePath,
+  });
+}
+
+function parsedRecordIdentity(value: string): readonly JsonValue[] | undefined {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (
+      !Array.isArray(parsed) ||
+      canonicalizeJson(parsed as JsonValue) !== value
+    ) {
+      return undefined;
+    }
+    return parsed as JsonValue[];
+  } catch {
+    return undefined;
+  }
+}
+
+function manifestRecordIdentityMatchesPath(
+  recordType: "cognitive-object" | "cognition-event",
+  recordIdentity: string,
+  relativePath: string,
+): boolean {
+  const identity = parsedRecordIdentity(recordIdentity);
+  if (recordType === "cognitive-object") {
+    const match = OBJECT_MANAGED_PATH_PATTERN.exec(relativePath);
+    if (
+      match === null ||
+      identity === undefined ||
+      identity.length !== 4 ||
+      identity[0] !== "cognitive-object" ||
+      identity[1] !== OBJECT_DIRECTORY_TYPES[match[1] as keyof typeof OBJECT_DIRECTORY_TYPES] ||
+      typeof identity[2] !== "string" ||
+      !isUnicodeScalarString(identity[2]) ||
+      typeof identity[3] !== "number" ||
+      !Number.isSafeInteger(identity[3]) ||
+      identity[3] < 1
+    ) {
+      return false;
+    }
+    return createHash("sha256").update(identity[2], "utf8").digest("hex") === match[2] &&
+      String(identity[3]).padStart(8, "0") === match[3];
+  }
+  const match = EVENT_MANAGED_PATH_PATTERN.exec(relativePath);
+  if (
+    match === null ||
+    identity === undefined ||
+    identity.length !== 3 ||
+    identity[0] !== "cognition-event" ||
+    typeof identity[1] !== "string" ||
+    !isUnicodeScalarString(identity[1]) ||
+    typeof identity[2] !== "string" ||
+    !isUnicodeScalarString(identity[2])
+  ) {
+    return false;
+  }
+  return createHash("sha256").update(identity[1], "utf8").digest("hex") === match[1] &&
+    createHash("sha256").update(identity[2], "utf8").digest("hex") === match[2];
 }
 
 function parseManifest(contents: Buffer): MarkdownTargetManifest | undefined {
@@ -759,11 +843,59 @@ function inspectManagedPath(targetDirectory: string, relativePath: string): Path
     if (entry.isSymbolicLink()) {
       return { kind: "unsafe" };
     }
-    if (index < parts.length - 1 && !entry.isDirectory()) {
+    if (
+      (index < parts.length - 1 && !entry.isDirectory()) ||
+      (index === parts.length - 1 && !entry.isFile())
+    ) {
       return { kind: "unsafe" };
     }
   }
   return { kind: "present" };
+}
+
+function projectionIdentity(record: MarkdownCognitionRecord): string {
+  return record.recordType === "cognitive-object"
+    ? canonicalizeJson([
+      "cognitive-object",
+      record.payload.type,
+      record.payload.id,
+      record.payload.version,
+    ] as JsonValue)
+    : canonicalizeJson([
+      "cognition-event",
+      record.payload.objectId,
+      record.payload.id,
+    ] as JsonValue);
+}
+
+function manifestEntryMatchesContents(
+  entry: MarkdownManifestEntry,
+  contents: Buffer,
+): boolean {
+  if (entry.recordType === "index") {
+    return entry.relativePath === "Index.md";
+  }
+  const markdown = decodeUtf8(contents);
+  if (markdown === undefined) {
+    return false;
+  }
+  try {
+    const record = parseMarkdownCognitionRecord(markdown);
+    const canonical = serializePortableCognitionRecord(record);
+    return record.recordType === entry.recordType &&
+      markdownCognitionRelativePath(record) === entry.relativePath &&
+      projectionIdentity(record) === entry.recordIdentity &&
+      createHash("sha256").update(canonical, "utf8").digest("hex") === entry.recordHash;
+  } catch {
+    return false;
+  }
+}
+
+export function markdownCognitionManifestEntryMatchesContents(
+  entry: MarkdownManifestEntry,
+  contents: Uint8Array,
+): boolean {
+  return manifestEntryMatchesContents(entry, Buffer.from(contents));
 }
 
 function readRegularFileNoFollow(
@@ -1354,7 +1486,8 @@ export async function verifyMarkdownCognitionTarget(
     if (
       totalBytes > MAX_TARGET_BYTES ||
       decodeUtf8(file.bytes) === undefined ||
-      entry.digest !== markdownCognitionDigest(file.bytes)
+      entry.digest !== markdownCognitionDigest(file.bytes) ||
+      !manifestEntryMatchesContents(entry, file.bytes)
     ) {
       diagnostics.push(diagnostic(
         "incompatible_target",

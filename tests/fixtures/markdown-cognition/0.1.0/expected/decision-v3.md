@@ -23,10 +23,10 @@ object_state: "approved"
 
 ## Relationships
 
-- supports-goal: [[Objects/Goals/5154134b109ab35801082d752e2105f0b95ac50f31b1223ddf76efbf84730d48/v00000002|Validate loop]]
-- justified-by-evidence: [[Objects/Evidence/4e4f652efc845b65514e245c5cfa87458da853551d7b6c7ccebbabb8c8e7deb8/v00000003|Schema test result]]
+- supports-goal: [[Index#^cc-object-5154134b109ab35801082d752e2105f0b95ac50f31b1223ddf76efbf84730d48|goal:loop]]
+- justified-by-evidence: [[Index#^cc-object-4e4f652efc845b65514e245c5cfa87458da853551d7b6c7ccebbabb8c8e7deb8|evidence:loop]]
 - considers-option: `option:adopt`
-- accountable-identity: [[Objects/Identities/951c1289f7e23520a2d8ca135da3e2e951690798c2aac1e412e81da3c7c328fd/v00000001|Accountable owner]]
+- accountable-identity: [[Index#^cc-object-951c1289f7e23520a2d8ca135da3e2e951690798c2aac1e412e81da3c7c328fd|identity:owner]]
 
 ## Attribution
 

@@ -195,5 +195,5 @@ This policy does not:
 - claim cross-language interoperability without conformance evidence; or
 - make this repository a standards body.
 
-Package `0.5.0` is private and unpublished. Connector conformance is not
+Package `0.6.0` is private and unpublished. Connector conformance is not
 certification, does not imply endorsement, and is not an LTS commitment.

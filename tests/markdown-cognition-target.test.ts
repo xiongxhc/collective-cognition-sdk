@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import {
   closeSync,
   lstatSync,
@@ -554,12 +555,16 @@ test("verification stops before opening later files after a cumulative limit vio
   const root = temporaryRoot();
   const target = join(root, "target");
   const targetId = "a".repeat(32);
-  const firstPath = "A.md";
-  const laterPath = "B.md";
+  const firstId = "goal:first";
+  const laterId = "goal:later";
+  const firstPath = `Objects/Goals/${createHash("sha256").update(firstId, "utf8").digest("hex")}/v00000001.md`;
+  const laterPath = `Objects/Goals/${createHash("sha256").update(laterId, "utf8").digest("hex")}/v00000001.md`;
   const openedManagedPaths: string[] = [];
   try {
     mkdirSync(target);
     writeInitializedFiles(target, targetId);
+    mkdirSync(join(target, firstPath, ".."), { recursive: true });
+    mkdirSync(join(target, laterPath, ".."), { recursive: true });
     writeFileSync(join(target, firstPath), "");
     truncateSync(join(target, firstPath), 128 * 1024 * 1024);
     writeFileSync(join(target, laterPath), "# later\n");
@@ -569,12 +574,16 @@ test("verification stops before opening later files after a cumulative limit vio
         entries: [
           {
             digest: "a".repeat(64),
-            recordType: "index",
+            recordHash: "c".repeat(64),
+            recordIdentity: `["cognitive-object","goal","${firstId}",1]`,
+            recordType: "cognitive-object",
             relativePath: firstPath,
           },
           {
             digest: "b".repeat(64),
-            recordType: "index",
+            recordHash: "d".repeat(64),
+            recordIdentity: `["cognitive-object","goal","${laterId}",1]`,
+            recordType: "cognitive-object",
             relativePath: laterPath,
           },
         ],
@@ -644,6 +653,167 @@ test("verification rejects Windows path aliases and reserved device names", asyn
 
     assert.equal(report.status, "failed");
     assert.ok(report.diagnostics.some((diagnostic) => diagnostic.code === "unsafe_target_entry"));
+    assert.deepEqual(openedManagedPaths, []);
+  } finally {
+    setMarkdownCognitionTargetTestHook(undefined);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verification rejects a FIFO leaf without blocking", { skip: process.platform === "win32" }, () => {
+  const root = temporaryRoot();
+  const target = join(root, "target");
+  const targetId = "a".repeat(32);
+  try {
+    mkdirSync(target);
+    writeInitializedFiles(target, targetId);
+    writeFileSync(
+      join(target, MARKDOWN_COGNITION_MANIFEST_FILE),
+      manifest(targetId, {
+        entries: [{
+          digest: "a".repeat(64),
+          recordType: "index",
+          relativePath: "Index.md",
+        }],
+      }),
+    );
+    const fifo = spawnSync("mkfifo", [join(target, "Index.md")]);
+    assert.equal(fifo.status, 0);
+    const moduleUrl = new URL("../src/markdown-cognition.ts", import.meta.url).href;
+    const child = spawnSync(
+      process.execPath,
+      [
+        "--disable-warning=ExperimentalWarning",
+        "--input-type=module",
+        "--eval",
+        `import { verifyMarkdownCognitionTarget } from ${JSON.stringify(moduleUrl)};
+const report = await verifyMarkdownCognitionTarget({ targetDirectory: ${JSON.stringify(target)} });
+if (report.status !== "failed" || !report.diagnostics.some((item) => item.code === "unsafe_target_entry")) process.exit(2);`,
+      ],
+      { timeout: 1_500 },
+    );
+    assert.equal(child.error, undefined);
+    assert.equal(child.signal, null);
+    assert.equal(child.status, 0, child.stderr.toString("utf8"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verification rejects a directory at a manifest-owned file leaf", async () => {
+  const root = temporaryRoot();
+  const target = join(root, "target");
+  const targetId = "a".repeat(32);
+  try {
+    mkdirSync(target);
+    writeInitializedFiles(target, targetId);
+    mkdirSync(join(target, "Index.md"));
+    writeFileSync(
+      join(target, MARKDOWN_COGNITION_MANIFEST_FILE),
+      manifest(targetId, {
+        entries: [{
+          digest: "a".repeat(64),
+          recordType: "index",
+          relativePath: "Index.md",
+        }],
+      }),
+    );
+
+    const report = await verifyMarkdownCognitionTarget({ targetDirectory: target });
+
+    assert.equal(report.status, "failed");
+    assert.ok(report.diagnostics.some((item) => item.code === "unsafe_target_entry"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verification rejects forged manifest ownership before opening managed paths", async () => {
+  const root = temporaryRoot();
+  const target = join(root, "target");
+  const targetId = "a".repeat(32);
+  const openedManagedPaths: string[] = [];
+  const objectId = "goal:owned";
+  const objectHash = createHash("sha256").update(objectId, "utf8").digest("hex");
+  const cases = [
+    {
+      digest: "a".repeat(64),
+      recordType: "index",
+      relativePath: MARKDOWN_COGNITION_MARKER_FILE,
+    },
+    {
+      digest: "a".repeat(64),
+      recordType: "index",
+      relativePath: MARKDOWN_COGNITION_MANIFEST_FILE,
+    },
+    {
+      digest: "a".repeat(64),
+      recordType: "index",
+      relativePath: "Notes/arbitrary.md",
+    },
+    {
+      digest: "a".repeat(64),
+      recordType: "index",
+      relativePath: ".hidden.md",
+    },
+    {
+      digest: "a".repeat(64),
+      recordType: "index",
+      relativePath: ".git/config",
+    },
+    {
+      digest: "a".repeat(64),
+      recordType: "index",
+      relativePath: ".obsidian/workspace.json",
+    },
+    {
+      digest: "a".repeat(64),
+      recordType: "index",
+      relativePath: ".collective-cognition.tmp-forged",
+    },
+    {
+      digest: "a".repeat(64),
+      recordHash: "b".repeat(64),
+      recordIdentity: '["cognitive-object","goal","goal:different",1]',
+      recordType: "cognitive-object",
+      relativePath: `Objects/Goals/${objectHash}/v00000001.md`,
+    },
+    {
+      digest: "a".repeat(64),
+      recordHash: "b".repeat(64),
+      recordIdentity: `["cognitive-object","evidence","${objectId}",1]`,
+      recordType: "cognitive-object",
+      relativePath: `Objects/Goals/${objectHash}/v00000001.md`,
+    },
+    {
+      digest: "a".repeat(64),
+      recordHash: "b".repeat(64),
+      recordIdentity: `["cognitive-object","goal","${objectId}",2]`,
+      recordType: "cognitive-object",
+      relativePath: `Objects/Goals/${objectHash}/v00000001.md`,
+    },
+  ];
+  try {
+    mkdirSync(target);
+    writeInitializedFiles(target, targetId);
+    setMarkdownCognitionTargetTestHook((event, relativePath) => {
+      if (
+        event === "verify:before-managed-open" &&
+        relativePath !== undefined &&
+        relativePath !== MARKDOWN_COGNITION_MARKER_FILE &&
+        relativePath !== MARKDOWN_COGNITION_MANIFEST_FILE
+      ) {
+        openedManagedPaths.push(relativePath);
+      }
+    });
+    for (const entry of cases) {
+      writeFileSync(
+        join(target, MARKDOWN_COGNITION_MANIFEST_FILE),
+        manifest(targetId, { entries: [entry] }),
+      );
+      const report = await verifyMarkdownCognitionTarget({ targetDirectory: target });
+      assert.equal(report.status, "failed");
+    }
     assert.deepEqual(openedManagedPaths, []);
   } finally {
     setMarkdownCognitionTargetTestHook(undefined);

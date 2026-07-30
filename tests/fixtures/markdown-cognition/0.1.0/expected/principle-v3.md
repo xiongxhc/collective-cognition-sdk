@@ -23,7 +23,7 @@ object_state: "adopted"
 
 ## Relationships
 
-- justified-by-decision: [[Objects/Decisions/879cc90bbe1f07d4daf2521665aec53d5b5f16a4b81fcd52c8a6ae9a0f538ecb/v00000003|Adopt loop]]
+- justified-by-decision: [[Index#^cc-object-879cc90bbe1f07d4daf2521665aec53d5b5f16a4b81fcd52c8a6ae9a0f538ecb|decision:loop]]
 
 ## Attribution
 

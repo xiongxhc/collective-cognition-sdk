@@ -792,7 +792,8 @@ Add exact tests for:
 - mismatching unmanifested path conflict;
 - manual changes to note/index/manifest-owned file conflict without overwrite;
 - unsafe directories, FIFOs where supported, and symlinks;
-- hard-linked managed files being replaced without mutating the peer link;
+- hard-linked managed files failing closed without replacement or peer-link
+  mutation;
 - no writes before complete preflight;
 - partial write recovery when manifest replacement fails;
 - `pruneManaged: false` preserving stale files;

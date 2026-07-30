@@ -46,7 +46,7 @@ occurred_at: "2026-07-27T10:03:00Z"
 
 ## Related Object
 
-- [[Objects/Hypotheses/a4b9682b8ceeac7087c231567b4797ac84b9c7e2bc0cfd21783c2af4a0af6852/v00000003|Loop is portable]]
+- [[Index#^cc-object-a4b9682b8ceeac7087c231567b4797ac84b9c7e2bc0cfd21783c2af4a0af6852|hypothesis:loop]]
 
 ## Machine Record
 
