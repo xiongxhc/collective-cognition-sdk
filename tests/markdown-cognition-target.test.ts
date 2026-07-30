@@ -253,13 +253,15 @@ test("verification rejects hard-linked metadata without reading linked content",
   }
 });
 
-test("verification reads only a validated manifest-owned regular file", async () => {
+test("verification leaves unrelated unmanifested files untouched and unmanaged", async () => {
   const root = temporaryRoot();
   const target = join(root, "target");
   try {
     mkdirSync(target);
     const index = "# Collective Cognition Index\n";
+    const unrelated = "operator-owned note\n";
     writeFileSync(join(target, "Index.md"), index);
+    writeFileSync(join(target, "human.md"), unrelated);
     const targetId = "a".repeat(32);
     writeFileSync(join(target, MARKDOWN_COGNITION_MARKER_FILE), marker(targetId));
     writeFileSync(join(target, MARKDOWN_COGNITION_MANIFEST_FILE), manifest(targetId, {
@@ -276,6 +278,8 @@ test("verification reads only a validated manifest-owned regular file", async ()
       MARKDOWN_COGNITION_MARKER_FILE,
       "Index.md",
     ].sort());
+    assert.equal(report.managedPaths.includes("human.md"), false);
+    assert.equal(readFileSync(join(target, "human.md"), "utf8"), unrelated);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

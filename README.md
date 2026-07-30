@@ -120,9 +120,9 @@ The SDK supplies the host-port contract, an in-memory reference implementation, 
 The Markdown adapter is a projection, not a persistence backend. A host keeps
 SQLite or another explicitly selected `CognitionStore` authoritative, then
 chooses whether to render selected validated Portable Cognition records into a
-separately initialized directory. It neither discovers a vault/repository nor
-binds to Obsidian, Git, a home directory, a source ledger, or a cognition
-database.
+separately initialized, dedicated directory. It neither discovers a
+vault/repository nor binds to Obsidian, Git, a home directory, a source ledger,
+or a cognition database.
 
 ```text
 host-selected CognitionStore
@@ -135,7 +135,11 @@ The target contains a marker, complete-digest manifest, `Index.md`, and stable
 SHA-256/revision paths. The adapter preserves unchanged bytes, fails rather
 than overwriting a manually changed managed file, and removes stale files only
 with explicit `pruneManaged`/`--prune-managed`. It writes no files outside the
-target. See the [Markdown cognition adapter guide](docs/markdown-cognition-adapter-guide.md) and [RFC 0007](rfcs/0007-markdown-cognition-adapter.md).
+target. Verification inspects only the marker, manifest, and manifest-owned
+files. Unrelated unmanifested entries remain operator-owned and untouched;
+mismatching collisions or unsafe substitutions at a managed or desired path
+fail closed. Exact desired bytes may be adopted only as idempotent recovery.
+See the [Markdown cognition adapter guide](docs/markdown-cognition-adapter-guide.md) and [RFC 0007](rfcs/0007-markdown-cognition-adapter.md).
 
 The source checkout interface is:
 
@@ -164,9 +168,11 @@ the installed executable is likewise pending that package baseline.
 The first profile limits a projection to 10,000 records, 128 MiB total managed
 content, 10,001 manifest entries, four path segments, 512-byte relative paths,
 and 1 MiB per rendered note/input record. It assumes a stable target and
-ancestors: static links, hard links, unexpected entries, and detectable
-substitutions fail closed, while concurrent same-privilege final-window
-swap-back mutation awaits a future descriptor-relative backend.
+ancestors: static links, hard links, unexpected entry types, and detectable
+substitutions at marker, manifest, managed, or desired paths fail closed.
+Unmanifested unrelated entries are not recursively inspected. Concurrent
+same-privilege final-window swap-back mutation awaits a future
+descriptor-relative backend.
 
 A `SourceRecord` accepts only the documented top-level and `source` fields. Every `extensions` key must contain a namespace separator (`:` or `.`) with non-empty sides. The interpretation keys `polarity`, `confidence`, and `authority` are also rejected directly in `context`; source-authored raw `content` may preserve fields with those names. The complete record is limited to 256 nested JSON containers, counting the root object as depth 1, so every SDK and CLI entry point rejects deeper values with `INVALID_SOURCE_RECORD` before recursive processing. `contentHash` is opaque caller-supplied integrity metadata, and this SDK does not verify that it is a digest or that it matches `content`.
 

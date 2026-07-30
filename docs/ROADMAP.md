@@ -219,7 +219,8 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Package tests cover the versioned conformance and connector imports, exact package contents, and both installed CLIs.
 - [x] Persistence adapter tests prove that durable cognitive objects and audit events survive round trips without depending on a source store's private schema.
 - [x] Manual real-ledger acceptance for the maintained connector: `12,807` records validated without raw content, repeated export SHA-256 `698ffd2d77dfdb588d85676582a37ee39fd8b9eff05708dc06fb580248453b17`, and source byte size plus nanosecond modification time unchanged.
-- [x] Independent final verification with no unresolved Critical or Important issue.
+- [x] Independent final verification for the preceding connector and SQLite
+  slices, with no unresolved Critical or Important issue.
 - [x] Object → Markdown → object round trips preserve normative semantics.
 - [x] Repeated exports do not rewrite unchanged notes.
 - [x] Tests prove the Markdown adapter never discovers or operates on a personal vault implicitly.

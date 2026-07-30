@@ -26,6 +26,13 @@ projection. The adapter never discovers a vault, repository, `.obsidian`,
 format marker and empty manifest. Subsequent operations only address files
 under that marked subtree.
 
+The target should be dedicated to generated cognition. Verification is
+manifest-closed: it inspects only the marker, manifest, and manifest-owned
+files. Unrelated unmanifested entries remain operator-owned and are not read,
+adopted, verified, or pruned. Mismatching collisions or unsafe substitutions at
+managed or newly desired paths fail closed; exact desired bytes may be adopted
+only as idempotent interrupted-write recovery.
+
 Generated paths use stable SHA-256 identifiers and explicit revisions.
 Rendered notes contain canonical Portable Cognition machine records. A
 canonical manifest records every managed path and complete file digest. An
@@ -65,13 +72,15 @@ unpublished; no registry or publication commitment follows from this RFC.
 
 ## Security Model
 
-The runtime rejects static links, hard links, unexpected entries, unsafe paths,
-invalid UTF-8, incompatible marker/manifest data, and detectable substitutions.
-Portable Node.js 24 does not expose descriptor-relative child operations, so the
-initial implementation assumes untrusted same-privilege processes do not
-concurrently mutate the target or its ancestors. Final-window swap-back
-mutation is outside this implementation's containment guarantee. A
-descriptor-relative native or platform backend is deferred.
+At marker, manifest, manifest-owned, and desired paths, the runtime rejects
+static links, hard links, unexpected entry types, unsafe paths, invalid UTF-8,
+incompatible metadata, and detectable substitutions. It does not recursively
+inspect unrelated unmanifested entries. Portable Node.js 24 does not expose
+descriptor-relative child operations, so the initial implementation assumes
+untrusted same-privilege processes do not concurrently mutate the target or its
+ancestors. Final-window swap-back mutation is outside this implementation's
+containment guarantee. A descriptor-relative native or platform backend is
+deferred.
 
 ## Acceptance Checks
 
@@ -80,6 +89,8 @@ descriptor-relative native or platform backend is deferred.
 - target initialization and verification require one explicit managed target;
 - projection preserves unchanged files, fails on manual edits, and prunes only
   unchanged stale managed files when explicitly requested;
+- verification leaves an unrelated unmanifested file untouched and does not
+  report it as managed;
 - CLI tests prove closed argument grammar, absolute explicit paths, bounded
   input, no discovery, and sanitized diagnostics;
 - a runnable temporary-directory example initializes, projects, round-trips,

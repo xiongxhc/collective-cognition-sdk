@@ -29,8 +29,8 @@ connector is required by this adapter.
 
 ## Initialize an Explicit Target
 
-Choose an empty, absolute directory. For example, a team may deliberately
-select `Collective Cognition` inside its existing team vault:
+Choose an empty, absolute, dedicated directory. For example, a team may
+deliberately select `Collective Cognition` inside its existing team vault:
 
 ```bash
 collective-cognition-markdown init \
@@ -41,6 +41,14 @@ This example is only an explicit path choice. The adapter does not search for
 `team-vault`, `.obsidian`, `.git`, a home directory, a repository, or a
 database. The initial command writes a marker and an empty manifest; those
 files establish the managed subtree boundary.
+
+Keep the target dedicated to generated cognition even though the adapter does
+not claim ownership of every later entry. Verification inspects only the
+marker, manifest, and manifest-owned files. An unrelated unmanifested file is
+operator-owned: it is not read, adopted, verified, or pruned. If an unmanaged
+entry collides with a path required by the next projection, mismatching bytes
+or an unsafe entry type fail closed. Exact desired bytes may be adopted only as
+idempotent recovery from an interrupted projection.
 
 The source checkout also supports the same closed command surface directly:
 
@@ -143,7 +151,8 @@ collective-cognition-markdown project \
 
 `--prune-managed` removes only stale files whose bytes still match the prior
 manifest. It preserves changed stale files by failing closed rather than
-deleting them. It never scans or prunes other vault content.
+deleting them. It never recursively scans or prunes unrelated unmanifested
+content in the target or elsewhere in the vault.
 
 ## Verification and Limits
 
@@ -154,16 +163,20 @@ collective-cognition-markdown verify \
   --target "/workspace/demo-team-vault/Collective Cognition"
 ```
 
-Verification checks marker/manifest compatibility, safe regular files, UTF-8,
-and complete digests. The first profile limits a projection to 10,000 records,
-128 MiB total managed content, 10,001 manifest entries, four path segments,
-512-byte relative paths, and 1 MiB per rendered note/input record.
+Verification checks marker/manifest compatibility and the safe regular-file,
+UTF-8, and complete-digest properties of manifest-owned files only. It does not
+recursively inspect unrelated unmanifested entries. The first profile limits a
+projection to 10,000 records, 128 MiB total managed content, 10,001 manifest
+entries, four path segments, 512-byte relative paths, and 1 MiB per rendered
+note/input record.
 
 The portable Node.js implementation assumes a stable target and ancestors:
 untrusted same-privilege processes must not concurrently swap paths while an
-operation is running. Static links, hard links, unexpected entries, and
-detectable substitutions fail closed. A future descriptor-relative filesystem
-backend is tracked for stronger concurrent-mutation containment.
+operation is running. Static links, hard links, unexpected entry types, and
+detectable substitutions at marker, manifest, managed, or desired paths fail
+closed. Unrelated unmanifested entries remain untouched. A future
+descriptor-relative filesystem backend is tracked for stronger
+concurrent-mutation containment.
 
 ## Git, Privacy, and Interoperability
 

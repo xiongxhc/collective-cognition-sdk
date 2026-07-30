@@ -39,7 +39,8 @@ The adapter has two layers:
 1. a pure deterministic codec between supported Portable Cognition records and
    a managed Markdown profile; and
 2. an explicit-target projection writer that maintains only an initialized
-   adapter-owned directory.
+   dedicated directory's marker, manifest, manifest-owned files, and desired
+   projection paths.
 
 The first version is a read-only projection. It renders cognition for people
 and tools but does not accept human Markdown edits as cognition transitions.
@@ -54,6 +55,9 @@ For the current team deployment, a host may explicitly configure:
 The SDK never knows the repository name, locates it automatically, commits Git
 changes, pushes a branch, or opens Obsidian. Under the supported filesystem
 threat model below, it operates only on the explicitly configured subtree.
+The target should be dedicated to generated cognition, but unrelated
+unmanifested entries that appear after initialization remain operator-owned
+and untouched.
 
 ## User Workflow
 
@@ -129,7 +133,7 @@ future editable-store behavior as a deliberate later design.
 - Explicit target initialization.
 - A target marker and adapter-owned manifest.
 - Write-if-changed projection.
-- Manual-edit and unsafe-entry conflict detection.
+- Manual-edit and managed/desired-path unsafe-entry conflict detection.
 - Optional explicit pruning of unchanged adapter-owned stale files.
 - A dedicated `collective-cognition-markdown` CLI.
 - Package version `0.6.0` compatibility and clean-consumer evidence.
@@ -286,12 +290,19 @@ system privileges.
 Within that model, the adapter fails closed for:
 
 - symbolic-link components present before inspection;
-- symbolic-link or hard-linked managed files;
-- unexpected non-directory or non-regular entries;
+- symbolic-link or hard-linked marker, manifest, managed, or desired files;
+- unexpected non-directory or non-regular entries at marker, manifest,
+  managed, or desired paths;
 - target, ancestor, parent-directory, or leaf substitutions that persist or
   remain detectable across the adapter's identity checks; and
 - file identity or metadata changes detected around descriptor reads and
   writes.
+
+Verification is intentionally manifest-closed. It inspects only the marker,
+manifest, and manifest-owned files. Projection additionally inspects desired
+paths before mutation. Unrelated unmanifested entries are not recursively
+read, adopted, verified, or pruned; they remain operator-owned. Operators
+should nevertheless use a dedicated target to keep ownership legible.
 
 The core snapshots target and ancestor filesystem identities, uses no-follow
 leaf opens where available, verifies opened descriptors against current path
@@ -843,8 +854,9 @@ The package remains `"private": true` and unpublished.
 - Initialization never adopts a non-empty arbitrary directory.
 - Under the supported stable-target threat model, projection selects only paths
   below the explicit target.
-- Static symbolic links, hard links, unexpected entries, and persistent or
-  detectable substitutions fail closed.
+- Static symbolic links, hard links, unexpected entry types, and persistent or
+  detectable substitutions at marker, manifest, managed, or desired paths fail
+  closed. Unrelated unmanifested entries remain operator-owned and untouched.
 - Deterministic tests prove detectable target and ancestor substitutions fail
   closed and separately document that swap-back mutation by a concurrent
   same-privilege process is excluded.
@@ -921,7 +933,8 @@ The slice is complete only when:
 4. under the documented stable-target filesystem threat model, the adapter
    selects writes only within an explicitly initialized managed target;
 5. identical projection performs no Markdown rewrites;
-6. manual edits and unsafe entries fail without overwrite;
+6. manual edits and unsafe entries at managed or desired paths fail without
+   overwrite, while unrelated unmanifested entries remain untouched;
 7. optional pruning touches only unchanged manifest-owned files;
 8. temporary team-vault acceptance leaves unrelated content unchanged;
 9. the package root and historical compatibility artifacts remain unchanged;

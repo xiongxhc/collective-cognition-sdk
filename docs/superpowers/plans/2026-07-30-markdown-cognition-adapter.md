@@ -21,9 +21,12 @@
 - The only filesystem target is an absolute, explicitly supplied, separately initialized managed directory.
 - Filesystem containment assumes that untrusted same-privilege processes do not
   concurrently mutate the target or its ancestors. Static links, hard links,
-  unexpected entries, and persistent or detectable substitutions must fail
-  closed; final-window swap-back mutation is explicitly excluded because
-  portable Node.js 24 has no descriptor-relative child operations.
+  unexpected entry types, and persistent or detectable substitutions at
+  marker, manifest, manifest-owned, or desired paths must fail closed.
+  Verification inspects only marker, manifest, and manifest-owned files;
+  unrelated unmanifested entries remain operator-owned and untouched. Use a
+  dedicated target. Final-window swap-back mutation is explicitly excluded
+  because portable Node.js 24 has no descriptor-relative child operations.
 - The first profile is read-only. Parsing generated Markdown does not authorize or persist human edits.
 - Use descriptor-safe snapshots for untrusted API input and fixed sanitized public errors.
 - Commit once per completed task boundary with Conventional Commit messages and no `Co-Authored-By`.
@@ -887,9 +890,10 @@ For every affected path:
 
 Reuse the Task 2 identity-checking safety layer. Do not describe path-based
 operations as a descriptor-relative containment boundary. Static links,
-unexpected entries, and persistent/detectable substitutions fail closed;
-concurrent same-privilege swap-back mutation is excluded and requires a future
-native or platform-specific backend.
+unexpected entry types, and persistent/detectable substitutions at managed or
+desired paths fail closed. Unrelated unmanifested entries are not recursively
+inspected, adopted, or pruned. Concurrent same-privilege swap-back mutation is
+excluded and requires a future native or platform-specific backend.
 
 Apply in deterministic path order. Write the manifest last.
 If the complete existing manifest bytes already equal the desired canonical
