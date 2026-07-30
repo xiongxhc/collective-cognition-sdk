@@ -193,7 +193,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 4: Adapter Ecosystem Foundations
 
-**Status:** Active. The SQLite database persistence adapter and maintained source-connector slice are implemented and final-review verified. The Obsidian/Markdown adapter remains planned.
+**Status:** Active. The SQLite database persistence adapter and maintained source-connector slice are implemented and final-review verified. The [Markdown cognition adapter design](superpowers/specs/2026-07-30-markdown-cognition-adapter-design.md) is written for review; implementation remains planned.
 
 **Entry criteria**
 
@@ -208,7 +208,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Dedicated `collective-cognition-teammem` export CLI with explicit source selection, public non-secret `sourceInstance`, default raw omission, and sanitized failures.
 - [x] Private package `0.5.0` subpaths, executable, compatibility baseline, declaration closures, clean-consumer checks, and exact packaging allowlists.
 - [x] A concrete database persistence adapter that operates only on an explicitly supplied target and never discovers application data implicitly. The optional `collective-cognition-sdk/stores/sqlite/0.1.0` reference adapter requires a separate absolute cognition target, preserves canonical object and event records, and leaves source ledgers untouched.
-- [ ] An Obsidian/Markdown adapter operating only on an explicitly provided fixture or configured vault.
+- [ ] The reviewed [Markdown cognition adapter](superpowers/specs/2026-07-30-markdown-cognition-adapter-design.md), operating only on an explicitly initialized managed directory.
 - [x] A connector author guide and RFC explaining independent repositories and packages, SourceRecord neutrality, connector-owned concerns, and conformance limits.
 - [ ] Deterministic object-to-Markdown and Markdown-to-object fixtures with stable IDs, versions, relationships, and provenance.
 

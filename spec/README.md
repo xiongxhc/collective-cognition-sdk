@@ -12,6 +12,7 @@ The current direction is defined by:
 - the [implemented and final-review verified Portable Cognition design](../docs/superpowers/specs/2026-07-27-portable-cognition-contract-design.md).
 - the [SQLite cognition-store design](../docs/superpowers/specs/2026-07-29-sqlite-cognition-store-design.md), which is implemented and final-review verified.
 - [RFC 0006: Maintained Source Connectors](../rfcs/0006-maintained-source-connectors.md), implemented and final-review verified.
+- the proposed [Markdown cognition adapter design](../docs/superpowers/specs/2026-07-30-markdown-cognition-adapter-design.md), written for review and not yet implemented.
 
 The core design and Phase 2 universal ingestion are implemented and final-review verified locally. [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md) records the implemented ingestion semantics.
 
