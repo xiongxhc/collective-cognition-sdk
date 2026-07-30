@@ -160,15 +160,18 @@ function parseArguments(args: readonly string[]): ParsedCommand {
     index += 2;
   }
 
-  if (controlMode !== undefined) return { mode: controlMode };
-
   const targetDirectory = requiredValue(values, "--target");
   if (!isExplicitAbsolutePath(targetDirectory)) invalidArguments();
-  if (command === "init") return { mode: "init", targetDirectory };
-  if (command === "verify") return { mode: "verify", targetDirectory };
+  if (command === "init" || command === "verify") {
+    if (controlMode !== undefined) return { mode: controlMode };
+    return command === "init"
+      ? { mode: "init", targetDirectory }
+      : { mode: "verify", targetDirectory };
+  }
 
   const input = requiredValue(values, "--input");
   if (input !== "-" && !isExplicitAbsolutePath(input)) invalidArguments();
+  if (controlMode !== undefined) return { mode: controlMode };
   return { mode: "project", input, targetDirectory, pruneManaged };
 }
 

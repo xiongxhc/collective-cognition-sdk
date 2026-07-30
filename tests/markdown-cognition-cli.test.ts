@@ -44,6 +44,11 @@ const portableFixtureUrl = new URL(
   "../spec/conformance/0.1.0/portable-cognition/valid.jsonl",
   import.meta.url,
 );
+const packageVersion = (
+  JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ) as { readonly version: string }
+).version;
 
 function runCli(args: readonly string[], input?: string): CliResult {
   const result = spawnSync(
@@ -190,11 +195,23 @@ test("keeps the command surface and control modes closed", () => {
     ["--help", "--target", secret],
     ["init", "--help", "--version"],
     ["init", "--input", "/tmp/input", "--help"],
+    ["init", "--target", "relative-target", "--help"],
+    ["init", "--help", "--target", "relative-target"],
+    ["init", "--target", "", "--version"],
+    ["init", "--target", "--help"],
+    ["verify", "--target", "--help"],
+    ["project", "--input", "relative.jsonl", "--target", "/tmp/target", "--version"],
+    ["project", "--version", "--input", "relative.jsonl", "--target", "/tmp/target"],
+    ["project", "--input", "-", "--help"],
+    ["project", "--input", "", "--target", "/tmp/target", "--help"],
+    ["project", "--input", "--version", "--target", "/tmp/target"],
     ["project", "--input", "relative.jsonl", "--target", "/tmp/target"],
     ["project", "--input", "--", "--target", "/tmp/target"],
   ];
   for (const args of invalidArguments) {
-    assert.deepEqual(assertSanitized(runCli(args), secret), {
+    const result = runCli(args);
+    assert.equal(result.status, 1, JSON.stringify(args));
+    assert.deepEqual(assertSanitized(result, secret), {
       code: "invalid_command",
       message: "Markdown cognition CLI arguments are invalid.",
       stage: "arguments",
@@ -207,10 +224,22 @@ test("keeps the command surface and control modes closed", () => {
     assert.match(result.stdout, /collective-cognition-markdown init/);
     assert.equal(result.stderr, "");
   }
-  const version = runCli(["verify", "--target", "/missing/target", "--version"]);
-  assert.equal(version.status, 0, version.stderr);
-  assert.equal(version.stderr, "");
-  assert.match(version.stdout, /^0\.5\.0\n$/);
+  for (const args of [
+    ["verify", "--target", "/missing/target", "--version"],
+    ["project", "--input", "/missing/input.jsonl", "--target", "/missing/target", "--version"],
+  ]) {
+    const result = runCli(args);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+    assert.equal(result.stdout, `${packageVersion}\n`);
+  }
+  const stdinHelp = runCli(
+    ["project", "--input", "-", "--target", "/missing/target", "--help"],
+    "{\n",
+  );
+  assert.equal(stdinHelp.status, 0, stdinHelp.stderr);
+  assert.match(stdinHelp.stdout, /collective-cognition-markdown init/);
+  assert.equal(stdinHelp.stderr, "");
 });
 
 test("reads only explicit stdin and validates all input before mutation", () => {
