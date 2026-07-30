@@ -111,6 +111,14 @@ test("projects only into an initialized team-vault subtree", async () => {
   const before = hashTreeExcluding(vault.root, ["Collective Cognition"]);
   try {
     const records = completeCognitiveLoopRecords();
+    const lowerVersionSource = structuredClone(records.find((record) =>
+      record.recordType === "cognitive-object" && record.payload.type === "evidence"
+    )!) as MarkdownCognitionRecord;
+    if (lowerVersionSource.recordType !== "cognitive-object") throw new Error("fixture mismatch");
+    (lowerVersionSource.payload as { id: string }).id = "evidence:lower-version-source";
+    (lowerVersionSource.payload as { title: string }).title = "Lower-version evidence source";
+    (lowerVersionSource.payload as { version: number }).version = 1;
+    records.push(lowerVersionSource);
     await initializeMarkdownCognitionTarget({ targetDirectory: vault.cognitionTarget });
     const first = await projectMarkdownCognition({ targetDirectory: vault.cognitionTarget, records });
     const verification = await verifyMarkdownCognitionTarget({ targetDirectory: vault.cognitionTarget });
@@ -140,8 +148,14 @@ test("projects only into an initialized team-vault subtree", async () => {
     const byType = new Map(latestObjects.map((record) => [record.payload.type, record]));
     const goal = byType.get("goal")!;
     const hypothesis = byType.get("hypothesis")!;
-    const evidence = byType.get("evidence")!;
+    const evidence = latestObjects.find((record) => record.payload.id === "evidence:loop")!;
     const decision = byType.get("decision")!;
+    assert.ok(
+      wikiLinks(readFileSync(
+        join(vault.cognitionTarget, markdownCognitionRelativePath(lowerVersionSource)),
+        "utf8",
+      )).includes(markdownCognitionRelativePath(hypothesis)),
+    );
     const inverseResolvedLinks = new Map<string, string[]>();
     for (const record of [hypothesis, evidence, decision]) {
       const sourcePath = markdownCognitionRelativePath(record);
@@ -165,7 +179,7 @@ test("projects only into an initialized team-vault subtree", async () => {
     );
 
     const successor = structuredClone(records.find((record) =>
-      record.recordType === "cognitive-object" && record.payload.type === "hypothesis",
+      record.recordType === "cognitive-object" && record.payload.type === "principle",
     )!) as MarkdownCognitionRecord;
     if (successor.recordType !== "cognitive-object") throw new Error("fixture mismatch");
     (successor.payload as { version: number }).version += 10;

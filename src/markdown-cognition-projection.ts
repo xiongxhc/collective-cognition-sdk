@@ -201,14 +201,7 @@ function desiredFiles(records: readonly MarkdownCognitionRecord[]): readonly Des
   for (const record of selected) {
     const relativePath = markdownCognitionManagedRelativePath(markdownCognitionRelativePath(record));
     const canonical = canonicalRecord(record);
-    const maximumLinkedVersion = record.recordType === "cognitive-object"
-      ? record.payload.version
-      : record.payload.objectVersion;
-    const renderContext = selected.filter((candidate) =>
-      candidate.recordType !== "cognitive-object" ||
-      candidate.payload.version <= maximumLinkedVersion
-    );
-    const bytes = Buffer.from(renderMarkdownCognitionRecord(record, { records: renderContext }), "utf8");
+    const bytes = Buffer.from(renderMarkdownCognitionRecord(record, { records: selected }), "utf8");
     if (bytes.length > MARKDOWN_COGNITION_MAX_NOTE_BYTES) projectionLimitExceeded(relativePath);
     files.push(Object.freeze({
       bytes,

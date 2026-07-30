@@ -239,7 +239,7 @@ test("converges after manifest failure following an update", async () => {
     const records = fixtureRecords();
     await projectMarkdownCognition({ targetDirectory: fixture.target, records });
     const successor = structuredClone(records.find((record) =>
-      record.recordType === "cognitive-object" && record.payload.type === "hypothesis" &&
+      record.recordType === "cognitive-object" && record.payload.type === "principle" &&
       record.payload.version === 3
     )!) as MarkdownCognitionRecord;
     if (successor.recordType !== "cognitive-object") throw new Error("fixture mismatch");
@@ -332,7 +332,7 @@ test("applies interleaved creates and updates in global path order", async () =>
     const records = fixtureRecords();
     await projectMarkdownCognition({ targetDirectory: fixture.target, records });
     const successor = structuredClone(records.find((record) =>
-      record.recordType === "cognitive-object" && record.payload.type === "hypothesis" &&
+      record.recordType === "cognitive-object" && record.payload.type === "principle" &&
       record.payload.version === 3
     )!) as MarkdownCognitionRecord;
     if (successor.recordType !== "cognitive-object") throw new Error("fixture mismatch");
