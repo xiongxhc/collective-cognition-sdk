@@ -18,7 +18,6 @@ import { isAbsolute, join, normalize, parse, posix, relative, sep } from "node:p
 import { TextDecoder } from "node:util";
 
 import { parseProfiledJson } from "./json-text.ts";
-import { invokeMarkdownCognitionTargetTestHook } from "./markdown-cognition-target-test-seam.ts";
 import {
   MARKDOWN_COGNITION_PROFILE_VERSION,
   MarkdownCognitionError,
@@ -33,6 +32,33 @@ export const MARKDOWN_COGNITION_TARGET_FORMAT =
 export const MARKDOWN_COGNITION_MARKER_FILE = ".collective-cognition.json";
 export const MARKDOWN_COGNITION_MANIFEST_FILE =
   ".collective-cognition-manifest.json";
+
+export type MarkdownCognitionTargetTestEvent =
+  | "initialize:after-target-inspection"
+  | "initialize:before-manifest-commit"
+  | "projection:before-replace"
+  | "verify:after-target-inspection"
+  | "verify:before-managed-open";
+
+type MarkdownCognitionTargetTestHook = (
+  event: MarkdownCognitionTargetTestEvent,
+  relativePath?: string,
+) => void;
+
+let testHook: MarkdownCognitionTargetTestHook | undefined;
+
+export function setMarkdownCognitionTargetTestHook(
+  hook: MarkdownCognitionTargetTestHook | undefined,
+): void {
+  testHook = hook;
+}
+
+function invokeMarkdownCognitionTargetTestHook(
+  event: MarkdownCognitionTargetTestEvent,
+  relativePath?: string,
+): void {
+  testHook?.(event, relativePath);
+}
 
 const MARKDOWN_COGNITION_MANIFEST_FORMAT =
   "collective-cognition-markdown-manifest/1";
@@ -108,9 +134,9 @@ interface StagedFile {
 
 export interface MarkdownCognitionProjectionTarget {
   readonly marker: MarkdownTargetMarker;
-  readonly markerBytes: Buffer;
+  readonly markerBytes: Uint8Array;
   readonly manifest: MarkdownTargetManifest;
-  readonly manifestBytes: Buffer;
+  readonly manifestBytes: Uint8Array;
   readonly targetChain: readonly MarkdownCognitionPathIdentity[];
   readonly targetDirectory: string;
 }
@@ -928,7 +954,7 @@ export function readMarkdownCognitionProjectionFile(
   target: MarkdownCognitionProjectionTarget,
   relativePath: string,
   maximumBytes: number,
-): Buffer | undefined {
+): Uint8Array | undefined {
   const safePath = markdownCognitionManagedRelativePath(relativePath);
   const file = readRegularFileNoFollow(
     target.targetDirectory,
@@ -994,7 +1020,7 @@ function safeProjectionParent(
 export function replaceMarkdownCognitionProjectionFile(
   target: MarkdownCognitionProjectionTarget,
   relativePath: string,
-  bytes: Buffer,
+  bytes: Uint8Array,
 ): void {
   const safePath = markdownCognitionManagedRelativePath(relativePath);
   const parentDirectory = safeProjectionParent(target, safePath);
@@ -1340,6 +1366,6 @@ export async function verifyMarkdownCognitionTarget(
   return finalizedReport(diagnostics, managedPaths);
 }
 
-export function markdownCognitionDigest(contents: Buffer): string {
+export function markdownCognitionDigest(contents: Uint8Array): string {
   return createHash("sha256").update(contents).digest("hex");
 }

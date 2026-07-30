@@ -8,6 +8,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -27,14 +28,22 @@ const distTeamMemoryCliUrl = new URL(
   "../dist/team-memory-cli.js",
   import.meta.url,
 );
+const distMarkdownCognitionUrl = new URL(
+  "../dist/markdown-cognition.js",
+  import.meta.url,
+);
+const distMarkdownCognitionCliUrl = new URL(
+  "../dist/markdown-cognition-cli.js",
+  import.meta.url,
+);
 const packageJsonUrl = new URL("../package.json", import.meta.url);
 const packageLockUrl = new URL("../package-lock.json", import.meta.url);
 const compatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.5.0/baseline.json",
+  "../spec/compatibility/0.6.0/baseline.json",
   import.meta.url,
 );
 const historicalCompatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.4.0/baseline.json",
+  "../spec/compatibility/0.5.0/baseline.json",
   import.meta.url,
 );
 const licenseUrl = new URL("../LICENSE", import.meta.url);
@@ -61,6 +70,10 @@ const typescriptCli = fileURLToPath(
 );
 const validFixturesUrl = new URL(
   "../spec/conformance/0.1.0/source-record/valid.jsonl",
+  import.meta.url,
+);
+const portableCognitionValidFixturesUrl = new URL(
+  "../spec/conformance/0.1.0/portable-cognition/valid.jsonl",
   import.meta.url,
 );
 const hostIntegrationExampleUrl = new URL(
@@ -160,6 +173,21 @@ const expectedEmittedFiles050 = Object.freeze(
     ...expectedConnectorEmittedFiles050,
   ].sort(),
 );
+const expectedMarkdownEmittedFiles060 = Object.freeze([
+  "dist/markdown-cognition-cli.d.ts",
+  "dist/markdown-cognition-cli.js",
+  "dist/markdown-cognition-profile.d.ts",
+  "dist/markdown-cognition-profile.js",
+  "dist/markdown-cognition-projection.d.ts",
+  "dist/markdown-cognition-projection.js",
+  "dist/markdown-cognition-target.d.ts",
+  "dist/markdown-cognition-target.js",
+  "dist/markdown-cognition.d.ts",
+  "dist/markdown-cognition.js",
+]);
+const expectedEmittedFiles060 = Object.freeze(
+  [...expectedEmittedFiles050, ...expectedMarkdownEmittedFiles060].sort(),
+);
 const productionDependencyFields = Object.freeze([
   "dependencies",
   "optionalDependencies",
@@ -206,6 +234,16 @@ test("built package exposes only the source-neutral runtime API", async () => {
     existsSync(distTeamMemoryCliUrl),
     true,
     "dist/team-memory-cli.js must exist; run npm run build",
+  );
+  assert.equal(
+    existsSync(distMarkdownCognitionUrl),
+    true,
+    "dist/markdown-cognition.js must exist; run npm run build",
+  );
+  assert.equal(
+    existsSync(distMarkdownCognitionCliUrl),
+    true,
+    "dist/markdown-cognition-cli.js must exist; run npm run build",
   );
 
   const builtApi = await import(distIndexUrl.href);
@@ -436,16 +474,16 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.deepEqual(
     baseline.package.runtimeExports,
     historicalBaseline.package.runtimeExports,
-    "package 0.5 root runtime exports must remain identical to 0.4",
+    "package 0.6 root runtime exports must remain identical to 0.5",
   );
   assert.deepEqual(
     baseline.package.typeExports,
     historicalBaseline.package.typeExports,
-    "package 0.5 root type exports must remain identical to 0.4",
+    "package 0.6 root type exports must remain identical to 0.5",
   );
-  assert.equal(packageJson.version, "0.5.0");
-  assert.equal(packageLock.version, "0.5.0");
-  assert.equal(packageLock.packages[""].version, "0.5.0");
+  assert.equal(packageJson.version, "0.6.0");
+  assert.equal(packageLock.version, "0.6.0");
+  assert.equal(packageLock.packages[""].version, "0.6.0");
   assert.deepEqual(packageJson.engines, {
     node: ">=24",
   });
@@ -490,6 +528,12 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       "./spec/compatibility/0.4.0/baseline.json",
     "./compatibility/0.5.0":
       "./spec/compatibility/0.5.0/baseline.json",
+    "./compatibility/0.6.0":
+      "./spec/compatibility/0.6.0/baseline.json",
+    "./adapters/markdown/0.1.0": {
+      types: "./dist/markdown-cognition.d.ts",
+      import: "./dist/markdown-cognition.js",
+    },
     "./connector-conformance/0.1.0": {
       types: "./dist/connector-conformance.d.ts",
       import: "./dist/connector-conformance.js",
@@ -531,6 +575,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "NOTICE",
     "README.md",
     "docs/connector-author-guide.md",
+    "docs/markdown-cognition-adapter-guide.md",
     "rfcs/README.md",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
@@ -538,6 +583,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0004-host-integration-contract.md",
     "rfcs/0005-sqlite-cognition-store.md",
     "rfcs/0006-maintained-source-connectors.md",
+    "rfcs/0007-markdown-cognition-adapter.md",
     "spec/README.md",
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
@@ -550,6 +596,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.4.0/change-cases.jsonl",
     "spec/compatibility/0.5.0/baseline.json",
     "spec/compatibility/0.5.0/change-cases.jsonl",
+    "spec/compatibility/0.6.0/baseline.json",
+    "spec/compatibility/0.6.0/change-cases.jsonl",
     "spec/host-integration.md",
     "spec/source-record.md",
     "spec/portable-cognition.md",
@@ -564,31 +612,32 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.deepEqual(packageJson.bin, {
     "collective-cognition": "./dist/cli.js",
     "collective-cognition-teammem": "./dist/team-memory-cli.js",
+    "collective-cognition-markdown": "./dist/markdown-cognition-cli.js",
   });
   const actualEmittedFiles = emittedFiles(distRoot)
     .map((path) => relative(repositoryRoot, path).replaceAll("\\", "/"))
     .sort();
   assert.deepEqual(
     historicalBaseline.package.emittedFiles,
-    expectedEmittedFiles040,
-    "package 0.4 emitted inventory must match its literal immutable allowlist",
+    expectedEmittedFiles050,
+    "package 0.5 emitted inventory must match its literal immutable allowlist",
   );
   assert.deepEqual(
     baseline.package.emittedFiles,
-    expectedEmittedFiles050,
-    "package 0.5 may add only the approved connector and CLI pairs",
+    expectedEmittedFiles060,
+    "package 0.6 emitted inventory must match its literal allowlist",
   );
   assert.deepEqual(
     baseline.package.emittedFiles.filter(
       (path) => !expectedEmittedFiles040.includes(path),
     ),
-    expectedConnectorEmittedFiles050,
-    "package 0.5 emitted additions must be exactly the approved six files",
+    [...expectedConnectorEmittedFiles050, ...expectedMarkdownEmittedFiles060].sort(),
+    "package 0.6 emitted additions must be exactly the approved files",
   );
   assert.deepEqual(
     actualEmittedFiles,
-    expectedEmittedFiles050,
-    "dist/ contents must match the independent package 0.5 allowlist",
+    expectedEmittedFiles060,
+    "dist/ contents must match the independent package 0.6 allowlist",
   );
 
   const npmCache = mkdtempSync(join(tmpdir(), "ccsdk-npm-cache-"));
@@ -617,13 +666,15 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "LICENSE",
     "NOTICE",
     "README.md",
-    ...expectedEmittedFiles050,
+    ...expectedEmittedFiles060,
     "package.json",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
     "rfcs/0003-portable-cognition-contract.md",
     "rfcs/0004-host-integration-contract.md",
     "rfcs/0005-sqlite-cognition-store.md",
+    "rfcs/0006-maintained-source-connectors.md",
+    "rfcs/0007-markdown-cognition-adapter.md",
     "rfcs/README.md",
     "spec/README.md",
     "spec/compatibility.md",
@@ -637,6 +688,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.4.0/change-cases.jsonl",
     "spec/compatibility/0.5.0/baseline.json",
     "spec/compatibility/0.5.0/change-cases.jsonl",
+    "spec/compatibility/0.6.0/baseline.json",
+    "spec/compatibility/0.6.0/change-cases.jsonl",
     "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
     "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
@@ -651,13 +704,13 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   const expectedPaths = [
     ...expectedBaselinePaths,
     "docs/connector-author-guide.md",
-    "rfcs/0006-maintained-source-connectors.md",
+    "docs/markdown-cognition-adapter-guide.md",
   ].sort();
 
   assert.deepEqual(
     baseline.package.packageFiles,
     expectedPaths,
-    "package 0.5 compatibility inventory must remain byte-immutable",
+    "package 0.6 compatibility inventory must match its literal allowlist",
   );
   assert.deepEqual(paths, expectedPaths, "package contents must match allowlist");
   assert.ok(
@@ -666,7 +719,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
         !/^(?:src|tests|examples)\//.test(path) &&
         (
           !/^docs\//.test(path) ||
-          path === "docs/connector-author-guide.md"
+          path === "docs/connector-author-guide.md" ||
+          path === "docs/markdown-cognition-adapter-guide.md"
         ) &&
         !/(?:^|\/)adapters?\//i.test(path) &&
         !/(?:git-commit|team-memory-activity|teammem-cli)/i.test(path),
@@ -692,6 +746,17 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       packedTeamMemoryCli.mode & 0o111,
       0,
       "packed team-memory CLI must retain an executable mode",
+    );
+  }
+  const packedMarkdownCli = packResults[0].files.find(
+    (file) => file.path === "dist/markdown-cognition-cli.js",
+  );
+  assert.ok(packedMarkdownCli, "packed Markdown cognition CLI is missing");
+  if (process.platform !== "win32") {
+    assert.notEqual(
+      packedMarkdownCli.mode & 0o111,
+      0,
+      "packed Markdown cognition CLI must retain an executable mode",
     );
   }
   assert.equal(statSync(distRoot).isDirectory(), true);
@@ -722,9 +787,10 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
   const temporaryRoot = mkdtempSync(join(tmpdir(), "ccsdk-consumer-"));
   const npmCache = `${temporaryRoot}/npm-cache`;
   const packageOutput = `${temporaryRoot}/package`;
-  const consumerRoot = `${temporaryRoot}/consumer`;
+  const consumerRoot = realpathSync(
+    mkdtempSync(join(temporaryRoot, "consumer-")),
+  );
   mkdirSync(packageOutput);
-  mkdirSync(consumerRoot);
   writeFileSync(
     `${consumerRoot}/package.json`,
     JSON.stringify({ name: "ccsdk-consumer", private: true, type: "module" }),
@@ -804,6 +870,35 @@ import {
   type TeamMemoryConnectorErrorCode,
   type TeamMemorySourceRecordOptions,
 } from ${JSON.stringify(`${packageJson.name}/connectors/team-memory/0.1.0`)};
+import {
+  MARKDOWN_COGNITION_MANIFEST_FILE,
+  MARKDOWN_COGNITION_MARKER_FILE,
+  MARKDOWN_COGNITION_MAX_INPUT_BYTES,
+  MARKDOWN_COGNITION_MAX_MANIFEST_ENTRIES,
+  MARKDOWN_COGNITION_MAX_NOTE_BYTES,
+  MARKDOWN_COGNITION_MAX_PATH_SEGMENTS,
+  MARKDOWN_COGNITION_MAX_RECORDS,
+  MARKDOWN_COGNITION_MAX_RELATIVE_PATH_BYTES,
+  MARKDOWN_COGNITION_MAX_TOTAL_BYTES,
+  MARKDOWN_COGNITION_PROFILE_VERSION,
+  MARKDOWN_COGNITION_TARGET_FORMAT,
+  MarkdownCognitionError,
+  initializeMarkdownCognitionTarget,
+  markdownCognitionRelativePath,
+  parseMarkdownCognitionRecord,
+  projectMarkdownCognition,
+  renderMarkdownCognitionIndex,
+  renderMarkdownCognitionRecord,
+  verifyMarkdownCognitionTarget,
+  type MarkdownCognitionErrorCode,
+  type MarkdownCognitionProjectionOptions,
+  type MarkdownCognitionProjectionReport,
+  type MarkdownCognitionRecord,
+  type MarkdownCognitionRenderContext,
+  type MarkdownCognitionTargetOptions,
+  type MarkdownCognitionVerificationDiagnostic,
+  type MarkdownCognitionVerificationReport,
+} from ${JSON.stringify(`${packageJson.name}/adapters/markdown/0.1.0`)};
 
 function roundTrip(record: PortableCognitionRecord) {
   return deserializePortableCognitionRecord(
@@ -888,12 +983,22 @@ type ConnectorTypes =
   | TeamMemoryConnectorError
   | TeamMemoryConnectorErrorCode
   | TeamMemorySourceRecordOptions;
+type MarkdownTypes =
+  | MarkdownCognitionErrorCode
+  | MarkdownCognitionProjectionOptions
+  | MarkdownCognitionProjectionReport
+  | MarkdownCognitionRecord
+  | MarkdownCognitionRenderContext
+  | MarkdownCognitionTargetOptions
+  | MarkdownCognitionVerificationDiagnostic
+  | MarkdownCognitionVerificationReport;
 
 void roundTrip;
 void package020GenericAssignment;
 void oldGenericAssignment;
 void (undefined as unknown as HostTypes);
 void (undefined as unknown as ConnectorTypes);
+void (undefined as unknown as MarkdownTypes);
 void HOST_INTEGRATION_CONTRACT_VERSION;
 void HostFailureCode;
 void commitCognitionTransition;
@@ -906,6 +1011,25 @@ void runSourceConnectorConformance;
 void TEAM_MEMORY_LEDGER_FORMAT;
 void TeamMemoryConnectorError;
 void readTeamMemorySourceRecords;
+void MARKDOWN_COGNITION_MANIFEST_FILE;
+void MARKDOWN_COGNITION_MARKER_FILE;
+void MARKDOWN_COGNITION_MAX_INPUT_BYTES;
+void MARKDOWN_COGNITION_MAX_MANIFEST_ENTRIES;
+void MARKDOWN_COGNITION_MAX_NOTE_BYTES;
+void MARKDOWN_COGNITION_MAX_PATH_SEGMENTS;
+void MARKDOWN_COGNITION_MAX_RECORDS;
+void MARKDOWN_COGNITION_MAX_RELATIVE_PATH_BYTES;
+void MARKDOWN_COGNITION_MAX_TOTAL_BYTES;
+void MARKDOWN_COGNITION_PROFILE_VERSION;
+void MARKDOWN_COGNITION_TARGET_FORMAT;
+void MarkdownCognitionError;
+void initializeMarkdownCognitionTarget;
+void markdownCognitionRelativePath;
+void parseMarkdownCognitionRecord;
+void projectMarkdownCognition;
+void renderMarkdownCognitionIndex;
+void renderMarkdownCognitionRecord;
+void verifyMarkdownCognitionTarget;
 `,
     "utf8",
   );
@@ -939,10 +1063,33 @@ import {
   readTeamMemorySourceRecords,
 } from ${JSON.stringify(`${packageJson.name}/connectors/team-memory/0.1.0`)};
 import {
+  MARKDOWN_COGNITION_MANIFEST_FILE,
+  MARKDOWN_COGNITION_MARKER_FILE,
+  MARKDOWN_COGNITION_MAX_INPUT_BYTES,
+  MARKDOWN_COGNITION_MAX_MANIFEST_ENTRIES,
+  MARKDOWN_COGNITION_MAX_NOTE_BYTES,
+  MARKDOWN_COGNITION_MAX_PATH_SEGMENTS,
+  MARKDOWN_COGNITION_MAX_RECORDS,
+  MARKDOWN_COGNITION_MAX_RELATIVE_PATH_BYTES,
+  MARKDOWN_COGNITION_MAX_TOTAL_BYTES,
+  MARKDOWN_COGNITION_PROFILE_VERSION,
+  MARKDOWN_COGNITION_TARGET_FORMAT,
+  MarkdownCognitionError,
+  initializeMarkdownCognitionTarget,
+  markdownCognitionRelativePath,
+  parseMarkdownCognitionRecord,
+  projectMarkdownCognition,
+  renderMarkdownCognitionIndex,
+  renderMarkdownCognitionRecord,
+  verifyMarkdownCognitionTarget,
+} from ${JSON.stringify(`${packageJson.name}/adapters/markdown/0.1.0`)};
+import {
   existsSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -968,6 +1115,28 @@ const record = createPortableCognitionRecord(validRecords[0]);
 const restored = deserializePortableCognitionRecord(
   serializePortableCognitionRecord(record),
 );
+const markdownRoot = realpathSync(mkdtempSync(join(tmpdir(), "ccsdk-markdown-consumer-")));
+const markdownTargetDirectory = join(markdownRoot, "Collective Cognition");
+try {
+  await initializeMarkdownCognitionTarget({ targetDirectory: markdownTargetDirectory });
+  const markdownReport = await projectMarkdownCognition({
+    targetDirectory: markdownTargetDirectory,
+    records: [record],
+  });
+  const markdownVerification = await verifyMarkdownCognitionTarget({
+    targetDirectory: markdownTargetDirectory,
+  });
+  if (
+    markdownReport.created.length !== 2 ||
+    markdownVerification.status !== "passed" ||
+    !existsSync(join(markdownTargetDirectory, MARKDOWN_COGNITION_MARKER_FILE)) ||
+    !existsSync(join(markdownTargetDirectory, MARKDOWN_COGNITION_MANIFEST_FILE))
+  ) {
+    throw new Error("Markdown cognition adapter did not project a managed target.");
+  }
+} finally {
+  rmSync(markdownRoot, { recursive: true, force: true });
+}
 const sqliteRoot = mkdtempSync(join(tmpdir(), "ccsdk-sqlite-consumer-"));
 const databasePath = join(sqliteRoot, "cognition.db");
 const teamMemoryDatabasePath = join(process.cwd(), "fictional-ledger.db");
@@ -1449,6 +1618,53 @@ console.log(JSON.stringify({
     );
     assert.equal(executed.status, 0, executed.stderr);
     assert.equal(JSON.parse(executed.stdout.trim()).status, "accepted");
+
+    const markdownExecutableName =
+      process.platform === "win32"
+        ? "collective-cognition-markdown.cmd"
+        : "collective-cognition-markdown";
+    const markdownExecutable =
+      `${consumerRoot}/node_modules/.bin/${markdownExecutableName}`;
+    const markdownTarget = `${consumerRoot}/Markdown Cognition`;
+    const markdownInput = `${consumerRoot}/markdown-input.jsonl`;
+    writeFileSync(
+      markdownInput,
+      `${readFileSync(portableCognitionValidFixturesUrl, "utf8").split("\n")[0]}\n`,
+      "utf8",
+    );
+    assert.equal(existsSync(markdownExecutable), true);
+    if (process.platform !== "win32") {
+      assert.notEqual(
+        statSync(markdownExecutable).mode & 0o111,
+        0,
+        "installed collective-cognition-markdown must be executable",
+      );
+    }
+    const markdownHelp = spawnSync(markdownExecutable, ["--help"], {
+      cwd: consumerRoot,
+      encoding: "utf8",
+      shell: process.platform === "win32",
+    });
+    assert.equal(markdownHelp.status, 0, markdownHelp.stderr);
+    const markdownInitialized = spawnSync(
+      markdownExecutable,
+      ["init", "--target", markdownTarget],
+      { cwd: consumerRoot, encoding: "utf8", shell: process.platform === "win32" },
+    );
+    assert.equal(markdownInitialized.status, 0, markdownInitialized.stderr);
+    const markdownProjected = spawnSync(
+      markdownExecutable,
+      ["project", "--input", markdownInput, "--target", markdownTarget],
+      { cwd: consumerRoot, encoding: "utf8", shell: process.platform === "win32" },
+    );
+    assert.equal(markdownProjected.status, 0, markdownProjected.stderr);
+    const markdownVerified = spawnSync(
+      markdownExecutable,
+      ["verify", "--target", markdownTarget],
+      { cwd: consumerRoot, encoding: "utf8", shell: process.platform === "win32" },
+    );
+    assert.equal(markdownVerified.status, 0, markdownVerified.stderr);
+    assert.equal(JSON.parse(markdownVerified.stdout.trim()).status, "passed");
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
   }

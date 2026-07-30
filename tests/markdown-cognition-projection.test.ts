@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { setMarkdownCognitionTargetTestHook } from "../src/markdown-cognition-target-test-seam.ts";
+import { setMarkdownCognitionTargetTestHook } from "../src/markdown-cognition-target.ts";
 import {
   MARKDOWN_COGNITION_MANIFEST_FILE,
   MarkdownCognitionError,

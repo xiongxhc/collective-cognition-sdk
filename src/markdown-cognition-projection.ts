@@ -262,14 +262,14 @@ function buildPlan(options: ProjectionOptionsSnapshot): { readonly plan: Project
     const previous = previousByPath.get(file.relativePath);
     if (previous === undefined) {
       if (existing === undefined) create.push(file);
-      else if (existing.equals(file.bytes)) unchanged.push(file);
+      else if (Buffer.from(existing).equals(file.bytes)) unchanged.push(file);
       else managedConflict(file.relativePath);
       continue;
     }
     if (existing === undefined) {
       managedConflict(file.relativePath);
     }
-    if (existing.equals(file.bytes)) {
+    if (Buffer.from(existing).equals(file.bytes)) {
       unchanged.push(file);
     } else if (markdownCognitionDigest(existing) !== previous.digest) {
       managedConflict(file.relativePath);
@@ -358,7 +358,7 @@ export async function projectMarkdownCognition(
     for (const entry of plan.prune) {
       removeMarkdownCognitionProjectionFile(target, entry.relativePath, entry.digest);
     }
-    if (!target.manifestBytes.equals(plan.manifestBytes)) {
+    if (!Buffer.from(target.manifestBytes).equals(plan.manifestBytes)) {
       replaceMarkdownCognitionProjectionFile(
         target,
         ".collective-cognition-manifest.json",
