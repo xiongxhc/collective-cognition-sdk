@@ -842,7 +842,7 @@ The test:
    events;
 4. verifies Obsidian-compatible links and canonical round trips;
 5. repeats projection and proves no rewrite;
-6. changes one cognition revision and verifies the bounded diff;
+6. adds one successor cognition revision and verifies the bounded diff;
 7. injects a manual edit and proves conflict without overwrite;
 8. proves unrelated files and repository metadata are byte-identical; and
 9. removes the temporary repository after the test.
