@@ -14,6 +14,7 @@ import {
   rmSync,
   symlinkSync,
   truncateSync,
+  unlinkSync,
   writeSync,
   writeFileSync,
 } from "node:fs";
@@ -366,7 +367,7 @@ test("same-privilege swap-back mutation is outside the detectable-race boundary"
       const original = join(parent, "target-original");
       renameSync(target, original);
       symlinkSync(outside, target);
-      rmSync(target);
+      unlinkSync(target);
       renameSync(original, target);
       swappedBack = true;
     });

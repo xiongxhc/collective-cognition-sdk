@@ -1071,7 +1071,10 @@ export function removeMarkdownCognitionProjectionFile(
 ): void {
   const safePath = markdownCognitionManagedRelativePath(relativePath);
   const file = readMarkdownCognitionProjectionFile(target, safePath, MAX_TARGET_BYTES);
-  if (file === undefined || markdownCognitionDigest(file) !== expectedDigest) {
+  if (file === undefined) {
+    return;
+  }
+  if (markdownCognitionDigest(file) !== expectedDigest) {
     throw new MarkdownCognitionError(
       "managed_file_conflict",
       "A managed Markdown cognition file has changed.",

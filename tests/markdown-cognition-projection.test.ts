@@ -232,24 +232,128 @@ test("aborts every write during preflight conflicts", async () => {
   }
 });
 
-test("converges on retry after a manifest-last replacement failure", async () => {
+test("converges after manifest failure following an update", async () => {
   const fixture = temporaryInitializedTarget();
   try {
     await initializeMarkdownCognitionTarget({ targetDirectory: fixture.target });
     const records = fixtureRecords();
+    await projectMarkdownCognition({ targetDirectory: fixture.target, records });
+    const successor = structuredClone(records.find((record) =>
+      record.recordType === "cognitive-object" && record.payload.type === "hypothesis" &&
+      record.payload.version === 3
+    )!) as MarkdownCognitionRecord;
+    if (successor.recordType !== "cognitive-object") throw new Error("fixture mismatch");
+    (successor.payload as { version: number }).version += 1;
+    (successor.payload as { updatedAt: string }).updatedAt = "2026-07-30T00:00:00Z";
+    const desired = [...records, successor];
+    const replacements: string[] = [];
+    setMarkdownCognitionTargetTestHook((event, relativePath) => {
+      if (event !== "projection:before-replace" || relativePath === undefined) return;
+      replacements.push(relativePath);
+      if (relativePath === MARKDOWN_COGNITION_MANIFEST_FILE) {
+        throw new Error("injected manifest replacement failure");
+      }
+    });
+    await assert.rejects(
+      () => projectMarkdownCognition({ targetDirectory: fixture.target, records: desired }),
+      (error: unknown) => error instanceof MarkdownCognitionError && error.code === "projection_io_failed",
+    );
+    assert.ok(replacements.indexOf("Index.md") < replacements.indexOf(MARKDOWN_COGNITION_MANIFEST_FILE));
+    setMarkdownCognitionTargetTestHook(undefined);
+    const retry = await projectMarkdownCognition({ targetDirectory: fixture.target, records: desired });
+    assert.deepEqual(retry.updated, []);
+    assert.ok(retry.unchanged.includes("Index.md"));
+  } finally {
+    fixture.remove();
+  }
+});
+
+test("converges after manifest failure following a prune", async () => {
+  const fixture = temporaryInitializedTarget();
+  try {
+    await initializeMarkdownCognitionTarget({ targetDirectory: fixture.target });
+    const records = fixtureRecords();
+    const first = await projectMarkdownCognition({ targetDirectory: fixture.target, records });
+    const stale = first.created.find((path) => path !== "Index.md")!;
+    const remaining = records.filter((record) => markdownCognitionRelativePath(record) !== stale);
     setMarkdownCognitionTargetTestHook((event, relativePath) => {
       if (event === "projection:before-replace" && relativePath === MARKDOWN_COGNITION_MANIFEST_FILE) {
         throw new Error("injected manifest replacement failure");
       }
     });
     await assert.rejects(
-      () => projectMarkdownCognition({ targetDirectory: fixture.target, records }),
+      () => projectMarkdownCognition({
+        targetDirectory: fixture.target,
+        pruneManaged: true,
+        records: remaining,
+      }),
       (error: unknown) => error instanceof MarkdownCognitionError && error.code === "projection_io_failed",
     );
+    assert.throws(() => lstatSync(join(fixture.target, stale)), { code: "ENOENT" });
     setMarkdownCognitionTargetTestHook(undefined);
-    const retry = await projectMarkdownCognition({ targetDirectory: fixture.target, records });
-    assert.deepEqual(retry.updated, []);
-    assert.ok(retry.unchanged.includes("Index.md"));
+    const retry = await projectMarkdownCognition({
+      targetDirectory: fixture.target,
+      pruneManaged: true,
+      records: remaining,
+    });
+    assert.deepEqual(retry.pruned, [stale]);
+  } finally {
+    fixture.remove();
+  }
+});
+
+test("rejects inherited projection options and accepts null-prototype options", async () => {
+  const fixture = temporaryInitializedTarget();
+  try {
+    await initializeMarkdownCognitionTarget({ targetDirectory: fixture.target });
+    const records = fixtureRecords();
+    const inherited = Object.assign(Object.create({ inherited: true }), {
+      targetDirectory: fixture.target,
+      records,
+    }) as { targetDirectory: string; records: MarkdownCognitionRecord[] };
+    await assert.rejects(
+      () => projectMarkdownCognition(inherited),
+      (error: unknown) => error instanceof MarkdownCognitionError && error.code === "invalid_projection_input",
+    );
+    const nullPrototype = Object.assign(Object.create(null), {
+      targetDirectory: fixture.target,
+      records,
+    }) as { targetDirectory: string; records: MarkdownCognitionRecord[] };
+    await assert.doesNotReject(() => projectMarkdownCognition(nullPrototype));
+  } finally {
+    fixture.remove();
+  }
+});
+
+test("applies interleaved creates and updates in global path order", async () => {
+  const fixture = temporaryInitializedTarget();
+  try {
+    await initializeMarkdownCognitionTarget({ targetDirectory: fixture.target });
+    const records = fixtureRecords();
+    await projectMarkdownCognition({ targetDirectory: fixture.target, records });
+    const successor = structuredClone(records.find((record) =>
+      record.recordType === "cognitive-object" && record.payload.type === "hypothesis" &&
+      record.payload.version === 3
+    )!) as MarkdownCognitionRecord;
+    if (successor.recordType !== "cognitive-object") throw new Error("fixture mismatch");
+    (successor.payload as { version: number }).version += 1;
+    (successor.payload as { updatedAt: string }).updatedAt = "2026-07-30T00:00:00Z";
+    const replacements: string[] = [];
+    setMarkdownCognitionTargetTestHook((event, relativePath) => {
+      if (
+        event === "projection:before-replace" &&
+        relativePath !== undefined &&
+        relativePath !== MARKDOWN_COGNITION_MANIFEST_FILE
+      ) {
+        replacements.push(relativePath);
+      }
+    });
+    await projectMarkdownCognition({
+      targetDirectory: fixture.target,
+      records: [...records, successor],
+    });
+    assert.deepEqual(replacements, [...replacements].sort());
+    assert.deepEqual(replacements, ["Index.md", markdownCognitionRelativePath(successor)].sort());
   } finally {
     fixture.remove();
   }

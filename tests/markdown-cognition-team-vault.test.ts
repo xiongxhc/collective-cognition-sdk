@@ -61,6 +61,35 @@ function hashTreeExcluding(root: string, excluded: readonly string[]): readonly 
   return Object.freeze(result.sort());
 }
 
+function managedTree(root: string): ReadonlyMap<string, Buffer> {
+  const result = new Map<string, Buffer>();
+  const visit = (directory: string): void => {
+    for (const name of readdirSync(directory).sort()) {
+      const absolute = join(directory, name);
+      const path = relative(root, absolute).split("\\").join("/");
+      const entry = statSync(absolute);
+      if (entry.isDirectory()) visit(absolute);
+      else result.set(path, readFileSync(absolute));
+    }
+  };
+  visit(root);
+  return result;
+}
+
+function changedManagedPaths(
+  before: ReadonlyMap<string, Buffer>,
+  after: ReadonlyMap<string, Buffer>,
+): readonly string[] {
+  return [...new Set([...before.keys(), ...after.keys()])]
+    .filter((path) => !before.get(path)?.equals(after.get(path) ?? Buffer.alloc(0)))
+    .sort();
+}
+
+function wikiLinks(markdown: string): readonly string[] {
+  return [...markdown.matchAll(/\[\[([^|\]]+)(?:\|[^\]]+)?\]\]/g)]
+    .map((match) => `${match[1]}.md`);
+}
+
 function createTemporaryTeamVault(): { readonly cognitionTarget: string; readonly remove: () => void; readonly root: string } {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "ccsdk-team-vault-")));
   writeTree(root, {
@@ -104,6 +133,28 @@ test("projects only into an initialized team-vault subtree", async () => {
     for (const object of latestByObject.values()) {
       assert.match(index, new RegExp(markdownCognitionRelativePath(object).slice(0, -3).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     }
+    const latestObjects = [...latestByObject.values()].filter(
+      (record): record is Extract<MarkdownCognitionRecord, { recordType: "cognitive-object" }> =>
+        record.recordType === "cognitive-object",
+    );
+    const byType = new Map(latestObjects.map((record) => [record.payload.type, record]));
+    const goal = byType.get("goal")!;
+    const hypothesis = byType.get("hypothesis")!;
+    const evidence = byType.get("evidence")!;
+    const decision = byType.get("decision")!;
+    const inverseResolvedLinks = new Map<string, string[]>();
+    for (const record of [hypothesis, evidence, decision]) {
+      const sourcePath = markdownCognitionRelativePath(record);
+      for (const targetPath of wikiLinks(readFileSync(join(vault.cognitionTarget, sourcePath), "utf8"))) {
+        assert.equal(statSync(join(vault.cognitionTarget, targetPath)).isFile(), true);
+        const sources = inverseResolvedLinks.get(targetPath) ?? [];
+        sources.push(sourcePath);
+        inverseResolvedLinks.set(targetPath, sources);
+      }
+    }
+    assert.ok(inverseResolvedLinks.get(markdownCognitionRelativePath(goal))?.includes(markdownCognitionRelativePath(hypothesis)));
+    assert.ok(inverseResolvedLinks.get(markdownCognitionRelativePath(hypothesis))?.includes(markdownCognitionRelativePath(evidence)));
+    assert.ok(inverseResolvedLinks.get(markdownCognitionRelativePath(evidence))?.includes(markdownCognitionRelativePath(decision)));
     const managedPaths = [...first.created, MARKDOWN_COGNITION_MANIFEST_FILE].sort();
     const mtimes = managedPaths.map((path) => `${path}:${statSync(join(vault.cognitionTarget, path)).mtimeMs}`);
     const second = await projectMarkdownCognition({ targetDirectory: vault.cognitionTarget, records: [...records].reverse() });
@@ -119,12 +170,25 @@ test("projects only into an initialized team-vault subtree", async () => {
     if (successor.recordType !== "cognitive-object") throw new Error("fixture mismatch");
     (successor.payload as { version: number }).version += 10;
     (successor.payload as { updatedAt: string }).updatedAt = "2026-07-30T00:00:00Z";
+    const beforeSuccessor = managedTree(vault.cognitionTarget);
     const successorReport = await projectMarkdownCognition({
       targetDirectory: vault.cognitionTarget,
       records: [...records, successor],
     });
     assert.deepEqual(successorReport.created, [markdownCognitionRelativePath(successor)]);
     assert.ok(successorReport.updated.includes("Index.md"));
+    const afterSuccessor = managedTree(vault.cognitionTarget);
+    assert.deepEqual(changedManagedPaths(beforeSuccessor, afterSuccessor), [
+      MARKDOWN_COGNITION_MANIFEST_FILE,
+      "Index.md",
+      markdownCognitionRelativePath(successor),
+    ].sort());
+    const changedBytes = changedManagedPaths(beforeSuccessor, afterSuccessor).reduce(
+      (total, path) =>
+        total + (beforeSuccessor.get(path)?.length ?? 0) + (afterSuccessor.get(path)?.length ?? 0),
+      0,
+    );
+    assert.ok(changedBytes > 0 && changedBytes < 128 * 1024);
 
     const path = markdownCognitionRelativePath(records[0]!);
     writeFileSync(join(vault.cognitionTarget, path), "manual change\n");

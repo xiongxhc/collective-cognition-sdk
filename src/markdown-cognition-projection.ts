@@ -97,6 +97,10 @@ function ownDataOptions(value: unknown): ProjectionOptionsSnapshot {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
       projectionInputError();
     }
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      projectionInputError();
+    }
     const descriptors = Object.getOwnPropertyDescriptors(value);
     const keys = Reflect.ownKeys(descriptors);
     const expected = ["targetDirectory", "records", "pruneManaged"];
@@ -197,7 +201,14 @@ function desiredFiles(records: readonly MarkdownCognitionRecord[]): readonly Des
   for (const record of selected) {
     const relativePath = markdownCognitionManagedRelativePath(markdownCognitionRelativePath(record));
     const canonical = canonicalRecord(record);
-    const bytes = Buffer.from(renderMarkdownCognitionRecord(record, { records: selected }), "utf8");
+    const maximumLinkedVersion = record.recordType === "cognitive-object"
+      ? record.payload.version
+      : record.payload.objectVersion;
+    const renderContext = selected.filter((candidate) =>
+      candidate.recordType !== "cognitive-object" ||
+      candidate.payload.version <= maximumLinkedVersion
+    );
+    const bytes = Buffer.from(renderMarkdownCognitionRecord(record, { records: renderContext }), "utf8");
     if (bytes.length > MARKDOWN_COGNITION_MAX_NOTE_BYTES) projectionLimitExceeded(relativePath);
     files.push(Object.freeze({
       bytes,
@@ -262,40 +273,43 @@ function buildPlan(options: ProjectionOptionsSnapshot): { readonly plan: Project
       else managedConflict(file.relativePath);
       continue;
     }
-    if (existing === undefined || markdownCognitionDigest(existing) !== previous.digest) {
+    if (existing === undefined) {
       managedConflict(file.relativePath);
     }
-    if (existing.equals(file.bytes)) unchanged.push(file);
-    else update.push(file);
+    if (existing.equals(file.bytes)) {
+      unchanged.push(file);
+    } else if (markdownCognitionDigest(existing) !== previous.digest) {
+      managedConflict(file.relativePath);
+    } else {
+      update.push(file);
+    }
   }
   const desiredPaths = new Set(files.map((file) => file.relativePath));
   const prune: MarkdownManifestEntry[] = [];
+  const retained: MarkdownManifestEntry[] = [];
+  let retainedBytes = 0;
   for (const entry of target.manifest.entries) {
     if (desiredPaths.has(entry.relativePath)) continue;
-    if (!options.pruneManaged) {
+    const existing = readMarkdownCognitionProjectionFile(
+      target,
+      entry.relativePath,
+      MARKDOWN_COGNITION_MAX_NOTE_BYTES,
+    );
+    if (options.pruneManaged) {
+      if (existing !== undefined && markdownCognitionDigest(existing) !== entry.digest) {
+        managedConflict(entry.relativePath);
+      }
+      prune.push(entry);
+    } else {
+      if (existing === undefined || markdownCognitionDigest(existing) !== entry.digest) {
+        managedConflict(entry.relativePath);
+      }
       unchanged.push(Object.freeze({
         bytes: Buffer.alloc(0),
         digest: entry.digest,
         recordType: entry.recordType,
         relativePath: entry.relativePath,
       }));
-      continue;
-    }
-    const existing = readMarkdownCognitionProjectionFile(target, entry.relativePath, MARKDOWN_COGNITION_MAX_NOTE_BYTES);
-    if (existing === undefined || markdownCognitionDigest(existing) !== entry.digest) {
-      managedConflict(entry.relativePath);
-    }
-    prune.push(entry);
-  }
-  const retained: MarkdownManifestEntry[] = [];
-  let retainedBytes = 0;
-  for (const entry of target.manifest.entries) {
-    if (desiredPaths.has(entry.relativePath)) continue;
-    const existing = readMarkdownCognitionProjectionFile(target, entry.relativePath, MARKDOWN_COGNITION_MAX_NOTE_BYTES);
-    if (existing === undefined || markdownCognitionDigest(existing) !== entry.digest) {
-      managedConflict(entry.relativePath);
-    }
-    if (!options.pruneManaged) {
       retained.push(entry);
       retainedBytes += existing.length;
     }
@@ -343,7 +357,9 @@ export async function projectMarkdownCognition(
   const snapshot = ownDataOptions(options);
   const { plan, target } = buildPlan(snapshot);
   try {
-    for (const file of [...plan.create, ...plan.update]) {
+    const writes = [...plan.create, ...plan.update]
+      .sort((left, right) => left.relativePath.localeCompare(right.relativePath, "en-US"));
+    for (const file of writes) {
       replaceMarkdownCognitionProjectionFile(target, file.relativePath, file.bytes);
     }
     for (const entry of plan.prune) {
