@@ -1,20 +1,27 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
+  closeSync,
+  existsSync,
   lstatSync,
   linkSync,
   mkdtempSync,
   mkdirSync,
+  openSync,
   readFileSync,
+  readdirSync,
   realpathSync,
+  renameSync,
   rmSync,
   symlinkSync,
+  writeSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import { setMarkdownCognitionTargetTestHook } from "../src/markdown-cognition-target-test-seam.ts";
 import {
   MARKDOWN_COGNITION_MANIFEST_FILE,
   MARKDOWN_COGNITION_MARKER_FILE,
@@ -58,6 +65,10 @@ function assertInvalidTarget(action: () => Promise<unknown>): Promise<void> {
     (error: unknown) => error instanceof MarkdownCognitionError && error.code === "invalid_target",
   );
 }
+
+test.afterEach(() => {
+  setMarkdownCognitionTargetTestHook(undefined);
+});
 
 test("initializes only an explicit empty absolute directory", async () => {
   const root = temporaryRoot();
@@ -283,6 +294,259 @@ test("verification diagnostics never expose absolute paths", async () => {
         true,
       );
     }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verification fails closed when the target or an ancestor is substituted", async () => {
+  for (const substitution of ["target", "ancestor"] as const) {
+    const root = temporaryRoot();
+    const parent = join(root, "parent");
+    const target = join(parent, "target");
+    const outsideParent = join(root, "outside-parent");
+    const outsideTarget = join(outsideParent, "target");
+    try {
+      mkdirSync(parent);
+      mkdirSync(outsideParent);
+      mkdirSync(target);
+      mkdirSync(outsideTarget);
+      writeInitializedFiles(target);
+      writeInitializedFiles(outsideTarget);
+      let substituted = false;
+      setMarkdownCognitionTargetTestHook((event, relativePath) => {
+        if (
+          event !== "verify:before-managed-open" ||
+          relativePath !== MARKDOWN_COGNITION_MARKER_FILE ||
+          substituted
+        ) {
+          return;
+        }
+        substituted = true;
+        if (substitution === "target") {
+          renameSync(target, join(parent, "target-original"));
+          symlinkSync(outsideTarget, target);
+        } else {
+          renameSync(parent, join(root, "parent-original"));
+          symlinkSync(outsideParent, parent);
+        }
+      });
+
+      const report = await verifyMarkdownCognitionTarget({ targetDirectory: target });
+
+      assert.equal(report.status, "failed");
+      assert.ok(report.diagnostics.some((diagnostic) => diagnostic.code === "unsafe_target_entry"));
+    } finally {
+      setMarkdownCognitionTargetTestHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("initialization does not write through a substituted target", async () => {
+  const root = temporaryRoot();
+  const parent = join(root, "parent");
+  const target = join(parent, "target");
+  const outside = join(root, "outside");
+  try {
+    mkdirSync(parent);
+    mkdirSync(target);
+    mkdirSync(outside);
+    let substituted = false;
+    setMarkdownCognitionTargetTestHook((event) => {
+      if (event !== "initialize:after-target-inspection" || substituted) {
+        return;
+      }
+      substituted = true;
+      renameSync(target, join(parent, "target-original"));
+      symlinkSync(outside, target);
+    });
+
+    await assert.rejects(
+      () => initializeMarkdownCognitionTarget({ targetDirectory: target }),
+      (error: unknown) =>
+        error instanceof MarkdownCognitionError &&
+        error.code === "projection_io_failed",
+    );
+    assert.deepEqual(readdirSync(outside), []);
+  } finally {
+    setMarkdownCognitionTargetTestHook(undefined);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("initialization cleans staged artifacts when the second commit fails", async () => {
+  const root = temporaryRoot();
+  const target = join(root, "target");
+  try {
+    mkdirSync(target);
+    setMarkdownCognitionTargetTestHook((event) => {
+      if (event === "initialize:before-manifest-commit") {
+        throw new Error("simulated second commit failure");
+      }
+    });
+
+    await assert.rejects(
+      () => initializeMarkdownCognitionTarget({ targetDirectory: target }),
+      (error: unknown) =>
+        error instanceof MarkdownCognitionError &&
+        error.code === "projection_io_failed",
+    );
+    assert.deepEqual(readdirSync(target), []);
+  } finally {
+    setMarkdownCognitionTargetTestHook(undefined);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verification rejects invalid UTF-8 metadata and managed bytes", async () => {
+  const root = temporaryRoot();
+  const target = join(root, "target");
+  const targetId = "a".repeat(32);
+  try {
+    mkdirSync(target);
+    writeInitializedFiles(target, targetId);
+    const markerPrefix = Buffer.from(
+      "{\"format\":\"collective-cognition-markdown-target/1\",\"initializedByPackageVersion\":\"",
+      "utf8",
+    );
+    const markerSuffix = Buffer.from(
+      `\",\"profileVersion\":\"portable-cognition-markdown/0.1.0\",\"targetId\":\"${targetId}\"}`,
+      "utf8",
+    );
+    writeFileSync(
+      join(target, MARKDOWN_COGNITION_MARKER_FILE),
+      Buffer.concat([markerPrefix, Buffer.from([0x80]), markerSuffix]),
+    );
+    let report = await verifyMarkdownCognitionTarget({ targetDirectory: target });
+    assert.equal(report.status, "failed");
+
+    writeInitializedFiles(target, targetId);
+    const managedPath = "Objects/item.md";
+    const managedBytes = Buffer.from([0x80]);
+    mkdirSync(join(target, "Objects"));
+    writeFileSync(join(target, managedPath), managedBytes);
+    const decodedDigest = createHash("sha256")
+      .update(Buffer.from("\ufffd", "utf8"))
+      .digest("hex");
+    const manifestPrefix = Buffer.from(
+      `{"entries":[{"digest":"${decodedDigest}","recordHash":"${"b".repeat(64)}","recordIdentity":"`,
+      "utf8",
+    );
+    const manifestSuffix = Buffer.from(
+      `","recordType":"cognitive-object","relativePath":"${managedPath}"}],"format":"collective-cognition-markdown-manifest/1","profileVersion":"portable-cognition-markdown/0.1.0","targetId":"${targetId}"}`,
+      "utf8",
+    );
+    writeFileSync(
+      join(target, MARKDOWN_COGNITION_MANIFEST_FILE),
+      Buffer.concat([manifestPrefix, Buffer.from([0x80]), manifestSuffix]),
+    );
+    report = await verifyMarkdownCognitionTarget({ targetDirectory: target });
+    assert.equal(report.status, "failed");
+
+    writeFileSync(
+      join(target, MARKDOWN_COGNITION_MANIFEST_FILE),
+      manifest(targetId, {
+        entries: [{
+          digest: decodedDigest,
+          recordType: "index",
+          relativePath: managedPath,
+        }],
+      }),
+    );
+    report = await verifyMarkdownCognitionTarget({ targetDirectory: target });
+    assert.equal(report.status, "failed");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verification enforces the aggregate raw metadata byte limit before parsing", async () => {
+  const root = temporaryRoot();
+  const target = join(root, "target");
+  const targetId = "a".repeat(32);
+  const aggregateLimit = 128 * 1024 * 1024;
+  try {
+    mkdirSync(target);
+    const manifestBytes = Buffer.from(manifest(targetId), "utf8");
+    writeFileSync(join(target, MARKDOWN_COGNITION_MANIFEST_FILE), manifestBytes);
+    const markerPrefix = Buffer.from(
+      "{\"format\":\"collective-cognition-markdown-target/1\",\"initializedByPackageVersion\":\"",
+      "utf8",
+    );
+    const markerSuffix = Buffer.from(
+      `\",\"profileVersion\":\"portable-cognition-markdown/0.1.0\",\"targetId\":\"${targetId}\"}`,
+      "utf8",
+    );
+    const packageVersionBytes =
+      aggregateLimit + 1 - manifestBytes.length - markerPrefix.length - markerSuffix.length;
+    const markerDescriptor = openSync(
+      join(target, MARKDOWN_COGNITION_MARKER_FILE),
+      "w",
+    );
+    try {
+      writeSync(markerDescriptor, markerPrefix);
+      const chunk = Buffer.alloc(1024 * 1024, 0x61);
+      let remaining = packageVersionBytes;
+      while (remaining > 0) {
+        const bytes = Math.min(remaining, chunk.length);
+        writeSync(markerDescriptor, chunk, 0, bytes);
+        remaining -= bytes;
+      }
+      writeSync(markerDescriptor, markerSuffix);
+    } finally {
+      closeSync(markerDescriptor);
+    }
+
+    const report = await verifyMarkdownCognitionTarget({ targetDirectory: target });
+
+    assert.equal(report.status, "failed");
+    assert.ok(report.diagnostics.some((diagnostic) => diagnostic.code === "incompatible_target"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verification rejects Windows path aliases and reserved device names", async () => {
+  const root = temporaryRoot();
+  const target = join(root, "target");
+  const targetId = "a".repeat(32);
+  const contents = "# managed\n";
+  const digest = createHash("sha256").update(contents, "utf8").digest("hex");
+  const unsafePaths = [
+    "Index.md.",
+    "Objects/trailing-space /item.md",
+    "CON.md",
+    "Objects/AUX/item.md",
+    "Events/com1/event.md",
+    "Objects/LPT9.txt/item.md",
+  ];
+  try {
+    mkdirSync(target);
+    writeInitializedFiles(target, targetId);
+    for (const unsafePath of unsafePaths) {
+      const segments = unsafePath.split("/");
+      if (segments.length > 1) {
+        mkdirSync(join(target, ...segments.slice(0, -1)), { recursive: true });
+      }
+      writeFileSync(join(target, ...segments), contents);
+    }
+    writeFileSync(
+      join(target, MARKDOWN_COGNITION_MANIFEST_FILE),
+      manifest(targetId, {
+        entries: unsafePaths.map((relativePath) => ({
+          digest,
+          recordType: "index",
+          relativePath,
+        })),
+      }),
+    );
+
+    const report = await verifyMarkdownCognitionTarget({ targetDirectory: target });
+
+    assert.equal(report.status, "failed");
+    assert.ok(report.diagnostics.some((diagnostic) => diagnostic.code === "unsafe_target_entry"));
+    assert.equal(existsSync(join(root, "CON.md")), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

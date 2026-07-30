@@ -10,12 +10,15 @@ import {
   readFileSync,
   readdirSync,
   renameSync,
-  rmSync,
+  unlinkSync,
   writeSync,
 } from "node:fs";
+import type { Stats } from "node:fs";
 import { isAbsolute, join, normalize, parse, posix, relative, sep } from "node:path";
+import { TextDecoder } from "node:util";
 
 import { parseProfiledJson } from "./json-text.ts";
+import { invokeMarkdownCognitionTargetTestHook } from "./markdown-cognition-target-test-seam.ts";
 import {
   MARKDOWN_COGNITION_PROFILE_VERSION,
   MarkdownCognitionError,
@@ -39,6 +42,9 @@ const MAX_MANIFEST_ENTRIES = 10_001;
 const MAX_TARGET_BYTES = 128 * 1024 * 1024;
 const MAX_RELATIVE_PATH_BYTES = 512;
 const MAX_PATH_SEGMENTS = 4;
+const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
+const WINDOWS_RESERVED_NAME_PATTERN =
+  /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\..*)?$/iu;
 
 export interface MarkdownCognitionTargetOptions {
   readonly targetDirectory: string;
@@ -79,12 +85,24 @@ interface MarkdownTargetManifest {
 }
 
 interface RegularFile {
-  readonly contents: string;
-  readonly bytes: number;
+  readonly bytes: Buffer;
 }
 
 interface PathInspection {
   readonly kind: "present" | "missing" | "unsafe";
+}
+
+interface PathIdentity {
+  readonly path: string;
+  readonly device: number;
+  readonly inode: number;
+  readonly mode: number;
+}
+
+interface StagedFile {
+  readonly finalName: string;
+  readonly temporaryName: string;
+  readonly identity: PathIdentity;
 }
 
 function invalidTarget(): never {
@@ -184,6 +202,72 @@ function inspectPath(targetDirectory: string): PathInspection {
   return { kind: "present" };
 }
 
+function pathIdentity(
+  path: string,
+  entry: Stats,
+): PathIdentity {
+  return Object.freeze({
+    device: entry.dev,
+    inode: entry.ino,
+    mode: entry.mode,
+    path,
+  });
+}
+
+function sameIdentity(
+  left: Pick<PathIdentity, "device" | "inode" | "mode">,
+  right: Pick<PathIdentity, "device" | "inode" | "mode">,
+): boolean {
+  return (
+    left.device === right.device &&
+    left.inode === right.inode &&
+    left.mode === right.mode
+  );
+}
+
+function snapshotDirectoryChain(
+  directory: string,
+): readonly PathIdentity[] | undefined {
+  const root = parse(directory).root;
+  const paths = [root];
+  let current = root;
+  for (const segment of pathSegments(directory)) {
+    current = join(current, segment);
+    paths.push(current);
+  }
+  const identities: PathIdentity[] = [];
+  try {
+    for (const path of paths) {
+      const entry = lstatSync(path);
+      if (entry.isSymbolicLink() || !entry.isDirectory()) {
+        return undefined;
+      }
+      identities.push(pathIdentity(path, entry));
+    }
+    return Object.freeze(identities);
+  } catch {
+    return undefined;
+  }
+}
+
+function directoryChainMatches(chain: readonly PathIdentity[]): boolean {
+  try {
+    for (const identity of chain) {
+      const entry = lstatSync(identity.path);
+      if (
+        entry.isSymbolicLink() ||
+        !entry.isDirectory() ||
+        !sameIdentity(identity, pathIdentity(identity.path, entry))
+      ) {
+        return false;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function requireSafeExistingParent(targetDirectory: string): void {
   const parentDirectory = parse(targetDirectory).dir;
   if (inspectPath(parentDirectory).kind !== "present") {
@@ -218,22 +302,60 @@ function requireEmptySafeDirectory(targetDirectory: string): "existing" | "creat
   }
 }
 
-function temporaryPath(targetDirectory: string): string {
-  return join(
-    targetDirectory,
-    `.collective-cognition-tmp-${randomBytes(16).toString("hex")}`,
-  );
+function temporaryName(): string {
+  return `.collective-cognition-tmp-${randomBytes(16).toString("hex")}`;
 }
 
-function writeCanonicalFile(targetDirectory: string, name: string, contents: string): void {
-  const temporary = temporaryPath(targetDirectory);
-  let fileDescriptor: number | undefined;
+function closeFile(fileDescriptor: number | undefined): void {
+  if (fileDescriptor === undefined) {
+    return;
+  }
   try {
+    closeSync(fileDescriptor);
+  } catch {}
+}
+
+function stageCanonicalFile(
+  targetDirectory: string,
+  targetChain: readonly PathIdentity[],
+  finalName: string,
+  contents: string,
+): StagedFile {
+  const stagedName = temporaryName();
+  const stagedPath = join(targetDirectory, stagedName);
+  let fileDescriptor: number | undefined;
+  let stagedIdentity: PathIdentity | undefined;
+  try {
+    if (!directoryChainMatches(targetChain)) {
+      throw new Error("target changed");
+    }
     fileDescriptor = openSync(
-      temporary,
-      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY,
+      stagedPath,
+      constants.O_CREAT |
+        constants.O_EXCL |
+        constants.O_WRONLY |
+        (constants.O_NOFOLLOW ?? 0),
       0o600,
     );
+    const descriptorEntry = fstatSync(fileDescriptor);
+    const pathEntry = lstatSync(stagedPath);
+    const identity = pathIdentity(stagedPath, pathEntry);
+    stagedIdentity = identity;
+    if (
+      !descriptorEntry.isFile() ||
+      descriptorEntry.nlink !== 1 ||
+      pathEntry.isSymbolicLink() ||
+      !pathEntry.isFile() ||
+      pathEntry.nlink !== 1 ||
+      !sameIdentity(identity, {
+        device: descriptorEntry.dev,
+        inode: descriptorEntry.ino,
+        mode: descriptorEntry.mode,
+      }) ||
+      !directoryChainMatches(targetChain)
+    ) {
+      throw new Error("unsafe staged file");
+    }
     const bytes = Buffer.from(contents, "utf8");
     let offset = 0;
     while (offset < bytes.length) {
@@ -242,18 +364,110 @@ function writeCanonicalFile(targetDirectory: string, name: string, contents: str
     fsyncSync(fileDescriptor);
     closeSync(fileDescriptor);
     fileDescriptor = undefined;
-    renameSync(temporary, join(targetDirectory, name));
-  } catch {
-    if (fileDescriptor !== undefined) {
-      closeSync(fileDescriptor);
+    const finalEntry = lstatSync(stagedPath);
+    if (
+      !finalEntry.isFile() ||
+      finalEntry.nlink !== 1 ||
+      !sameIdentity(identity, pathIdentity(stagedPath, finalEntry)) ||
+      !directoryChainMatches(targetChain)
+    ) {
+      throw new Error("staged file changed");
     }
-    try {
-      rmSync(temporary, { force: true });
-    } catch {}
-    throw new MarkdownCognitionError(
-      "projection_io_failed",
-      "Markdown cognition target initialization failed.",
+    return Object.freeze({
+      finalName,
+      identity,
+      temporaryName: stagedName,
+    });
+  } catch {
+    closeFile(fileDescriptor);
+    if (stagedIdentity !== undefined) {
+      cleanupOwnedPath(
+        targetDirectory,
+        targetChain,
+        stagedName,
+        stagedIdentity,
+      );
+    }
+    throw new Error("staging failed");
+  }
+}
+
+function ownedPathMatches(
+  targetDirectory: string,
+  targetChain: readonly PathIdentity[],
+  name: string,
+  expectedIdentity: PathIdentity | undefined,
+): boolean {
+  if (!directoryChainMatches(targetChain)) {
+    return false;
+  }
+  try {
+    const entry = lstatSync(join(targetDirectory, name));
+    return (
+      !entry.isSymbolicLink() &&
+      entry.isFile() &&
+      entry.nlink === 1 &&
+      directoryChainMatches(targetChain) &&
+      (expectedIdentity === undefined ||
+        sameIdentity(expectedIdentity, pathIdentity(name, entry)))
     );
+  } catch {
+    return false;
+  }
+}
+
+function cleanupOwnedPath(
+  targetDirectory: string,
+  targetChain: readonly PathIdentity[],
+  name: string,
+  expectedIdentity: PathIdentity | undefined,
+): void {
+  if (!ownedPathMatches(targetDirectory, targetChain, name, expectedIdentity)) {
+    return;
+  }
+  try {
+    unlinkSync(join(targetDirectory, name));
+  } catch {}
+}
+
+function commitStagedFile(
+  targetDirectory: string,
+  targetChain: readonly PathIdentity[],
+  staged: StagedFile,
+): void {
+  const stagedPath = join(targetDirectory, staged.temporaryName);
+  const finalPath = join(targetDirectory, staged.finalName);
+  if (
+    !ownedPathMatches(
+      targetDirectory,
+      targetChain,
+      staged.temporaryName,
+      staged.identity,
+    )
+  ) {
+    throw new Error("staged file changed");
+  }
+  try {
+    lstatSync(finalPath);
+    throw new Error("final path exists");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw error;
+    }
+  }
+  if (!directoryChainMatches(targetChain)) {
+    throw new Error("target changed");
+  }
+  renameSync(stagedPath, finalPath);
+  if (
+    !ownedPathMatches(
+      targetDirectory,
+      targetChain,
+      staged.finalName,
+      staged.identity,
+    )
+  ) {
+    throw new Error("commit changed");
   }
 }
 
@@ -287,10 +501,26 @@ function ownDataObject(
   return result;
 }
 
-function canonicalJsonValue(text: string): unknown | undefined {
+function decodeUtf8(bytes: Buffer): string | undefined {
+  try {
+    return UTF8_DECODER.decode(bytes);
+  } catch {
+    return undefined;
+  }
+}
+
+function canonicalJsonValue(bytes: Buffer): unknown | undefined {
+  const text = decodeUtf8(bytes);
+  if (text === undefined) {
+    return undefined;
+  }
   try {
     const value = parseProfiledJson(text);
-    if (canonicalizeJson(value as JsonValue) !== text) {
+    const canonicalBytes = Buffer.from(
+      canonicalizeJson(value as JsonValue),
+      "utf8",
+    );
+    if (!canonicalBytes.equals(bytes)) {
       return undefined;
     }
     return value;
@@ -299,7 +529,7 @@ function canonicalJsonValue(text: string): unknown | undefined {
   }
 }
 
-function parseMarker(contents: string): MarkdownTargetMarker | undefined {
+function parseMarker(contents: Buffer): MarkdownTargetMarker | undefined {
   const value = canonicalJsonValue(contents);
   const object = ownDataObject(value, [
     "format",
@@ -347,6 +577,9 @@ function safeRelativePath(value: unknown): string | undefined {
       part === "" ||
       part === "." ||
       part === ".." ||
+      part.endsWith(".") ||
+      part.endsWith(" ") ||
+      WINDOWS_RESERVED_NAME_PATTERN.test(part) ||
       /[<>:"|?*\u0000-\u001f]/.test(part)
     )
   ) {
@@ -400,7 +633,7 @@ function parseManifestEntry(value: unknown): MarkdownManifestEntry | undefined {
     });
 }
 
-function parseManifest(contents: string): MarkdownTargetManifest | undefined {
+function parseManifest(contents: Buffer): MarkdownTargetManifest | undefined {
   const value = canonicalJsonValue(contents);
   const object = ownDataObject(value, [
     "entries",
@@ -445,7 +678,7 @@ function parseManifest(contents: string): MarkdownTargetManifest | undefined {
   });
 }
 
-function hasUnsafeManifestPath(contents: string): boolean {
+function hasUnsafeManifestPath(contents: Buffer): boolean {
   const value = canonicalJsonValue(contents);
   const object = ownDataObject(value, [
     "entries",
@@ -500,31 +733,84 @@ function inspectManagedPath(targetDirectory: string, relativePath: string): Path
 function readRegularFileNoFollow(
   targetDirectory: string,
   relativePath: string,
+  targetChain: readonly PathIdentity[],
 ): RegularFile | undefined {
   if (inspectManagedPath(targetDirectory, relativePath).kind !== "present") {
     return undefined;
   }
-  const absolutePath = join(targetDirectory, ...relativePath.split("/"));
+  const parts = relativePath.split("/");
+  const parentDirectory = join(targetDirectory, ...parts.slice(0, -1));
+  const parentChain = snapshotDirectoryChain(parentDirectory);
+  if (
+    parentChain === undefined ||
+    !directoryChainMatches(targetChain) ||
+    !directoryChainMatches(parentChain)
+  ) {
+    return undefined;
+  }
+  invokeMarkdownCognitionTargetTestHook("verify:before-managed-open", relativePath);
+  if (
+    !directoryChainMatches(targetChain) ||
+    !directoryChainMatches(parentChain)
+  ) {
+    return undefined;
+  }
+  const absolutePath = join(targetDirectory, ...parts);
   let fileDescriptor: number | undefined;
   try {
     fileDescriptor = openSync(
       absolutePath,
       constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
     );
-    const entry = fstatSync(fileDescriptor);
-    if (!entry.isFile() || entry.nlink !== 1 || entry.size > MAX_TARGET_BYTES) {
-      closeSync(fileDescriptor);
+    const descriptorBefore = fstatSync(fileDescriptor);
+    const pathEntry = lstatSync(absolutePath);
+    if (
+      !descriptorBefore.isFile() ||
+      descriptorBefore.nlink !== 1 ||
+      descriptorBefore.size > MAX_TARGET_BYTES ||
+      pathEntry.isSymbolicLink() ||
+      !pathEntry.isFile() ||
+      pathEntry.nlink !== 1 ||
+      !sameIdentity(pathIdentity(absolutePath, pathEntry), {
+        device: descriptorBefore.dev,
+        inode: descriptorBefore.ino,
+        mode: descriptorBefore.mode,
+      }) ||
+      !directoryChainMatches(targetChain) ||
+      !directoryChainMatches(parentChain)
+    ) {
+      closeFile(fileDescriptor);
       fileDescriptor = undefined;
       return undefined;
     }
-    const contents = readFileSync(fileDescriptor, "utf8");
-    closeSync(fileDescriptor);
+    const contents = readFileSync(fileDescriptor);
+    const descriptorAfter = fstatSync(fileDescriptor);
+    closeFile(fileDescriptor);
     fileDescriptor = undefined;
-    return Object.freeze({ bytes: Buffer.byteLength(contents, "utf8"), contents });
-  } catch {
-    if (fileDescriptor !== undefined) {
-      closeSync(fileDescriptor);
+    if (
+      !sameIdentity(
+        {
+          device: descriptorBefore.dev,
+          inode: descriptorBefore.ino,
+          mode: descriptorBefore.mode,
+        },
+        {
+          device: descriptorAfter.dev,
+          inode: descriptorAfter.ino,
+          mode: descriptorAfter.mode,
+        },
+      ) ||
+      descriptorBefore.size !== descriptorAfter.size ||
+      descriptorBefore.mtimeMs !== descriptorAfter.mtimeMs ||
+      descriptorBefore.ctimeMs !== descriptorAfter.ctimeMs ||
+      !directoryChainMatches(targetChain) ||
+      !directoryChainMatches(parentChain)
+    ) {
+      return undefined;
     }
+    return Object.freeze({ bytes: contents });
+  } catch {
+    closeFile(fileDescriptor);
     return undefined;
   }
 }
@@ -565,28 +851,68 @@ export async function initializeMarkdownCognitionTarget(
 ): Promise<void> {
   const targetDirectory = normalizedTargetDirectory(options);
   requireEmptySafeDirectory(targetDirectory);
-  const marker: MarkdownTargetMarker = {
-    format: MARKDOWN_COGNITION_TARGET_FORMAT,
-    initializedByPackageVersion: packageVersion(),
-    profileVersion: MARKDOWN_COGNITION_PROFILE_VERSION,
-    targetId: randomBytes(16).toString("hex"),
-  };
-  const manifest: MarkdownTargetManifest = {
-    entries: [],
-    format: MARKDOWN_COGNITION_MANIFEST_FORMAT,
-    profileVersion: MARKDOWN_COGNITION_PROFILE_VERSION,
-    targetId: marker.targetId,
-  };
-  writeCanonicalFile(
-    targetDirectory,
-    MARKDOWN_COGNITION_MARKER_FILE,
-    canonicalizeJson(marker as unknown as JsonValue),
-  );
-  writeCanonicalFile(
-    targetDirectory,
-    MARKDOWN_COGNITION_MANIFEST_FILE,
-    canonicalizeJson(manifest as unknown as JsonValue),
-  );
+  const targetChain = snapshotDirectoryChain(targetDirectory);
+  if (targetChain === undefined) {
+    throw new MarkdownCognitionError(
+      "projection_io_failed",
+      "Markdown cognition target initialization failed.",
+    );
+  }
+  const staged: StagedFile[] = [];
+  try {
+    invokeMarkdownCognitionTargetTestHook("initialize:after-target-inspection");
+    if (!directoryChainMatches(targetChain)) {
+      throw new Error("target changed");
+    }
+    const marker: MarkdownTargetMarker = {
+      format: MARKDOWN_COGNITION_TARGET_FORMAT,
+      initializedByPackageVersion: packageVersion(),
+      profileVersion: MARKDOWN_COGNITION_PROFILE_VERSION,
+      targetId: randomBytes(16).toString("hex"),
+    };
+    const manifest: MarkdownTargetManifest = {
+      entries: [],
+      format: MARKDOWN_COGNITION_MANIFEST_FORMAT,
+      profileVersion: MARKDOWN_COGNITION_PROFILE_VERSION,
+      targetId: marker.targetId,
+    };
+    staged.push(stageCanonicalFile(
+      targetDirectory,
+      targetChain,
+      MARKDOWN_COGNITION_MARKER_FILE,
+      canonicalizeJson(marker as unknown as JsonValue),
+    ));
+    staged.push(stageCanonicalFile(
+      targetDirectory,
+      targetChain,
+      MARKDOWN_COGNITION_MANIFEST_FILE,
+      canonicalizeJson(manifest as unknown as JsonValue),
+    ));
+    commitStagedFile(targetDirectory, targetChain, staged[0]!);
+    invokeMarkdownCognitionTargetTestHook("initialize:before-manifest-commit");
+    commitStagedFile(targetDirectory, targetChain, staged[1]!);
+  } catch {
+    for (const file of [...staged].reverse()) {
+      cleanupOwnedPath(
+        targetDirectory,
+        targetChain,
+        file.finalName,
+        file.identity,
+      );
+    }
+    for (const file of staged) {
+      cleanupOwnedPath(
+        targetDirectory,
+        targetChain,
+        file.temporaryName,
+        file.identity,
+      );
+    }
+    throw new MarkdownCognitionError(
+      "projection_io_failed",
+      "Markdown cognition target initialization failed.",
+    );
+  }
 }
 
 export async function verifyMarkdownCognitionTarget(
@@ -600,6 +926,18 @@ export async function verifyMarkdownCognitionTarget(
     ], []);
   }
   if (target.kind === "unsafe") {
+    return finalizedReport([
+      diagnostic("unsafe_target_entry", "Markdown cognition target contains an unsafe entry."),
+    ], []);
+  }
+  const targetChain = snapshotDirectoryChain(targetDirectory);
+  if (targetChain === undefined) {
+    return finalizedReport([
+      diagnostic("unsafe_target_entry", "Markdown cognition target contains an unsafe entry."),
+    ], []);
+  }
+  invokeMarkdownCognitionTargetTestHook("verify:after-target-inspection");
+  if (!directoryChainMatches(targetChain)) {
     return finalizedReport([
       diagnostic("unsafe_target_entry", "Markdown cognition target contains an unsafe entry."),
     ], []);
@@ -622,8 +960,16 @@ export async function verifyMarkdownCognitionTarget(
       diagnostic("target_not_initialized", "Markdown cognition target is not initialized."),
     ], managedPaths);
   }
-  const markerFile = readRegularFileNoFollow(targetDirectory, MARKDOWN_COGNITION_MARKER_FILE);
-  const manifestFile = readRegularFileNoFollow(targetDirectory, MARKDOWN_COGNITION_MANIFEST_FILE);
+  const markerFile = readRegularFileNoFollow(
+    targetDirectory,
+    MARKDOWN_COGNITION_MARKER_FILE,
+    targetChain,
+  );
+  const manifestFile = readRegularFileNoFollow(
+    targetDirectory,
+    MARKDOWN_COGNITION_MANIFEST_FILE,
+    targetChain,
+  );
   if (markerFile === undefined || manifestFile === undefined) {
     diagnostics.push(diagnostic(
       "unsafe_target_entry",
@@ -631,11 +977,18 @@ export async function verifyMarkdownCognitionTarget(
     ));
     return finalizedReport(diagnostics, managedPaths);
   }
+  if (markerFile.bytes.length + manifestFile.bytes.length > MAX_TARGET_BYTES) {
+    diagnostics.push(diagnostic(
+      "incompatible_target",
+      "Markdown cognition target is incompatible.",
+    ));
+    return finalizedReport(diagnostics, managedPaths);
+  }
 
-  const marker = parseMarker(markerFile.contents);
-  const manifest = parseManifest(manifestFile.contents);
+  const marker = parseMarker(markerFile.bytes);
+  const manifest = parseManifest(manifestFile.bytes);
   if (marker === undefined || manifest === undefined || marker.targetId !== manifest.targetId) {
-    const unsafeManifestPath = manifest === undefined && hasUnsafeManifestPath(manifestFile.contents);
+    const unsafeManifestPath = manifest === undefined && hasUnsafeManifestPath(manifestFile.bytes);
     diagnostics.push(diagnostic(
       unsafeManifestPath ? "unsafe_target_entry" : "incompatible_target",
       unsafeManifestPath
@@ -645,10 +998,14 @@ export async function verifyMarkdownCognitionTarget(
     return finalizedReport(diagnostics, managedPaths);
   }
 
-  let totalBytes = markerFile.bytes + manifestFile.bytes;
+  let totalBytes = markerFile.bytes.length + manifestFile.bytes.length;
   for (const entry of manifest.entries) {
     managedPaths.push(entry.relativePath);
-    const file = readRegularFileNoFollow(targetDirectory, entry.relativePath);
+    const file = readRegularFileNoFollow(
+      targetDirectory,
+      entry.relativePath,
+      targetChain,
+    );
     if (file === undefined) {
       diagnostics.push(diagnostic(
         "unsafe_target_entry",
@@ -657,8 +1014,12 @@ export async function verifyMarkdownCognitionTarget(
       ));
       continue;
     }
-    totalBytes += file.bytes;
-    if (totalBytes > MAX_TARGET_BYTES || !SHA256_PATTERN.test(entry.digest) || entry.digest !== createDigest(file.contents)) {
+    totalBytes += file.bytes.length;
+    if (
+      totalBytes > MAX_TARGET_BYTES ||
+      decodeUtf8(file.bytes) === undefined ||
+      entry.digest !== createDigest(file.bytes)
+    ) {
       diagnostics.push(diagnostic(
         "incompatible_target",
         "Markdown cognition target is incompatible.",
@@ -669,6 +1030,6 @@ export async function verifyMarkdownCognitionTarget(
   return finalizedReport(diagnostics, managedPaths);
 }
 
-function createDigest(contents: string): string {
-  return createHash("sha256").update(contents, "utf8").digest("hex");
+function createDigest(contents: Buffer): string {
+  return createHash("sha256").update(contents).digest("hex");
 }
