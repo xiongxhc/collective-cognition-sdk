@@ -1,6 +1,6 @@
 # RFC 0007: Markdown Cognition Adapter
 
-**Status:** Implemented and packaged; final whole-branch review pending
+**Status:** Implemented and final-review verified
 
 **Created:** 2026-07-30
 
@@ -104,8 +104,20 @@ deferred.
   target access;
 - a runnable temporary-directory example initializes, projects, round-trips,
   reprojects without updates, verifies, and cleans up;
-- package compatibility is complete and final whole-branch review remains a
-  separate gate.
+- package compatibility and independent whole-branch review are complete.
+
+## Verification Evidence
+
+Independent whole-branch review returned **CLEAN**. Bundled Node.js `24.14.0`
+passed the full matrix with `444` passes and `1` expected skip: `406` source
+passes and `1` source skip, `10` schema, `19` compatibility, and `9` package
+tests. The focused version boundary passed `41/41`; typecheck, syntax checks,
+all examples, `pack:check`, and diff hygiene were clean.
+
+Two fresh team-vault acceptance runs passed using temporary vaults only; no
+live vault was read or mutated. Package `0.6.0` remains private and
+unpublished. This evidence does not certify production readiness or authorize
+publication.
 
 ## Alternatives
 

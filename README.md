@@ -2,9 +2,17 @@
 
 Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript reference implementation for attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, source system, or organizational beliefs.
 
-This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.6.0` remains private and unpublished; its source, emitted ESM build, declarations, and CLIs are runnable, but it is not production-ready. The Markdown adapter implementation, additive package export, compatibility baseline, dedicated executable, and clean-consumer verification are complete; final whole-branch review and delivery remain pending.
+This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.6.0` remains private and unpublished; its source, emitted ESM build, declarations, and CLIs are runnable, but it is not production-ready. The Markdown adapter implementation, additive package export, compatibility baseline, dedicated executable, clean-consumer verification, and independent whole-branch review are complete and final-review verified.
 
 Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.6.0` are implemented. The SQLite cognition-store and maintained-source-connector slices are implemented and final-review verified.
+
+Markdown adapter verification used bundled Node.js `24.14.0`: the full matrix
+passed `444` tests with `1` expected skip (`406` source passes and `1` source
+skip, `10` schema, `19` compatibility, and `9` package), the focused version
+boundary passed `41/41`, and two fresh temporary team-vault acceptance runs
+passed. Typecheck, syntax checks, all examples, `pack:check`, and diff hygiene
+were clean. Acceptance used temporary vaults only and did not mutate a live
+vault.
 
 ## Current Status
 
@@ -37,8 +45,8 @@ Runnable now:
   records, explicit target initialization, marker/manifest ownership,
   write-if-changed behavior, conflict detection, opt-in safe pruning, a closed
   installed CLI, package subpath, compatibility baseline, clean-consumer
-  verification, and a temporary-directory runnable example; final whole-branch
-  review remains pending.
+  verification, a temporary-directory runnable example, and clean independent
+  whole-branch review.
 
 Not implemented yet:
 

@@ -193,7 +193,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 4: Adapter Ecosystem Foundations
 
-**Status:** Active. The SQLite database persistence adapter and maintained source-connector slice are implemented and final-review verified. The [Markdown cognition adapter](markdown-cognition-adapter-guide.md), private package `0.6.0` export, executable, compatibility baseline, exact package allowlist, and clean-consumer workflow are implemented and locally verified; only final whole-branch review and delivery remain pending.
+**Status:** Active. The SQLite database persistence adapter, maintained source-connector slice, and [Markdown cognition adapter](markdown-cognition-adapter-guide.md) are implemented and final-review verified. The Markdown slice includes the private, unpublished package `0.6.0` export, executable, compatibility baseline, exact package allowlist, clean-consumer workflow, and temporary-vault acceptance.
 
 **Entry criteria**
 
@@ -228,8 +228,23 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Tests prove the Markdown adapter never discovers or operates on a personal vault implicitly.
 - [x] Private package `0.6.0` export, executable, compatibility baseline, and
   clean-consumer checks cover the Markdown adapter.
-- [ ] Final whole-branch review reconciles the Markdown adapter with the
+- [x] Final whole-branch review reconciles the Markdown adapter with the
   package baseline and all project checks.
+
+**Current Markdown verification evidence**
+
+- Bundled Node.js `24.14.0` full matrix: `444` passed and `1` expected skip,
+  comprising `406` source passes and `1` source skip, `10` schema, `19`
+  compatibility, and `9` package tests.
+- Focused object/event version-boundary verification passed `41/41`.
+- Two fresh temporary team-vault acceptance runs passed; acceptance used
+  temporary vaults only and did not mutate a live vault.
+- Typecheck, syntax checks, all examples, `pack:check`, `git diff --check`, and
+  whole-branch diff hygiene passed.
+- Independent whole-branch review returned **CLEAN** with no unresolved
+  Critical or Important finding.
+- Package `0.6.0` remains private and unpublished; this evidence is not a
+  production-certification or publication claim.
 
 **Current SQLite verification evidence**
 
@@ -247,6 +262,8 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - No durable publication outbox, retry worker, or delivery guarantee.
 - No npm publication, registry-name confirmation, or removal of the private package guard.
 - No production certification, endorsement, or LTS commitment.
+- No editable Markdown import/store, automatic Markdown projection scheduling,
+  Git automation, or live-vault mutation.
 - No automatic belief extraction, background vault synchronization, collaborative merge service, or replacement of normal note-taking.
 - No descriptor-relative native or platform-specific Markdown filesystem
   backend yet. The runtime-dependency-free core requires that untrusted

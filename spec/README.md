@@ -1,6 +1,6 @@
 # Collective Cognition Specification
 
-This directory contains the implemented and final-review verified Normative Stable SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and [Host Integration `0.1.0`](host-integration.md) contracts plus compatibility baselines `0.1.0` through `0.6.0`. The source checkout and private package implement the Supported Experimental Markdown cognition adapter; its package baseline, export, executable, and clean-consumer verification are complete, while final whole-branch review and delivery remain pending. The runnable TypeScript code and emitted package artifacts are the current reference implementation; package `0.6.0` remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
+This directory contains the implemented and final-review verified Normative Stable SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and [Host Integration `0.1.0`](host-integration.md) contracts plus compatibility baselines `0.1.0` through `0.6.0`. The source checkout and private package implement the Supported Experimental Markdown cognition adapter; its package baseline, export, executable, clean-consumer verification, temporary-vault acceptance, and independent whole-branch review are complete and final-review verified. The runnable TypeScript code and emitted package artifacts are the current reference implementation; package `0.6.0` remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
 
 ## Current Architecture
 
@@ -12,7 +12,7 @@ The current direction is defined by:
 - the [implemented and final-review verified Portable Cognition design](../docs/superpowers/specs/2026-07-27-portable-cognition-contract-design.md).
 - the [SQLite cognition-store design](../docs/superpowers/specs/2026-07-29-sqlite-cognition-store-design.md), which is implemented and final-review verified.
 - [RFC 0006: Maintained Source Connectors](../rfcs/0006-maintained-source-connectors.md), implemented and final-review verified.
-- the implemented [Markdown cognition adapter guide](../docs/markdown-cognition-adapter-guide.md) and [RFC 0007](../rfcs/0007-markdown-cognition-adapter.md), whose package baseline is complete and whose final whole-branch review remains pending.
+- the implemented and final-review verified [Markdown cognition adapter guide](../docs/markdown-cognition-adapter-guide.md) and [RFC 0007](../rfcs/0007-markdown-cognition-adapter.md).
 
 The core design and Phase 2 universal ingestion are implemented and final-review verified locally. [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md) records the implemented ingestion semantics.
 
@@ -92,8 +92,13 @@ import human Markdown edits. Its explicit `99,999,999` object and event target
 version ceiling keeps every managed object revision path within the fixed
 eight-digit grammar and fails before target I/O. The intended package subpath is
 `collective-cognition-sdk/adapters/markdown/0.1.0` in private package `0.6.0`.
-Its compatibility baseline and clean-consumer verification are complete, but
-it remains Supported Experimental rather than a Normative Stable contract.
+Its compatibility baseline, clean-consumer verification, temporary-vault
+acceptance, and independent whole-branch review are complete. Bundled Node.js
+`24.14.0` passed `444` tests with `1` expected skip, the focused version
+boundary passed `41/41`, two temporary team-vault runs passed, and
+typecheck/check/examples/pack/diff verification was clean. Acceptance used
+temporary vaults only. The adapter remains Supported Experimental rather than a
+Normative Stable contract.
 See the [operator guide](../docs/markdown-cognition-adapter-guide.md) and
 [RFC 0007](../rfcs/0007-markdown-cognition-adapter.md).
 
@@ -115,7 +120,7 @@ The contract is storage and transport neutral: it does not require a database, q
 
 SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.6.0` are Normative Stable. Before `1.0.0`, the package root, installed CLIs, and declared non-normative subpaths are Supported Experimental. Unexported connector modules remain Internal. Compatibility checks detect exact baseline drift, independently hash each public declaration entrypoint closure, and exercise the package `0.2.0` generic error-code assignment plus the supported package `0.3.0` narrowing migration; they do not automatically determine semantic compatibility.
 
-Phase 3 remains in progress. SourceRecord, Portable Cognition, Host Integration, and the compatibility baselines are implemented normative contracts. The compatibility baselines through `0.5.0`, Portable Cognition, Host Integration, SQLite cognition-store, and maintained connector slices are final-review verified; private package `0.6.0` is implemented and locally verified pending final whole-branch review and delivery. Connector conformance, the first maintained connector, its CLI, and private package surfaces are implemented; manual real-ledger acceptance is recorded in the roadmap. Runtime policy, security policy, publication, and production readiness remain deferred.
+Phase 3 remains in progress. SourceRecord, Portable Cognition, Host Integration, and the compatibility baselines are implemented normative contracts. Portable Cognition, Host Integration, SQLite cognition-store, maintained connector, and Markdown cognition adapter slices are final-review verified; private package `0.6.0` remains unpublished. Connector conformance, the first maintained connector, its CLI, and private package surfaces are implemented; manual real-ledger acceptance is recorded in the roadmap. Runtime policy, security policy, editable Markdown, scheduling, Git automation, live-vault mutation, descriptor-relative concurrent-mutation containment, publication, and production readiness remain deferred.
 
 ## Planned Normative Content
 
