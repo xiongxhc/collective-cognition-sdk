@@ -1,6 +1,6 @@
 # RFC 0007: Markdown Cognition Adapter
 
-**Status:** Implemented pending package compatibility baseline and final review
+**Status:** Implemented and packaged; final whole-branch review pending
 
 **Created:** 2026-07-30
 
@@ -66,9 +66,10 @@ The intended public surface is the Supported Experimental subpath
 SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, or
 existing connector behavior.
 
-The source implementation and focused tests are present before the `0.6.0`
-compatibility baseline is finalized. The package remains private and
-unpublished; no registry or publication commitment follows from this RFC.
+The `0.6.0` compatibility baseline, versioned export, dedicated executable,
+exact package allowlist, and clean-consumer workflow are implemented and
+verified. The package remains private and unpublished; no registry or
+publication commitment follows from this RFC.
 
 ## Security Model
 
@@ -95,7 +96,8 @@ deferred.
   input, no discovery, and sanitized diagnostics;
 - a runnable temporary-directory example initializes, projects, round-trips,
   reprojects without updates, verifies, and cleans up;
-- package compatibility and final whole-branch review remain separate gates.
+- package compatibility is complete and final whole-branch review remains a
+  separate gate.
 
 ## Alternatives
 

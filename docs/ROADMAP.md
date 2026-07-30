@@ -193,7 +193,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 4: Adapter Ecosystem Foundations
 
-**Status:** Active. The SQLite database persistence adapter and maintained source-connector slice are implemented and final-review verified. The [Markdown cognition adapter](markdown-cognition-adapter-guide.md) is implemented and locally verified in the source checkout; its private package `0.6.0` compatibility baseline and final whole-branch review remain pending.
+**Status:** Active. The SQLite database persistence adapter and maintained source-connector slice are implemented and final-review verified. The [Markdown cognition adapter](markdown-cognition-adapter-guide.md), private package `0.6.0` export, executable, compatibility baseline, exact package allowlist, and clean-consumer workflow are implemented and locally verified; only final whole-branch review and delivery remain pending.
 
 **Entry criteria**
 
@@ -224,7 +224,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Object → Markdown → object round trips preserve normative semantics.
 - [x] Repeated exports do not rewrite unchanged notes.
 - [x] Tests prove the Markdown adapter never discovers or operates on a personal vault implicitly.
-- [ ] Private package `0.6.0` export, executable, compatibility baseline, and
+- [x] Private package `0.6.0` export, executable, compatibility baseline, and
   clean-consumer checks cover the Markdown adapter.
 - [ ] Final whole-branch review reconciles the Markdown adapter with the
   package baseline and all project checks.

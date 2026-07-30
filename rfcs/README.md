@@ -10,7 +10,7 @@ RFCs are the contribution path for changes that affect collective-cognition sema
 - [RFC 0004: Host Integration Contract](0004-host-integration-contract.md) — implemented and final-review verified in Phase 3 with a Normative Stable `0.1.0` host-owned persistence and publication contract, deterministic conformance evidence, and a private, unpublished package reference surface.
 - [RFC 0005: SQLite Cognition Store](0005-sqlite-cognition-store.md) — Implemented and final-review verified. It adds the optional `collective-cognition-sdk/stores/sqlite/0.1.0` reference adapter and private, unpublished package `0.4.0` without changing the root API.
 - [RFC 0006: Maintained Source Connectors](0006-maintained-source-connectors.md) — implemented pending final verification and real-ledger acceptance, with source-neutral conformance, one maintained compatible connector, a dedicated CLI, independent-package guidance, and private, unpublished package `0.5.0`.
-- [RFC 0007: Markdown Cognition Adapter](0007-markdown-cognition-adapter.md) — implemented in the source checkout pending the private `0.6.0` package compatibility baseline and final review; it defines a deterministic read-only projection into an explicitly initialized managed directory without vault or Git discovery.
+- [RFC 0007: Markdown Cognition Adapter](0007-markdown-cognition-adapter.md) — implemented in the source checkout and private package `0.6.0`, including its compatibility baseline, dedicated executable, and clean-consumer verification; final whole-branch review remains pending. It defines a deterministic read-only projection into an explicitly initialized managed directory without vault or Git discovery.
 
 ## When an RFC Is Required
 

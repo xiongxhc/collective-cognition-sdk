@@ -57,9 +57,9 @@ node --disable-warning=ExperimentalWarning src/markdown-cognition-cli.ts init \
   --target "/workspace/demo-team-vault/Collective Cognition"
 ```
 
-The planned private package `0.6.0` export and installed executable are
-tracked separately. Until that package baseline is complete, use the source
-checkout command above for development verification.
+Private package `0.6.0` includes the versioned adapter export and installed
+`collective-cognition-markdown` executable. The source checkout command above
+remains available for repository development.
 
 ## Input and Projection
 
@@ -97,10 +97,10 @@ const verification = await verifyMarkdownCognitionTarget({
 });
 ```
 
-That import path is the intended Supported Experimental package surface for the
-private `0.6.0` package baseline. The current source checkout exposes the same
-API from `src/markdown-cognition.ts`; do not import implementation modules in
-an installed consumer.
+That import path is the Supported Experimental package surface in private
+package `0.6.0`. The source checkout exposes the same API from
+`src/markdown-cognition.ts`; do not import implementation modules in an
+installed consumer.
 
 ## Generated Layout
 
@@ -204,6 +204,8 @@ closed CLI, fixture round trips, and a temporary-directory runnable example.
 The automated tests do not operate on a live team vault, personal vault, live
 ledger, or live cognition database.
 
-The private package `0.6.0` export/baseline, final whole-branch review,
-publication, vault synchronization, Git automation, native descriptor-relative
-filesystem hardening, and any hosted collaboration service remain deferred.
+The private package `0.6.0` export, executable, compatibility baseline,
+package allowlist, and clean-consumer verification are complete. Final
+whole-branch review and delivery, publication, vault synchronization, Git
+automation, native descriptor-relative filesystem hardening, and any hosted
+collaboration service remain deferred.

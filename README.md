@@ -2,9 +2,9 @@
 
 Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript reference implementation for attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, source system, or organizational beliefs.
 
-This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.5.0` remains private and unpublished; its source, emitted ESM build, declarations, and CLIs are runnable, but it is not production-ready. The Markdown adapter implementation is present in this source checkout; its additive private package `0.6.0` export/baseline and final whole-branch review remain pending.
+This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.6.0` remains private and unpublished; its source, emitted ESM build, declarations, and CLIs are runnable, but it is not production-ready. The Markdown adapter implementation, additive package export, compatibility baseline, dedicated executable, and clean-consumer verification are complete; final whole-branch review and delivery remain pending.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.5.0` are implemented. The SQLite cognition-store and maintained-source-connector slices are implemented and final-review verified.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.6.0` are implemented. The SQLite cognition-store and maintained-source-connector slices are implemented and final-review verified.
 
 ## Current Status
 
@@ -36,8 +36,9 @@ Runnable now:
 - a deterministic, read-only Markdown cognition projection with canonical machine
   records, explicit target initialization, marker/manifest ownership,
   write-if-changed behavior, conflict detection, opt-in safe pruning, a closed
-  source CLI, and a temporary-directory runnable example; package exposure and
-  final review remain pending.
+  installed CLI, package subpath, compatibility baseline, clean-consumer
+  verification, and a temporary-directory runnable example; final whole-branch
+  review remains pending.
 
 Not implemented yet:
 
@@ -54,19 +55,19 @@ Not implemented yet:
 
 ## Compatibility Status
 
-- SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.5.0` are **Normative Stable** contracts.
-- Before `1.0.0`, the package root, both CLIs, and declared non-normative package subpaths are **Supported Experimental**.
+- SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.6.0` are **Normative Stable** contracts.
+- Before `1.0.0`, the package root, installed CLIs, and declared non-normative package subpaths are **Supported Experimental**.
 - Unexported connector modules and repository-only examples remain **Internal** and create no public compatibility promise.
 - The baseline locks runtime and type exports, selected package metadata, independent declaration closures and literal digests for public TypeScript entrypoints, CLI behavior, domain error codes, policy identities, and normative artifact hashes.
-- Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0` through `collective-cognition-sdk/compatibility/0.5.0`.
+- Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0` through `collective-cognition-sdk/compatibility/0.6.0`.
 - Compatibility tests detect exact baseline drift and declared process consequences; they do not automatically determine semantic compatibility.
 - Package `0.3.0` is classified as a `minor-before-1.0` breaking correction: the Host Integration additions are optional, while `PortableDomainError.code` is narrowed from package `0.2.0`'s package-wide `DomainErrorCode` to the immutable Portable Cognition `0.1.0` allowlist under `COMP-012`.
 - Package `0.4.0` is an additive minor release before `1.0`: it adds the optional SQLite subpath and its compatibility baseline without changing root exports or the generic CLI contract.
 - Package `0.5.0` is an additive minor release before `1.0`: it adds source-neutral connector conformance, one maintained connector subpath, and a dedicated executable while preserving the root API and generic CLI.
-- The proposed private package `0.6.0` baseline is additive: it will add the
+- Private package `0.6.0` is an additive minor release before `1.0`: it adds the
   Supported Experimental `adapters/markdown/0.1.0` subpath and
   `collective-cognition-markdown` executable without changing root exports,
-  existing CLIs, or Normative Stable contracts. That baseline is not final yet.
+  existing CLIs, or prior Normative Stable contracts.
 
 Read the [compatibility policy](spec/compatibility.md) and [RFC 0002](rfcs/0002-compatibility-versioning-and-deprecation.md). npm publication, registry confirmation, runtime and security policy, broader schemas, and production readiness remain open. The manifest retains `"private": true`, and the package is unpublished.
 
@@ -159,11 +160,12 @@ await projectMarkdownCognition({
 });
 ```
 
-The intended installed-consumer import is
-`collective-cognition-sdk/adapters/markdown/0.1.0`, tracked for the private
-`0.6.0` package baseline. The source command is
+Installed consumers import
+`collective-cognition-sdk/adapters/markdown/0.1.0` from private package
+`0.6.0`. The source command is
 `node --disable-warning=ExperimentalWarning src/markdown-cognition-cli.ts`;
-the installed executable is likewise pending that package baseline.
+the packed consumer installs the equivalent `collective-cognition-markdown`
+executable.
 
 The first profile limits a projection to 10,000 records, 128 MiB total managed
 content, 10,001 manifest entries, four path segments, 512-byte relative paths,
@@ -249,7 +251,7 @@ npm run test:package
 npm run pack:check
 ```
 
-`npm run test:schema` compiles both the SourceRecord and Portable Cognition schemas in strict Draft 2020-12 mode and checks both normative fixture corpora. `npm run pack:check` and npm prepack inherit this combined schema gate. `npm run test:compatibility` checks the compatibility baseline’s exact inventories, independent public declaration closures and digests, policy identities, CLI contracts, and declared additive and breaking change cases; it does not decide semantic compatibility automatically. `npm run test:package` imports the built root and versioned subpaths, checks exact runtime and tarball allowlists, runs both CLIs, and installs the packed artifact into a clean temporary project to verify runtime and TypeScript imports. npm operations use an isolated temporary cache.
+`npm run test:schema` compiles both the SourceRecord and Portable Cognition schemas in strict Draft 2020-12 mode and checks both normative fixture corpora. `npm run pack:check` and npm prepack inherit this combined schema gate. `npm run test:compatibility` checks the compatibility baseline’s exact inventories, independent public declaration closures and digests, policy identities, CLI contracts, and declared additive and breaking change cases; it does not decide semantic compatibility automatically. `npm run test:package` imports the built root and versioned subpaths, checks exact runtime and tarball allowlists, runs the installed CLIs, and installs the packed artifact into a clean temporary project to verify runtime and TypeScript imports. npm operations use an isolated temporary cache.
 
 Installed consumers can import the schema through the versioned package subpath:
 

@@ -1,6 +1,6 @@
 # Collective Cognition Specification
 
-This directory contains the implemented and final-review verified Normative Stable SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and [Host Integration `0.1.0`](host-integration.md) contracts plus compatibility baselines `0.1.0` through `0.5.0`. The source checkout also implements a Supported Experimental Markdown cognition adapter pending its private `0.6.0` package baseline and final review. The runnable TypeScript code and emitted package artifacts are the current reference implementation; package `0.5.0` remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
+This directory contains the implemented and final-review verified Normative Stable SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and [Host Integration `0.1.0`](host-integration.md) contracts plus compatibility baselines `0.1.0` through `0.6.0`. The source checkout and private package implement the Supported Experimental Markdown cognition adapter; its package baseline, export, executable, and clean-consumer verification are complete, while final whole-branch review and delivery remain pending. The runnable TypeScript code and emitted package artifacts are the current reference implementation; package `0.6.0` remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
 
 ## Current Architecture
 
@@ -12,7 +12,7 @@ The current direction is defined by:
 - the [implemented and final-review verified Portable Cognition design](../docs/superpowers/specs/2026-07-27-portable-cognition-contract-design.md).
 - the [SQLite cognition-store design](../docs/superpowers/specs/2026-07-29-sqlite-cognition-store-design.md), which is implemented and final-review verified.
 - [RFC 0006: Maintained Source Connectors](../rfcs/0006-maintained-source-connectors.md), implemented and final-review verified.
-- the implemented [Markdown cognition adapter guide](../docs/markdown-cognition-adapter-guide.md) and [RFC 0007](../rfcs/0007-markdown-cognition-adapter.md), whose package baseline and final review remain pending.
+- the implemented [Markdown cognition adapter guide](../docs/markdown-cognition-adapter-guide.md) and [RFC 0007](../rfcs/0007-markdown-cognition-adapter.md), whose package baseline is complete and whose final whole-branch review remains pending.
 
 The core design and Phase 2 universal ingestion are implemented and final-review verified locally. [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md) records the implemented ingestion semantics.
 
@@ -89,10 +89,11 @@ events into an explicitly initialized managed directory with stable paths,
 marker/manifest ownership, conflict detection, and optional safe pruning. It
 does not persist cognition, discover a vault, require Obsidian or Git, or
 import human Markdown edits. The intended package subpath is
-`collective-cognition-sdk/adapters/markdown/0.1.0`; its private `0.6.0`
-baseline and final review are pending, so this is not a Normative Stable
-contract. See the [operator guide](../docs/markdown-cognition-adapter-guide.md)
-and [RFC 0007](../rfcs/0007-markdown-cognition-adapter.md).
+`collective-cognition-sdk/adapters/markdown/0.1.0` in private package `0.6.0`.
+Its compatibility baseline and clean-consumer verification are complete, but
+it remains Supported Experimental rather than a Normative Stable contract.
+See the [operator guide](../docs/markdown-cognition-adapter-guide.md) and
+[RFC 0007](../rfcs/0007-markdown-cognition-adapter.md).
 
 ## Normative Portable Cognition 0.1.0
 
@@ -108,11 +109,11 @@ The contract is storage and transport neutral: it does not require a database, q
 
 ## Normative Compatibility Baselines
 
-`compatibility.md` defines the normative compatibility, versioning, and deprecation policy. `compatibility/0.1.0/baseline.json` is the byte-immutable baseline for the SourceRecord contract and initial package surface. `compatibility/0.2.0/baseline.json` retains that surface and records the additive Portable Cognition runtime, type, schema, conformance, package, and artifact inventories. `compatibility/0.3.0/baseline.json` retains those surfaces, records the additive Host Integration runtime, type, and package subpaths, and classifies the `PortableDomainError.code` narrowing as a `COMP-012` source-breaking correction with a `minor-before-1.0` effect. `compatibility/0.4.0/baseline.json` adds the optional SQLite store subpath and declaration closure. `compatibility/0.5.0/baseline.json` adds connector conformance, the maintained connector, and the dedicated CLI without changing root exports or the generic CLI. The package exposes each baseline at `collective-cognition-sdk/compatibility/<version>`.
+`compatibility.md` defines the normative compatibility, versioning, and deprecation policy. `compatibility/0.1.0/baseline.json` is the byte-immutable baseline for the SourceRecord contract and initial package surface. `compatibility/0.2.0/baseline.json` retains that surface and records the additive Portable Cognition runtime, type, schema, conformance, package, and artifact inventories. `compatibility/0.3.0/baseline.json` retains those surfaces, records the additive Host Integration runtime, type, and package subpaths, and classifies the `PortableDomainError.code` narrowing as a `COMP-012` source-breaking correction with a `minor-before-1.0` effect. `compatibility/0.4.0/baseline.json` adds the optional SQLite store subpath and declaration closure. `compatibility/0.5.0/baseline.json` adds connector conformance, the maintained connector, and the dedicated CLI without changing root exports or the generic CLI. `compatibility/0.6.0/baseline.json` adds the Markdown adapter subpath, dedicated executable, documentation, package artifacts, and independent declaration closure while preserving prior package surfaces. The package exposes each baseline at `collective-cognition-sdk/compatibility/<version>`.
 
-SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.5.0` are Normative Stable. Before `1.0.0`, the package root, generic CLI, dedicated connector CLI, and declared non-normative subpaths are Supported Experimental. Unexported connector modules remain Internal. Compatibility checks detect exact baseline drift, independently hash each public declaration entrypoint closure, and exercise the package `0.2.0` generic error-code assignment plus the supported package `0.3.0` narrowing migration; they do not automatically determine semantic compatibility.
+SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.6.0` are Normative Stable. Before `1.0.0`, the package root, installed CLIs, and declared non-normative subpaths are Supported Experimental. Unexported connector modules remain Internal. Compatibility checks detect exact baseline drift, independently hash each public declaration entrypoint closure, and exercise the package `0.2.0` generic error-code assignment plus the supported package `0.3.0` narrowing migration; they do not automatically determine semantic compatibility.
 
-Phase 3 remains in progress. SourceRecord, Portable Cognition, Host Integration, and the compatibility baselines are implemented normative contracts, and the compatibility, Portable Cognition, Host Integration, SQLite cognition-store, and maintained connector slices are final-review verified. Connector conformance, the first maintained connector, its CLI, and private package surfaces are implemented; manual real-ledger acceptance is recorded in the roadmap. Runtime policy, security policy, publication, and production readiness remain deferred.
+Phase 3 remains in progress. SourceRecord, Portable Cognition, Host Integration, and the compatibility baselines are implemented normative contracts. The compatibility baselines through `0.5.0`, Portable Cognition, Host Integration, SQLite cognition-store, and maintained connector slices are final-review verified; private package `0.6.0` is implemented and locally verified pending final whole-branch review and delivery. Connector conformance, the first maintained connector, its CLI, and private package surfaces are implemented; manual real-ledger acceptance is recorded in the roadmap. Runtime policy, security policy, publication, and production readiness remain deferred.
 
 ## Planned Normative Content
 
