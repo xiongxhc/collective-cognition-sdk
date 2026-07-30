@@ -19,6 +19,11 @@
 - Do not modify `team-memory-agent`, MemberKit, `teammem-bundle/v1`, a live ledger, a live cognition database, a live team vault, or a personal vault.
 - Never discover a vault, repository, store, home directory, `.git`, or `.obsidian` location from ambient configuration.
 - The only filesystem target is an absolute, explicitly supplied, separately initialized managed directory.
+- Filesystem containment assumes that untrusted same-privilege processes do not
+  concurrently mutate the target or its ancestors. Static links, hard links,
+  unexpected entries, and persistent or detectable substitutions must fail
+  closed; final-window swap-back mutation is explicitly excluded because
+  portable Node.js 24 has no descriptor-relative child operations.
 - The first profile is read-only. Parsing generated Markdown does not authorize or persist human edits.
 - Use descriptor-safe snapshots for untrusted API input and fixed sanitized public errors.
 - Commit once per completed task boundary with Conventional Commit messages and no `Co-Authored-By`.
@@ -620,6 +625,12 @@ Initialization must:
 8. rename them into place; and
 9. remove only temporary files created by this invocation on failure.
 
+Use target, ancestor, leaf, and descriptor identity checks around path-based
+operations. These checks cover static and persistent/detectable substitutions;
+they do not claim containment against concurrent same-privilege swap-back
+mutation. Initialization and verification tests must state that operational
+boundary explicitly.
+
 Use:
 
 ```ts
@@ -643,6 +654,8 @@ Verification must:
 - validate every manifest entry path as target-relative and normalized;
 - reject duplicate manifest paths and identities;
 - inspect only marker, manifest, and manifest-owned files;
+- enforce the remaining aggregate raw-byte budget from `fstat` before each
+  managed-file read and stop at the first limit violation;
 - report fixed diagnostics rather than throw for target-content mismatches;
 - throw only for invalid API options; and
 - deep-freeze the report and nested arrays/diagnostics.
@@ -782,7 +795,8 @@ Add exact tests for:
 - `pruneManaged: false` preserving stale files;
 - `pruneManaged: true` deleting only unchanged stale manifest-owned files;
 - changed stale files conflicting rather than deleting;
-- untracked files never read, changed, or deleted;
+- untracked files are never selected for reads, changes, or deletion under the
+  documented stable-target filesystem threat model;
 - limits for records, individual notes, total bytes, and manifest entries;
 - limits for target-relative UTF-8 path bytes and segment count;
 - report path ordering and deep immutability; and
@@ -870,6 +884,12 @@ For every affected path:
 - compare current complete-file SHA-256 against previous manifest;
 - abort the entire plan before writes on any conflict; and
 - use same-directory reserved temporary files plus rename.
+
+Reuse the Task 2 identity-checking safety layer. Do not describe path-based
+operations as a descriptor-relative containment boundary. Static links,
+unexpected entries, and persistent/detectable substitutions fail closed;
+concurrent same-privilege swap-back mutation is excluded and requires a future
+native or platform-specific backend.
 
 Apply in deterministic path order. Write the manifest last.
 If the complete existing manifest bytes already equal the desired canonical
@@ -1654,7 +1674,8 @@ Review against:
 
 - the approved design;
 - every acceptance criterion;
-- hostile input and path races;
+- hostile input, static links, persistent/detectable path substitutions, and
+  truthful treatment of the excluded same-privilege swap-back boundary;
 - no implicit vault/store discovery;
 - no manual-edit overwrite;
 - complete-file digest and manifest recovery;

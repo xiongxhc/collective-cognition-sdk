@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
   closeSync,
-  existsSync,
   lstatSync,
   linkSync,
   mkdtempSync,
@@ -14,6 +13,7 @@ import {
   renameSync,
   rmSync,
   symlinkSync,
+  truncateSync,
   writeSync,
   writeFileSync,
 } from "node:fs";
@@ -343,6 +343,44 @@ test("verification fails closed when the target or an ancestor is substituted", 
   }
 });
 
+test("same-privilege swap-back mutation is outside the detectable-race boundary", async () => {
+  const root = temporaryRoot();
+  const parent = join(root, "parent");
+  const target = join(parent, "target");
+  const outside = join(root, "outside");
+  try {
+    mkdirSync(parent);
+    mkdirSync(target);
+    mkdirSync(outside);
+    writeInitializedFiles(target);
+    writeInitializedFiles(outside);
+    let swappedBack = false;
+    setMarkdownCognitionTargetTestHook((event, relativePath) => {
+      if (
+        event !== "verify:before-managed-open" ||
+        relativePath !== MARKDOWN_COGNITION_MARKER_FILE ||
+        swappedBack
+      ) {
+        return;
+      }
+      const original = join(parent, "target-original");
+      renameSync(target, original);
+      symlinkSync(outside, target);
+      rmSync(target);
+      renameSync(original, target);
+      swappedBack = true;
+    });
+
+    const report = await verifyMarkdownCognitionTarget({ targetDirectory: target });
+
+    assert.equal(swappedBack, true);
+    assert.equal(report.status, "passed");
+  } finally {
+    setMarkdownCognitionTargetTestHook(undefined);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("initialization does not write through a substituted target", async () => {
   const root = temporaryRoot();
   const parent = join(root, "parent");
@@ -507,12 +545,62 @@ test("verification enforces the aggregate raw metadata byte limit before parsing
   }
 });
 
+test("verification stops before opening later files after a cumulative limit violation", async () => {
+  const root = temporaryRoot();
+  const target = join(root, "target");
+  const targetId = "a".repeat(32);
+  const firstPath = "A.md";
+  const laterPath = "B.md";
+  const openedManagedPaths: string[] = [];
+  try {
+    mkdirSync(target);
+    writeInitializedFiles(target, targetId);
+    writeFileSync(join(target, firstPath), "");
+    truncateSync(join(target, firstPath), 128 * 1024 * 1024);
+    writeFileSync(join(target, laterPath), "# later\n");
+    writeFileSync(
+      join(target, MARKDOWN_COGNITION_MANIFEST_FILE),
+      manifest(targetId, {
+        entries: [
+          {
+            digest: "a".repeat(64),
+            recordType: "index",
+            relativePath: firstPath,
+          },
+          {
+            digest: "b".repeat(64),
+            recordType: "index",
+            relativePath: laterPath,
+          },
+        ],
+      }),
+    );
+    setMarkdownCognitionTargetTestHook((event, relativePath) => {
+      if (
+        event === "verify:before-managed-open" &&
+        relativePath !== undefined &&
+        relativePath !== MARKDOWN_COGNITION_MARKER_FILE &&
+        relativePath !== MARKDOWN_COGNITION_MANIFEST_FILE
+      ) {
+        openedManagedPaths.push(relativePath);
+      }
+    });
+
+    const report = await verifyMarkdownCognitionTarget({ targetDirectory: target });
+
+    assert.equal(report.status, "failed");
+    assert.deepEqual(openedManagedPaths, [firstPath]);
+  } finally {
+    setMarkdownCognitionTargetTestHook(undefined);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("verification rejects Windows path aliases and reserved device names", async () => {
   const root = temporaryRoot();
   const target = join(root, "target");
   const targetId = "a".repeat(32);
-  const contents = "# managed\n";
-  const digest = createHash("sha256").update(contents, "utf8").digest("hex");
+  const openedManagedPaths: string[] = [];
   const unsafePaths = [
     "Index.md.",
     "Objects/trailing-space /item.md",
@@ -520,34 +608,40 @@ test("verification rejects Windows path aliases and reserved device names", asyn
     "Objects/AUX/item.md",
     "Events/com1/event.md",
     "Objects/LPT9.txt/item.md",
+    "COM¹.md",
+    "Objects/LPT¹.txt/item.md",
   ];
   try {
     mkdirSync(target);
     writeInitializedFiles(target, targetId);
-    for (const unsafePath of unsafePaths) {
-      const segments = unsafePath.split("/");
-      if (segments.length > 1) {
-        mkdirSync(join(target, ...segments.slice(0, -1)), { recursive: true });
-      }
-      writeFileSync(join(target, ...segments), contents);
-    }
     writeFileSync(
       join(target, MARKDOWN_COGNITION_MANIFEST_FILE),
       manifest(targetId, {
         entries: unsafePaths.map((relativePath) => ({
-          digest,
+          digest: "a".repeat(64),
           recordType: "index",
           relativePath,
         })),
       }),
     );
+    setMarkdownCognitionTargetTestHook((event, relativePath) => {
+      if (
+        event === "verify:before-managed-open" &&
+        relativePath !== undefined &&
+        relativePath !== MARKDOWN_COGNITION_MARKER_FILE &&
+        relativePath !== MARKDOWN_COGNITION_MANIFEST_FILE
+      ) {
+        openedManagedPaths.push(relativePath);
+      }
+    });
 
     const report = await verifyMarkdownCognitionTarget({ targetDirectory: target });
 
     assert.equal(report.status, "failed");
     assert.ok(report.diagnostics.some((diagnostic) => diagnostic.code === "unsafe_target_entry"));
-    assert.equal(existsSync(join(root, "CON.md")), false);
+    assert.deepEqual(openedManagedPaths, []);
   } finally {
+    setMarkdownCognitionTargetTestHook(undefined);
     rmSync(root, { recursive: true, force: true });
   }
 });

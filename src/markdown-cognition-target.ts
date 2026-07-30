@@ -42,6 +42,7 @@ const MAX_MANIFEST_ENTRIES = 10_001;
 const MAX_TARGET_BYTES = 128 * 1024 * 1024;
 const MAX_RELATIVE_PATH_BYTES = 512;
 const MAX_PATH_SEGMENTS = 4;
+const READ_LIMIT_EXCEEDED = Symbol("markdown-cognition-read-limit-exceeded");
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 const WINDOWS_RESERVED_NAME_PATTERN =
   /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\..*)?$/iu;
@@ -734,7 +735,8 @@ function readRegularFileNoFollow(
   targetDirectory: string,
   relativePath: string,
   targetChain: readonly PathIdentity[],
-): RegularFile | undefined {
+  maximumBytes: number,
+): RegularFile | typeof READ_LIMIT_EXCEEDED | undefined {
   if (inspectManagedPath(targetDirectory, relativePath).kind !== "present") {
     return undefined;
   }
@@ -767,7 +769,6 @@ function readRegularFileNoFollow(
     if (
       !descriptorBefore.isFile() ||
       descriptorBefore.nlink !== 1 ||
-      descriptorBefore.size > MAX_TARGET_BYTES ||
       pathEntry.isSymbolicLink() ||
       !pathEntry.isFile() ||
       pathEntry.nlink !== 1 ||
@@ -782,6 +783,11 @@ function readRegularFileNoFollow(
       closeFile(fileDescriptor);
       fileDescriptor = undefined;
       return undefined;
+    }
+    if (descriptorBefore.size > maximumBytes) {
+      closeFile(fileDescriptor);
+      fileDescriptor = undefined;
+      return READ_LIMIT_EXCEEDED;
     }
     const contents = readFileSync(fileDescriptor);
     const descriptorAfter = fstatSync(fileDescriptor);
@@ -964,23 +970,39 @@ export async function verifyMarkdownCognitionTarget(
     targetDirectory,
     MARKDOWN_COGNITION_MARKER_FILE,
     targetChain,
+    MAX_TARGET_BYTES,
   );
-  const manifestFile = readRegularFileNoFollow(
-    targetDirectory,
-    MARKDOWN_COGNITION_MANIFEST_FILE,
-    targetChain,
-  );
-  if (markerFile === undefined || manifestFile === undefined) {
+  if (markerFile === READ_LIMIT_EXCEEDED) {
+    diagnostics.push(diagnostic(
+      "incompatible_target",
+      "Markdown cognition target is incompatible.",
+    ));
+    return finalizedReport(diagnostics, managedPaths);
+  }
+  if (markerFile === undefined) {
     diagnostics.push(diagnostic(
       "unsafe_target_entry",
       "Markdown cognition target contains an unsafe entry.",
     ));
     return finalizedReport(diagnostics, managedPaths);
   }
-  if (markerFile.bytes.length + manifestFile.bytes.length > MAX_TARGET_BYTES) {
+  const manifestFile = readRegularFileNoFollow(
+    targetDirectory,
+    MARKDOWN_COGNITION_MANIFEST_FILE,
+    targetChain,
+    MAX_TARGET_BYTES - markerFile.bytes.length,
+  );
+  if (manifestFile === READ_LIMIT_EXCEEDED) {
     diagnostics.push(diagnostic(
       "incompatible_target",
       "Markdown cognition target is incompatible.",
+    ));
+    return finalizedReport(diagnostics, managedPaths);
+  }
+  if (manifestFile === undefined) {
+    diagnostics.push(diagnostic(
+      "unsafe_target_entry",
+      "Markdown cognition target contains an unsafe entry.",
     ));
     return finalizedReport(diagnostics, managedPaths);
   }
@@ -1005,7 +1027,16 @@ export async function verifyMarkdownCognitionTarget(
       targetDirectory,
       entry.relativePath,
       targetChain,
+      MAX_TARGET_BYTES - totalBytes,
     );
+    if (file === READ_LIMIT_EXCEEDED) {
+      diagnostics.push(diagnostic(
+        "incompatible_target",
+        "Markdown cognition target is incompatible.",
+        entry.relativePath,
+      ));
+      break;
+    }
     if (file === undefined) {
       diagnostics.push(diagnostic(
         "unsafe_target_entry",

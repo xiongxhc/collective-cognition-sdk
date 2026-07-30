@@ -241,6 +241,10 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - No npm publication, registry-name confirmation, or removal of the private package guard.
 - No production certification, endorsement, or LTS commitment.
 - No automatic belief extraction, background vault synchronization, collaborative merge service, or replacement of normal note-taking.
+- No descriptor-relative native or platform-specific Markdown filesystem
+  backend yet. The runtime-dependency-free core requires that untrusted
+  same-privilege processes do not concurrently mutate the managed target;
+  optional `openat`/`renameat`/`unlinkat` hardening remains future work.
 
 ## Phase 5: Cross-Connector Interoperability
 

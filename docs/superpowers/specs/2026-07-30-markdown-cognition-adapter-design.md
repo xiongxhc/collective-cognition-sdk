@@ -52,8 +52,8 @@ For the current team deployment, a host may explicitly configure:
 ```
 
 The SDK never knows the repository name, locates it automatically, commits Git
-changes, pushes a branch, opens Obsidian, or writes outside that configured
-subtree.
+changes, pushes a branch, or opens Obsidian. Under the supported filesystem
+threat model below, it operates only on the explicitly configured subtree.
 
 ## User Workflow
 
@@ -277,6 +277,40 @@ The adapter rejects:
 The adapter never searches parent or sibling directories for `.git`,
 `.obsidian`, vault metadata, package configuration, or a known repository name.
 
+### Filesystem Threat Model
+
+The runtime-dependency-free core supports a stable target directory that is not
+concurrently mutated by untrusted processes running with the same operating
+system privileges.
+
+Within that model, the adapter fails closed for:
+
+- symbolic-link components present before inspection;
+- symbolic-link or hard-linked managed files;
+- unexpected non-directory or non-regular entries;
+- target, ancestor, parent-directory, or leaf substitutions that persist or
+  remain detectable across the adapter's identity checks; and
+- file identity or metadata changes detected around descriptor reads and
+  writes.
+
+The core snapshots target and ancestor filesystem identities, uses no-follow
+leaf opens where available, verifies opened descriptors against current path
+identities, and rechecks identities around sensitive operations. These checks
+are defense in depth; they are not a portable descriptor-relative containment
+boundary.
+
+Node.js 24 built-ins do not expose cross-platform `openat`, `renameat`,
+`unlinkat`, or equivalent directory-descriptor-relative child operations. A
+same-privilege process can therefore perform a final-window path substitution
+and restore the original path before post-operation checks. Under that excluded
+attacker, path-based reads, writes, renames, or cleanup may be redirected and
+their effects cannot be bounded by the core.
+
+Operators must project only into a directory that is not concurrently mutated
+by untrusted same-privilege processes. An optional native or platform-specific
+descriptor-relative backend is deferred; the portable core remains
+runtime-dependency-free.
+
 ### Initialization
 
 Projection requires an initialized target. Initialization is a separate
@@ -326,7 +360,8 @@ team-vault/
 ```
 
 Only `Collective Cognition/` is initialized as the adapter target. The adapter
-does not receive the vault root and cannot modify existing team-vault folders.
+does not receive the vault root. With the filesystem operational requirement
+above satisfied, existing team-vault folders remain outside adapter operations.
 
 ## Stable Paths
 
@@ -606,8 +641,9 @@ When `pruneManaged: true`, the adapter may remove a path only when:
 
 A changed stale file is a conflict and is never deleted.
 
-The adapter never prunes untracked files, directories, `.git`, `.obsidian`, or
-content outside the initialized target.
+The adapter does not select untracked files, directories, `.git`, `.obsidian`,
+or paths outside the initialized target for pruning. This confinement statement
+uses the supported filesystem threat model above.
 
 ## CLI
 
@@ -718,6 +754,8 @@ Required protections include:
 - safe Markdown and wiki-link escaping;
 - path derivation from fixed names and cryptographic digests;
 - rejection of symbolic-link target components and managed entries;
+- target, ancestor, parent-directory, leaf, and descriptor identity checks
+  around path-based operations;
 - atomic replacement instead of in-place writes;
 - no absolute paths in generated artifacts or diagnostics;
 - no ambient configuration or home-directory discovery; and
@@ -726,6 +764,9 @@ Required protections include:
 
 The adapter does not authenticate Git authors, Obsidian users, cognition actors,
 or provenance claims. Those remain host and repository-governance concerns.
+It also does not defend against concurrent mutation by an untrusted
+same-privilege process; operators must provide exclusive trusted access during
+initialization, verification, and projection.
 
 ## Git and Obsidian Behavior
 
@@ -800,9 +841,15 @@ The package remains `"private": true` and unpublished.
 - Relative, root, uninitialized, incompatible, and symbolic-link targets are
   rejected before mutation.
 - Initialization never adopts a non-empty arbitrary directory.
-- Projection never reads or writes outside the explicit target.
-- Existing `.git` and `.obsidian` directories outside the target are untouched.
-- Symlink and unexpected entry races fail closed.
+- Under the supported stable-target threat model, projection selects only paths
+  below the explicit target.
+- Static symbolic links, hard links, unexpected entries, and persistent or
+  detectable substitutions fail closed.
+- Deterministic tests prove detectable target and ancestor substitutions fail
+  closed and separately document that swap-back mutation by a concurrent
+  same-privilege process is excluded.
+- Existing `.git` and `.obsidian` fixtures outside the target remain untouched
+  when the operational requirement is satisfied.
 - Absolute paths and arbitrary I/O errors never appear in diagnostics.
 
 ### Projection
@@ -871,7 +918,8 @@ The slice is complete only when:
 1. the pure codec round-trips every supported Portable Cognition fixture;
 2. generated Markdown is byte-deterministic and Obsidian-readable;
 3. all paths and relationship links are stable and input-order independent;
-4. the adapter writes only to an explicitly initialized managed target;
+4. under the documented stable-target filesystem threat model, the adapter
+   selects writes only within an explicitly initialized managed target;
 5. identical projection performs no Markdown rewrites;
 6. manual edits and unsafe entries fail without overwrite;
 7. optional pruning touches only unchanged manifest-owned files;
@@ -892,4 +940,6 @@ The slice is complete only when:
 - Obsidian plugins, Sync integration, or UI automation.
 - Connector registry or marketplace integration.
 - Remote stores, hosted collaboration, or multi-tenant policy.
+- A native or platform-specific descriptor-relative filesystem backend for
+  containment under concurrent same-privilege mutation.
 - Production certification, LTS, or npm publication.
