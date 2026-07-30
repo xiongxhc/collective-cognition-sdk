@@ -79,6 +79,35 @@ interface Fixture {
   readonly forbiddenHome: string;
 }
 
+function defensiveModeIsEnforced(): boolean {
+  let database: DatabaseSync | undefined;
+  try {
+    database = new DatabaseSync(":memory:", {
+      allowExtension: false,
+      defensive: true,
+      enableDoubleQuotedStringLiterals: false,
+      enableForeignKeyConstraints: true,
+    });
+    database.enableDefensive(true);
+    database.exec("PRAGMA writable_schema = ON");
+    const result = database
+      .prepare("PRAGMA writable_schema")
+      .get() as { readonly writable_schema?: unknown };
+    return result.writable_schema === 0;
+  } catch {
+    return false;
+  } finally {
+    if (database?.isOpen) {
+      database.close();
+    }
+  }
+}
+
+const supportsDefensiveMode =
+  typeof DatabaseSync.prototype.enableDefensive === "function" &&
+  defensiveModeIsEnforced();
+const durableSqliteTest = supportsDefensiveMode ? test : test.skip;
+
 function createFixture(t: test.TestContext): Fixture {
   const root = mkdtempSync(
     join(tmpdir(), "collective-cognition-durable-example-"),
@@ -306,7 +335,7 @@ function assertOverlapRejectedWithoutMutation(
   assert.deepEqual(filesystemSnapshot(fixture.root), filesystemBefore);
 }
 
-test(
+durableSqliteTest(
   "persists real ledger evidence, reopens it, and replays idempotently",
   (t) => {
     const fixture = createFixture(t);
@@ -510,7 +539,7 @@ test(
   },
 );
 
-test(
+durableSqliteTest(
   "rejects a hardlink alias at a canonical cognition-main sidecar",
   (t) => {
     const fixture = createFixture(t);

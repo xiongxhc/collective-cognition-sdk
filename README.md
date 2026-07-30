@@ -2,9 +2,17 @@
 
 Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript reference implementation for attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, source system, or organizational beliefs.
 
-This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.5.0` remains private and unpublished; its source, emitted ESM build, declarations, and CLIs are runnable, but it is not production-ready.
+This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.6.0` remains private and unpublished; its source, emitted ESM build, declarations, and CLIs are runnable, but it is not production-ready. The Markdown adapter implementation, additive package export, compatibility baseline, dedicated executable, clean-consumer verification, and independent whole-branch review are complete and final-review verified.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.5.0` are implemented. The SQLite cognition-store and maintained-source-connector slices are implemented and final-review verified.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.6.0` are implemented. The SQLite cognition-store and maintained-source-connector slices are implemented and final-review verified.
+
+Markdown adapter verification used bundled Node.js `24.14.0`: the full matrix
+passed `444` tests with `1` expected skip (`406` source passes and `1` source
+skip, `10` schema, `19` compatibility, and `9` package), the focused version
+boundary passed `41/41`, and two fresh temporary team-vault acceptance runs
+passed. Typecheck, syntax checks, all examples, `pack:check`, and diff hygiene
+were clean. Acceptance used temporary vaults only and did not mutate a live
+vault.
 
 ## Current Status
 
@@ -33,6 +41,12 @@ Runnable now:
 - schema, SDK, and CLI tests over the complete canonical valid and invalid corpus, plus package and clean-consumer smoke tests for shipped fixtures, schema discovery, and the installed CLI;
 - a read-only maintained team-memory-compatible SQLite connector that emits SourceRecord JSONL;
 - a small Git commit fixture connector used to prove a second source-specific module satisfies the same SourceRecord contract.
+- a deterministic, read-only Markdown cognition projection with canonical machine
+  records, explicit target initialization, marker/manifest ownership,
+  write-if-changed behavior, conflict detection, opt-in safe pruning, a closed
+  installed CLI, package subpath, compatibility baseline, clean-consumer
+  verification, a temporary-directory runnable example, and clean independent
+  whole-branch review.
 
 Not implemented yet:
 
@@ -40,23 +54,28 @@ Not implemented yet:
 - a confirmed registry package name, runtime policy, or security policy;
 - stricter standalone and type-specific semantic schemas for cognitive objects, relationships, transitions, authorization, events, and errors; the Portable Cognition serialized envelope remains normative;
 - services, UI, synchronization, a durable publication outbox, connector registry, or network-connector ecosystem;
-- connector credential policy and an Obsidian/Markdown adapter;
-- Obsidian/Markdown integration;
+- connector credential policy;
+- automated vault synchronization, Git automation, or an Obsidian-specific
+  integration;
 - automatic cognition from conversations.
 
 `SourceRecord` is the universal boundary. Team-memory is one maintained compatible connector, not SDK root behavior. External connectors may live in separate repositories and packages, importing only the root SDK and optional source-neutral conformance subpath. Read the [connector author guide](docs/connector-author-guide.md) and [RFC 0006: Maintained Source Connectors](rfcs/0006-maintained-source-connectors.md).
 
 ## Compatibility Status
 
-- SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.5.0` are **Normative Stable** contracts.
-- Before `1.0.0`, the package root, both CLIs, and declared non-normative package subpaths are **Supported Experimental**.
+- SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.6.0` are **Normative Stable** contracts.
+- Before `1.0.0`, the package root, installed CLIs, and declared non-normative package subpaths are **Supported Experimental**.
 - Unexported connector modules and repository-only examples remain **Internal** and create no public compatibility promise.
 - The baseline locks runtime and type exports, selected package metadata, independent declaration closures and literal digests for public TypeScript entrypoints, CLI behavior, domain error codes, policy identities, and normative artifact hashes.
-- Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0` through `collective-cognition-sdk/compatibility/0.5.0`.
+- Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0` through `collective-cognition-sdk/compatibility/0.6.0`.
 - Compatibility tests detect exact baseline drift and declared process consequences; they do not automatically determine semantic compatibility.
 - Package `0.3.0` is classified as a `minor-before-1.0` breaking correction: the Host Integration additions are optional, while `PortableDomainError.code` is narrowed from package `0.2.0`'s package-wide `DomainErrorCode` to the immutable Portable Cognition `0.1.0` allowlist under `COMP-012`.
 - Package `0.4.0` is an additive minor release before `1.0`: it adds the optional SQLite subpath and its compatibility baseline without changing root exports or the generic CLI contract.
 - Package `0.5.0` is an additive minor release before `1.0`: it adds source-neutral connector conformance, one maintained connector subpath, and a dedicated executable while preserving the root API and generic CLI.
+- Private package `0.6.0` is an additive minor release before `1.0`: it adds the
+  Supported Experimental `adapters/markdown/0.1.0` subpath and
+  `collective-cognition-markdown` executable without changing root exports,
+  existing CLIs, or prior Normative Stable contracts.
 
 Read the [compatibility policy](spec/compatibility.md) and [RFC 0002](rfcs/0002-compatibility-versioning-and-deprecation.md). npm publication, registry confirmation, runtime and security policy, broader schemas, and production readiness remain open. The manifest retains `"private": true`, and the package is unpublished.
 
@@ -104,6 +123,72 @@ A deployed host normally has two logically distinct stores:
 These stores may use separate databases, separate schemas in one database, files, or another host-selected persistence model. Keeping them logically separate is important: source material may be replayed or regenerated, while approved decisions, rationale, authority, and history are durable organizational records. A host can begin with a dedicated SQLite database and later move to PostgreSQL or another backend without changing the core model.
 
 The SDK supplies the host-port contract, an in-memory reference implementation, and an optional Node-specific SQLite `CognitionStore` reference adapter. A host chooses and owns its `CognitionStore` and `CognitionEventPublisher`; a publication failure is observable as `committed_but_unpublished` and retryable with the exact same transition request. The example's identical retry succeeds, but the contract does not guarantee that every retry will succeed. Hosted services and durable publication remain planned ecosystem work.
+
+### Markdown Cognition Projection
+
+The Markdown adapter is a projection, not a persistence backend. A host keeps
+SQLite or another explicitly selected `CognitionStore` authoritative, then
+chooses whether to render selected validated Portable Cognition records into a
+separately initialized, dedicated directory. It neither discovers a
+vault/repository nor binds to Obsidian, Git, a home directory, a source ledger,
+or a cognition database.
+
+```text
+host-selected CognitionStore
+  → selected Portable Cognition records
+  → explicitly initialized managed Markdown target
+  → optional editor or Git workflow owned by the host
+```
+
+The target contains a marker, complete-digest manifest, `Index.md`, and stable
+SHA-256/revision paths. The adapter preserves unchanged bytes, fails rather
+than overwriting a manually changed managed file, and removes stale files only
+with explicit `pruneManaged`/`--prune-managed`. It writes no files outside the
+target. Verification inspects only the marker, manifest, and manifest-owned
+files. Unrelated unmanifested entries remain operator-owned and untouched;
+mismatching collisions or unsafe substitutions at a managed or desired path
+fail closed. Exact desired bytes may be adopted only as idempotent recovery.
+Relationship notes link through stable object-identity anchors in `Index.md`;
+the index advances each anchor to the highest projected revision without
+rewriting historical notes.
+See the [Markdown cognition adapter guide](docs/markdown-cognition-adapter-guide.md) and [RFC 0007](rfcs/0007-markdown-cognition-adapter.md).
+
+The source checkout interface is:
+
+```ts
+import {
+  initializeMarkdownCognitionTarget,
+  projectMarkdownCognition,
+  verifyMarkdownCognitionTarget,
+} from "./src/markdown-cognition.ts";
+
+await initializeMarkdownCognitionTarget({
+  targetDirectory: "/workspace/demo-team-vault/Collective Cognition",
+});
+await projectMarkdownCognition({
+  targetDirectory: "/workspace/demo-team-vault/Collective Cognition",
+  records,
+});
+```
+
+Installed consumers import
+`collective-cognition-sdk/adapters/markdown/0.1.0` from private package
+`0.6.0`. The source command is
+`node --disable-warning=ExperimentalWarning src/markdown-cognition-cli.ts`;
+the packed consumer installs the equivalent `collective-cognition-markdown`
+executable.
+
+The first profile limits a projection to 10,000 records, 128 MiB total managed
+content, 10,001 manifest entries, four path segments, 512-byte relative paths,
+1 MiB per rendered note or parsed Markdown record, and object or event target
+versions from 1 through 99,999,999 so every revision path remains exactly eight
+digits. The dedicated CLI also limits the complete JSONL input stream to
+1 MiB. It assumes a stable target and ancestors: static links, hard links,
+unexpected entry types, forged manifest ownership, and detectable
+substitutions at marker, manifest, managed, or desired paths fail closed.
+Unmanifested unrelated entries are not recursively inspected. Concurrent
+same-privilege final-window swap-back mutation awaits a future
+descriptor-relative backend.
 
 A `SourceRecord` accepts only the documented top-level and `source` fields. Every `extensions` key must contain a namespace separator (`:` or `.`) with non-empty sides. The interpretation keys `polarity`, `confidence`, and `authority` are also rejected directly in `context`; source-authored raw `content` may preserve fields with those names. The complete record is limited to 256 nested JSON containers, counting the root object as depth 1, so every SDK and CLI entry point rejects deeper values with `INVALID_SOURCE_RECORD` before recursive processing. `contentHash` is opaque caller-supplied integrity metadata, and this SDK does not verify that it is a digest or that it matches `content`.
 
@@ -180,7 +265,7 @@ npm run test:package
 npm run pack:check
 ```
 
-`npm run test:schema` compiles both the SourceRecord and Portable Cognition schemas in strict Draft 2020-12 mode and checks both normative fixture corpora. `npm run pack:check` and npm prepack inherit this combined schema gate. `npm run test:compatibility` checks the compatibility baseline’s exact inventories, independent public declaration closures and digests, policy identities, CLI contracts, and declared additive and breaking change cases; it does not decide semantic compatibility automatically. `npm run test:package` imports the built root and versioned subpaths, checks exact runtime and tarball allowlists, runs both CLIs, and installs the packed artifact into a clean temporary project to verify runtime and TypeScript imports. npm operations use an isolated temporary cache.
+`npm run test:schema` compiles both the SourceRecord and Portable Cognition schemas in strict Draft 2020-12 mode and checks both normative fixture corpora. `npm run pack:check` and npm prepack inherit this combined schema gate. `npm run test:compatibility` checks the compatibility baseline’s exact inventories, independent public declaration closures and digests, policy identities, CLI contracts, and declared additive and breaking change cases; it does not decide semantic compatibility automatically. `npm run test:package` imports the built root and versioned subpaths, checks exact runtime and tarball allowlists, runs the installed CLIs, and installs the packed artifact into a clean temporary project to verify runtime and TypeScript imports. npm operations use an isolated temporary cache.
 
 Installed consumers can import the schema through the versioned package subpath:
 
@@ -249,6 +334,7 @@ npx tsc --noEmit
 npm run check
 npm run example
 npm run example:portable
+npm run example:markdown
 npm run example:host
 collective-cognition-teammem export \
   --db /absolute/path/to/compatible-ledger.db \
@@ -272,6 +358,12 @@ node --disable-warning=ExperimentalWarning --test tests/portable-cognition-confo
 `npm run example` prints an attributed complete chain, a rejected unconfirmed decision approval, a successful human-confirmed approval, and the successful event count.
 
 `npm run example:portable` creates one cognitive-object record, serializes and deserializes its Portable Cognition `0.1.0` envelope, and prints that one restored envelope to stdout.
+
+`npm run example:markdown` creates an operating-system temporary directory,
+initializes its `Collective Cognition` subtree, projects one Goal and related
+Hypothesis, parses a generated note, repeats the projection without updates,
+verifies the target, prints one JSON summary, and removes the temporary root.
+It does not access a live vault, ledger, or cognition database.
 
 `npm run example:host` prints one JSON outcome showing an initial commit, `committed_but_unpublished` after the first publication attempt, and this example's identical retry returning `committed`, with object version `2`, one stored event, and one published event. The contract makes publication failure retryable but does not guarantee that every retry succeeds.
 

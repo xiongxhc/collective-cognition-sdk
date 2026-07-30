@@ -28,6 +28,7 @@ import { API } from "typescript/unstable/sync";
 import * as publicApi from "../dist/index.js";
 import * as connectorConformanceApi from "../dist/connector-conformance.js";
 import * as teamMemoryConnectorApi from "../dist/connectors/team-memory.js";
+import * as markdownCognitionApi from "../dist/markdown-cognition.js";
 import { CLI_CONTRACT } from "../dist/cli-contract.js";
 
 const repositoryRoot = new URL("../", import.meta.url);
@@ -64,7 +65,15 @@ const previousCurrentChangeCasesUrl = new URL(
   import.meta.url,
 );
 const currentBaselineUrl = new URL(
+  "../spec/compatibility/0.6.0/baseline.json",
+  import.meta.url,
+);
+const previousReleaseBaselineUrl = new URL(
   "../spec/compatibility/0.5.0/baseline.json",
+  import.meta.url,
+);
+const previousReleaseChangeCasesUrl = new URL(
+  "../spec/compatibility/0.5.0/change-cases.jsonl",
   import.meta.url,
 );
 const expectedHistoricalBaselineSha256 =
@@ -83,6 +92,10 @@ const expectedPreviousCurrentBaselineSha256 =
   "3f807dc1eeeaa3ebcd700e8e38f5c6358da60a2645a5b101ec1ba6429b97a918";
 const expectedPreviousCurrentChangeCasesSha256 =
   "704d478ed8738f3f591d6b49886bce919dcd0318b8c54a107619d1aa9961c645";
+const expectedCurrentHistoricalBaselineSha256 =
+  "5350c0b6eda15f84539c0e7b8f33c377cfdce781425ed20bbafd61250f7e3327";
+const expectedCurrentHistoricalChangeCasesSha256 =
+  "992a3dfb12f5edcc96604007e61d28c102f0581d9bdba80f63697199be7e698e";
 const expectedHistoricalChangeCaseDigests = Object.freeze({
   "spec/compatibility/0.1.0/change-cases.jsonl":
     expectedHistoricalChangeCasesSha256,
@@ -92,6 +105,8 @@ const expectedHistoricalChangeCaseDigests = Object.freeze({
     expectedLatestHistoricalChangeCasesSha256,
   "spec/compatibility/0.4.0/change-cases.jsonl":
     expectedPreviousCurrentChangeCasesSha256,
+  "spec/compatibility/0.5.0/change-cases.jsonl":
+    expectedCurrentHistoricalChangeCasesSha256,
 });
 const productionDependencyFieldNames = Object.freeze([
   "dependencies",
@@ -120,11 +135,18 @@ function sorted(values) {
 }
 
 function directDeclarationTypeExports(path) {
-  return sorted(
-    [...readFileSync(new URL(path, repositoryRoot), "utf8").matchAll(
-      /^export (?:interface|type) ([A-Za-z_$][\w$]*)/gm,
-    )].map((match) => match[1]),
+  const text = readFileSync(new URL(path, repositoryRoot), "utf8");
+  const direct = [...text.matchAll(
+    /^export (?:interface|type) ([A-Za-z_$][\w$]*)/gm,
+  )].map((match) => match[1]);
+  const reExported = [...text.matchAll(
+    /^export type \{([\s\S]*?)\} from /gm,
+  )].flatMap((match) =>
+    [...match[1].matchAll(/([A-Za-z_$][\w$]*)\s*,?/g)].map(
+      (part) => part[1],
+    )
   );
+  return sorted([...direct, ...reExported]);
 }
 
 function declarationStringUnion(path, pattern) {
@@ -410,11 +432,22 @@ test("historical compatibility 0.4.0 artifacts remain immutable", () => {
   );
 });
 
-test("current baseline describes the additive package 0.5.0 release", () => {
+test("historical compatibility 0.5.0 artifacts remain immutable", () => {
+  assert.equal(
+    sha256(readFileSync(previousReleaseBaselineUrl)),
+    expectedCurrentHistoricalBaselineSha256,
+  );
+  assert.equal(
+    sha256(readFileSync(previousReleaseChangeCasesUrl)),
+    expectedCurrentHistoricalChangeCasesSha256,
+  );
+});
+
+test("current baseline describes the additive package 0.6.0 release", () => {
   const baseline = readJson(currentBaselineUrl);
 
-  assert.equal(baseline.baselineVersion, "0.5.0");
-  assert.equal(baseline.appliesToPackageVersion, "0.5.0");
+  assert.equal(baseline.baselineVersion, "0.6.0");
+  assert.equal(baseline.appliesToPackageVersion, "0.6.0");
   assert.deepEqual(baseline.packageChange, {
     classification: "additive",
     packageVersionEffect: "minor",
@@ -438,6 +471,10 @@ test("current baseline describes the additive package 0.5.0 release", () => {
     "0.4.0": {
       path: "spec/compatibility/0.4.0/baseline.json",
       sha256: expectedPreviousCurrentBaselineSha256,
+    },
+    "0.5.0": {
+      path: "spec/compatibility/0.5.0/baseline.json",
+      sha256: expectedCurrentHistoricalBaselineSha256,
     },
   });
   assert.deepEqual(baseline.deprecations, []);
@@ -481,6 +518,7 @@ test("normative machine artifacts match exact digests", () => {
       "spec/compatibility/0.3.0/change-cases.jsonl",
       "spec/compatibility/0.4.0/change-cases.jsonl",
       "spec/compatibility/0.5.0/change-cases.jsonl",
+      "spec/compatibility/0.6.0/change-cases.jsonl",
       "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
       "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
       "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
@@ -576,7 +614,7 @@ test("normative prose matches its hash and stable rule identifiers", () => {
 
 test("root runtime and domain error inventories match exactly", () => {
   const baseline = readJson(currentBaselineUrl);
-  const previousCurrentBaseline = readJson(previousCurrentBaselineUrl);
+  const previousCurrentBaseline = readJson(previousReleaseBaselineUrl);
 
   assert.deepEqual(
     Object.keys(publicApi).sort(),
@@ -736,6 +774,136 @@ test("connector subpath contracts match exact additive inventories", () => {
   });
 });
 
+test("Markdown adapter subpath contract matches its exact additive inventory", () => {
+  const baseline = readJson(currentBaselineUrl);
+
+  assert.deepEqual(baseline.markdownCognition, {
+    version: "0.1.0",
+    packageSubpath: "./adapters/markdown/0.1.0",
+    runtimeExports: [
+      "MARKDOWN_COGNITION_MANIFEST_FILE",
+      "MARKDOWN_COGNITION_MARKER_FILE",
+      "MARKDOWN_COGNITION_MAX_INPUT_BYTES",
+      "MARKDOWN_COGNITION_MAX_MANIFEST_ENTRIES",
+      "MARKDOWN_COGNITION_MAX_NOTE_BYTES",
+      "MARKDOWN_COGNITION_MAX_OBJECT_VERSION",
+      "MARKDOWN_COGNITION_MAX_PATH_SEGMENTS",
+      "MARKDOWN_COGNITION_MAX_RECORDS",
+      "MARKDOWN_COGNITION_MAX_RELATIVE_PATH_BYTES",
+      "MARKDOWN_COGNITION_MAX_TOTAL_BYTES",
+      "MARKDOWN_COGNITION_PROFILE_VERSION",
+      "MARKDOWN_COGNITION_TARGET_FORMAT",
+      "MarkdownCognitionError",
+      "initializeMarkdownCognitionTarget",
+      "markdownCognitionRelativePath",
+      "parseMarkdownCognitionRecord",
+      "projectMarkdownCognition",
+      "renderMarkdownCognitionIndex",
+      "renderMarkdownCognitionRecord",
+      "verifyMarkdownCognitionTarget",
+    ],
+    typeExports: [
+      "MarkdownCognitionErrorCode",
+      "MarkdownCognitionProjectionOptions",
+      "MarkdownCognitionProjectionReport",
+      "MarkdownCognitionRecord",
+      "MarkdownCognitionRenderContext",
+      "MarkdownCognitionTargetOptions",
+      "MarkdownCognitionVerificationDiagnostic",
+      "MarkdownCognitionVerificationReport",
+    ],
+    errorCodes: [
+      "incompatible_target",
+      "invalid_markdown_record",
+      "invalid_projection_input",
+      "invalid_target",
+      "managed_file_conflict",
+      "projection_io_failed",
+      "projection_limit_exceeded",
+      "target_not_initialized",
+      "unsafe_target_entry",
+    ],
+    constants: {
+      profileVersion: "portable-cognition-markdown/0.1.0",
+      targetFormat: "collective-cognition-markdown-target/1",
+      markerFile: ".collective-cognition.json",
+      manifestFile: ".collective-cognition-manifest.json",
+      maxInputBytes: 1048576,
+      maxNoteBytes: 1048576,
+      maxObjectVersion: 99999999,
+      maxRecords: 10000,
+      maxTotalBytes: 134217728,
+      maxManifestEntries: 10001,
+      maxPathSegments: 4,
+      maxRelativePathBytes: 512,
+    },
+    binaryName: "collective-cognition-markdown",
+  });
+  assert.deepEqual(
+    Object.keys(markdownCognitionApi).sort(),
+    baseline.markdownCognition.runtimeExports,
+  );
+  assert.deepEqual(
+    directDeclarationTypeExports("dist/markdown-cognition.d.ts"),
+    baseline.markdownCognition.typeExports,
+  );
+  assert.deepEqual(
+    declarationStringUnion(
+      "dist/markdown-cognition-profile.d.ts",
+      /export type MarkdownCognitionErrorCode = ([^;]+);/,
+    ),
+    baseline.markdownCognition.errorCodes,
+  );
+  assert.equal(
+    markdownCognitionApi.MARKDOWN_COGNITION_PROFILE_VERSION,
+    baseline.markdownCognition.constants.profileVersion,
+  );
+  assert.equal(
+    markdownCognitionApi.MARKDOWN_COGNITION_TARGET_FORMAT,
+    baseline.markdownCognition.constants.targetFormat,
+  );
+  assert.equal(
+    markdownCognitionApi.MARKDOWN_COGNITION_MARKER_FILE,
+    baseline.markdownCognition.constants.markerFile,
+  );
+  assert.equal(
+    markdownCognitionApi.MARKDOWN_COGNITION_MANIFEST_FILE,
+    baseline.markdownCognition.constants.manifestFile,
+  );
+  assert.equal(
+    markdownCognitionApi.MARKDOWN_COGNITION_MAX_INPUT_BYTES,
+    baseline.markdownCognition.constants.maxInputBytes,
+  );
+  assert.equal(
+    markdownCognitionApi.MARKDOWN_COGNITION_MAX_NOTE_BYTES,
+    baseline.markdownCognition.constants.maxNoteBytes,
+  );
+  assert.equal(
+    markdownCognitionApi.MARKDOWN_COGNITION_MAX_OBJECT_VERSION,
+    baseline.markdownCognition.constants.maxObjectVersion,
+  );
+  assert.equal(
+    markdownCognitionApi.MARKDOWN_COGNITION_MAX_RECORDS,
+    baseline.markdownCognition.constants.maxRecords,
+  );
+  assert.equal(
+    markdownCognitionApi.MARKDOWN_COGNITION_MAX_TOTAL_BYTES,
+    baseline.markdownCognition.constants.maxTotalBytes,
+  );
+  assert.equal(
+    markdownCognitionApi.MARKDOWN_COGNITION_MAX_MANIFEST_ENTRIES,
+    baseline.markdownCognition.constants.maxManifestEntries,
+  );
+  assert.equal(
+    markdownCognitionApi.MARKDOWN_COGNITION_MAX_PATH_SEGMENTS,
+    baseline.markdownCognition.constants.maxPathSegments,
+  );
+  assert.equal(
+    markdownCognitionApi.MARKDOWN_COGNITION_MAX_RELATIVE_PATH_BYTES,
+    baseline.markdownCognition.constants.maxRelativePathBytes,
+  );
+});
+
 test("public declaration entrypoint closures match exact independent digests", () => {
   const baseline = readJson(currentBaselineUrl);
   const entrypoints = {
@@ -762,6 +930,10 @@ test("public declaration entrypoint closures match exact independent digests", (
     teamMemoryConnector: {
       packageSubpath: "./connectors/team-memory/0.1.0",
       declarationEntrypoint: "dist/connectors/team-memory.d.ts",
+    },
+    markdownCognition: {
+      packageSubpath: "./adapters/markdown/0.1.0",
+      declarationEntrypoint: "dist/markdown-cognition.d.ts",
     },
   };
 
@@ -884,7 +1056,7 @@ test("package compatibility metadata matches exactly", () => {
 
 test("CLI registry matches the exact baseline", () => {
   const baseline = readJson(currentBaselineUrl);
-  const previousCurrentBaseline = readJson(previousCurrentBaselineUrl);
+  const previousCurrentBaseline = readJson(previousReleaseBaselineUrl);
 
   assert.deepEqual(CLI_CONTRACT, baseline.cli);
   assert.deepEqual(baseline.cli, previousCurrentBaseline.cli);
@@ -929,24 +1101,21 @@ test("CLI and SDK promotion policy identities remain linked", () => {
 test("change cases exercise the additive package process", () => {
   const cases = readJsonLines(
     new URL(
-      "../spec/compatibility/0.5.0/change-cases.jsonl",
+      "../spec/compatibility/0.6.0/change-cases.jsonl",
       import.meta.url,
     ),
   );
   const stabilityLevels = new Set(
     readJson(currentBaselineUrl).stabilityLevels.map((level) => level.id),
   );
-  const classifications = new Set(["additive", "breaking"]);
-  const packageVersionEffects = new Set([
-    "minor",
-    "minor-before-1.0",
-  ]);
+  const classifications = new Set(["additive"]);
+  const packageVersionEffects = new Set(["minor"]);
 
   assert.deepEqual(cases, [
     {
-      id: "additive-versioned-source-connector-surfaces",
+      id: "additive-markdown-cognition-adapter-surfaces",
       description:
-        "Add source-neutral connector conformance 0.1.0, maintained team-memory connector 0.1.0, compatibility 0.5.0, and a dedicated team-memory binary while preserving root exports and the generic CLI contract.",
+        "Add optional Markdown cognition adapter 0.1.0, compatibility 0.6.0, and a dedicated Markdown projection binary with stable index anchors, exact manifest ownership, and an explicit eight-digit revision ceiling while preserving root exports and existing CLI contracts.",
       surface: "supported-experimental",
       classification: "additive",
       packageVersionEffect: "minor",
@@ -954,20 +1123,7 @@ test("change cases exercise the additive package process", () => {
       requiresMigrationNotes: false,
       requiresDeprecation: false,
       rationale:
-        "Existing root and versioned imports remain unchanged, the connector APIs are isolated under new versioned subpaths, the dedicated binary has a distinct name, and the package adds no production dependency fields.",
-    },
-    {
-      id: "breaking-change-versioned-connector-contract",
-      description:
-        "Remove or rename a connector subpath export, connector runtime or type export, diagnostic code, connector error stage, ledger-format identity, or installed team-memory binary.",
-      surface: "supported-experimental",
-      classification: "breaking",
-      packageVersionEffect: "minor-before-1.0",
-      requiresRfc: true,
-      requiresMigrationNotes: true,
-      requiresDeprecation: true,
-      rationale:
-        "Consumers may import the versioned connector surfaces, narrow on their exact unions, identify the compatible ledger format, or execute the installed binary, so changing those contracts requires a new versioned surface and migration path.",
+        "Existing root and versioned imports remain unchanged, Markdown APIs are isolated under a new versioned subpath, historical notes remain immutable as referenced successors advance through index anchors, manifest ownership is bound to generated identities and paths, object and event target versions above 99,999,999 fail before target I/O, the dedicated binary has a distinct name, and the package adds no production dependency fields.",
     },
   ]);
   cases.forEach((changeCase) => {
@@ -982,9 +1138,5 @@ test("change cases exercise the additive package process", () => {
       .length,
     1,
   );
-  assert.equal(
-    cases.filter((changeCase) => changeCase.classification === "breaking")
-      .length,
-    1,
-  );
+  assert.equal(cases.length, 1);
 });
