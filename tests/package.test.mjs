@@ -1642,7 +1642,7 @@ console.log(JSON.stringify({
       ".bin",
       markdownExecutableName,
     );
-    const markdownTarget = join(consumerRoot, "Markdown Cognition");
+    const markdownTarget = join(consumerRoot, "markdown-cognition");
     const markdownInput = join(consumerRoot, "markdown-input.jsonl");
     writeFileSync(
       markdownInput,
