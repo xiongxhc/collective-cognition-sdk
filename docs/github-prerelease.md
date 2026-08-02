@@ -13,26 +13,90 @@ The public release, once observed, contains exactly:
 - `collective-cognition-sdk-0.6.0.tgz`; and
 - `release-manifest.json`.
 
-The tested runtime matrix is Ubuntu with Node.js `24.9.0`, Ubuntu with Node.js
-`24.14.0`, macOS with Node.js `24.14.0`, and Windows with Node.js `24.14.0`.
-The release workflow itself uses Node.js `24.14.0`.
+The core verification matrix runs only `npm test`, `npx tsc --noEmit`, and
+`npm run check` on Ubuntu with Node.js `24.9.0`, Ubuntu with Node.js `24.14.0`,
+macOS with Node.js `24.14.0`, and Windows with Node.js `24.14.0`.
+
+The distribution verification environment is Ubuntu with Node.js `24.14.0`
+only. It runs examples, durable SQLite, deterministic assets, clean tarball
+installation, imports, and installed CLIs; the other three core-matrix
+environments do not verify those paths.
 
 ## 1. Verify the Feature Head Locally
 
-Run the complete local Node 24 gate before a pull request. The examples use
-only temporary fixtures; Markdown acceptance remains temporary-vault-only and
-SQLite is a reference adapter rather than a production store claim.
+Run the core gate on every core-matrix environment. Run the distribution gate
+only on Ubuntu with Node.js `24.14.0`. Its examples use a synthetic temporary
+ledger and a separate temporary cognition database; Markdown acceptance remains
+temporary-vault-only and SQLite is a reference adapter rather than a production
+store claim.
 
 ```bash
 node --disable-warning=ExperimentalWarning --test tests/release-readiness.test.ts
 npm test
 npx tsc --noEmit
 npm run check
+```
+
+On Ubuntu with Node.js `24.14.0`, run the distribution gate with the explicit
+synthetic fixture. It does not read or write a live ledger, vault, or cognition
+database.
+
+```bash
+set -euo pipefail
+example_root="$(mktemp -d)"
+trap 'rm -rf "$example_root"' EXIT
+ledger="$example_root/events.db"
+cognition="$example_root/cognition.db"
+
+LEDGER_PATH="$ledger" node --input-type=module <<'NODE'
+import { DatabaseSync } from "node:sqlite";
+
+const ledgerPath = process.env.LEDGER_PATH;
+if (ledgerPath === undefined) {
+  throw new Error("Missing synthetic ledger path.");
+}
+const database = new DatabaseSync(ledgerPath);
+try {
+  database.exec(`
+    CREATE TABLE events (
+      id      INTEGER PRIMARY KEY,
+      person  TEXT NOT NULL,
+      project TEXT,
+      ts      TEXT NOT NULL,
+      source  TEXT NOT NULL,
+      kind    TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      refs    TEXT,
+      raw     TEXT,
+      hash    TEXT NOT NULL,
+      UNIQUE(person, source, hash)
+    );
+  `);
+  database.prepare(`
+    INSERT INTO events (id, person, project, ts, source, kind, summary, refs, raw, hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    1,
+    "prerelease-user",
+    "prerelease-synthetic",
+    "2026-08-02T00:00:00.000Z",
+    "prerelease:synthetic-event",
+    "commit",
+    "Synthetic prerelease verification event.",
+    JSON.stringify({ url: "https://example.invalid/prerelease-synthetic" }),
+    null,
+    "prerelease-synthetic-hash-1",
+  );
+} finally {
+  database.close();
+}
+NODE
+
 npm run example
 npm run example:portable
 npm run example:host
-npm run example:teammem
-npm run example:teammem:durable
+npm run example:teammem -- "$ledger"
+npm run example:teammem:durable -- --ledger "$ledger" --cognition-db "$cognition" --project prerelease-synthetic --from 2026-08-02T00:00:00.000Z --limit 1 --create
 npm run example:markdown
 npm run pack:check
 git diff --check
@@ -100,33 +164,99 @@ git push origin v0.6.0
 
 ## 5. Verify the Observed Public Prerelease
 
-Wait for the tag workflow and download the release into a new directory. These
-commands are release-verification steps; do not record a URL, run ID, merge
-SHA, tag SHA, or pass result before their actual GitHub output is inspected.
+Wait for the exact `github-prerelease.yml` push run for `v0.6.0`, then download
+and verify the release in a new directory. These commands are
+release-verification steps; do not record a URL, run ID, merge SHA, tag SHA, or
+pass result before their actual GitHub output is inspected.
 
 ```bash
-gh run watch --repo xiongxhc/collective-cognition-sdk
-release_dir="$(mktemp -d)"
-gh release download v0.6.0 --dir "$release_dir" --repo xiongxhc/collective-cognition-sdk
-
-gh api repos/xiongxhc/collective-cognition-sdk/releases/tags/v0.6.0 \
-  --jq '{tag_name, prerelease, draft, assets: [.assets[].name]}'
-gh api repos/xiongxhc/collective-cognition-sdk/releases/latest \
-  --jq .tag_name || test "$?" = 1
-
+set -euo pipefail
+TAG=v0.6.0
 cd /Users/cx/Workspace/collective-cognition-sdk
-git fetch origin master refs/tags/v0.6.0:refs/tags/v0.6.0
-test "$(git rev-parse 'refs/tags/v0.6.0^{}')" = "$(git rev-parse origin/master)"
-cd "$release_dir"
+git fetch origin master refs/tags/$TAG:refs/tags/$TAG
+TAG_SHA="$(git rev-parse "refs/tags/$TAG^{}")"
+RUNS_JSON="$(gh run list --repo xiongxhc/collective-cognition-sdk --workflow github-prerelease.yml --branch "$TAG" --event push --limit 20 --json databaseId,headSha,headBranch,event)"
+RUN_ID="$(RUNS_JSON="$RUNS_JSON" TAG="$TAG" TAG_SHA="$TAG_SHA" node --input-type=module <<'NODE'
+import assert from "node:assert/strict";
 
-test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = 4
+const runs = JSON.parse(process.env.RUNS_JSON ?? "");
+const tag = process.env.TAG;
+const tagSha = process.env.TAG_SHA;
+assert.equal(typeof tag, "string");
+assert.equal(typeof tagSha, "string");
+assert.equal(runs.length, 1);
+const run = runs[0];
+assert.equal(run.headBranch, tag);
+assert.equal(run.headSha, tagSha);
+assert.equal(run.event, "push");
+assert.equal(typeof run.databaseId, "number");
+process.stdout.write(`${run.databaseId}\n`);
+NODE
+)"
+gh run watch "$RUN_ID" --exit-status
+
+release_dir="$(mktemp -d)"
+latest_response="$(mktemp)"
+trap 'rm -rf "$release_dir"; rm -f "$latest_response"' EXIT
+gh release download "$TAG" --dir "$release_dir" --repo xiongxhc/collective-cognition-sdk
+
+release_json="$(gh api repos/xiongxhc/collective-cognition-sdk/releases/tags/$TAG)"
+RELEASE_JSON="$release_json" TAG="$TAG" node --input-type=module <<'NODE'
+import assert from "node:assert/strict";
+
+const release = JSON.parse(process.env.RELEASE_JSON ?? "");
+const tag = process.env.TAG;
+const expectedAssets = [
+  "SHA256SUMS",
+  "collective-cognition-sdk-0.6.0.cdx.json",
+  "collective-cognition-sdk-0.6.0.tgz",
+  "release-manifest.json",
+];
+assert.equal(release.prerelease, true);
+assert.equal(release.draft, false);
+assert.equal(release.tag_name, tag);
+const names = release.assets.map((asset) => asset.name);
+assert.equal(new Set(names).size, names.length);
+assert.deepEqual([...names].sort(), expectedAssets);
+NODE
+
+set +e
+gh api --include repos/xiongxhc/collective-cognition-sdk/releases/latest > "$latest_response" 2>&1
+latest_exit=$?
+set -e
+LATEST_EXIT="$latest_exit" LATEST_RESPONSE="$latest_response" TAG="$TAG" node --input-type=module <<'NODE'
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const exitCode = Number(process.env.LATEST_EXIT);
+const tag = process.env.TAG;
+const response = readFileSync(process.env.LATEST_RESPONSE ?? "", "utf8")
+  .replaceAll("\r\n", "\n");
+const statuses = [...response.matchAll(/^HTTP\/\S+\s+(\d{3})\b/gm)];
+assert.equal(statuses.length, 1);
+const statusCode = Number(statuses[0]?.[1]);
+if (exitCode === 0) {
+  assert.equal(statusCode, 200);
+  const separator = response.indexOf("\n\n");
+  assert.notEqual(separator, -1);
+  const latest = JSON.parse(response.slice(separator + 2));
+  assert.notEqual(latest.tag_name, tag);
+} else {
+  assert.equal(exitCode, 1);
+  assert.equal(statusCode, 404);
+}
+NODE
+
+test "$(find "$release_dir" -maxdepth 1 -type f | wc -l | tr -d ' ')" = 4
+test "$(git rev-parse "refs/tags/$TAG^{}")" = "$(git rev-parse origin/master)"
+cd "$release_dir"
 shasum -a 256 -c SHA256SUMS
 
 for asset in SHA256SUMS collective-cognition-sdk-0.6.0.cdx.json collective-cognition-sdk-0.6.0.tgz release-manifest.json; do
   gh attestation verify "$asset" \
     --repo xiongxhc/collective-cognition-sdk \
     --signer-workflow xiongxhc/collective-cognition-sdk/.github/workflows/github-prerelease.yml \
-    --source-ref refs/tags/v0.6.0
+    --source-ref "refs/tags/$TAG"
 done
 
 npm install --ignore-scripts --offline ./collective-cognition-sdk-0.6.0.tgz
@@ -136,10 +266,11 @@ node --input-type=module -e 'import "collective-cognition-sdk"'
 ./node_modules/.bin/collective-cognition-markdown --help
 ```
 
-The release API must show `prerelease: true` and `draft: false`; the latest
-release endpoint must return HTTP `404` or a different `tag_name`. Verify the
-release asset names exactly, inspect the SBOM and manifest for `v0.6.0`, the
-observed commit, and `private: true`, then confirm all four attestations.
+The release API predicates above require `prerelease: true`, `draft: false`,
+the exact tag, and exactly four unique asset names. The latest-release request
+accepts only HTTP `404` or a successful HTTP `200` response whose tag differs
+from `v0.6.0`; authentication, network, parsing, and every other HTTP failure
+stop the procedure.
 
 ## 6. Record Evidence or Correct Safely
 

@@ -1726,14 +1726,86 @@ test("public documentation defines an unobserved GitHub prerelease boundary", ()
   assert.match(runbook, /git tag -a v0\.6\.0 -m "Collective Cognition SDK 0\.6\.0 prerelease"/);
   assert.match(runbook, /git push origin v0\.6\.0/);
   assert.match(runbook, /gh run watch/);
-  assert.match(runbook, /gh release download v0\.6\.0 --dir "\$release_dir"/);
-  assert.match(runbook, /gh api repos\/xiongxhc\/collective-cognition-sdk\/releases\/tags\/v0\.6\.0/);
-  assert.match(runbook, /gh api repos\/xiongxhc\/collective-cognition-sdk\/releases\/latest/);
-  assert.match(runbook, /git rev-parse 'refs\/tags\/v0\.6\.0\^\{\}'/);
+  assert.match(runbook, /gh release download "\$TAG" --dir "\$release_dir"/);
+  assert.match(runbook, /gh api repos\/xiongxhc\/collective-cognition-sdk\/releases\/tags\/\$TAG/);
+  assert.match(runbook, /gh api --include repos\/xiongxhc\/collective-cognition-sdk\/releases\/latest/);
+  assert.match(runbook, /git rev-parse "refs\/tags\/\$TAG\^\{\}"/);
   assert.match(runbook, /shasum -a 256 -c SHA256SUMS/);
   assert.match(runbook, /gh attestation verify "\$asset"/);
   assert.match(runbook, /new prerelease version rather than moving or retagging `v0\.6\.0`/i);
 
   assert.doesNotMatch(documentation, /\b(?:is|are|was|were)\s+(?:production[- ]ready|npm published|live vault accepted)\b/i);
   assert.doesNotMatch(documentation, /release (?:URL|run ID|merge SHA|tag SHA):\s*https?:\/\/|release (?:URL|run ID|merge SHA|tag SHA):\s*[0-9a-f]{7,}/i);
+});
+
+test("prerelease documentation keeps verification fixtures and release predicates fail closed", () => {
+  const readDocumentation = (path: string): string => readFileSync(
+    join(repositoryRoot, path),
+    "utf8",
+  );
+  const readme = readDocumentation("README.md");
+  const roadmap = readDocumentation("docs/ROADMAP.md");
+  const runbook = readDocumentation("docs/github-prerelease.md");
+  const expectedRuntimes = [
+    "Ubuntu with Node.js `24.9.0`",
+    "Ubuntu with Node.js `24.14.0`",
+    "macOS with Node.js `24.14.0`",
+    "Windows with Node.js `24.14.0`",
+  ];
+  const assertRuntimeBoundary = (documentation: string): void => {
+    const runtimes = [...documentation.matchAll(
+      /(?:Ubuntu|macOS|Windows) with Node\.js `\d+\.\d+\.\d+`/g,
+    )].map((match) => match[0]);
+    assert.deepEqual([...new Set(runtimes)].sort(), [...expectedRuntimes].sort());
+    assert.match(readme, /core verification matrix.*npm test.*npx tsc.*npm run check/s);
+    assert.match(readme, /distribution verification environment is Ubuntu with Node\.js `24\.14\.0`\s+only/s);
+    assert.match(
+      readme,
+      /examples, durable SQLite, deterministic assets, clean tarball\s+installation, imports, and installed CLIs/s,
+    );
+    assert.match(roadmap, /core verification runs `npm test`, `npx tsc --noEmit`, and\s+`npm run check` on Ubuntu/s);
+    assert.match(roadmap, /Ubuntu with Node\.js `24\.14\.0` is the distribution verification\s+environment for examples, durable SQLite, deterministic assets, clean\s+tarball installation, imports, and installed CLI checks only/s);
+    assert.match(runbook, /core verification matrix runs only `npm test`, `npx tsc --noEmit`, and\s+`npm run check` on Ubuntu/s);
+    assert.match(runbook, /distribution verification environment is Ubuntu with Node\.js `24\.14\.0`\s+only/s);
+  };
+  const assertRunbook = (candidate: string): void => {
+    assert.match(candidate, /example_root="\$\(mktemp -d\)"/);
+    assert.match(candidate, /trap 'rm -rf "\$example_root"' EXIT/);
+    assert.match(candidate, /LEDGER_PATH="\$ledger" node --input-type=module/);
+    assert.match(candidate, /new DatabaseSync\(ledgerPath\)/);
+    assert.match(candidate, /npm run example:teammem -- "\$ledger"/);
+    assert.match(candidate, /npm run example:teammem:durable -- --ledger "\$ledger" --cognition-db "\$cognition" --project prerelease-synthetic --from 2026-08-02T00:00:00\.000Z --limit 1 --create/);
+    assert.match(candidate, /gh run list --repo xiongxhc\/collective-cognition-sdk --workflow github-prerelease\.yml --branch "\$TAG" --event push --limit 20 --json databaseId,headSha,headBranch,event/);
+    assert.match(candidate, /assert\.equal\(runs\.length, 1\)/);
+    assert.match(candidate, /assert\.equal\(run\.headBranch, tag\)/);
+    assert.match(candidate, /assert\.equal\(run\.headSha, tagSha\)/);
+    assert.match(candidate, /assert\.equal\(run\.event, "push"\)/);
+    assert.match(candidate, /gh run watch "\$RUN_ID" --exit-status/);
+    assert.match(candidate, /release_json="\$\(gh api repos\/xiongxhc\/collective-cognition-sdk\/releases\/tags\/\$TAG\)"/);
+    assert.match(candidate, /assert\.equal\(release\.prerelease, true\)/);
+    assert.match(candidate, /assert\.equal\(release\.draft, false\)/);
+    assert.match(candidate, /assert\.equal\(release\.tag_name, tag\)/);
+    assert.match(candidate, /assert\.equal\(new Set\(names\)\.size, names\.length\)/);
+    assert.match(candidate, /assert\.deepEqual\(\[\.\.\.names\]\.sort\(\), expectedAssets\)/);
+    assert.match(candidate, /gh api --include repos\/xiongxhc\/collective-cognition-sdk\/releases\/latest/);
+    assert.match(candidate, /assert\.equal\(statusCode, 200\)/);
+    assert.match(candidate, /assert\.notEqual\(latest\.tag_name, tag\)/);
+    assert.match(candidate, /assert\.equal\(exitCode, 1\)/);
+    assert.match(candidate, /assert\.equal\(statusCode, 404\)/);
+  };
+
+  assertRuntimeBoundary([readme, roadmap, runbook].join("\n"));
+  assertRunbook(runbook);
+
+  for (const unsafeRunbook of [
+    runbook.replace('npm run example:teammem -- "$ledger"', "npm run example:teammem"),
+    runbook.replace(' --cognition-db "$cognition"', ""),
+    runbook.replace("--workflow github-prerelease.yml", "--workflow ci.yml"),
+    runbook.replace('gh run watch "$RUN_ID" --exit-status', 'gh run watch "$RUN_ID"'),
+    runbook.replace("assert.equal(release.prerelease, true)", "assert.equal(release.prerelease, false)"),
+    runbook.replace("assert.equal(exitCode, 1)", "assert.equal(exitCode, 2)"),
+  ]) {
+    assert.throws(() => assertRunbook(unsafeRunbook));
+  }
+  assert.throws(() => assertRuntimeBoundary(`${readme}\n- Ubuntu with Node.js \`25.0.0\``));
 });

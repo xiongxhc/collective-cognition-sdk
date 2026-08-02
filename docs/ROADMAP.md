@@ -192,8 +192,12 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Deterministic local generation of exactly `SHA256SUMS`,
   `collective-cognition-sdk-0.6.0.cdx.json`,
   `collective-cognition-sdk-0.6.0.tgz`, and `release-manifest.json`.
-- [x] Read-only CI covers Ubuntu with Node.js `24.9.0`, Ubuntu with Node.js
+- [x] Read-only core verification runs `npm test`, `npx tsc --noEmit`, and
+  `npm run check` on Ubuntu with Node.js `24.9.0`, Ubuntu with Node.js
   `24.14.0`, macOS with Node.js `24.14.0`, and Windows with Node.js `24.14.0`.
+- [x] Ubuntu with Node.js `24.14.0` is the distribution verification
+  environment for examples, durable SQLite, deterministic assets, clean
+  tarball installation, imports, and installed CLI checks only.
 - [x] A tag-only workflow validates an annotated exact-`master` tag, creates a
   prerelease without marking it latest, and attests all four assets.
 - [ ] Observed public release evidence: release URL, merge SHA, tag target SHA,

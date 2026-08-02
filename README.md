@@ -262,12 +262,18 @@ observed release, not evidence that a release already exists. Confirm that
 `v0.6.0` is listed as a prerelease and is not GitHub's latest release before
 using the commands.
 
-The exact tested release-environment matrix is:
+The core verification matrix runs only `npm test`, `npx tsc --noEmit`, and
+`npm run check` on:
 
 - Ubuntu with Node.js `24.9.0`;
 - Ubuntu with Node.js `24.14.0`;
 - macOS with Node.js `24.14.0`; and
 - Windows with Node.js `24.14.0`.
+
+The distribution verification environment is Ubuntu with Node.js `24.14.0`
+only. It runs examples, durable SQLite, deterministic assets, clean tarball
+installation, imports, and installed CLIs; those checks are not verified on
+the other three core-matrix environments.
 
 The release contains exactly these assets:
 
