@@ -79,19 +79,64 @@ function assertNoAutoMergeWorkflows(workflows: string): void {
       }
       return entry.isFile() && /\.ya?ml$/i.test(entry.name) ? [path] : [];
     });
-  const executableMergeMechanisms = [
-    /^\s*run:\s*(?:[^\n]*\bgh\s+pr\s+merge\b|[>|][-+]?\s*\n(?:[ \t]+[^\n]*\n)*?[ \t]+[^\n]*\bgh\s+pr\s+merge\b)/im,
-    /^\s*(?:run|script|query):\s*(?:[^\n]*\benablePullRequestAutoMerge\b|[>|][-+]?\s*\n(?:[ \t]+[^\n]*\n)*?[ \t]+[^\n]*\benablePullRequestAutoMerge\b)/im,
-    /^\s*uses:\s*(?:pascalgn\/automerge-action|peter-evans\/enable-pull-request-automerge|ahmadnassri\/action-dependabot-auto-merge|actions-ecosystem\/action-automerge)@/im,
-  ];
+  const instructions = (workflow: string): { kind: string; value: string }[] => {
+    const parsed: { kind: string; value: string }[] = [];
+    let block: { kind: string; indent: number } | undefined;
+
+    for (const line of workflow.split("\n")) {
+      const trimmed = line.trim();
+      const indent = line.length - line.trimStart().length;
+      if (trimmed.startsWith("#")) {
+        continue;
+      }
+      if (block && trimmed && indent > block.indent) {
+        parsed.push({ kind: block.kind, value: trimmed });
+        continue;
+      }
+      block = undefined;
+      const field = line.match(/^\s*(?:-\s*)?(run|uses|script|query):\s*(.*?)\s*$/);
+      if (!field) {
+        continue;
+      }
+      const [, kind, value] = field;
+      if ((kind === "run" || kind === "script" || kind === "query") && /^[>|]/.test(value)) {
+        block = { kind, indent };
+      } else {
+        parsed.push({ kind, value: value.replace(/^['"]|['"]$/g, "") });
+      }
+    }
+
+    return parsed;
+  };
+  const knownMergeActions = new Set([
+    "pascalgn/automerge-action",
+    "peter-evans/enable-pull-request-automerge",
+    "ahmadnassri/action-dependabot-auto-merge",
+    "actions-ecosystem/action-automerge",
+  ]);
+  const graphQlMerge = /\b(?:mergePullRequest|enablePullRequestAutoMerge)\b/;
+  const mergeEndpoint = /\/pulls\/[^/\s'"`]+\/merge\b/i;
 
   for (const path of workflowFiles(workflows)) {
-    const workflow = readFileSync(path, "utf8")
-      .split("\n")
-      .filter((line) => !line.trimStart().startsWith("#"))
-      .join("\n");
-    for (const mechanism of executableMergeMechanisms) {
-      assert.doesNotMatch(workflow, mechanism, `${path} enables automatic pull-request merging`);
+    for (const instruction of instructions(readFileSync(path, "utf8"))) {
+      const value = instruction.value.trim();
+      const isRunMerge = instruction.kind === "run" && /^gh\s+pr\s+merge\b/i.test(value);
+      const isRestMerge = mergeEndpoint.test(value) && /\bPUT\b/i.test(value) && (
+        (instruction.kind === "run" && /^(?:gh\s+api|curl)\b/i.test(value)) ||
+        (instruction.kind === "script" && /\b(?:github|octokit)\b/i.test(value))
+      );
+      const isGraphQlMerge = graphQlMerge.test(value) && (
+        (instruction.kind === "run" && /^(?:gh\s+api\s+graphql|curl)\b/i.test(value)) ||
+        instruction.kind === "query" ||
+        (instruction.kind === "script" && /\b(?:github|octokit)\.graphql\b/i.test(value))
+      );
+      const isMergeAction = instruction.kind === "uses" && knownMergeActions.has(value.split("@", 1)[0]);
+
+      assert.equal(
+        isRunMerge || isRestMerge || isGraphQlMerge || isMergeAction,
+        false,
+        `${path} enables automatic pull-request merging`,
+      );
     }
   }
 }
@@ -450,6 +495,8 @@ test("release readiness rejects executable auto-merge workflow instructions", ()
   const workflows = join(root, ".github/workflows");
   const prohibitedInstructions = [
     "run: gh pr merge 42",
+    "run: |\n  gh api --method PUT repos/xiongxhc/collective-cognition-sdk/pulls/42/merge",
+    "run: gh api graphql -f query='mutation { mergePullRequest(input: {}) { pullRequest { id } } }'",
     "script: github.graphql(`mutation { enablePullRequestAutoMerge(input: {}) { clientMutationId } }`)",
     "uses: pascalgn/automerge-action@v0.16.3",
     "uses: peter-evans/enable-pull-request-automerge@v3",
@@ -462,7 +509,7 @@ test("release readiness rejects executable auto-merge workflow instructions", ()
     writeFileSync(join(workflows, "release.yml"), "run: git merge-base HEAD origin/main\n");
     writeFileSync(
       join(workflows, "documentation.yml"),
-      "name: Auto-merge documentation\n# auto-merge remains disabled\njobs:\n  explain:\n    name: Explain auto-merge policy\n",
+      "name: Auto-merge documentation\n# auto-merge remains disabled\njobs:\n  explain:\n    name: Explain auto-merge policy\n    run: echo \"gh pr merge is disabled\"\n",
     );
     assert.doesNotThrow(() => assertNoAutoMergeWorkflows(workflows));
 
