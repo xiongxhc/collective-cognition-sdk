@@ -86,14 +86,21 @@ function assertNoAutoMergeWorkflows(workflows: string): void {
     for (const line of workflow.split("\n")) {
       const trimmed = line.trim();
       const indent = line.length - line.trimStart().length;
+      if (block) {
+        if (!trimmed) {
+          continue;
+        }
+        if (indent > block.indent) {
+          if (!trimmed.startsWith("#")) {
+            parsed.push({ kind: block.kind, value: trimmed });
+          }
+          continue;
+        }
+        block = undefined;
+      }
       if (trimmed.startsWith("#")) {
         continue;
       }
-      if (block && trimmed && indent > block.indent) {
-        parsed.push({ kind: block.kind, value: trimmed });
-        continue;
-      }
-      block = undefined;
       const field = line.match(/^\s*(?:-\s*)?(run|uses|script|query):\s*(.*?)\s*$/);
       if (!field) {
         continue;
@@ -495,6 +502,7 @@ test("release readiness rejects executable auto-merge workflow instructions", ()
   const workflows = join(root, ".github/workflows");
   const prohibitedInstructions = [
     "run: gh pr merge 42",
+    "run: |\n  echo checking\n\n  gh pr merge 42",
     "run: |\n  gh api --method PUT repos/xiongxhc/collective-cognition-sdk/pulls/42/merge",
     "run: gh api graphql -f query='mutation { mergePullRequest(input: {}) { pullRequest { id } } }'",
     "script: github.graphql(`mutation { enablePullRequestAutoMerge(input: {}) { clientMutationId } }`)",
