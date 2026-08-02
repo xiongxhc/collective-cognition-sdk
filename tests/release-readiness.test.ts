@@ -23,6 +23,9 @@ const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
 const builder = fileURLToPath(
   new URL("../scripts/build-github-prerelease.mjs", import.meta.url),
 );
+const ciWorkflow = fileURLToPath(
+  new URL("../.github/workflows/ci.yml", import.meta.url),
+);
 const expectedAssets = [
   "SHA256SUMS",
   "collective-cognition-sdk-0.6.0.cdx.json",
@@ -64,6 +67,167 @@ function createOutput(root: string, name: string): string {
 
 function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf8"));
+}
+
+const forbiddenPublicationOrAuthentication =
+  /\b(?:npm\s+publish|NPM_TOKEN|NODE_AUTH_TOKEN|npm_[A-Za-z0-9_]*token|_authToken|authToken)\b/i;
+
+function assertSafePackageScripts(scripts: Readonly<Record<string, string>>): void {
+  for (const [name, script] of Object.entries(scripts)) {
+    assert.doesNotMatch(
+      script,
+      forbiddenPublicationOrAuthentication,
+      `package script ${name} must not publish or use authentication tokens`,
+    );
+  }
+}
+
+function workflowRunLines(workflow: string): string[] {
+  const commands: string[] = [];
+  let blockIndent: number | undefined;
+
+  for (const line of workflow.split("\n")) {
+    const trimmed = line.trim();
+    const indent = line.length - line.trimStart().length;
+    if (blockIndent !== undefined) {
+      if (!trimmed) {
+        continue;
+      }
+      if (indent > blockIndent) {
+        if (!trimmed.startsWith("#")) {
+          commands.push(trimmed);
+        }
+        continue;
+      }
+      blockIndent = undefined;
+    }
+    if (trimmed.startsWith("#")) {
+      continue;
+    }
+    const field = line.match(/^\s*(?:-\s*)?run:\s*(.*?)\s*$/);
+    if (!field) {
+      continue;
+    }
+    const value = field[1];
+    if (/^[>|]/.test(value)) {
+      blockIndent = indent;
+    } else {
+      commands.push(value.replace(/^['"]|['"]$/g, ""));
+    }
+  }
+
+  return commands;
+}
+
+function workflowJob(workflow: string, name: string): string {
+  const lines = workflow.split("\n");
+  const start = lines.indexOf(`  ${name}:`);
+  assert.notEqual(start, -1, `workflow job ${name} must exist`);
+  const next = lines.findIndex(
+    (line, index) => index > start && /^  [a-z0-9_-]+:$/.test(line),
+  );
+  return lines.slice(start, next === -1 ? undefined : next).join("\n");
+}
+
+function assertReadOnlyCiWorkflow(workflow: string): void {
+  const yaml = workflow
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("#"))
+    .join("\n");
+
+  assert.doesNotMatch(workflow, /\t/, "workflow indentation must not use tabs");
+  assert.doesNotMatch(
+    yaml,
+    /(?:^|[\s:[{,])\*[A-Za-z_][A-Za-z0-9_-]*/m,
+    "workflow must not use YAML aliases",
+  );
+  assert.doesNotMatch(yaml, forbiddenPublicationOrAuthentication);
+  assert.doesNotMatch(yaml, /\.npmrc\b/i);
+  assert.doesNotMatch(yaml, /^\s*packages:\s*['"]?write['"]?\s*$/mi);
+  assert.match(
+    yaml,
+    /^on:\n  pull_request:\n  push:\n    branches:\n      - master\n  workflow_dispatch:\n/m,
+  );
+  assert.match(
+    yaml,
+    /^permissions:\n  contents: read\n\nconcurrency:\n  group: .+\n  cancel-in-progress: true$/m,
+  );
+
+  const actionReferences = [...yaml.matchAll(/^\s*uses:\s*(.*?)\s*$/gm)]
+    .map((match) => match[1].replace(/^['"]|['"]$/g, ""));
+  assert.equal(actionReferences.length, 4);
+  for (const reference of actionReferences) {
+    assert.match(reference, /^actions\/[a-z0-9_-]+@[0-9a-f]{40}$/);
+  }
+  assert.deepEqual(actionReferences, [
+    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+  ]);
+
+  const verifyJob = workflowJob(yaml, "verify");
+  const distributionJob = workflowJob(yaml, "distribution");
+  const matrixEntries = [...verifyJob.matchAll(
+    /^ {10}- os: ([a-z-]+)\n {12}node: "([0-9.]+)"$/gm,
+  )].map((match) => ({ os: match[1], node: match[2] }));
+  assert.deepEqual(matrixEntries, [
+    { os: "ubuntu-latest", node: "24.9.0" },
+    { os: "ubuntu-latest", node: "24.14.0" },
+    { os: "macos-latest", node: "24.14.0" },
+    { os: "windows-latest", node: "24.14.0" },
+  ]);
+  assert.doesNotMatch(verifyJob, /^ {8}(?:os|node):/m);
+  assert.match(verifyJob, /^    runs-on: \$\{\{ matrix\.os \}\}$/m);
+  assert.match(verifyJob, /^          node-version: \$\{\{ matrix\.node \}\}$/m);
+  assert.match(
+    distributionJob,
+    /^  distribution:\n    name: Distribution verification\n    runs-on: ubuntu-latest\n    timeout-minutes: [1-9][0-9]*$/m,
+  );
+  assert.match(distributionJob, /^          node-version: "24\.14\.0"$/m);
+  assert.equal([...yaml.matchAll(/^    timeout-minutes: [1-9][0-9]*$/gm)].length, 2);
+
+  const verifyRunLines = workflowRunLines(verifyJob);
+  for (const command of [
+    "npm ci --ignore-scripts",
+    "npm test",
+    "npx tsc --noEmit",
+    "npm run check",
+  ]) {
+    assert.equal(
+      verifyRunLines.filter((line) => line === command).length,
+      1,
+      `matrix must execute ${command}`,
+    );
+  }
+  const distributionRunLines = workflowRunLines(distributionJob);
+  assert.equal(
+    distributionRunLines.filter((line) => line === "npm run pack:check").length,
+    1,
+  );
+  assert.equal(
+    distributionRunLines.filter(
+      (line) => /node scripts\/build-github-prerelease\.mjs\b/.test(line),
+    ).length,
+    2,
+  );
+  assert.match(distributionJob, /\bcmp\b/);
+  assert.match(distributionJob, /sha256sum -c SHA256SUMS/);
+  assert.match(distributionJob, /JSON\.parse/);
+  assert.match(distributionJob, /bomFormat/);
+  assert.match(distributionJob, /release-manifest\.json/);
+
+  for (const line of distributionRunLines) {
+    if (/node scripts\/build-github-prerelease\.mjs\b/.test(line)) {
+      assert.match(line, /npm_config_ignore_scripts=true/);
+      assert.match(line, /npm_config_offline=true/);
+      assert.match(line, /--output\s+"\$[A-Za-z_][A-Za-z0-9_]*"$/);
+    }
+    if (/^npm (?:install|pack)\b/.test(line)) {
+      assert.match(line, /(?:^|\s)--ignore-scripts(?:\s|$)/);
+      assert.match(line, /(?:^|\s)--offline(?:\s|$)/);
+    }
+  }
 }
 
 function assertNoAutoMergeWorkflows(workflows: string): void {
@@ -533,4 +697,75 @@ test("release readiness rejects executable auto-merge workflow instructions", ()
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("read-only CI verifies the exact supported matrix and distribution path", () => {
+  assert.equal(existsSync(ciWorkflow), true, ".github/workflows/ci.yml must exist");
+  const workflow = readFileSync(ciWorkflow, "utf8");
+  const packageJson = readJson(join(repositoryRoot, "package.json")) as {
+    readonly name: string;
+    readonly exports: Readonly<Record<string, unknown>>;
+    readonly scripts: Readonly<Record<string, string>>;
+  };
+
+  assertSafePackageScripts(packageJson.scripts);
+  assertReadOnlyCiWorkflow(workflow);
+  const distributionJob = workflowJob(workflow, "distribution");
+
+  for (const name of Object.keys(packageJson.scripts).filter(
+    (script) => script === "example" || script.startsWith("example:"),
+  )) {
+    assert.match(
+      distributionJob,
+      new RegExp(`^\\s+npm run ${name.replaceAll(":", "\\:")}$`, "m"),
+    );
+  }
+  for (const subpath of Object.keys(packageJson.exports)) {
+    const specifier = subpath === "."
+      ? packageJson.name
+      : `${packageJson.name}${subpath.slice(1)}`;
+    assert.equal(
+      distributionJob.includes(JSON.stringify(specifier)),
+      true,
+      `distribution verification must consume ${specifier}`,
+    );
+  }
+  for (const executable of [
+    "collective-cognition",
+    "collective-cognition-teammem",
+    "collective-cognition-markdown",
+  ]) {
+    assert.match(distributionJob, new RegExp(`node_modules/\\.bin/${executable}\\b`));
+  }
+});
+
+test("CI policy scanner rejects unsafe workflow and package mutations", () => {
+  const workflow = readFileSync(ciWorkflow, "utf8");
+  const unsafeWorkflows = [
+    workflow.replace("    runs-on: ${{ matrix.os }}", "\truns-on: ${{ matrix.os }}"),
+    `${workflow}\nunsafe: *shared-steps\n`,
+    workflow.replace(
+      "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "actions/checkout@${{ github.ref }}",
+    ),
+    `${workflow}\nunsafe:\n  uses: \${{ github.action }}\n`,
+    `${workflow}\n# publication\nunsafe: npm publish\n`,
+    `${workflow}\nunsafe: NODE_AUTH_TOKEN\n`,
+    `${workflow}\nunsafe: echo token > ~/.npmrc\n`,
+    workflow.replace("contents: read", "packages: write"),
+    workflow.replace(
+      "npm install --ignore-scripts --offline",
+      "npm install --ignore-scripts",
+    ),
+    workflow.replace(
+      "npm_config_ignore_scripts=true npm_config_offline=true node scripts/build-github-prerelease.mjs",
+      "node scripts/build-github-prerelease.mjs",
+    ),
+  ];
+
+  for (const unsafeWorkflow of unsafeWorkflows) {
+    assert.throws(() => assertReadOnlyCiWorkflow(unsafeWorkflow));
+  }
+  assert.throws(() => assertSafePackageScripts({ release: "npm publish" }));
+  assert.throws(() => assertSafePackageScripts({ release: "NODE_AUTH_TOKEN=secret npm pack" }));
 });

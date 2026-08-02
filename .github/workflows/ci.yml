@@ -1,0 +1,189 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Node ${{ matrix.node }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node: "24.9.0"
+          - os: ubuntu-latest
+            node: "24.14.0"
+          - os: macos-latest
+            node: "24.14.0"
+          - os: windows-latest
+            node: "24.14.0"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+      - name: Run package tests
+        run: npm test
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Check syntax
+        run: npm run check
+
+  distribution:
+    name: Distribution verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24.14.0"
+          cache: npm
+      - name: Install dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --prefer-offline
+      - name: Run examples and package checks
+        run: |
+          npm run example
+          npm run example:markdown
+          npm run example:portable
+          npm run example:host
+          npm run example:teammem
+          npm run example:teammem:durable
+          npm run pack:check
+      - name: Verify deterministic distribution assets and clean installation
+        run: |
+          set -euo pipefail
+          release_root="$(mktemp -d)"
+          trap 'rm -rf "$release_root"' EXIT
+          first="$release_root/first"
+          second="$release_root/second"
+          mkdir "$first" "$second"
+
+          npm_config_ignore_scripts=true npm_config_offline=true node scripts/build-github-prerelease.mjs --output "$first"
+          npm_config_ignore_scripts=true npm_config_offline=true node scripts/build-github-prerelease.mjs --output "$second"
+
+          for asset in SHA256SUMS collective-cognition-sdk-0.6.0.cdx.json collective-cognition-sdk-0.6.0.tgz release-manifest.json; do
+            cmp "$first/$asset" "$second/$asset"
+          done
+          for output in "$first" "$second"; do
+            (cd "$output" && sha256sum -c SHA256SUMS)
+          done
+
+          RELEASE_DIR="$first" node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFile, readdir } from "node:fs/promises";
+          import { join } from "node:path";
+
+          const releaseDirectory = process.env.RELEASE_DIR;
+          assert.ok(releaseDirectory);
+          const assets = (await readdir(releaseDirectory)).sort();
+          assert.deepEqual(assets, [
+            "SHA256SUMS",
+            "collective-cognition-sdk-0.6.0.cdx.json",
+            "collective-cognition-sdk-0.6.0.tgz",
+            "release-manifest.json",
+          ]);
+          const sbom = JSON.parse(await readFile(
+            join(releaseDirectory, "collective-cognition-sdk-0.6.0.cdx.json"),
+            "utf8",
+          ));
+          assert.equal(sbom.bomFormat, "CycloneDX");
+          assert.equal(sbom.specVersion, "1.6");
+          assert.equal(sbom.metadata.component.purl, "pkg:npm/collective-cognition-sdk@0.6.0");
+          assert.deepEqual(sbom.components, []);
+          const manifest = JSON.parse(await readFile(
+            join(releaseDirectory, "release-manifest.json"),
+            "utf8",
+          ));
+          assert.equal(manifest.repository, "xiongxhc/collective-cognition-sdk");
+          assert.equal(manifest.tag, "v0.6.0");
+          assert.match(manifest.commit, /^[0-9a-f]{40}$/);
+          assert.deepEqual(manifest.package, {
+            name: "collective-cognition-sdk",
+            version: "0.6.0",
+            private: true,
+          });
+          assert.equal(manifest.nodeVersion, process.version);
+          assert.deepEqual(
+            manifest.assets.map((asset) => asset.name),
+            [
+              "collective-cognition-sdk-0.6.0.tgz",
+              "collective-cognition-sdk-0.6.0.cdx.json",
+            ],
+          );
+          NODE
+
+          consumer="$release_root/consumer"
+          mkdir "$consumer"
+          printf '%s\n' '{"name":"distribution-consumer","private":true,"type":"module"}' > "$consumer/package.json"
+          (
+            cd "$consumer"
+            npm install --ignore-scripts --offline --no-audit --no-fund "$first/collective-cognition-sdk-0.6.0.tgz"
+            node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFile } from "node:fs/promises";
+
+          const moduleSpecifiers = [
+            "collective-cognition-sdk",
+            "collective-cognition-sdk/adapters/markdown/0.1.0",
+            "collective-cognition-sdk/connector-conformance/0.1.0",
+            "collective-cognition-sdk/connectors/team-memory/0.1.0",
+            "collective-cognition-sdk/host-conformance/0.1.0",
+            "collective-cognition-sdk/reference-host/0.1.0",
+            "collective-cognition-sdk/stores/sqlite/0.1.0",
+          ];
+          for (const specifier of moduleSpecifiers) {
+            assert.ok(await import(specifier));
+          }
+
+          const jsonSpecifiers = [
+            "collective-cognition-sdk/compatibility/0.1.0",
+            "collective-cognition-sdk/compatibility/0.2.0",
+            "collective-cognition-sdk/compatibility/0.3.0",
+            "collective-cognition-sdk/compatibility/0.4.0",
+            "collective-cognition-sdk/compatibility/0.5.0",
+            "collective-cognition-sdk/compatibility/0.6.0",
+            "collective-cognition-sdk/schemas/source-record/0.1.0",
+            "collective-cognition-sdk/schemas/portable-cognition/0.1.0",
+            "collective-cognition-sdk/package.json",
+          ];
+          for (const specifier of jsonSpecifiers) {
+            assert.ok(await import(specifier, { with: { type: "json" } }));
+          }
+
+          const textSpecifiers = [
+            "collective-cognition-sdk/contracts/host-integration/0.1.0",
+            "collective-cognition-sdk/conformance/portable-cognition/0.1.0/valid",
+            "collective-cognition-sdk/conformance/portable-cognition/0.1.0/invalid",
+            "collective-cognition-sdk/conformance/portable-cognition/0.1.0/cognitive-loop",
+          ];
+          for (const specifier of textSpecifiers) {
+            const content = await readFile(new URL(import.meta.resolve(specifier)), "utf8");
+            assert.ok(content.length > 0);
+          }
+          NODE
+            printf '%s\n' '{"schemaVersion":"0.1.0","id":"source-record:ci","source":{"system":"ci"},"sourceId":"item:ci","revisionId":"revision:1","capturedAt":"2026-08-02T00:00:00.000Z","mediaType":"text/plain","content":"CI distribution smoke."}' | ./node_modules/.bin/collective-cognition validate --input - --format jsonl
+            ./node_modules/.bin/collective-cognition-teammem --version
+            ./node_modules/.bin/collective-cognition-markdown --help
+          )
