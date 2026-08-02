@@ -16,12 +16,14 @@ The correction contains one explicit package-artifact decision: because `0.6.0` 
 
 The same authorized correction round continued only for the three residuals in the scoped re-review. No additional feature, runtime, compatibility, package-inventory, live-data, publication, or remote-operation scope was added.
 
-### R-1 — Recursive shell/evaluation wrapper inspection
+### R-1 — Closed reviewed release command surfaces
 
-- The builder and mirrored workflow/package policy scanner now recursively inspect executable bodies passed to `sh`, `bash`, or `zsh` command-string options and to `eval`.
-- Wrapper discovery is independent of its token position, so forms following `env` and wrapper/global options are inspected.
-- Nested wrapper depth is bounded and fails closed rather than accepting an opaque deeper command body.
-- Builder, CI-workflow, prerelease-workflow, and package-script mutations cover `sh -c`, `bash -c`, `zsh -c`, `env -i bash --noprofile -c`, and `eval`, each containing `npm --silent publish`.
+- Arbitrary shell interpretation is no longer the proof boundary. The semantic npm scanner remains as defense in depth for directly visible npm invocations, without attempting recursive shell/evaluation interpretation.
+- Before resolving tools or invoking any package script, the builder canonicalizes the complete package script map as lexically sorted `[name, value]` pairs and requires SHA-256 `574c12e5cc890227a58b16939ef1e0e861b9a011c4b8040f6df03ee4044534e3`.
+- Release-readiness tests require the exact reviewed bytes of `.github/workflows/ci.yml` at SHA-256 `9d88b4a258164ec8311f1e4952845cac61ecdc9bab68f771075cc794a0940119` and `.github/workflows/github-prerelease.yml` at SHA-256 `c96c8879f9c350caf115831c51ac340fb8a502e469dcf2e7d8006776d67b43e1`.
+- Any package-script-map or workflow-byte drift now fails until a reviewer intentionally updates the corresponding digest.
+- Builder, CI-workflow, prerelease-workflow, and package-script mutations include `sh -c 'npm "$@"' -- --silent publish`; all are rejected by the closed contract even though positional expansion is intentionally outside semantic interpretation.
+- A marker-script mutation verifies that an unreviewed replacement of the reviewed `build` script is rejected with `INVALID_PACKAGE` before the marker can execute.
 
 ### R-2 — Canonical checksum inventory at both trust boundaries
 
@@ -127,9 +129,10 @@ Privileged transfer simulation: passed with repositoryCodeExecuted=false
 
 Resolved in builder and workflow/package policy scanners.
 
+- The primary release-command proof is closed: one canonical digest pins the exact package script map, and exact raw-byte digests pin both executable workflows.
 - npm command strings are tokenized across whitespace, quoting, escapes, command separators, and newlines.
 - Once an `npm`, `npm.cmd`, or `npm.exe` invocation is found, forbidden publication/account verbs are rejected after global options and workspace/prefix options.
-- Executable bodies passed through `sh`, `bash`, or `zsh` command-string options and `eval` are recursively scanned, including wrappers following `env` and wrapper options.
+- The semantic scanners remain defense in depth for directly visible npm commands; they do not claim to interpret arbitrary shell expansion, evaluation, substitution, or stdin.
 - Added builder, CI, prerelease-workflow, and package-script mutations for:
 
 ```text
@@ -141,6 +144,7 @@ npm --prefix /tmp/package-a publish
 sh -c 'npm --silent publish'
 bash -c 'npm --silent publish'
 eval 'npm --silent publish'
+sh -c 'npm "$@"' -- --silent publish
 ```
 
 - Existing registry-configuration and authentication-token rejection remains enforced.
@@ -190,9 +194,11 @@ The correction followed the recorded red/green sequence:
 6. Missing runbook/support/changelog predicates failed documentation tests; executable checks and policy text made them green.
 7. Packaged README mutation initially built successfully; literal tarball pinning made it fail with `PACKAGE_ARTIFACT_DRIFT`.
 8. A final audit found present-but-not-mutation-locked private/SBOM/registry-parser predicates; added substitutions/deletions pass only against the complete runbook.
-9. The residual wrapper mutations initially passed both policy scanners and reached package-artifact drift in the builder; recursive wrapper-body inspection made all builder/workflow/package forms fail closed.
+9. The first residual literal-wrapper mutations initially passed both policy scanners and reached package-artifact drift in the builder; literal recursive inspection closed only those concrete forms and exposed the need for a stronger architecture boundary.
 10. The residual checksum mutation initially showed that an incomplete inventory passed platform checksum verification; exact parsing in both embedded verifiers now rejects deletion, reordering, and an extra traversal path.
 11. The downloaded attestation simulation found every bare operand outside `$release_dir`; prefixed operands plus a prefix-removal mutation close that path error.
+12. The positional-expansion mutation `sh -c 'npm "$@"' -- --silent publish` reproduced four red failures: both builders reached package-artifact drift instead of early package rejection, and workflow/package policies accepted the executable form.
+13. Canonical package-script and exact workflow-byte digests changed that selected result to `6/6` green; the marker-script case confirms rejection occurs before package-script execution. Recursive shell interpretation was then removed while direct semantic npm checks remained green.
 
 One local clean-install attempt encountered the existing inaccessible home npm cache. The same validation was rerun with a new temporary `npm_config_cache`; it passed. No repository change was made for that harness/environment condition.
 
@@ -204,14 +210,15 @@ All commands used the bundled Node `v24.14.0` unless a platform parser/shell uti
 
 | Gate | Result |
 | --- | --- |
-| `npm test` | PASS: source 425 pass/1 supported skip, schema 10/10, compatibility 19/19, package 9/9; 463 passes total, 0 failures |
-| Focused release readiness | PASS: 19/19, 0 failures; residual selection 6/6 |
+| `npm test` | PASS: source 426 pass/1 supported skip, schema 10/10, compatibility 19/19, package 9/9; 464 passes total, 0 failures |
+| Focused release readiness | PASS: 20/20, 0 failures; closed-contract selection 6/6 |
 | `tsc --noEmit` | PASS |
 | `npm run check` | PASS |
 | Six examples, including synthetic team-memory and durable SQLite fixture | PASS |
 | `npm run pack:check` | PASS |
 | Two independent release builds | PASS, byte-identical four-asset output |
 | Pinned tarball | PASS, 91 entries, SHA-256 `3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978` |
+| Reviewed command surfaces | PASS: package scripts `574c12e5...4534e3`, CI workflow `9d88b4a2...40119`, prerelease workflow `c96c8879...b43e1` |
 | Manifest/SBOM/checksum verification | PASS; `npmVersion` is `9.6.7` locally |
 | Clean offline install and public subpaths | PASS: 7 JavaScript, 9 JSON, 4 text |
 | Installed CLIs | PASS: 3/3 |

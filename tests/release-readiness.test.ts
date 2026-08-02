@@ -40,6 +40,9 @@ const expectedAssets = [
   "release-manifest.json",
 ];
 const expectedChecksumAssets = expectedAssets.slice(1);
+const expectedPackageScriptsSha256 = "574c12e5cc890227a58b16939ef1e0e861b9a011c4b8040f6df03ee4044534e3";
+const expectedCiWorkflowSha256 = "9d88b4a258164ec8311f1e4952845cac61ecdc9bab68f771075cc794a0940119";
+const expectedGitHubPrereleaseWorkflowSha256 = "c96c8879f9c350caf115831c51ac340fb8a502e469dcf2e7d8006776d67b43e1";
 const expectedTarballSha256 = "3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978";
 const expectedCommit = runGit(["rev-parse", "HEAD"]);
 const expectedNpmVersion = readNpmVersion();
@@ -49,6 +52,7 @@ const publicationWrapperMutations = [
   "zsh -c 'npm --silent publish'",
   "env -i bash --noprofile -c 'npm --silent publish'",
   "eval 'npm --silent publish'",
+  "sh -c 'npm \"$@\"' -- --silent publish",
 ];
 
 function runGit(args: readonly string[]): string {
@@ -117,6 +121,14 @@ function createOutput(root: string, name: string): string {
 
 function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function readReviewedWorkflow(path: string, expectedSha256: string): string {
+  const bytes = readFileSync(path);
+  assert.equal(sha256(bytes), expectedSha256);
+  const workflow = bytes.toString("utf8");
+  assert.deepEqual(Buffer.from(workflow), bytes);
+  return workflow;
 }
 
 function checksumNamesDeclaration(
@@ -230,11 +242,9 @@ function shellTokens(value: string): readonly (string | undefined)[] {
   return tokens;
 }
 
-function hasForbiddenNpmInvocation(value: string, depth = 0): boolean {
-  const tokens = shellTokens(value);
+function hasForbiddenNpmInvocation(value: string): boolean {
   let npmInvocation = false;
-  for (let index = 0; index < tokens.length; index += 1) {
-    const token = tokens[index];
+  for (const token of shellTokens(value)) {
     if (token === undefined) {
       npmInvocation = false;
       continue;
@@ -243,33 +253,6 @@ function hasForbiddenNpmInvocation(value: string, depth = 0): boolean {
     if (!npmInvocation) {
       npmInvocation = executable === "npm" || executable === "npm.cmd" || executable === "npm.exe";
     } else if (forbiddenNpmVerbs.has(token.toLowerCase())) {
-      return true;
-    }
-
-    let body: string | undefined;
-    if (executable === "eval") {
-      const bodyTokens: string[] = [];
-      for (let bodyIndex = index + 1; bodyIndex < tokens.length; bodyIndex += 1) {
-        const bodyToken = tokens[bodyIndex];
-        if (bodyToken === undefined) {
-          break;
-        }
-        bodyTokens.push(bodyToken);
-      }
-      body = bodyTokens.join(" ");
-    } else if (executable === "sh" || executable === "bash" || executable === "zsh") {
-      for (let optionIndex = index + 1; optionIndex < tokens.length; optionIndex += 1) {
-        const option = tokens[optionIndex];
-        if (option === undefined) {
-          break;
-        }
-        if (/^-[A-Za-z]*c[A-Za-z]*$/.test(option)) {
-          body = tokens[optionIndex + 1];
-          break;
-        }
-      }
-    }
-    if (body && (depth >= 8 || hasForbiddenNpmInvocation(body, depth + 1))) {
       return true;
     }
   }
@@ -294,6 +277,14 @@ function assertSafePackageScripts(scripts: Readonly<Record<string, string>>): vo
       `package script ${name} must not reconfigure npm registry or authentication`,
     );
   }
+}
+
+function assertReviewedPackageScripts(scripts: Readonly<Record<string, string>>): void {
+  const canonical = JSON.stringify(
+    Object.keys(scripts).sort().map((name) => [name, scripts[name]]),
+  );
+  assert.equal(sha256(Buffer.from(canonical)), expectedPackageScriptsSha256);
+  assertSafePackageScripts(scripts);
 }
 
 interface ParsedWorkflowStep {
@@ -602,6 +593,7 @@ function normalizedVerificationBody(step: ParsedWorkflowStep): string {
 }
 
 function assertReadOnlyCiWorkflow(workflow: string): void {
+  assert.equal(sha256(Buffer.from(workflow)), expectedCiWorkflowSha256);
   const yaml = workflow
     .split("\n")
     .filter((line) => !line.trimStart().startsWith("#"))
@@ -777,6 +769,10 @@ function assertReadOnlyCiWorkflow(workflow: string): void {
 }
 
 function assertGitHubPrereleaseWorkflow(workflow: string): void {
+  assert.equal(
+    sha256(Buffer.from(workflow)),
+    expectedGitHubPrereleaseWorkflowSha256,
+  );
   const yaml = workflow
     .split("\n")
     .filter((line) => !line.trimStart().startsWith("#"))
@@ -1735,6 +1731,36 @@ test("release builder rejects npm publication verbs after global options", () =>
   }
 });
 
+test("release builder rejects package script map drift before script execution", () => {
+  const packagePath = join(repositoryRoot, "package.json");
+  const original = readFileSync(packagePath, "utf8");
+  const root = mkdtempSync(join(tmpdir(), "cc-release-script-contract-"));
+  const output = createOutput(root, "output");
+  const marker = join(root, "unreviewed-script-executed");
+
+  try {
+    const metadata = JSON.parse(original) as {
+      scripts: Record<string, string>;
+    };
+    const markerProgram = `import { writeFileSync } from "node:fs"; writeFileSync(${JSON.stringify(marker)}, "executed");`;
+    metadata.scripts.build = `node --input-type=module --eval ${JSON.stringify(markerProgram)}`;
+    writeFileSync(packagePath, `${JSON.stringify(metadata, null, 2)}\n`);
+
+    const result = runBuilder(["--output", output]);
+    assert.notEqual(result.status, 0);
+    assert.deepEqual(JSON.parse(result.stderr), {
+      ok: false,
+      error: "INVALID_PACKAGE",
+    });
+    assert.equal(result.stdout, "");
+    assert.equal(existsSync(marker), false);
+    assert.deepEqual(readdirSync(output), []);
+  } finally {
+    writeFileSync(packagePath, original);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("release builder rejects drift from the finalized package artifact", () => {
   const readmePath = join(repositoryRoot, "README.md");
   const original = readFileSync(readmePath, "utf8");
@@ -1871,14 +1897,14 @@ test("release readiness rejects executable auto-merge workflow instructions", ()
 
 test("read-only CI verifies the exact supported matrix and distribution path", () => {
   assert.equal(existsSync(ciWorkflow), true, ".github/workflows/ci.yml must exist");
-  const workflow = readFileSync(ciWorkflow, "utf8");
+  const workflow = readReviewedWorkflow(ciWorkflow, expectedCiWorkflowSha256);
   const packageJson = readJson(join(repositoryRoot, "package.json")) as {
     readonly name: string;
     readonly exports: Readonly<Record<string, unknown>>;
     readonly scripts: Readonly<Record<string, string>>;
   };
 
-  assertSafePackageScripts(packageJson.scripts);
+  assertReviewedPackageScripts(packageJson.scripts);
   assertReadOnlyCiWorkflow(workflow);
   const distributionJob = parseCiWorkflow(workflow).jobs.distribution as ParsedWorkflowJob;
 
@@ -1910,7 +1936,10 @@ test("read-only CI verifies the exact supported matrix and distribution path", (
 });
 
 test("CI policy scanner rejects unsafe workflow and package mutations", () => {
-  const workflow = readFileSync(ciWorkflow, "utf8");
+  const workflow = readReviewedWorkflow(ciWorkflow, expectedCiWorkflowSha256);
+  const packageScripts = (readJson(join(repositoryRoot, "package.json")) as {
+    readonly scripts: Readonly<Record<string, string>>;
+  }).scripts;
   const unsafeWorkflows = [
     workflow.replace("    runs-on: ${{ matrix.os }}", "\truns-on: ${{ matrix.os }}"),
     `${workflow}\nunsafe: *shared-steps\n`,
@@ -1962,6 +1991,7 @@ test("CI policy scanner rejects unsafe workflow and package mutations", () => {
   ];
 
   for (const [index, unsafeWorkflow] of unsafeWorkflows.entries()) {
+    assert.notEqual(sha256(Buffer.from(unsafeWorkflow)), expectedCiWorkflowSha256);
     assert.throws(
       () => assertReadOnlyCiWorkflow(unsafeWorkflow),
       `unsafe workflow mutation ${index} must be rejected`,
@@ -1974,18 +2004,29 @@ test("CI policy scanner rejects unsafe workflow and package mutations", () => {
     "npm --workspace=package-a publish",
     "npm -w package-a publish",
     "npm --prefix /tmp/package-a publish",
-    ...publicationWrapperMutations,
   ]) {
     assert.throws(
       () => assertSafePackageScripts({ release: command }),
       `package script publication mutation must be rejected: ${command}`,
     );
   }
+  for (const command of publicationWrapperMutations) {
+    assert.throws(
+      () => assertReviewedPackageScripts({
+        ...packageScripts,
+        releaseMutation: command,
+      }),
+      `closed package script contract must reject wrapper mutation: ${command}`,
+    );
+  }
   assert.throws(() => assertSafePackageScripts({ release: "NODE_AUTH_TOKEN=secret npm pack" }));
 });
 
 test("prerelease workflow isolates privileged publication from repository code", () => {
-  const workflow = readFileSync(githubPrereleaseWorkflow, "utf8");
+  const workflow = readReviewedWorkflow(
+    githubPrereleaseWorkflow,
+    expectedGitHubPrereleaseWorkflowSha256,
+  );
   const verifyIndex = workflow.indexOf("  verify:\n");
   const publishIndex = workflow.indexOf("  publish:\n");
   assert.notEqual(verifyIndex, -1);
@@ -2030,12 +2071,21 @@ test("tag-only workflow creates an exact-master attested GitHub prerelease", () 
   );
   assert.equal(existsSync(githubReleaseConfig), true, ".github/release.yml must exist");
 
-  assertGitHubPrereleaseWorkflow(readFileSync(githubPrereleaseWorkflow, "utf8"));
+  assertGitHubPrereleaseWorkflow(readReviewedWorkflow(
+    githubPrereleaseWorkflow,
+    expectedGitHubPrereleaseWorkflowSha256,
+  ));
   assertGitHubReleaseConfig(readFileSync(githubReleaseConfig, "utf8"));
 });
 
 test("prerelease policy rejects unsafe workflow and release mutations", () => {
-  const workflow = readFileSync(githubPrereleaseWorkflow, "utf8");
+  const workflow = readReviewedWorkflow(
+    githubPrereleaseWorkflow,
+    expectedGitHubPrereleaseWorkflowSha256,
+  );
+  const packageScripts = (readJson(join(repositoryRoot, "package.json")) as {
+    readonly scripts: Readonly<Record<string, string>>;
+  }).scripts;
   const addStepControl = (name: string, control: string): string => workflow.replace(
     `      - name: ${name}\n`,
     `      - name: ${name}\n        ${control}\n`,
@@ -2274,6 +2324,10 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
 
   for (const [index, unsafeWorkflow] of unsafeWorkflows.entries()) {
     assert.notEqual(unsafeWorkflow, workflow, `mutation ${index} must change the workflow`);
+    assert.notEqual(
+      sha256(Buffer.from(unsafeWorkflow)),
+      expectedGitHubPrereleaseWorkflowSha256,
+    );
     const mutationEvidence = unsafeWorkflow
       .split("\n")
       .find((line) => !workflow.includes(line)) ?? "deletion-only mutation";
@@ -2302,8 +2356,11 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
   }
   for (const command of publicationWrapperMutations) {
     assert.throws(
-      () => assertSafePackageScripts({ release: command }),
-      `package script wrapper mutation must be rejected: ${command}`,
+      () => assertReviewedPackageScripts({
+        ...packageScripts,
+        releaseMutation: command,
+      }),
+      `closed package script contract must reject wrapper mutation: ${command}`,
     );
   }
 });

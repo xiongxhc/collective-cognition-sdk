@@ -21,6 +21,7 @@ const EXPECTED = Object.freeze({
   repository: "xiongxhc/collective-cognition-sdk",
   packageName: "collective-cognition-sdk",
   packageVersion: "0.6.0",
+  packageScriptsSha256: "574c12e5cc890227a58b16939ef1e0e861b9a011c4b8040f6df03ee4044534e3",
   tarballSha256: "3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978",
   tag: "v0.6.0",
   assets: Object.freeze([
@@ -130,11 +131,9 @@ function shellTokens(value) {
   return tokens;
 }
 
-function hasForbiddenNpmInvocation(value, depth = 0) {
-  const tokens = shellTokens(value);
+function hasForbiddenNpmInvocation(value) {
   let npmInvocation = false;
-  for (let index = 0; index < tokens.length; index += 1) {
-    const token = tokens[index];
+  for (const token of shellTokens(value)) {
     if (token === undefined) {
       npmInvocation = false;
       continue;
@@ -143,33 +142,6 @@ function hasForbiddenNpmInvocation(value, depth = 0) {
     if (!npmInvocation) {
       npmInvocation = executable === "npm" || executable === "npm.cmd" || executable === "npm.exe";
     } else if (FORBIDDEN_NPM_VERBS.has(token.toLowerCase())) {
-      return true;
-    }
-
-    let body;
-    if (executable === "eval") {
-      const bodyTokens = [];
-      for (let bodyIndex = index + 1; bodyIndex < tokens.length; bodyIndex += 1) {
-        const bodyToken = tokens[bodyIndex];
-        if (bodyToken === undefined) {
-          break;
-        }
-        bodyTokens.push(bodyToken);
-      }
-      body = bodyTokens.join(" ");
-    } else if (executable === "sh" || executable === "bash" || executable === "zsh") {
-      for (let optionIndex = index + 1; optionIndex < tokens.length; optionIndex += 1) {
-        const option = tokens[optionIndex];
-        if (option === undefined) {
-          break;
-        }
-        if (/^-[A-Za-z]*c[A-Za-z]*$/.test(option)) {
-          body = tokens[optionIndex + 1];
-          break;
-        }
-      }
-    }
-    if (body && (depth >= 8 || hasForbiddenNpmInvocation(body, depth + 1))) {
       return true;
     }
   }
@@ -236,7 +208,8 @@ function readPackage() {
     metadata.version !== EXPECTED.packageVersion ||
     metadata.private !== true ||
     !metadata.scripts ||
-    typeof metadata.scripts !== "object"
+    typeof metadata.scripts !== "object" ||
+    Array.isArray(metadata.scripts)
   ) {
     fail("INVALID_PACKAGE");
   }
@@ -245,9 +218,17 @@ function readPackage() {
       fail("INVALID_PACKAGE");
     }
   }
-  for (const script of Object.values(metadata.scripts)) {
+  const scriptEntries = Object.keys(metadata.scripts)
+    .sort()
+    .map((name) => [name, metadata.scripts[name]]);
+  if (
+    scriptEntries.some(([, script]) => typeof script !== "string") ||
+    sha256(Buffer.from(JSON.stringify(scriptEntries))) !== EXPECTED.packageScriptsSha256
+  ) {
+    fail("INVALID_PACKAGE");
+  }
+  for (const [, script] of scriptEntries) {
     if (
-      typeof script !== "string" ||
       FORBIDDEN_SCRIPT_TOKENS.test(script) ||
       hasForbiddenNpmInvocation(script)
     ) {
