@@ -332,7 +332,7 @@ assert.equal(
   manifest.assets.find((asset) =>
     asset.name === "collective-cognition-sdk-0.6.0.tgz"
   )?.sha256,
-  "b1cf79a9a1ec876bca2e7a6594d73ea99029eb4b2b90f25599db1318abb4a81f",
+  "3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe",
 );
 for (const asset of manifest.assets) {
   assert.deepEqual(Object.keys(asset).sort(), ["bytes", "name", "sha256"]);

@@ -209,7 +209,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
   candidate also accepts native Windows absolute team-memory database paths;
   the public API, schema, compatibility surface, and exact package file
   inventory remain unchanged. Final tarball SHA-256
-  `b1cf79a9a1ec876bca2e7a6594d73ea99029eb4b2b90f25599db1318abb4a81f`
+  `3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe`
   is enforced against later byte drift.
 - [ ] Observed public release evidence: release URL, merge SHA, tag target SHA,
   workflow run URL, asset digests, attestation result, clean installation,

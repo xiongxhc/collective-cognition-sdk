@@ -82,7 +82,7 @@ team-memory database paths. The public API, type, CLI, schema, RFC compatibility
 surface, and exact file inventory remain unchanged. The final tarball SHA-256
 is a literal release-tool invariant so any later byte drift fails before
 publication. The finalized digest is
-`b1cf79a9a1ec876bca2e7a6594d73ea99029eb4b2b90f25599db1318abb4a81f`.
+`3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe`.
 
 The CycloneDX `1.6` SBOM is produced deterministically by the repository release
 tool from `package.json`. The current SDK has zero runtime dependencies, so the

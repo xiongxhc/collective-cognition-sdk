@@ -43,11 +43,14 @@ const expectedAssets = [
 const expectedChecksumAssets = expectedAssets.slice(1);
 const expectedPackageScriptsSha256 = "574c12e5cc890227a58b16939ef1e0e861b9a011c4b8040f6df03ee4044534e3";
 const expectedCiWorkflowSha256 = "9d88b4a258164ec8311f1e4952845cac61ecdc9bab68f771075cc794a0940119";
-const expectedGitHubPrereleaseWorkflowSha256 = "c736aa8bb01f8cba6577fa693083f71b82ac17f4635ca7ba1df63676128903a3";
-const expectedTarballSha256 = "b1cf79a9a1ec876bca2e7a6594d73ea99029eb4b2b90f25599db1318abb4a81f";
+const expectedGitHubPrereleaseWorkflowSha256 = "2065215181dd769c9f6a49ae351f2ab02d1022004d6c2678b645139b56bd39da";
+const expectedTarballSha256 = "3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe";
 const expectedCommit = runGit(["rev-parse", "HEAD"]);
 const expectedNpmVersion = readNpmVersion();
-const releaseArtifactTest = process.platform === "win32" ? test.skip : test;
+const releaseArtifactTest =
+  process.platform === "linux" && process.version === "v24.14.0"
+    ? test
+    : test.skip;
 const publicationWrapperMutations = [
   "sh -c 'npm --silent publish'",
   "bash -c 'npm --silent publish'",

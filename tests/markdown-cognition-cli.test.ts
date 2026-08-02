@@ -179,6 +179,8 @@ test("initializes, projects, and verifies one explicit target", () => {
 
 test("keeps the command surface and control modes closed", () => {
   const secret = "CLI_ARGUMENT_SECRET_MUST_NOT_ESCAPE";
+  const missingTarget = join(tmpdir(), "collective-cognition-missing-target");
+  const missingInput = join(tmpdir(), "collective-cognition-missing-input.jsonl");
   const invalidArguments = [
     [],
     ["unknown"],
@@ -218,15 +220,15 @@ test("keeps the command surface and control modes closed", () => {
     });
   }
 
-  for (const args of [["--help"], ["init", "--target", "/missing/target", "--help"]]) {
+  for (const args of [["--help"], ["init", "--target", missingTarget, "--help"]]) {
     const result = runCli(args);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /collective-cognition-markdown init/);
     assert.equal(result.stderr, "");
   }
   for (const args of [
-    ["verify", "--target", "/missing/target", "--version"],
-    ["project", "--input", "/missing/input.jsonl", "--target", "/missing/target", "--version"],
+    ["verify", "--target", missingTarget, "--version"],
+    ["project", "--input", missingInput, "--target", missingTarget, "--version"],
   ]) {
     const result = runCli(args);
     assert.equal(result.status, 0, result.stderr);
@@ -234,7 +236,7 @@ test("keeps the command surface and control modes closed", () => {
     assert.equal(result.stdout, `${packageVersion}\n`);
   }
   const stdinHelp = runCli(
-    ["project", "--input", "-", "--target", "/missing/target", "--help"],
+    ["project", "--input", "-", "--target", missingTarget, "--help"],
     "{\n",
   );
   assert.equal(stdinHelp.status, 0, stdinHelp.stderr);

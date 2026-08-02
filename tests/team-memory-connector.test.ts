@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
@@ -264,7 +264,7 @@ test("rejects invalid options before opening a source", () => {
     { databasePath: missing, sourceInstance: " outer-space " },
     { databasePath: missing, sourceInstance: "control\u0000value" },
     { databasePath: missing, sourceInstance: "a".repeat(129) },
-    { databasePath: relative(process.cwd(), missing), sourceInstance: "demo" },
+    { databasePath: join("relative", "ledger.db"), sourceInstance: "demo" },
     { databasePath: "~/ledger.db", sourceInstance: "demo" },
     { databasePath: "file:///tmp/ledger.db", sourceInstance: "demo" },
     { databasePath: ":memory:", sourceInstance: "demo" },
