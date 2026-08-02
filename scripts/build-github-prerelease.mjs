@@ -2,16 +2,20 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   lstatSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   renameSync,
   rmSync,
+  rmdirSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, join } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, join } from "node:path";
 
 const EXPECTED = Object.freeze({
   repository: "xiongxhc/collective-cognition-sdk",
@@ -79,24 +83,40 @@ function parseOutput(args) {
   return args[1];
 }
 
-function validateOutput(output) {
-  let parent;
-  let target;
+function directoryIdentity(path) {
+  let entry;
   try {
-    parent = lstatSync(dirname(output));
-    target = lstatSync(output);
+    entry = lstatSync(path, { bigint: true });
   } catch {
     fail("INVALID_OUTPUT_TARGET");
   }
-  if (
-    parent.isSymbolicLink() ||
-    !parent.isDirectory() ||
-    target.isSymbolicLink() ||
-    !target.isDirectory() ||
-    readdirSync(output).length !== 0
-  ) {
+  if (entry.isSymbolicLink() || !entry.isDirectory()) {
     fail("INVALID_OUTPUT_TARGET");
   }
+  return { dev: entry.dev, ino: entry.ino };
+}
+
+function matchesDirectoryIdentity(path, expected) {
+  try {
+    const entry = lstatSync(path, { bigint: true });
+    return (
+      !entry.isSymbolicLink() &&
+      entry.isDirectory() &&
+      entry.dev === expected.dev &&
+      entry.ino === expected.ino
+    );
+  } catch {
+    return false;
+  }
+}
+
+function validateOutput(output) {
+  const parent = directoryIdentity(dirname(output));
+  const target = directoryIdentity(output);
+  if (readdirSync(output).length !== 0) {
+    fail("INVALID_OUTPUT_TARGET");
+  }
+  return { parent, target };
 }
 
 function readPackage() {
@@ -125,20 +145,87 @@ function readPackage() {
       fail("INVALID_PACKAGE");
     }
   }
-  return metadata;
 }
 
-function sanitizedEnvironment(cacheDirectory) {
-  const nodeDirectory = dirname(process.execPath);
+function trustedFile(path, code) {
+  try {
+    const resolved = realpathSync(path);
+    if (!statSync(resolved).isFile()) {
+      fail(code);
+    }
+    return resolved;
+  } catch (error) {
+    if (error instanceof ReleaseError) {
+      throw error;
+    }
+    fail(code);
+  }
+}
+
+function trustedExecutables() {
+  const nodeDirectory = dirname(realpathSync(process.execPath));
+  const npm = trustedFile(
+    join(nodeDirectory, process.platform === "win32" ? "npm.cmd" : "npm"),
+    "NPM_UNAVAILABLE",
+  );
+  const gitCandidates = process.platform === "win32"
+    ? [
+        "C:\\Program Files\\Git\\cmd\\git.exe",
+        "C:\\Program Files\\Git\\bin\\git.exe",
+      ]
+    : ["/usr/bin/git", "/bin/git"];
+  let git;
+  for (const candidate of gitCandidates) {
+    try {
+      git = trustedFile(candidate, "GIT_UNAVAILABLE");
+      break;
+    } catch (error) {
+      if (!(error instanceof ReleaseError) || error.code !== "GIT_UNAVAILABLE") {
+        throw error;
+      }
+    }
+  }
+  if (!git) {
+    fail("GIT_UNAVAILABLE");
+  }
+  return { git, nodeDirectory, npm };
+}
+
+function isolatedEnvironment(runtimeDirectory, nodeDirectory) {
+  const home = join(runtimeDirectory, "home");
+  const cache = join(runtimeDirectory, "cache");
+  const config = join(runtimeDirectory, "config");
+  const prefix = join(runtimeDirectory, "prefix");
+  const globalConfig = join(runtimeDirectory, "npm-globalrc");
+  const userConfig = join(runtimeDirectory, "npmrc");
+  const gitConfig = join(runtimeDirectory, "gitconfig");
+  mkdirSync(home, { mode: 0o700 });
+  mkdirSync(cache, { mode: 0o700 });
+  mkdirSync(config, { mode: 0o700 });
+  mkdirSync(prefix, { mode: 0o700 });
+  writeFileSync(globalConfig, "");
+  writeFileSync(userConfig, "");
+  writeFileSync(gitConfig, "");
+  const trustedPath = process.platform === "win32"
+    ? [nodeDirectory, "C:\\Windows\\System32"].join(delimiter)
+    : [nodeDirectory, "/usr/bin", "/bin"].join(delimiter);
   return {
-    HOME: process.env.HOME ?? "",
-    PATH: `${nodeDirectory}${process.env.PATH ? `:${process.env.PATH}` : ""}`,
-    TMPDIR: process.env.TMPDIR ?? "/tmp",
-    npm_config_audit: "false",
-    npm_config_cache: cacheDirectory,
-    npm_config_fund: "false",
-    npm_config_ignore_scripts: "true",
-    npm_config_offline: "true",
+    env: {
+      GIT_CONFIG_GLOBAL: gitConfig,
+      GIT_CONFIG_NOSYSTEM: "1",
+      HOME: home,
+      PATH: trustedPath,
+      USERPROFILE: home,
+      XDG_CONFIG_HOME: config,
+      npm_config_audit: "false",
+      npm_config_cache: cache,
+      npm_config_fund: "false",
+      npm_config_globalconfig: globalConfig,
+      npm_config_ignore_scripts: "true",
+      npm_config_offline: "true",
+      npm_config_prefix: prefix,
+      npm_config_userconfig: userConfig,
+    },
   };
 }
 
@@ -147,6 +234,7 @@ function run(command, args, errorCode, environment) {
     cwd: process.cwd(),
     encoding: "utf8",
     env: environment,
+    shell: process.platform === "win32" && command.endsWith(".cmd"),
   });
   if (result.error || result.status !== 0) {
     fail(errorCode);
@@ -154,24 +242,24 @@ function run(command, args, errorCode, environment) {
   return result.stdout;
 }
 
-function currentCommit(environment) {
-  const commit = run("git", ["rev-parse", "HEAD"], "INVALID_GIT_COMMIT", environment).trim();
+function currentCommit(git, environment) {
+  const commit = run(git, ["rev-parse", "HEAD"], "INVALID_GIT_COMMIT", environment).trim();
   if (!/^[0-9a-f]{40}$/.test(commit)) {
     fail("INVALID_GIT_COMMIT");
   }
   return commit;
 }
 
-function pack(output, environment) {
+function pack(npm, stage, environment) {
   const stdout = run(
-    "npm",
+    npm,
     [
       "pack",
       "--json",
       "--ignore-scripts",
       "--offline",
       "--pack-destination",
-      output,
+      stage,
     ],
     "PACK_FAILED",
     environment,
@@ -185,11 +273,16 @@ function pack(output, environment) {
   if (!Array.isArray(result) || result.length !== 1 || typeof result[0]?.filename !== "string") {
     fail("PACK_FAILED");
   }
-  const generatedName = result[0].filename;
-  if (generatedName !== generatedName.split("/").at(-1)) {
+  const reportedName = result[0].filename;
+  const generatedName = basename(reportedName);
+  if (
+    generatedName !== reportedName ||
+    reportedName.includes("/") ||
+    reportedName.includes("\\")
+  ) {
     fail("PACK_FAILED");
   }
-  const generatedPath = join(output, generatedName);
+  const generatedPath = join(stage, generatedName);
   let generated;
   try {
     generated = statSync(generatedPath);
@@ -199,39 +292,83 @@ function pack(output, environment) {
   if (!generated.isFile()) {
     fail("PACK_FAILED");
   }
-  const expectedPath = join(output, "collective-cognition-sdk-0.6.0.tgz");
+  const expectedPath = join(stage, "collective-cognition-sdk-0.6.0.tgz");
   if (generatedPath !== expectedPath) {
     renameSync(generatedPath, expectedPath);
   }
   return expectedPath;
 }
 
-function cleanup(paths) {
-  for (const path of [...paths].reverse()) {
-    rmSync(path, { force: true });
+function cleanupStage(stage, identity, createdPaths) {
+  if (!stage || !identity || !matchesDirectoryIdentity(stage, identity)) {
+    return;
   }
-}
-
-function cleanupOutput(output) {
+  for (const path of [...createdPaths].reverse()) {
+    try {
+      if (lstatSync(path).isFile()) {
+        unlinkSync(path);
+      }
+    } catch {}
+  }
   try {
-    for (const name of readdirSync(output)) {
-      rmSync(join(output, name), { force: true, recursive: true });
-    }
+    rmdirSync(stage);
   } catch {}
 }
 
-function buildRelease(output, createdPaths) {
-  readPackage();
-  const cacheDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-npm-cache-"));
-  const environment = sanitizedEnvironment(cacheDirectory);
-  try {
-    const commit = currentCommit(environment);
-    run("npm", ["run", "--ignore-scripts", "build"], "BUILD_FAILED", environment);
+function cleanupRuntime(runtimeDirectory, identity) {
+  if (runtimeDirectory && identity && matchesDirectoryIdentity(runtimeDirectory, identity)) {
+    rmSync(runtimeDirectory, { recursive: true, force: true });
+  }
+}
 
-    const tarballPath = pack(output, environment);
-    createdPaths.push(tarballPath);
-    const sbomPath = join(output, "collective-cognition-sdk-0.6.0.cdx.json");
-    const sbom = {
+function publishStage(stage, stageIdentity, output, outputIdentity) {
+  if (
+    !matchesDirectoryIdentity(stage, stageIdentity) ||
+    !matchesDirectoryIdentity(dirname(output), outputIdentity.parent) ||
+    !matchesDirectoryIdentity(output, outputIdentity.target) ||
+    readdirSync(output).length !== 0
+  ) {
+    fail("INVALID_OUTPUT_TARGET");
+  }
+  const backup = mkdtempSync(
+    join(dirname(output), ".collective-cognition-release-backup-"),
+  );
+  rmdirSync(backup);
+  let movedOutput = false;
+  try {
+    renameSync(output, backup);
+    movedOutput = true;
+    if (!matchesDirectoryIdentity(backup, outputIdentity.target)) {
+      renameSync(backup, output);
+      movedOutput = false;
+      fail("INVALID_OUTPUT_TARGET");
+    }
+    renameSync(stage, output);
+    movedOutput = false;
+    try {
+      rmdirSync(backup);
+    } catch {}
+  } catch (error) {
+    if (movedOutput) {
+      try {
+        renameSync(backup, output);
+      } catch {}
+    }
+    throw error;
+  }
+}
+
+function buildRelease(output, outputIdentity, stage, stageIdentity, runtimeDirectory, createdPaths) {
+  readPackage();
+  const executables = trustedExecutables();
+  const { env } = isolatedEnvironment(runtimeDirectory, executables.nodeDirectory);
+  const commit = currentCommit(executables.git, env);
+  run(executables.npm, ["run", "--ignore-scripts", "build"], "BUILD_FAILED", env);
+
+  const tarballPath = pack(executables.npm, stage, env);
+  createdPaths.push(tarballPath);
+  const sbomPath = join(stage, "collective-cognition-sdk-0.6.0.cdx.json");
+  const sbom = {
     bomFormat: "CycloneDX",
     specVersion: "1.6",
     version: 1,
@@ -249,16 +386,16 @@ function buildRelease(output, createdPaths) {
       ref: "pkg:npm/collective-cognition-sdk@0.6.0",
       dependsOn: [],
     }],
-    };
-    writeFileSync(sbomPath, jsonBuffer(sbom));
-    createdPaths.push(sbomPath);
+  };
+  writeFileSync(sbomPath, jsonBuffer(sbom));
+  createdPaths.push(sbomPath);
 
-    const payloads = [tarballPath, sbomPath].map((path) => {
-      const bytes = readFileSync(path);
-      return { name: path.split("/").at(-1), bytes: bytes.length, sha256: sha256(bytes) };
-    });
-    const manifestPath = join(output, "release-manifest.json");
-    const manifest = {
+  const payloads = [tarballPath, sbomPath].map((path) => {
+    const bytes = readFileSync(path);
+    return { name: basename(path), bytes: bytes.length, sha256: sha256(bytes) };
+  });
+  const manifestPath = join(stage, "release-manifest.json");
+  const manifest = {
     repository: EXPECTED.repository,
     tag: EXPECTED.tag,
     commit,
@@ -269,44 +406,52 @@ function buildRelease(output, createdPaths) {
     },
     nodeVersion: process.version,
     assets: payloads,
-    };
-    writeFileSync(manifestPath, jsonBuffer(manifest));
-    createdPaths.push(manifestPath);
+  };
+  writeFileSync(manifestPath, jsonBuffer(manifest));
+  createdPaths.push(manifestPath);
 
-    const checksumPath = join(output, "SHA256SUMS");
-    const checksums = [...payloads, {
-      name: "release-manifest.json",
-      bytes: readFileSync(manifestPath).length,
-      sha256: sha256(readFileSync(manifestPath)),
-    }]
-      .sort((left, right) => left.name.localeCompare(right.name))
-      .map(({ name, sha256: digest }) => `${digest}  ${name}`)
-      .join("\n");
-    writeFileSync(checksumPath, `${checksums}\n`);
-    createdPaths.push(checksumPath);
-  } finally {
-    rmSync(cacheDirectory, { recursive: true, force: true });
-  }
+  const checksumPath = join(stage, "SHA256SUMS");
+  const checksums = [...payloads, {
+    name: "release-manifest.json",
+    sha256: sha256(readFileSync(manifestPath)),
+  }]
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map(({ name, sha256: digest }) => `${digest}  ${name}`)
+    .join("\n");
+  writeFileSync(checksumPath, `${checksums}\n`);
+  createdPaths.push(checksumPath);
+
+  publishStage(stage, stageIdentity, output, outputIdentity);
 }
 
 const args = Object.freeze(Array.from(process.argv.slice(2)));
 const createdPaths = [];
-let output;
-let outputIsSafe = false;
+let stage;
+let stageIdentity;
+let runtimeDirectory;
+let runtimeIdentity;
 
 try {
-  output = parseOutput(args);
-  validateOutput(output);
-  outputIsSafe = true;
-  buildRelease(output, createdPaths);
+  const output = parseOutput(args);
+  const outputIdentity = validateOutput(output);
+  stage = mkdtempSync(join(dirname(output), ".collective-cognition-release-"));
+  stageIdentity = directoryIdentity(stage);
+  runtimeDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-release-"));
+  runtimeIdentity = directoryIdentity(runtimeDirectory);
+  buildRelease(
+    output,
+    outputIdentity,
+    stage,
+    stageIdentity,
+    runtimeDirectory,
+    createdPaths,
+  );
   process.stdout.write(JSON.stringify({ ok: true, tag: EXPECTED.tag, assets: EXPECTED.assets }) + "\n");
 } catch (error) {
-  if (outputIsSafe) {
-    cleanupOutput(output);
-  } else {
-    cleanup(createdPaths);
-  }
   const code = error instanceof ReleaseError ? error.code : "BUILD_FAILED";
   process.stderr.write(JSON.stringify({ ok: false, error: code }) + "\n");
   process.exitCode = 1;
+} finally {
+  cleanupStage(stage, stageIdentity, createdPaths);
+  cleanupRuntime(runtimeDirectory, runtimeIdentity);
 }

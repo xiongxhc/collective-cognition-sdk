@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  lstatSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -39,8 +43,9 @@ function runGit(args: readonly string[]): string {
 function runBuilder(
   args: readonly string[],
   environment: NodeJS.ProcessEnv = {},
+  executable = process.execPath,
 ) {
-  return spawnSync(process.execPath, [builder, ...args], {
+  return spawnSync(executable, [builder, ...args], {
     cwd: repositoryRoot,
     encoding: "utf8",
     env: { ...process.env, ...environment },
@@ -243,6 +248,78 @@ test("release diagnostics do not disclose paths or injected secrets", () => {
       assert.doesNotMatch(result.stderr, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     }
     assert.deepEqual(readdirSync(output), []);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("release builder isolates failing subprocesses and preserves swapped output", () => {
+  const root = mkdtempSync(join(tmpdir(), "cc-release-subprocess-"));
+  const output = createOutput(root, "output");
+  const external = createOutput(root, "external");
+  const callerHome = createOutput(root, "caller-home");
+  const shadowPath = createOutput(root, "caller-path");
+  const trustedBin = createOutput(root, "trusted-bin");
+  const secret = "release-subprocess-secret-must-not-leak";
+  const sentinel = join(external, "sentinel");
+  const observedEnvironment = join(root, "observed-environment.json");
+  const stagedPrefix = ".collective-cognition-release-";
+  const node = join(trustedBin, "node");
+  const npm = join(trustedBin, "npm");
+  const shadowGit = join(shadowPath, "git");
+
+  try {
+    writeFileSync(sentinel, "external sentinel\n");
+    writeFileSync(join(callerHome, ".npmrc"), "script-shell=/missing-shell\n");
+    copyFileSync(process.execPath, node);
+    chmodSync(node, 0o755);
+    writeFileSync(
+      shadowGit,
+      `#!${process.execPath}\nprocess.stderr.write(${JSON.stringify(secret)}); process.exit(1);\n`,
+    );
+    chmodSync(shadowGit, 0o755);
+    writeFileSync(
+      npm,
+      `#!${node}\nimport { rmSync, symlinkSync, writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(observedEnvironment)}, JSON.stringify({ home: process.env.HOME, path: process.env.PATH, userconfig: process.env.npm_config_userconfig, globalconfig: process.env.npm_config_globalconfig }));\nrmSync(${JSON.stringify(output)}, { recursive: true, force: true });\nsymlinkSync(${JSON.stringify(external)}, ${JSON.stringify(output)});\nprocess.stderr.write(${JSON.stringify(`${secret} ${root}\n`)});\nprocess.exit(1);\n`,
+    );
+    chmodSync(npm, 0o755);
+
+    const result = runBuilder(
+      ["--output", output],
+      {
+        HOME: callerHome,
+        PATH: shadowPath,
+        RELEASE_TEST_SECRET: secret,
+      },
+      node,
+    );
+
+    assert.notEqual(result.status, 0);
+    assert.deepEqual(JSON.parse(result.stderr), {
+      ok: false,
+      error: "BUILD_FAILED",
+    });
+    assert.equal(result.stdout, "");
+    assert.equal(readFileSync(sentinel, "utf8"), "external sentinel\n");
+    assert.equal(lstatSync(output).isSymbolicLink(), true);
+    assert.equal(existsSync(observedEnvironment), true);
+    const environment = readJson(observedEnvironment) as {
+      readonly home: string;
+      readonly path: string;
+      readonly userconfig: string;
+      readonly globalconfig: string;
+    };
+    assert.notEqual(environment.home, callerHome);
+    assert.equal(environment.path.includes(shadowPath), false);
+    assert.notEqual(environment.userconfig, join(callerHome, ".npmrc"));
+    assert.notEqual(environment.globalconfig, join(callerHome, ".npmrc"));
+    assert.deepEqual(
+      readdirSync(root).filter((name) => name.startsWith(stagedPrefix)),
+      [],
+    );
+    for (const value of [secret, root, repositoryRoot, callerHome, shadowPath]) {
+      assert.doesNotMatch(result.stderr, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
