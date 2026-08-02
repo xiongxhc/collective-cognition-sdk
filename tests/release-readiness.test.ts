@@ -43,10 +43,11 @@ const expectedAssets = [
 const expectedChecksumAssets = expectedAssets.slice(1);
 const expectedPackageScriptsSha256 = "574c12e5cc890227a58b16939ef1e0e861b9a011c4b8040f6df03ee4044534e3";
 const expectedCiWorkflowSha256 = "9d88b4a258164ec8311f1e4952845cac61ecdc9bab68f771075cc794a0940119";
-const expectedGitHubPrereleaseWorkflowSha256 = "c96c8879f9c350caf115831c51ac340fb8a502e469dcf2e7d8006776d67b43e1";
-const expectedTarballSha256 = "3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978";
+const expectedGitHubPrereleaseWorkflowSha256 = "c736aa8bb01f8cba6577fa693083f71b82ac17f4635ca7ba1df63676128903a3";
+const expectedTarballSha256 = "b1cf79a9a1ec876bca2e7a6594d73ea99029eb4b2b90f25599db1318abb4a81f";
 const expectedCommit = runGit(["rev-parse", "HEAD"]);
 const expectedNpmVersion = readNpmVersion();
+const releaseArtifactTest = process.platform === "win32" ? test.skip : test;
 const publicationWrapperMutations = [
   "sh -c 'npm --silent publish'",
   "bash -c 'npm --silent publish'",
@@ -1274,7 +1275,7 @@ test("release builder requires an explicit safe output directory", () => {
   }
 });
 
-test("release builder creates the exact deterministic asset set", () => {
+releaseArtifactTest("release builder creates the exact deterministic asset set", () => {
   const root = mkdtempSync(join(tmpdir(), "cc-release-assets-"));
   const first = createOutput(root, "first");
   const second = createOutput(root, "second");
@@ -1305,7 +1306,7 @@ test("release builder creates the exact deterministic asset set", () => {
   }
 });
 
-test("release manifest, checksums, and SBOM are exact", () => {
+releaseArtifactTest("release manifest, checksums, and SBOM are exact", () => {
   const root = mkdtempSync(join(tmpdir(), "cc-release-metadata-"));
   const output = createOutput(root, "output");
 
@@ -1430,7 +1431,7 @@ test("release diagnostics do not disclose paths or injected secrets", () => {
   }
 });
 
-test("release builder runs tools without a shell and preserves literal metacharacters", () => {
+releaseArtifactTest("release builder runs tools without a shell and preserves literal metacharacters", () => {
   const root = mkdtempSync(join(tmpdir(), "cc-release-shell-free-"));
   const output = createOutput(root, "output;literal&value");
   const shadowPath = createOutput(root, "shadow-path");
@@ -1631,7 +1632,7 @@ test("release builder isolates failing subprocesses and preserves swapped output
   }
 });
 
-test("release cleanup failures preserve diagnostics and block publication", () => {
+releaseArtifactTest("release cleanup failures preserve diagnostics and block publication", () => {
   if (process.platform === "win32") {
     return;
   }

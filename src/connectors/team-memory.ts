@@ -220,7 +220,6 @@ function validateOptions(value: unknown): ValidatedOptions {
     databasePath.includes("\u0000") ||
     databasePath.startsWith("~") ||
     databasePath === ":memory:" ||
-    /^[A-Za-z][A-Za-z0-9+.-]*:/.test(databasePath) ||
     !isAbsolute(databasePath)
   ) {
     throw connectorError("invalid_options", "options", "databasePath");

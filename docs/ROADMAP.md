@@ -205,11 +205,11 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
   downloads only the verified four-asset transfer and runs no repository
   package or dependency code.
 - [x] The first public-artifact decision finalizes the current docs-inclusive
-  private `0.6.0` tarball rather than restoring stale documentation. Only the
-  packaged README and RFC-index bytes changed from the earlier private artifact;
-  the compatibility surface and exact package file inventory remain unchanged,
-  and final tarball SHA-256
-  `3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978`
+  private `0.6.0` tarball rather than restoring stale documentation. The final
+  candidate also accepts native Windows absolute team-memory database paths;
+  the public API, schema, compatibility surface, and exact package file
+  inventory remain unchanged. Final tarball SHA-256
+  `b1cf79a9a1ec876bca2e7a6594d73ea99029eb4b2b90f25599db1318abb4a81f`
   is enforced against later byte drift.
 - [ ] Observed public release evidence: release URL, merge SHA, tag target SHA,
   workflow run URL, asset digests, attestation result, clean installation,

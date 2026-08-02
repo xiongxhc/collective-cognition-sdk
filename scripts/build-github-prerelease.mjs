@@ -22,7 +22,7 @@ const EXPECTED = Object.freeze({
   packageName: "collective-cognition-sdk",
   packageVersion: "0.6.0",
   packageScriptsSha256: "574c12e5cc890227a58b16939ef1e0e861b9a011c4b8040f6df03ee4044534e3",
-  tarballSha256: "3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978",
+  tarballSha256: "b1cf79a9a1ec876bca2e7a6594d73ea99029eb4b2b90f25599db1318abb4a81f",
   tag: "v0.6.0",
   assets: Object.freeze([
     "SHA256SUMS",

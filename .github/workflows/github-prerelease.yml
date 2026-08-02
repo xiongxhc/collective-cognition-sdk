@@ -323,7 +323,7 @@ jobs:
             manifest.assets.find((asset) =>
               asset.name === "collective-cognition-sdk-0.6.0.tgz"
             )?.sha256,
-            "3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978",
+            "b1cf79a9a1ec876bca2e7a6594d73ea99029eb4b2b90f25599db1318abb4a81f",
           );
           for (const asset of manifest.assets) {
             const bytes = readFileSync(join(releaseDirectory, asset.name));

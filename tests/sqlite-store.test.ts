@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import test from "node:test";
+import test, { after } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
 import {
@@ -129,12 +129,19 @@ const supportsDefensiveMode = supportsSqliteStoreRuntime({
 const sqliteTest = supportsDefensiveMode ? test : test.skip;
 const unsupportedRuntimeTest = supportsDefensiveMode ? test.skip : test;
 const sqliteStoreUrl = new URL("../src/stores/sqlite.ts", import.meta.url);
+const temporaryDirectories = new Set<string>();
 
-function temporaryDatabasePath(t: test.TestContext): string {
+after(() => {
+  for (const directory of temporaryDirectories) {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+function temporaryDatabasePath(_t: test.TestContext): string {
   const directory = mkdtempSync(
     join(tmpdir(), "collective-cognition-sqlite-"),
   );
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  temporaryDirectories.add(directory);
   return join(directory, "cognition.db");
 }
 

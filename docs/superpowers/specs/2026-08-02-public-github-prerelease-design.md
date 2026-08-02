@@ -77,12 +77,12 @@ the package baseline.
 
 Because this is the first public artifact, the release explicitly finalizes the
 current docs-inclusive private `0.6.0` tarball instead of restoring the stale
-pre-readiness README. Only packaged README and RFC-index documentation bytes
-changed from the earlier private artifact; the runtime, type, CLI, schema, and
-RFC compatibility surface and exact file inventory remain unchanged. The final
-tarball SHA-256 is a literal release-tool invariant so any later byte drift
-fails before publication. The finalized digest is
-`3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978`.
+pre-readiness README. The candidate also accepts native Windows absolute
+team-memory database paths. The public API, type, CLI, schema, RFC compatibility
+surface, and exact file inventory remain unchanged. The final tarball SHA-256
+is a literal release-tool invariant so any later byte drift fails before
+publication. The finalized digest is
+`b1cf79a9a1ec876bca2e7a6594d73ea99029eb4b2b90f25599db1318abb4a81f`.
 
 The CycloneDX `1.6` SBOM is produced deterministically by the repository release
 tool from `package.json`. The current SDK has zero runtime dependencies, so the
