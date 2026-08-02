@@ -76,7 +76,7 @@ function readJson(path: string): unknown {
 }
 
 const forbiddenPublicationOrAuthentication =
-  /\b(?:npm\s+(?:publish|token|login|adduser|logout|whoami|profile)|NPM_TOKEN|NODE_AUTH_TOKEN|npm_[A-Za-z0-9_]*token|_auth|_authToken|authToken)\b/i;
+  /\b(?:npm\s+(?:publish|dist-tag|deprecate|unpublish|access|owner|team|org|hook|star|unstar|profile|token|login|adduser|logout|whoami)|NPM_TOKEN|NODE_AUTH_TOKEN|npm_[A-Za-z0-9_]*token|_auth|_authToken|authToken)\b/i;
 
 function assertSafePackageScripts(scripts: Readonly<Record<string, string>>): void {
   for (const [name, script] of Object.entries(scripts)) {
@@ -317,7 +317,11 @@ function assertReadOnlyPermissions(
   assert.deepEqual(permissions, { contents: "read" }, `${scope} permissions must be read-only`);
 }
 
-function assertUnconditional(job: ParsedWorkflowJob, name: string): ParsedWorkflowStep {
+function assertUnconditional(
+  job: ParsedWorkflowJob,
+  name: string,
+  allowedStepProperties?: readonly string[],
+): ParsedWorkflowStep {
   assert.equal(job.properties.if, undefined, "required jobs must not use if");
   assert.equal(
     job.properties["continue-on-error"],
@@ -325,9 +329,11 @@ function assertUnconditional(job: ParsedWorkflowJob, name: string): ParsedWorkfl
     "required jobs must propagate failures",
   );
   const step = requiredStep(job, name);
-  const allowedProperties = step.properties.uses === undefined
-    ? new Set(["name", "run"])
-    : new Set(["name", "uses", "with"]);
+  const allowedProperties = new Set(allowedStepProperties ?? (
+    step.properties.uses === undefined
+      ? ["name", "run"]
+      : ["name", "uses", "with"]
+  ));
   for (const property of Object.keys(step.properties)) {
     assert.equal(
       allowedProperties.has(property),
@@ -354,6 +360,17 @@ function commandLines(step: ParsedWorkflowStep): string[] {
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+function normalizedVerificationBody(step: ParsedWorkflowStep): string {
+  return (step.run ?? "")
+    .split("\n")
+    .filter((line) => !/^\s*(?:rm -rf "\$(?:example|release)_root"|mkdir(?: -p)? "\$(?:example_root|first)"(?: "\$second")?|trap 'rm -rf "\$release_root"' EXIT)\s*$/.test(line))
+    .map((line) => line.replace(
+      /^(\s*)(example_root|release_root)=".*"$/,
+      "$1$2=\"<temporary-root>\"",
+    ))
+    .join("\n");
 }
 
 function assertReadOnlyCiWorkflow(workflow: string): void {
@@ -619,14 +636,18 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
     assert.match(reference, /^actions\/[a-z0-9_-]+@[0-9a-f]{40}$/);
   }
 
-  const checkout = requiredStep(job, "Check out immutable tag");
+  const ci = parseCiWorkflow(readFileSync(ciWorkflow, "utf8"));
+  const ciVerifyJob = ci.jobs.verify as ParsedWorkflowJob;
+  const ciDistributionJob = ci.jobs.distribution as ParsedWorkflowJob;
+
+  const checkout = assertUnconditional(job, "Check out immutable tag");
   assert.match(checkout.raw, /^ {10}fetch-depth: 0$/m);
-  const setup = requiredStep(job, "Set up Node.js");
+  const setup = assertUnconditional(job, "Set up Node.js");
   assert.match(setup.raw, /^ {10}node-version: "24\.14\.0"$/m);
   assert.match(setup.raw, /^ {10}cache: npm$/m);
 
-  const validate = requiredStep(job, "Validate tag and package identity");
-  const install = requiredStep(job, "Install dependencies without lifecycle scripts");
+  const validate = assertUnconditional(job, "Validate tag and package identity");
+  const install = assertUnconditional(job, "Install dependencies without lifecycle scripts");
   assert.ok(steps.indexOf(validate) < steps.indexOf(install));
   assert.equal(install.run, "npm ci --ignore-scripts --prefer-offline");
   assert.match(validate.run ?? "", /^set -euo pipefail$/m);
@@ -647,58 +668,69 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
   assert.match(validate.run ?? "", /^test "\$package_private" = "true"$/m);
   assert.match(
     validate.run ?? "",
+    /^test "\$\(git cat-file -t "refs\/tags\/\$GITHUB_REF_NAME"\)" = "tag"$/m,
+  );
+  assert.match(
+    validate.run ?? "",
+    /^tag_commit="\$\(git rev-parse "refs\/tags\/\$GITHUB_REF_NAME\^\{\}"\)"$/m,
+  );
+  assert.match(validate.run ?? "", /^test "\$tag_commit" = "\$GITHUB_SHA"$/m);
+  assert.match(
+    validate.run ?? "",
+    /^test "\$tag_commit" = "\$\(git rev-parse origin\/master\)"$/m,
+  );
+  assert.match(
+    validate.run ?? "",
     /^test "\$GITHUB_SHA" = "\$\(git rev-parse origin\/master\)"$/m,
   );
+  assert.ok(
+    (validate.run ?? "").indexOf("git fetch --no-tags origin master") <
+      (validate.run ?? "").indexOf("git cat-file -t"),
+  );
 
-  const examples = requiredStep(job, "Run examples and package checks");
-  const exampleCommands = commandLines(examples);
-  for (const command of [
-    "npm run example",
-    "npm run example:markdown",
-    "npm run example:portable",
-    "npm run example:host",
-    'npm run example:teammem -- "$ledger"',
-    'npm run example:teammem:durable -- --ledger "$ledger" --cognition-db "$cognition" --project ci-synthetic --from 2026-08-02T00:00:00.000Z --limit 1 --create',
-    "npm run pack:check",
-  ]) {
-    assert.equal(exampleCommands.includes(command), true, `${command} must run`);
-  }
-  assert.match(examples.run ?? "", /CREATE TABLE events/);
-  assert.match(examples.run ?? "", /INSERT INTO events/);
+  const fullVerification = assertUnconditional(job, "Run full SDK verification");
+  assert.ok(steps.indexOf(install) < steps.indexOf(fullVerification));
+  assert.deepEqual(commandLines(fullVerification), [
+    "set -euo pipefail",
+    "npm test",
+    "npx tsc --noEmit",
+    "npm run check",
+  ]);
+  assert.deepEqual(
+    commandLines(fullVerification).slice(1),
+    [
+      assertUnconditional(ciVerifyJob, "Run package tests").run,
+      assertUnconditional(ciVerifyJob, "Typecheck").run,
+      assertUnconditional(ciVerifyJob, "Check syntax").run,
+    ],
+  );
+
+  const examples = assertUnconditional(job, "Run examples and package checks");
+  assert.ok(steps.indexOf(fullVerification) < steps.indexOf(examples));
+  assert.equal(
+    normalizedVerificationBody(examples),
+    normalizedVerificationBody(assertUnconditional(
+      ciDistributionJob,
+      "Run examples and package checks",
+    )),
+  );
   assert.match(examples.run ?? "", /\$\{\{ runner\.temp \}\}\/release-examples/);
 
-  const distribution = requiredStep(
+  const distribution = assertUnconditional(
     job,
     "Verify deterministic distribution assets and clean installation",
   );
-  const distributionCommands = commandLines(distribution);
+  assert.ok(steps.indexOf(examples) < steps.indexOf(distribution));
   assert.equal(
-    distributionCommands.filter(
-      (line) => /node scripts\/build-github-prerelease\.mjs\b/.test(line),
-    ).length,
-    2,
+    normalizedVerificationBody(distribution),
+    normalizedVerificationBody(assertUnconditional(
+      ciDistributionJob,
+      "Verify deterministic distribution assets and clean installation",
+    )),
   );
-  assert.match(distribution.run ?? "", /\bcmp\b/);
-  assert.match(distribution.run ?? "", /sha256sum -c SHA256SUMS/);
   assert.match(distribution.run ?? "", /\$\{\{ runner\.temp \}\}\/github-prerelease/);
-  assert.deepEqual(
-    distributionCommands.filter((line) => /^npm install\b/.test(line)),
-    [
-      'npm install --ignore-scripts --offline --no-audit --no-fund "$first/collective-cognition-sdk-0.6.0.tgz"',
-    ],
-  );
-  for (const asset of expectedAssets) {
-    assert.equal(distribution.run?.includes(JSON.stringify(asset)), true);
-  }
-  for (const executable of [
-    "collective-cognition",
-    "collective-cognition-teammem",
-    "collective-cognition-markdown",
-  ]) {
-    assert.match(distribution.run ?? "", new RegExp(`node_modules/\\.bin/${executable}\\b`));
-  }
 
-  const attest = requiredStep(job, "Attest release assets");
+  const attest = assertUnconditional(job, "Attest release assets");
   const subjectPaths = [...attest.raw.matchAll(/^ {12}([^\s].*)$/gm)].map(
     (match) => match[1],
   );
@@ -706,7 +738,11 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
     (asset) => `\${{ runner.temp }}/github-prerelease/first/${asset}`,
   ));
 
-  const release = requiredStep(job, "Create or update GitHub prerelease");
+  const release = assertUnconditional(
+    job,
+    "Create or update GitHub prerelease",
+    ["name", "env", "run"],
+  );
   assert.deepEqual(Object.keys(release.properties), ["name", "env", "run"]);
   assert.match(
     release.raw,
@@ -716,19 +752,38 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
     steps.filter((step) => /GH_TOKEN/.test(step.raw)).length,
     1,
   );
-  assert.match(release.run ?? "", /gh release view "\$GITHUB_REF_NAME"/);
-  assert.match(release.run ?? "", /test "\$release_is_prerelease" = "true"/);
+  assert.equal(
+    [...(release.run ?? "").matchAll(
+      /gh release view "\$GITHUB_REF_NAME" --json isPrerelease,isDraft,assets/g,
+    )].length,
+    2,
+  );
+  assert.match(release.run ?? "", /^verify_release_inventory\(\) \{$/m);
+  assert.match(release.run ?? "", /assert\.equal\(release\.isPrerelease, true\);/);
+  assert.match(release.run ?? "", /assert\.equal\(release\.isDraft, false\);/);
+  assert.match(release.run ?? "", /assert\.equal\(new Set\(names\)\.size, names\.length\);/);
+  assert.match(release.run ?? "", /assert\.equal\(expectedNames\.includes\(name\), true\);/);
+  assert.match(release.run ?? "", /assert\.deepEqual\(\[\.\.\.names\]\.sort\(\), expectedNames\);/);
+  assert.deepEqual(
+    [...(release.run ?? "").matchAll(
+      /^\s*verify_release_inventory (allowed|exact) "\$release_json"$/gm,
+    )].map((match) => match[1]),
+    ["allowed", "exact"],
+  );
   assert.match(
     release.run ?? "",
     /gh release create "\$GITHUB_REF_NAME" --prerelease --verify-tag --generate-notes/,
   );
   assert.match(
     release.run ?? "",
-    /gh release upload "\$GITHUB_REF_NAME" --clobber/,
+    /^gh release upload "\$GITHUB_REF_NAME" --clobber "\$\{assets\[@\]\}"$/m,
   );
-  for (const asset of expectedAssets) {
-    assert.equal(release.run?.includes(`"$release_dir/${asset}"`), true);
-  }
+  const uploadAssets = (release.run ?? "").match(/^assets=\(\n([\s\S]*?)^\)$/m);
+  assert.ok(uploadAssets);
+  assert.deepEqual(
+    (uploadAssets[1] as string).split("\n").map((line) => line.trim()).filter(Boolean),
+    expectedAssets.map((asset) => `"$release_dir/${asset}"`),
+  );
 }
 
 function assertGitHubReleaseConfig(config: string): void {
@@ -1332,6 +1387,36 @@ test("tag-only workflow creates an exact-master attested GitHub prerelease", () 
 
 test("prerelease policy rejects unsafe workflow and release mutations", () => {
   const workflow = readFileSync(githubPrereleaseWorkflow, "utf8");
+  const addStepControl = (name: string, control: string): string => workflow.replace(
+    `      - name: ${name}\n`,
+    `      - name: ${name}\n        ${control}\n`,
+  );
+  const controlledSteps = [
+    "Validate tag and package identity",
+    "Run full SDK verification",
+    "Run examples and package checks",
+    "Verify deterministic distribution assets and clean installation",
+    "Attest release assets",
+    "Create or update GitHub prerelease",
+  ];
+  const registryMutations = [
+    "dist-tag add collective-cognition-sdk@0.6.0 latest",
+    "deprecate collective-cognition-sdk@0.6.0 unsafe",
+    "unpublish collective-cognition-sdk@0.6.0",
+    "access set status=public collective-cognition-sdk",
+    "owner add person collective-cognition-sdk",
+    "team add org:team collective-cognition-sdk",
+    "org set org person developer",
+    "hook add pkg https://example.invalid/hook secret",
+    "star collective-cognition-sdk",
+    "unstar collective-cognition-sdk",
+    "profile set password",
+    "token create",
+    "login",
+    "adduser",
+    "logout",
+    "whoami",
+  ];
   const unsafeWorkflows = [
     workflow.replace('      - "v*"', '      - "release-*"'),
     workflow.replace("permissions:\n", "on:\n  workflow_dispatch:\n\npermissions:\n"),
@@ -1349,6 +1434,19 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
       'package_private="true"',
     ),
     workflow.replace('test "$package_private" = "true"', 'test "$package_private" = "false"'),
+    workflow.replace(
+      'test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = "tag"',
+      'test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = "commit"',
+    ),
+    workflow.replace(
+      'tag_commit="$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{}")"',
+      'tag_commit="$GITHUB_SHA"',
+    ),
+    workflow.replace('test "$tag_commit" = "$GITHUB_SHA"', "true"),
+    workflow.replace(
+      'test "$tag_commit" = "$(git rev-parse origin/master)"',
+      "true",
+    ),
     workflow.replace(
       'test "$GITHUB_SHA" = "$(git rev-parse origin/master)"',
       'test "$GITHUB_SHA" != "$(git rev-parse origin/master)"',
@@ -1368,18 +1466,49 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
       "          ${{ runner.temp }}/github-prerelease/first/SHA256SUMS",
       "          ${{ runner.temp }}/github-prerelease/first/*",
     ),
+    workflow.replace("          npm test\n", ""),
+    workflow.replace("          npx tsc --noEmit\n", ""),
+    workflow.replace("          npm run check\n", ""),
+    workflow.replace('            "collective-cognition-sdk/compatibility/0.4.0",\n', ""),
+    workflow.replace(
+      '            "$release_dir/release-manifest.json"\n',
+      '            "$release_dir/release-manifest.json"\n            "/etc/hosts"\n',
+    ),
+    workflow.replace(
+      'gh release upload "$GITHUB_REF_NAME" --clobber "${assets[@]}"',
+      'gh release upload "$GITHUB_REF_NAME" --clobber "${assets[@]}" /etc/hosts',
+    ),
+    workflow.replace("--json isPrerelease,isDraft,assets", "--json isPrerelease,assets"),
+    workflow.replace("          assert.equal(release.isDraft, false);\n", ""),
+    workflow.replace("          assert.equal(new Set(names).size, names.length);\n", ""),
+    workflow.replace(
+      "            assert.equal(expectedNames.includes(name), true);\n",
+      "",
+    ),
+    workflow.replace(
+      "          assert.deepEqual([...names].sort(), expectedNames);\n",
+      "",
+    ),
+    workflow.replace(
+      '          verify_release_inventory exact "$release_json"',
+      '          verify_release_inventory allowed "$release_json"',
+    ),
     workflow.replace("--prerelease --verify-tag --generate-notes", "--verify-tag --generate-notes"),
     workflow.replace("--prerelease --verify-tag --generate-notes", "--prerelease --generate-notes"),
     workflow.replace("--prerelease --verify-tag --generate-notes", "--prerelease --verify-tag"),
     workflow.replace("--clobber", ""),
     workflow.replace("--clobber", "--clobber --latest"),
-    workflow.replace('test "$release_is_prerelease" = "true"', "true"),
     `${workflow}\nunsafe: git tag --force v0.6.0\n`,
-    `${workflow}\nunsafe: npm login\n`,
     `${workflow}\nNPM_TOKEN: forbidden\n`,
+    ...controlledSteps.flatMap((name) => [
+      addStepControl(name, "if: ${{ false }}"),
+      addStepControl(name, "continue-on-error: true"),
+    ]),
+    ...registryMutations.map((command) => `${workflow}\nunsafe: npm ${command}\n`),
   ];
 
   for (const [index, unsafeWorkflow] of unsafeWorkflows.entries()) {
+    assert.notEqual(unsafeWorkflow, workflow, `mutation ${index} must change the workflow`);
     assert.throws(
       () => assertGitHubPrereleaseWorkflow(unsafeWorkflow),
       `unsafe prerelease workflow mutation ${index} must be rejected`,

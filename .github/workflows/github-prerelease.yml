@@ -34,9 +34,19 @@ jobs:
           test "$GITHUB_REF_NAME" = "v$package_version"
           test "$package_private" = "true"
           git fetch --no-tags origin master
+          test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = "tag"
+          tag_commit="$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{}")"
+          test "$tag_commit" = "$GITHUB_SHA"
+          test "$tag_commit" = "$(git rev-parse origin/master)"
           test "$GITHUB_SHA" = "$(git rev-parse origin/master)"
       - name: Install dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --prefer-offline
+      - name: Run full SDK verification
+        run: |
+          set -euo pipefail
+          npm test
+          npx tsc --noEmit
+          npm run check
       - name: Run examples and package checks
         run: |
           set -euo pipefail
@@ -235,9 +245,41 @@ jobs:
             "$release_dir/release-manifest.json"
           )
 
-          if release_is_prerelease="$(gh release view "$GITHUB_REF_NAME" --json isPrerelease --jq '.isPrerelease')"; then
-            test "$release_is_prerelease" = "true"
+          verify_release_inventory() {
+            local mode="$1"
+            local release_json="$2"
+            RELEASE_INVENTORY_MODE="$mode" RELEASE_JSON="$release_json" node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+
+          const release = JSON.parse(process.env.RELEASE_JSON);
+          const mode = process.env.RELEASE_INVENTORY_MODE;
+          const expectedNames = [
+            "SHA256SUMS",
+            "collective-cognition-sdk-0.6.0.cdx.json",
+            "collective-cognition-sdk-0.6.0.tgz",
+            "release-manifest.json",
+          ];
+          assert.equal(release.isPrerelease, true);
+          assert.equal(release.isDraft, false);
+          assert.equal(Array.isArray(release.assets), true);
+          const names = release.assets.map((asset) => asset.name);
+          assert.equal(new Set(names).size, names.length);
+          for (const name of names) {
+            assert.equal(expectedNames.includes(name), true);
+          }
+          if (mode === "exact") {
+            assert.deepEqual([...names].sort(), expectedNames);
+          } else {
+            assert.equal(mode, "allowed");
+          }
+          NODE
+          }
+
+          if release_json="$(gh release view "$GITHUB_REF_NAME" --json isPrerelease,isDraft,assets)"; then
+            verify_release_inventory allowed "$release_json"
           else
             gh release create "$GITHUB_REF_NAME" --prerelease --verify-tag --generate-notes
           fi
           gh release upload "$GITHUB_REF_NAME" --clobber "${assets[@]}"
+          release_json="$(gh release view "$GITHUB_REF_NAME" --json isPrerelease,isDraft,assets)"
+          verify_release_inventory exact "$release_json"
