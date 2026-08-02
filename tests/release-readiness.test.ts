@@ -66,6 +66,36 @@ function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+function assertNoAutoMergeWorkflows(workflows: string): void {
+  if (!existsSync(workflows)) {
+    return;
+  }
+
+  const workflowFiles = (directory: string): string[] =>
+    readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        return workflowFiles(path);
+      }
+      return entry.isFile() && /\.ya?ml$/i.test(entry.name) ? [path] : [];
+    });
+  const autoMergeMechanisms = [
+    /\bgh\s+pr\s+merge\b[\s\S]{0,200}\s--auto\b/i,
+    /\benablePullRequestAutoMerge\b/i,
+    /\bdependabot\b[\s\S]{0,200}\bauto[-_ ]?merge\b/i,
+    /\b(?:auto[-_ ]?merge|automerge)[-_ ]?action\b/i,
+    /\benable[-_ ]?pull[-_ ]?request[-_ ]?auto[-_ ]?merge\b/i,
+    /\bauto[-_ ]?merge\b/i,
+  ];
+
+  for (const path of workflowFiles(workflows)) {
+    const workflow = readFileSync(path, "utf8");
+    for (const mechanism of autoMergeMechanisms) {
+      assert.doesNotMatch(workflow, mechanism, `${path} enables automatic pull-request merging`);
+    }
+  }
+}
+
 function assertFailureLeavesNoAssets(
   output: string,
   args: readonly string[],
@@ -412,11 +442,36 @@ test("public contribution and security policies preserve the prerelease boundary
   assert.match(dependabot, /open-pull-requests-limit:/);
   assert.doesNotMatch(dependabot, /auto-merge/i);
   assert.equal(existsSync(join(repositoryRoot, "CODE_OF_CONDUCT.md")), false);
-  const workflows = join(repositoryRoot, ".github/workflows");
-  if (existsSync(workflows)) {
-    assert.equal(
-      readdirSync(workflows).some((name) => /auto-merge/i.test(name)),
-      false,
-    );
+  assertNoAutoMergeWorkflows(join(repositoryRoot, ".github/workflows"));
+});
+
+test("release readiness rejects executable auto-merge workflow instructions", () => {
+  const root = mkdtempSync(join(tmpdir(), "cc-auto-merge-workflows-"));
+  const workflows = join(root, ".github/workflows");
+  const prohibitedInstructions = [
+    "run: gh pr merge 42 --auto",
+    "query: mutation { enablePullRequestAutoMerge(input: {}) { clientMutationId } }",
+    "uses: pascalgn/automerge-action@v0.16.3",
+    "uses: peter-evans/enable-pull-request-automerge@v3",
+    "run: dependabot auto-merge",
+  ];
+
+  try {
+    mkdirSync(workflows, { recursive: true });
+    mkdirSync(join(workflows, "nested"));
+    writeFileSync(join(workflows, "release.yml"), "run: git merge-base HEAD origin/main\n");
+    assert.doesNotThrow(() => assertNoAutoMergeWorkflows(workflows));
+
+    for (const [index, instruction] of prohibitedInstructions.entries()) {
+      const workflow = join(
+        workflows,
+        index === 0 ? "nested/release.yaml" : `workflow-${index}.yaml`,
+      );
+      writeFileSync(workflow, `${instruction}\n`);
+      assert.throws(() => assertNoAutoMergeWorkflows(workflows));
+      rmSync(workflow);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
