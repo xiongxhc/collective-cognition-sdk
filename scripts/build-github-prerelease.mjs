@@ -163,11 +163,36 @@ function trustedFile(path, code) {
 }
 
 function trustedExecutables() {
-  const nodeDirectory = dirname(realpathSync(process.execPath));
-  const npm = trustedFile(
-    join(nodeDirectory, process.platform === "win32" ? "npm.cmd" : "npm"),
-    "NPM_UNAVAILABLE",
-  );
+  const node = trustedFile(realpathSync(process.execPath), "NODE_UNAVAILABLE");
+  const nodeDirectory = dirname(node);
+  const npmCliCandidates = [
+    join(nodeDirectory, "node_modules", "npm", "bin", "npm-cli.js"),
+    join(dirname(nodeDirectory), "lib", "node_modules", "npm", "bin", "npm-cli.js"),
+    join(
+      dirname(nodeDirectory),
+      "libexec",
+      "lib",
+      "node_modules",
+      "npm",
+      "bin",
+      "npm-cli.js",
+    ),
+    ...(process.platform === "win32" ? [] : [join(nodeDirectory, "npm")]),
+  ];
+  let npmCli;
+  for (const candidate of npmCliCandidates) {
+    try {
+      npmCli = trustedFile(candidate, "NPM_UNAVAILABLE");
+      break;
+    } catch (error) {
+      if (!(error instanceof ReleaseError) || error.code !== "NPM_UNAVAILABLE") {
+        throw error;
+      }
+    }
+  }
+  if (!npmCli) {
+    fail("NPM_UNAVAILABLE");
+  }
   const gitCandidates = process.platform === "win32"
     ? [
         "C:\\Program Files\\Git\\cmd\\git.exe",
@@ -188,7 +213,7 @@ function trustedExecutables() {
   if (!git) {
     fail("GIT_UNAVAILABLE");
   }
-  return { git, nodeDirectory, npm };
+  return { git, node, nodeDirectory, npmCli };
 }
 
 function isolatedEnvironment(runtimeDirectory, nodeDirectory) {
@@ -234,7 +259,6 @@ function run(command, args, errorCode, environment) {
     cwd: process.cwd(),
     encoding: "utf8",
     env: environment,
-    shell: process.platform === "win32" && command.endsWith(".cmd"),
   });
   if (result.error || result.status !== 0) {
     fail(errorCode);
@@ -250,9 +274,14 @@ function currentCommit(git, environment) {
   return commit;
 }
 
-function pack(npm, stage, environment) {
-  const stdout = run(
-    npm,
+function runNpm(node, npmCli, args, errorCode, environment) {
+  return run(node, [npmCli, ...args], errorCode, environment);
+}
+
+function pack(node, npmCli, stage, environment) {
+  const stdout = runNpm(
+    node,
+    npmCli,
     [
       "pack",
       "--json",
@@ -363,9 +392,15 @@ function buildRelease(output, outputIdentity, stage, stageIdentity, runtimeDirec
   const executables = trustedExecutables();
   const { env } = isolatedEnvironment(runtimeDirectory, executables.nodeDirectory);
   const commit = currentCommit(executables.git, env);
-  run(executables.npm, ["run", "--ignore-scripts", "build"], "BUILD_FAILED", env);
+  runNpm(
+    executables.node,
+    executables.npmCli,
+    ["run", "--ignore-scripts", "build"],
+    "BUILD_FAILED",
+    env,
+  );
 
-  const tarballPath = pack(executables.npm, stage, env);
+  const tarballPath = pack(executables.node, executables.npmCli, stage, env);
   createdPaths.push(tarballPath);
   const sbomPath = join(stage, "collective-cognition-sdk-0.6.0.cdx.json");
   const sbom = {

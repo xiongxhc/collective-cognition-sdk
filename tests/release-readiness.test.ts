@@ -15,7 +15,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
@@ -253,6 +253,20 @@ test("release diagnostics do not disclose paths or injected secrets", () => {
   }
 });
 
+test("release builder runs tools without a shell and preserves literal metacharacters", () => {
+  const root = mkdtempSync(join(tmpdir(), "cc-release-shell-free-"));
+  const output = createOutput(root, "output;literal&value");
+
+  try {
+    assert.doesNotMatch(readFileSync(builder, "utf8"), /\bshell\s*:/);
+    const result = runBuilder(["--output", output]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(readdirSync(output).sort(), expectedAssets);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("release builder isolates failing subprocesses and preserves swapped output", () => {
   const root = mkdtempSync(join(tmpdir(), "cc-release-subprocess-"));
   const output = createOutput(root, "output");
@@ -266,6 +280,7 @@ test("release builder isolates failing subprocesses and preserves swapped output
   const stagedPrefix = ".collective-cognition-release-";
   const node = join(trustedBin, "node");
   const npm = join(trustedBin, "npm");
+  const npmCli = join(root, "lib", "node_modules", "npm", "bin", "npm-cli.js");
   const shadowGit = join(shadowPath, "git");
 
   try {
@@ -283,6 +298,11 @@ test("release builder isolates failing subprocesses and preserves swapped output
       `#!${node}\nimport { rmSync, symlinkSync, writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(observedEnvironment)}, JSON.stringify({ home: process.env.HOME, path: process.env.PATH, userconfig: process.env.npm_config_userconfig, globalconfig: process.env.npm_config_globalconfig }));\nrmSync(${JSON.stringify(output)}, { recursive: true, force: true });\nsymlinkSync(${JSON.stringify(external)}, ${JSON.stringify(output)});\nprocess.stderr.write(${JSON.stringify(`${secret} ${root}\n`)});\nprocess.exit(1);\n`,
     );
     chmodSync(npm, 0o755);
+    mkdirSync(dirname(npmCli), { recursive: true });
+    writeFileSync(
+      npmCli,
+      `import { rmSync, symlinkSync, writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(observedEnvironment)}, JSON.stringify({ home: process.env.HOME, path: process.env.PATH, userconfig: process.env.npm_config_userconfig, globalconfig: process.env.npm_config_globalconfig }));\nrmSync(${JSON.stringify(output)}, { recursive: true, force: true });\nsymlinkSync(${JSON.stringify(external)}, ${JSON.stringify(output)});\nprocess.stderr.write(${JSON.stringify(`${secret} ${root}\n`)});\nprocess.exit(1);\n`,
+    );
 
     const result = runBuilder(
       ["--output", output],
