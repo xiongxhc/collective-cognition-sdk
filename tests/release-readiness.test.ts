@@ -344,3 +344,79 @@ test("release builder isolates failing subprocesses and preserves swapped output
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("public contribution and security policies preserve the prerelease boundary", () => {
+  const requiredFiles = [
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "SUPPORT.md",
+    "CHANGELOG.md",
+    ".github/ISSUE_TEMPLATE/bug_report.yml",
+    ".github/ISSUE_TEMPLATE/feature_request.yml",
+    ".github/ISSUE_TEMPLATE/config.yml",
+    ".github/pull_request_template.md",
+    ".github/dependabot.yml",
+  ];
+  const readPolicy = (path: string): string => {
+    const file = join(repositoryRoot, path);
+    assert.equal(existsSync(file), true, `${path} must exist`);
+    return readFileSync(file, "utf8");
+  };
+
+  for (const path of requiredFiles) {
+    readPolicy(path);
+  }
+
+  const security = readPolicy("SECURITY.md");
+  const contributing = readPolicy("CONTRIBUTING.md");
+  const support = readPolicy("SUPPORT.md");
+  const changelog = readPolicy("CHANGELOG.md");
+  const bugReport = readPolicy(".github/ISSUE_TEMPLATE/bug_report.yml");
+  const featureRequest = readPolicy(".github/ISSUE_TEMPLATE/feature_request.yml");
+  const issueConfig = readPolicy(".github/ISSUE_TEMPLATE/config.yml");
+  const pullRequest = readPolicy(".github/pull_request_template.md");
+  const dependabot = readPolicy(".github/dependabot.yml");
+
+  assert.match(security, /security\/advisories\/new/);
+  assert.doesNotMatch(security, /@(?:gmail|outlook|company)\./i);
+  assert.match(contributing, /Conventional Commits/);
+  assert.match(contributing, /feature\/|fix\/|docs\//);
+  assert.match(contributing, /Co-Authored-By/);
+  assert.match(support, /GitHub Issues/);
+  assert.match(support, /private data|personal data/i);
+  assert.match(changelog, /0\.6\.0/);
+  assert.match(changelog, /private|unpublished/i);
+  assert.match(dependabot, /package-ecosystem: "github-actions"/);
+  assert.match(dependabot, /package-ecosystem: "npm"/);
+
+  assert.match(bugReport, /SDK version/);
+  assert.match(bugReport, /Node/);
+  assert.match(bugReport, /minimal reproduction/i);
+  assert.match(bugReport, /expected behavior/i);
+  assert.match(bugReport, /actual behavior/i);
+  assert.match(bugReport, /private data/i);
+  assert.match(featureRequest, /user problem/i);
+  assert.match(featureRequest, /portable behavior/i);
+  assert.match(featureRequest, /alternatives/i);
+  assert.match(featureRequest, /compatibility impact/i);
+  assert.match(featureRequest, /RFC/i);
+  assert.match(issueConfig, /blank_issues_enabled: false/);
+  assert.match(issueConfig, /security\/advisories\/new/);
+  assert.match(pullRequest, /tests/i);
+  assert.match(pullRequest, /compatibility/i);
+  assert.match(pullRequest, /security|privacy/i);
+  assert.match(pullRequest, /documentation/i);
+  assert.match(pullRequest, /release impact/i);
+  assert.match(pullRequest, /private data/i);
+  assert.match(dependabot, /interval: "weekly"/);
+  assert.match(dependabot, /open-pull-requests-limit:/);
+  assert.doesNotMatch(dependabot, /auto-merge/i);
+  assert.equal(existsSync(join(repositoryRoot, "CODE_OF_CONDUCT.md")), false);
+  const workflows = join(repositoryRoot, ".github/workflows");
+  if (existsSync(workflows)) {
+    assert.equal(
+      readdirSync(workflows).some((name) => /auto-merge/i.test(name)),
+      false,
+    );
+  }
+});
