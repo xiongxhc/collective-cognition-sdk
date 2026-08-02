@@ -793,6 +793,26 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
     release.raw,
     /^ {10}GH_TOKEN: \$\{\{ github\.token \}\}$/m,
   );
+  assert.deepEqual(shellControlLines(release), [
+    "set -euo pipefail",
+    'release_dir="${{ runner.temp }}/github-prerelease/first"',
+    "assets=(",
+    '"$release_dir/SHA256SUMS"',
+    '"$release_dir/collective-cognition-sdk-0.6.0.cdx.json"',
+    '"$release_dir/collective-cognition-sdk-0.6.0.tgz"',
+    '"$release_dir/release-manifest.json"',
+    ")",
+    "verify_existing_release() {",
+    'local release_json="$1"',
+    'RELEASE_JSON="$release_json" node --input-type=module <<\'NODE\'',
+    "}",
+    'if release_json="$(gh release view "$GITHUB_REF_NAME" --json isPrerelease,isDraft,assets)"; then',
+    'verify_existing_release "$release_json"',
+    "else",
+    'gh release create "$GITHUB_REF_NAME" --prerelease --verify-tag --generate-notes',
+    "fi",
+    'gh release upload "$GITHUB_REF_NAME" --clobber "${assets[@]}"',
+  ]);
   assert.equal(
     [...(release.run ?? "").matchAll(
       /gh release view "\$GITHUB_REF_NAME" --json isPrerelease,isDraft,assets/g,
@@ -1583,6 +1603,14 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
     workflow.replace("--clobber", "--clobber --latest"),
     `${workflow}\nunsafe: git tag --force v0.6.0\n`,
     `${workflow}\nNPM_TOKEN: forbidden\n`,
+    workflow.replace(
+      '            verify_existing_release "$release_json"\n',
+      '            if false; then\n              verify_existing_release "$release_json"\n            fi\n',
+    ),
+    workflow.replace(
+      '          gh release upload "$GITHUB_REF_NAME" --clobber "${assets[@]}"\n',
+      '          if false; then\n            gh release upload "$GITHUB_REF_NAME" --clobber "${assets[@]}"\n          fi\n',
+    ),
     wrapStepRun("Validate tag and package identity", "if false; then", "fi"),
     wrapStepRun("Verify exact GitHub release inventory", "if false; then", "fi"),
     wrapStepRun("Run full SDK verification", "case never in match)", ";; esac"),
@@ -1590,9 +1618,18 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
     wrapStepRun("Run full SDK verification", "until true; do", "done"),
     wrapStepRun("Verify deterministic distribution assets and clean installation", "while false; do", "done"),
     wrapStepRun("Validate tag and package identity", "(", ")"),
+    wrapStepRun("Create or update GitHub prerelease", "case never in match)", ";; esac"),
+    wrapStepRun("Create or update GitHub prerelease", "for item in; do", "done"),
+    wrapStepRun("Create or update GitHub prerelease", "while false; do", "done"),
+    wrapStepRun("Create or update GitHub prerelease", "until true; do", "done"),
+    wrapStepRun("Create or update GitHub prerelease", "(", ")"),
     workflow.replace(
       "          set -euo pipefail\n          npm test\n",
       "          set -euo pipefail\n          eval 'exit 0'\n          npm test\n",
+    ),
+    workflow.replace(
+      '          release_dir="${{ runner.temp }}/github-prerelease/first"\n',
+      '          eval \'exit 0\'\n          release_dir="${{ runner.temp }}/github-prerelease/first"\n',
     ),
     ...controlledSteps.flatMap((name) => [
       addStepControl(name, "if: ${{ false }}"),
