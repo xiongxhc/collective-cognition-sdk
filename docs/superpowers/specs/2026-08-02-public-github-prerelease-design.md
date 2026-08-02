@@ -56,9 +56,9 @@ The release identity is fixed:
 - npm package guard: `"private": true`;
 - npm publication: forbidden.
 
-The tag must point to the exact `master` commit selected for release. The tag
-workflow must reject a tag whose text is not exactly `v` followed by the
-package version or whose commit is not contained in `origin/master`.
+The tag must point to the exact current `origin/master` commit selected for
+release. The tag workflow must reject a tag whose text is not exactly `v`
+followed by the package version or whose commit differs from `origin/master`.
 
 ## Release Assets
 
@@ -83,9 +83,13 @@ become non-empty; supporting those fields requires a reviewed generator change
 rather than silently emitting an incomplete SBOM. `SHA256SUMS` contains lowercase
 SHA-256 digests and exact asset filenames in lexical filename order.
 `release-manifest.json` records the repository, tag, commit SHA, package name,
-package version, private-package status, Node version, and each asset's exact
-filename, byte length, and SHA-256 digest. Its JSON encoding is canonical for
-this release tool: two-space indentation, LF line endings, and a final LF.
+package version, private-package status, Node version, and the tarball and SBOM
+payloads' exact filenames, byte lengths, and SHA-256 digests. `SHA256SUMS`
+covers the tarball, SBOM, and completed manifest in lexical filename order; it
+does not recursively hash itself. The GitHub release inventory and attestation
+still cover all four release assets. Manifest JSON encoding is canonical for
+this release tool: recursively sorted object keys, two-space indentation, LF
+line endings, and a final LF.
 
 GitHub artifact attestations cover the tarball, SBOM, release manifest, and
 checksum file. Attestation is a GitHub distribution integrity statement, not
@@ -129,7 +133,7 @@ Add `.github/workflows/github-prerelease.yml`, triggered only by tags matching
 1. check out the complete tagged history;
 2. fetch `origin/master`;
 3. verify the tag is exactly `v${package.version}`;
-4. verify the tagged commit is contained in `origin/master`;
+4. verify the tagged commit equals `origin/master`;
 5. verify `package.json` still has `"private": true`;
 6. run the full Ubuntu Node.js `24.14.0` verification matrix;
 7. build and independently verify the four release assets;
@@ -167,7 +171,12 @@ The script must:
   output targets before mutation;
 - require package name `collective-cognition-sdk`, version `0.6.0`, and
   `private: true`;
-- run `npm pack --json` into the explicit output directory;
+- derive the manifest commit from `git rev-parse HEAD` and require a full
+  lowercase 40-hex SHA;
+- run the reviewed local `npm run --ignore-scripts build` before packing so a
+  clean checkout cannot emit a source-incomplete tarball;
+- run local `npm pack --json --ignore-scripts --offline` into the explicit
+  output directory so package lifecycle scripts and registry access cannot run;
 - require exactly one tarball with the expected filename;
 - generate the exact deterministic CycloneDX `1.6` document and reject
   unsupported runtime dependency fields;
@@ -241,7 +250,7 @@ Add release-readiness tests that fail if:
 - tag and package versions can diverge;
 - release assets differ from the exact four-file inventory;
 - checksum order or bytes are nondeterministic;
-- the manifest omits an asset, digest, length, private status, tag, or commit;
+- the manifest omits a payload, digest, length, private status, tag, or commit;
 - the SBOM is not the exact supported CycloneDX `1.6` structure;
 - the tarball package allowlist or installed CLI workflow changes;
 - release tooling enters the npm tarball;
