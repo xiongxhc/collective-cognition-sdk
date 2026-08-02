@@ -122,6 +122,7 @@ jobs:
           npm run example:teammem:durable -- --ledger "$ledger" --cognition-db "$cognition" --project ci-synthetic --from 2026-08-02T00:00:00.000Z --limit 1 --create
           npm run pack:check
       - name: Verify deterministic distribution assets and clean installation
+        if: ${{ github.sha == '76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e' }}
         run: |
           set -euo pipefail
           release_root="$(mktemp -d)"

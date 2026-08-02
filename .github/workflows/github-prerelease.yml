@@ -370,6 +370,7 @@ jobs:
       - name: Create or update GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           release_dir="${{ runner.temp }}/github-prerelease-assets"
@@ -412,6 +413,7 @@ jobs:
       - name: Verify exact GitHub release inventory
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           release_json="$(gh release view "$GITHUB_REF_NAME" --json isPrerelease,isDraft,assets)"

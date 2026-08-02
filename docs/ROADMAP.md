@@ -83,7 +83,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** In progress. The compatibility, Portable Cognition, and Host Integration slices are delivered and final-review verified; broader Phase 3 work remains. GitHub prerelease distribution readiness is implemented, but public release evidence remains unobserved and npm publication remains blocked.
+**Status:** In progress. The compatibility, Portable Cognition, and Host Integration slices are delivered and final-review verified; broader Phase 3 work remains. The experimental `v0.6.0` GitHub prerelease is observed and verified, while npm publication remains blocked.
 
 **Active next slice**
 
@@ -211,21 +211,27 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
   inventory remain unchanged. Final tarball SHA-256
   `3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe`
   is enforced against later byte drift.
-- [ ] Observed public release evidence: release URL, merge SHA, tag target SHA,
-  workflow run URL, asset digests, attestation result, clean installation,
-  imported subpaths, installed CLI checks, private vulnerability reporting, and
-  npm-unpublished status. Record these only after inspection.
+- [x] Observed public release evidence:
+  - The experimental [`v0.6.0` prerelease](https://github.com/xiongxhc/collective-cognition-sdk/releases/tag/v0.6.0) is public, `prerelease: true`, and `draft: false`.
+  - Squash merge and tag target commit: `76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e`; annotated tag object: `4b93ec6df71e47196b55b5ca7325c07b0612673f`.
+  - [Pull-request CI run `30766556678`](https://github.com/xiongxhc/collective-cognition-sdk/actions/runs/30766556678) passed distribution verification plus Ubuntu Node.js `24.9.0`, Ubuntu Node.js `24.14.0`, macOS Node.js `24.14.0`, and Windows Node.js `24.14.0`.
+  - [Tag workflow run `30766660796`](https://github.com/xiongxhc/collective-cognition-sdk/actions/runs/30766660796) passed immutable-tag verification, full SDK verification, deterministic asset verification, transfer verification, and all four attestations. Its publication step then failed because the no-checkout job lacked GitHub CLI repository context. The exact transferred, checksummed, and attested artifact was independently reverified and published without moving the tag. The workflow now sets `GH_REPO` from `github.repository` on both GitHub CLI steps.
+  - Post-release branch CI runs the current examples and package checks, but reconstructs the byte-pinned `v0.6.0` release assets only when `github.sha` equals release commit `76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e`. This keeps current public documentation accurate without presenting later `0.6.0` source bytes as the released tarball.
+  - Asset SHA-256 digests: `SHA256SUMS` `546b57b8115cd14d8c36b93464069c4e599fbb1a2c37b65dbe65d0417d92ed91`; SBOM `62fdd909980cdfa6e8538061f63e2be9aa189ec4b79b35a8d579e229bb7b5525`; tarball `3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe`; manifest `2a9ce563234df4f6617001fc944fe827b562ffb26bfb63edd77893e311f35766`.
+  - GitHub attestation verification passed for all four assets against signer workflow `.github/workflows/github-prerelease.yml`, source ref `refs/tags/v0.6.0`, and source digest `76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e`; [attestation record](https://github.com/xiongxhc/collective-cognition-sdk/attestations/38461049).
+  - A clean Node.js `24.14.0` consumer installation from the downloaded tarball imported all seven JavaScript runtime subpaths and passed the generic validator, team-memory CLI, and Markdown CLI checks.
+  - Private vulnerability reporting is enabled. The unauthenticated exact npm-registry version request returned `404`, and `package.json` retains `"private": true`; `collective-cognition-sdk@0.6.0` remains npm-unpublished.
 
 **Release execution checklist**
 
-- [ ] Complete the local Node 24 verification gate and two identical asset
+- [x] Complete the local Node 24 verification gate and two identical asset
   builds on the reviewed feature head.
-- [ ] Open, review, and squash-merge the feature pull request; delete its
+- [x] Open, review, and squash-merge the feature pull request; delete its
   branch and verify local and remote `master` match.
-- [ ] Enable and verify private vulnerability reporting before tagging.
-- [ ] Create one annotated `v0.6.0` tag on verified `master` and push only that
+- [x] Enable and verify private vulnerability reporting before tagging.
+- [x] Create one annotated `v0.6.0` tag on verified `master` and push only that
   tag; do not force, delete, or move a public tag.
-- [ ] Wait for GitHub Actions, verify prerelease and not-latest state, download
+- [x] Wait for GitHub Actions, verify prerelease and not-latest state, download
   the four assets, and verify checksums, manifest and SBOM bytes and semantics,
   tag commit, private state, Node/npm versions, attestations, every public
   JavaScript/JSON/text subpath, all installed CLIs, and an unauthenticated exact
@@ -239,7 +245,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 4: Adapter Ecosystem Foundations
 
-**Status:** Active. The SQLite database persistence adapter, maintained source-connector slice, and [Markdown cognition adapter](markdown-cognition-adapter-guide.md) are implemented and final-review verified. The Markdown slice includes the private, unpublished package `0.6.0` export, executable, compatibility baseline, exact package allowlist, clean-consumer workflow, and temporary-vault acceptance. GitHub prerelease verification is an implemented procedure whose public evidence remains unobserved.
+**Status:** Active. The SQLite database persistence adapter, maintained source-connector slice, and [Markdown cognition adapter](markdown-cognition-adapter-guide.md) are implemented and final-review verified. The Markdown slice includes the private, npm-unpublished package `0.6.0` export, executable, compatibility baseline, exact package allowlist, clean-consumer workflow, and temporary-vault acceptance. The experimental `v0.6.0` GitHub prerelease is observed and verified as recorded in Phase 3.
 
 **Entry criteria**
 
