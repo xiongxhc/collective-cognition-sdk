@@ -77,6 +77,8 @@ function readJson(path: string): unknown {
 
 const forbiddenPublicationOrAuthentication =
   /\b(?:npm\s+(?:publish|dist-tag|deprecate|unpublish|access|owner|team|org|hook|star|unstar|profile|token|login|adduser|logout|whoami)|NPM_TOKEN|NODE_AUTH_TOKEN|npm_[A-Za-z0-9_]*token|_auth|_authToken|authToken)\b/i;
+const forbiddenRegistryConfiguration =
+  /(?:\bnpm\s+(?:(?:config\s+)?(?:set|delete|unset))\b|\bnpm_config_(?:registry|userconfig|globalconfig|always_auth|_?auth(?:token)?)\b|(?:^|\s)--(?:registry|userconfig|globalconfig|always-auth|_auth(?:Token)?)(?:=|\s+)\S+|(?:^|[\s'"])(?:(?:@[^\s:=]+:)?registry|always-auth|_auth(?:Token)?)\s*=\s*\S+|\.npmrc\b)/i;
 
 function assertSafePackageScripts(scripts: Readonly<Record<string, string>>): void {
   for (const [name, script] of Object.entries(scripts)) {
@@ -84,6 +86,11 @@ function assertSafePackageScripts(scripts: Readonly<Record<string, string>>): vo
       script,
       forbiddenPublicationOrAuthentication,
       `package script ${name} must not publish or use authentication tokens`,
+    );
+    assert.doesNotMatch(
+      script,
+      forbiddenRegistryConfiguration,
+      `package script ${name} must not reconfigure npm registry or authentication`,
     );
   }
 }
@@ -362,6 +369,26 @@ function commandLines(step: ParsedWorkflowStep): string[] {
     .filter(Boolean);
 }
 
+function shellControlLines(step: ParsedWorkflowStep): string[] {
+  const lines: string[] = [];
+  let heredoc: string | undefined;
+  for (const line of (step.run ?? "").split("\n")) {
+    const trimmed = line.trim();
+    if (heredoc !== undefined) {
+      if (trimmed === heredoc) {
+        heredoc = undefined;
+      }
+      continue;
+    }
+    lines.push(trimmed);
+    const delimiter = line.match(/<<['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?\s*$/)?.[1];
+    if (delimiter !== undefined) {
+      heredoc = delimiter;
+    }
+  }
+  return lines.filter(Boolean);
+}
+
 function normalizedVerificationBody(step: ParsedWorkflowStep): string {
   return (step.run ?? "")
     .split("\n")
@@ -386,6 +413,7 @@ function assertReadOnlyCiWorkflow(workflow: string): void {
     "workflow must not use YAML aliases",
   );
   assert.doesNotMatch(yaml, forbiddenPublicationOrAuthentication);
+  assert.doesNotMatch(yaml, forbiddenRegistryConfiguration);
   assert.doesNotMatch(yaml, /\.npmrc\b/i);
   assert.doesNotMatch(yaml, /^\s*packages:\s*['"]?write['"]?\s*$/mi);
   const parsed = parseCiWorkflow(yaml);
@@ -564,6 +592,7 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
   assert.doesNotMatch(workflow, /\t/, "workflow indentation must not use tabs");
   assert.doesNotMatch(yaml, /(?:^|[\s:[{,])\*[A-Za-z_][A-Za-z0-9_-]*/m);
   assert.doesNotMatch(yaml, forbiddenPublicationOrAuthentication);
+  assert.doesNotMatch(yaml, forbiddenRegistryConfiguration);
   assert.doesNotMatch(yaml, /\.npmrc\b/i);
   assert.doesNotMatch(yaml, /^\s*packages:\s*['"]?write['"]?\s*$/mi);
   assert.doesNotMatch(yaml, /\bworkflow_dispatch\b/);
@@ -687,6 +716,20 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
     (validate.run ?? "").indexOf("git fetch --no-tags origin master") <
       (validate.run ?? "").indexOf("git cat-file -t"),
   );
+  assert.deepEqual(shellControlLines(validate), [
+    "set -euo pipefail",
+    'test "$GITHUB_REF_TYPE" = "tag"',
+    'package_version="$(node -p "require(\'./package.json\').version")"',
+    'package_private="$(node -p "require(\'./package.json\').private")"',
+    'test "$GITHUB_REF_NAME" = "v$package_version"',
+    'test "$package_private" = "true"',
+    "git fetch --no-tags origin master",
+    'test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = "tag"',
+    'tag_commit="$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{}")"',
+    'test "$tag_commit" = "$GITHUB_SHA"',
+    'test "$tag_commit" = "$(git rev-parse origin/master)"',
+    'test "$GITHUB_SHA" = "$(git rev-parse origin/master)"',
+  ]);
 
   const fullVerification = assertUnconditional(job, "Run full SDK verification");
   assert.ok(steps.indexOf(install) < steps.indexOf(fullVerification));
@@ -731,6 +774,7 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
   assert.match(distribution.run ?? "", /\$\{\{ runner\.temp \}\}\/github-prerelease/);
 
   const attest = assertUnconditional(job, "Attest release assets");
+  assert.equal(attest.run, undefined);
   const subjectPaths = [...attest.raw.matchAll(/^ {12}([^\s].*)$/gm)].map(
     (match) => match[1],
   );
@@ -743,33 +787,24 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
     "Create or update GitHub prerelease",
     ["name", "env", "run"],
   );
+  assert.ok(steps.indexOf(attest) < steps.indexOf(release));
   assert.deepEqual(Object.keys(release.properties), ["name", "env", "run"]);
   assert.match(
     release.raw,
     /^ {10}GH_TOKEN: \$\{\{ github\.token \}\}$/m,
   );
   assert.equal(
-    steps.filter((step) => /GH_TOKEN/.test(step.raw)).length,
-    1,
-  );
-  assert.equal(
     [...(release.run ?? "").matchAll(
       /gh release view "\$GITHUB_REF_NAME" --json isPrerelease,isDraft,assets/g,
     )].length,
-    2,
+    1,
   );
-  assert.match(release.run ?? "", /^verify_release_inventory\(\) \{$/m);
+  assert.match(release.run ?? "", /^verify_existing_release\(\) \{$/m);
   assert.match(release.run ?? "", /assert\.equal\(release\.isPrerelease, true\);/);
   assert.match(release.run ?? "", /assert\.equal\(release\.isDraft, false\);/);
   assert.match(release.run ?? "", /assert\.equal\(new Set\(names\)\.size, names\.length\);/);
   assert.match(release.run ?? "", /assert\.equal\(expectedNames\.includes\(name\), true\);/);
-  assert.match(release.run ?? "", /assert\.deepEqual\(\[\.\.\.names\]\.sort\(\), expectedNames\);/);
-  assert.deepEqual(
-    [...(release.run ?? "").matchAll(
-      /^\s*verify_release_inventory (allowed|exact) "\$release_json"$/gm,
-    )].map((match) => match[1]),
-    ["allowed", "exact"],
-  );
+  assert.match(release.run ?? "", /^\s*verify_existing_release "\$release_json"$/m);
   assert.match(
     release.run ?? "",
     /gh release create "\$GITHUB_REF_NAME" --prerelease --verify-tag --generate-notes/,
@@ -784,6 +819,29 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
     (uploadAssets[1] as string).split("\n").map((line) => line.trim()).filter(Boolean),
     expectedAssets.map((asset) => `"$release_dir/${asset}"`),
   );
+
+  const inventory = assertUnconditional(
+    job,
+    "Verify exact GitHub release inventory",
+    ["name", "env", "run"],
+  );
+  assert.ok(steps.indexOf(release) < steps.indexOf(inventory));
+  assert.deepEqual(Object.keys(inventory.properties), ["name", "env", "run"]);
+  assert.match(inventory.raw, /^ {10}GH_TOKEN: \$\{\{ github\.token \}\}$/m);
+  assert.deepEqual(
+    steps.filter((step) => /GH_TOKEN/.test(step.raw)).map((step) => step.properties.name),
+    ["Create or update GitHub prerelease", "Verify exact GitHub release inventory"],
+  );
+  assert.deepEqual(shellControlLines(inventory), [
+    "set -euo pipefail",
+    'release_json="$(gh release view "$GITHUB_REF_NAME" --json isPrerelease,isDraft,assets)"',
+    'RELEASE_JSON="$release_json" node --input-type=module <<\'NODE\'',
+  ]);
+  assert.match(inventory.run ?? "", /assert\.equal\(release\.isPrerelease, true\);/);
+  assert.match(inventory.run ?? "", /assert\.equal\(release\.isDraft, false\);/);
+  assert.match(inventory.run ?? "", /assert\.equal\(Array\.isArray\(release\.assets\), true\);/);
+  assert.match(inventory.run ?? "", /assert\.equal\(new Set\(names\)\.size, names\.length\);/);
+  assert.match(inventory.run ?? "", /assert\.deepEqual\(\[\.\.\.names\]\.sort\(\), expectedNames\);/);
 }
 
 function assertGitHubReleaseConfig(config: string): void {
@@ -1391,6 +1449,17 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
     `      - name: ${name}\n`,
     `      - name: ${name}\n        ${control}\n`,
   );
+  const wrapStepRun = (name: string, opener: string, closer: string): string => {
+    const headerIndex = workflow.indexOf(`      - name: ${name}\n`);
+    assert.notEqual(headerIndex, -1);
+    const runMarker = "        run: |\n";
+    const runIndex = workflow.indexOf(runMarker, headerIndex);
+    assert.notEqual(runIndex, -1);
+    const bodyIndex = runIndex + runMarker.length;
+    const nextStep = workflow.indexOf("\n      - name: ", bodyIndex);
+    const bodyEnd = nextStep === -1 ? workflow.length : nextStep + 1;
+    return `${workflow.slice(0, bodyIndex)}          ${opener}\n${workflow.slice(bodyIndex, bodyEnd)}          ${closer}\n${workflow.slice(bodyEnd)}`;
+  };
   const controlledSteps = [
     "Validate tag and package identity",
     "Run full SDK verification",
@@ -1398,6 +1467,7 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
     "Verify deterministic distribution assets and clean installation",
     "Attest release assets",
     "Create or update GitHub prerelease",
+    "Verify exact GitHub release inventory",
   ];
   const registryMutations = [
     "dist-tag add collective-cognition-sdk@0.6.0 latest",
@@ -1416,6 +1486,23 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
     "adduser",
     "logout",
     "whoami",
+  ];
+  const registryConfigurationMutations = [
+    "npm config set registry https://example.invalid/",
+    "npm config delete registry",
+    "npm set registry https://example.invalid/",
+    "npm config set @scope:registry https://example.invalid/",
+    "npm config set //example.invalid/:_authToken synthetic",
+    "npm config set always-auth true",
+    "npm_config_registry=https://example.invalid/ npm ci",
+    "NPM_CONFIG_REGISTRY=https://example.invalid/ npm ci",
+    "npm_config_userconfig=/tmp/npmrc npm ci",
+    "npm_config__auth=synthetic npm ci",
+    "npm_config_always_auth=true npm ci",
+    "npm ci --registry=https://example.invalid/",
+    "npm ci --userconfig=/tmp/npmrc",
+    "registry=https://example.invalid/",
+    "printf registry=https://example.invalid/ > .npmrc",
   ];
   const unsafeWorkflows = [
     workflow.replace('      - "v*"', '      - "release-*"'),
@@ -1489,10 +1576,6 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
       "          assert.deepEqual([...names].sort(), expectedNames);\n",
       "",
     ),
-    workflow.replace(
-      '          verify_release_inventory exact "$release_json"',
-      '          verify_release_inventory allowed "$release_json"',
-    ),
     workflow.replace("--prerelease --verify-tag --generate-notes", "--verify-tag --generate-notes"),
     workflow.replace("--prerelease --verify-tag --generate-notes", "--prerelease --generate-notes"),
     workflow.replace("--prerelease --verify-tag --generate-notes", "--prerelease --verify-tag"),
@@ -1500,11 +1583,23 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
     workflow.replace("--clobber", "--clobber --latest"),
     `${workflow}\nunsafe: git tag --force v0.6.0\n`,
     `${workflow}\nNPM_TOKEN: forbidden\n`,
+    wrapStepRun("Validate tag and package identity", "if false; then", "fi"),
+    wrapStepRun("Verify exact GitHub release inventory", "if false; then", "fi"),
+    wrapStepRun("Run full SDK verification", "case never in match)", ";; esac"),
+    wrapStepRun("Run full SDK verification", "for item in; do", "done"),
+    wrapStepRun("Run full SDK verification", "until true; do", "done"),
+    wrapStepRun("Verify deterministic distribution assets and clean installation", "while false; do", "done"),
+    wrapStepRun("Validate tag and package identity", "(", ")"),
+    workflow.replace(
+      "          set -euo pipefail\n          npm test\n",
+      "          set -euo pipefail\n          eval 'exit 0'\n          npm test\n",
+    ),
     ...controlledSteps.flatMap((name) => [
       addStepControl(name, "if: ${{ false }}"),
       addStepControl(name, "continue-on-error: true"),
     ]),
     ...registryMutations.map((command) => `${workflow}\nunsafe: npm ${command}\n`),
+    ...registryConfigurationMutations.map((command) => `${workflow}\nunsafe: ${command}\n`),
   ];
 
   for (const [index, unsafeWorkflow] of unsafeWorkflows.entries()) {
@@ -1523,6 +1618,13 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
     assert.throws(
       () => assertGitHubReleaseConfig(unsafeConfig),
       `unsafe release config mutation ${index} must be rejected`,
+    );
+  }
+
+  for (const command of registryConfigurationMutations) {
+    assert.throws(
+      () => assertSafePackageScripts({ release: command }),
+      `package script registry reconfiguration must be rejected: ${command}`,
     );
   }
 });

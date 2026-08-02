@@ -245,14 +245,12 @@ jobs:
             "$release_dir/release-manifest.json"
           )
 
-          verify_release_inventory() {
-            local mode="$1"
-            local release_json="$2"
-            RELEASE_INVENTORY_MODE="$mode" RELEASE_JSON="$release_json" node --input-type=module <<'NODE'
+          verify_existing_release() {
+            local release_json="$1"
+            RELEASE_JSON="$release_json" node --input-type=module <<'NODE'
           import assert from "node:assert/strict";
 
           const release = JSON.parse(process.env.RELEASE_JSON);
-          const mode = process.env.RELEASE_INVENTORY_MODE;
           const expectedNames = [
             "SHA256SUMS",
             "collective-cognition-sdk-0.6.0.cdx.json",
@@ -267,19 +265,35 @@ jobs:
           for (const name of names) {
             assert.equal(expectedNames.includes(name), true);
           }
-          if (mode === "exact") {
-            assert.deepEqual([...names].sort(), expectedNames);
-          } else {
-            assert.equal(mode, "allowed");
-          }
           NODE
           }
 
           if release_json="$(gh release view "$GITHUB_REF_NAME" --json isPrerelease,isDraft,assets)"; then
-            verify_release_inventory allowed "$release_json"
+            verify_existing_release "$release_json"
           else
             gh release create "$GITHUB_REF_NAME" --prerelease --verify-tag --generate-notes
           fi
           gh release upload "$GITHUB_REF_NAME" --clobber "${assets[@]}"
+      - name: Verify exact GitHub release inventory
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
           release_json="$(gh release view "$GITHUB_REF_NAME" --json isPrerelease,isDraft,assets)"
-          verify_release_inventory exact "$release_json"
+          RELEASE_JSON="$release_json" node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+
+          const release = JSON.parse(process.env.RELEASE_JSON);
+          const expectedNames = [
+            "SHA256SUMS",
+            "collective-cognition-sdk-0.6.0.cdx.json",
+            "collective-cognition-sdk-0.6.0.tgz",
+            "release-manifest.json",
+          ];
+          assert.equal(release.isPrerelease, true);
+          assert.equal(release.isDraft, false);
+          assert.equal(Array.isArray(release.assets), true);
+          const names = release.assets.map((asset) => asset.name);
+          assert.equal(new Set(names).size, names.length);
+          assert.deepEqual([...names].sort(), expectedNames);
+          NODE
