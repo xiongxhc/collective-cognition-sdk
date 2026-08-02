@@ -157,7 +157,8 @@ uploaded with pinned `actions/upload-artifact`. A dependent publish job uses
 pinned `actions/download-artifact`, receives only `contents: write`,
 `id-token: write`, and `attestations: write`, and runs no checkout, package,
 dependency, or other repository code before revalidating, attesting, and
-publishing the transfer.
+publishing the transfer. Its GitHub CLI steps set `GH_REPO` from
+`github.repository` for explicit repository context in the no-checkout job.
 
 The workflow must contain no npm token, registry token, package write
 permission, `NODE_AUTH_TOKEN`, `.npmrc` mutation, or `npm publish` command.

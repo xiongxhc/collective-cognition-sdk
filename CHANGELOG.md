@@ -5,7 +5,8 @@ All notable changes to this experimental SDK are documented here. Versioning and
 ## 0.6.0
 
 - Adds the supported experimental Markdown adapter subpath, dedicated CLI, object-version ceiling, and related package artifacts.
-- Remains private and unpublished. If `v0.6.0` is observed as a GitHub prerelease, this first public artifact will be distributed only through that experimental release, not through npm publication; until then distribution is planned, not observed.
+- Accepts native Windows absolute team-memory database paths without changing the public API, schema, compatibility surface, or package inventory.
+- Is available as the experimental [`v0.6.0` GitHub prerelease](https://github.com/xiongxhc/collective-cognition-sdk/releases/tag/v0.6.0) while remaining private and npm-unpublished.
 
 ## 0.5.0
 

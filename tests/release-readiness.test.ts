@@ -42,13 +42,16 @@ const expectedAssets = [
 ];
 const expectedChecksumAssets = expectedAssets.slice(1);
 const expectedPackageScriptsSha256 = "574c12e5cc890227a58b16939ef1e0e861b9a011c4b8040f6df03ee4044534e3";
-const expectedCiWorkflowSha256 = "9d88b4a258164ec8311f1e4952845cac61ecdc9bab68f771075cc794a0940119";
-const expectedGitHubPrereleaseWorkflowSha256 = "2065215181dd769c9f6a49ae351f2ab02d1022004d6c2678b645139b56bd39da";
+const expectedCiWorkflowSha256 = "fcc4a9f4b3437779e85d084a086e99a55b18305c3f6a483c7f77f4ca83511a8d";
+const expectedGitHubPrereleaseWorkflowSha256 = "86794d89ce311731ff9b7e7addce329f7ea4fcd538d92660aa2733e28df9be2d";
 const expectedTarballSha256 = "3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe";
+const expectedReleaseCommit = "76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e";
 const expectedCommit = runGit(["rev-parse", "HEAD"]);
 const expectedNpmVersion = readNpmVersion();
 const releaseArtifactTest =
-  process.platform === "linux" && process.version === "v24.14.0"
+  process.platform === "linux" &&
+    process.version === "v24.14.0" &&
+    expectedCommit === expectedReleaseCommit
     ? test
     : test.skip;
 const publicationWrapperMutations = [
@@ -746,41 +749,23 @@ function assertReadOnlyCiWorkflow(workflow: string): void {
       'npm run example:teammem:durable -- --ledger "$ledger" --cognition-db "$cognition" --project ci-synthetic --from 2026-08-02T00:00:00.000Z --limit 1 --create',
     ),
   );
-  const distributionStep = assertUnconditional(
+  const releasedArtifactStep = requiredStep(
     distributionJob,
     "Verify deterministic distribution assets and clean installation",
   );
-  const distributionRunLines = commandLines(distributionStep);
-  assert.equal(distributionRunLines[0], "set -euo pipefail");
-  assert.deepEqual(
-    distributionRunLines.filter((line) => /^npm install\b/.test(line)),
-    [
-      'npm install --ignore-scripts --offline --no-audit --no-fund "$first/collective-cognition-sdk-0.6.0.tgz"',
-    ],
-  );
+  assert.deepEqual(Object.keys(releasedArtifactStep.properties), ["name", "if", "run"]);
   assert.equal(
-    distributionRunLines.filter(
+    releasedArtifactStep.properties.if,
+    `\${{ github.sha == '${expectedReleaseCommit}' }}`,
+  );
+  assert.equal(releasedArtifactStep.properties["continue-on-error"], undefined);
+  assert.equal(
+    commandLines(releasedArtifactStep).filter(
       (line) => /node scripts\/build-github-prerelease\.mjs\b/.test(line),
     ).length,
     2,
   );
-  assert.match(distributionStep.run ?? "", /\bcmp\b/);
-  assert.match(distributionStep.run ?? "", /sha256sum -c SHA256SUMS/);
-  assert.match(distributionStep.run ?? "", /JSON\.parse/);
-  assert.match(distributionStep.run ?? "", /bomFormat/);
-  assert.match(distributionStep.run ?? "", /release-manifest\.json/);
-
-  for (const line of distributionRunLines) {
-    if (/node scripts\/build-github-prerelease\.mjs\b/.test(line)) {
-      assert.match(line, /npm_config_ignore_scripts=true/);
-      assert.match(line, /npm_config_offline=true/);
-      assert.match(line, /--output\s+"\$[A-Za-z_][A-Za-z0-9_]*"$/);
-    }
-    if (/^npm (?:install|pack)\b/.test(line)) {
-      assert.match(line, /(?:^|\s)--ignore-scripts(?:\s|$)/);
-      assert.match(line, /(?:^|\s)--offline(?:\s|$)/);
-    }
-  }
+  assert.match(releasedArtifactStep.run ?? "", /sha256sum -c SHA256SUMS/);
 }
 
 function assertGitHubPrereleaseWorkflow(workflow: string): void {
@@ -1010,7 +995,7 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
   assert.ok(steps.indexOf(examples) < steps.indexOf(distribution));
   assert.equal(
     normalizedVerificationBody(distribution),
-    normalizedVerificationBody(assertUnconditional(
+    normalizedVerificationBody(requiredStep(
       ciDistributionJob,
       "Verify deterministic distribution assets and clean installation",
     )),
@@ -1071,6 +1056,10 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
     release.raw,
     /^ {10}GH_TOKEN: \$\{\{ github\.token \}\}$/m,
   );
+  assert.match(
+    release.raw,
+    /^ {10}GH_REPO: \$\{\{ github\.repository \}\}$/m,
+  );
   assert.deepEqual(shellControlLines(release), [
     "set -euo pipefail",
     'release_dir="${{ runner.temp }}/github-prerelease-assets"',
@@ -1126,8 +1115,13 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
   assert.ok(publishSteps.indexOf(release) < publishSteps.indexOf(inventory));
   assert.deepEqual(Object.keys(inventory.properties), ["name", "env", "run"]);
   assert.match(inventory.raw, /^ {10}GH_TOKEN: \$\{\{ github\.token \}\}$/m);
+  assert.match(inventory.raw, /^ {10}GH_REPO: \$\{\{ github\.repository \}\}$/m);
   assert.deepEqual(
     publishSteps.filter((step) => /GH_TOKEN/.test(step.raw)).map((step) => step.properties.name),
+    ["Create or update GitHub prerelease", "Verify exact GitHub release inventory"],
+  );
+  assert.deepEqual(
+    publishSteps.filter((step) => /GH_REPO/.test(step.raw)).map((step) => step.properties.name),
     ["Create or update GitHub prerelease", "Verify exact GitHub release inventory"],
   );
   assert.deepEqual(shellControlLines(inventory), [
@@ -1911,7 +1905,10 @@ test("public contribution and security policies preserve the prerelease boundary
   assert.match(support, /no (?:long-term support|LTS)|not (?:an? )?LTS/i);
   assert.match(changelog, /0\.6\.0/);
   assert.match(changelog, /private|unpublished/i);
-  assert.match(changelog, /if .*GitHub prerelease.*will be distributed|planned GitHub prerelease/is);
+  assert.match(
+    changelog,
+    /https:\/\/github\.com\/xiongxhc\/collective-cognition-sdk\/releases\/tag\/v0\.6\.0/,
+  );
   assert.doesNotMatch(changelog, /\bit is distributed\b/i);
   assert.match(dependabot, /package-ecosystem: "github-actions"/);
   assert.match(dependabot, /package-ecosystem: "npm"/);
@@ -2062,16 +2059,12 @@ test("CI policy scanner rejects unsafe workflow and package mutations", () => {
       "      - name: Run package tests\n        if: \${{ false }}\n        run: npm test",
     ),
     workflow.replace(
-      "      - name: Verify deterministic distribution assets and clean installation\n        run: |",
-      "      - name: Verify deterministic distribution assets and clean installation\n        continue-on-error: true\n        run: |",
+      `        if: \${{ github.sha == '${expectedReleaseCommit}' }}`,
+      "        if: ${{ true }}",
     ),
     workflow.replace(
-      "npm install --ignore-scripts --offline",
-      "npm install --ignore-scripts",
-    ),
-    workflow.replace(
-      "npm_config_ignore_scripts=true npm_config_offline=true node scripts/build-github-prerelease.mjs",
-      "node scripts/build-github-prerelease.mjs",
+      "npm ci --ignore-scripts --prefer-offline",
+      "npm ci --ignore-scripts",
     ),
   ];
 
@@ -2450,7 +2443,7 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
   }
 });
 
-test("public documentation defines an unobserved GitHub prerelease boundary", () => {
+test("public documentation records the observed GitHub prerelease boundary", () => {
   const readDocumentation = (path: string): string => {
     const file = join(repositoryRoot, path);
     assert.equal(existsSync(file), true, `${path} must exist`);
@@ -2477,6 +2470,9 @@ test("public documentation defines an unobserved GitHub prerelease boundary", ()
   }
 
   assert.match(readme, /https:\/\/github\.com\/xiongxhc\/collective-cognition-sdk\/releases\/download\//);
+  assert.match(readme, /https:\/\/github\.com\/xiongxhc\/collective-cognition-sdk\/releases\/tag\/v0\.6\.0/);
+  assert.doesNotMatch(readme, /no public release evidence|not evidence that a release already exists/i);
+  assert.doesNotMatch(readme, /Not implemented yet:[\s\S]*observed GitHub prerelease evidence/i);
   assert.match(readme, /npm install --ignore-scripts --offline \.\/collective-cognition-sdk-0\.6\.0\.tgz/);
   assert.match(readme, /shasum -a 256 -c SHA256SUMS/);
   assert.match(readme, /gh attestation verify "\$asset"/);
@@ -2496,9 +2492,17 @@ test("public documentation defines an unobserved GitHub prerelease boundary", ()
   assert.match(roadmap, /## Phase 3: Specification and Package Stabilization/);
   assert.match(roadmap, /GitHub prerelease distribution readiness/i);
   assert.match(roadmap, /## Phase 4: Adapter Ecosystem Foundations/);
-  assert.match(roadmap, /GitHub prerelease.*verification/i);
+  assert.match(roadmap, /GitHub prerelease.*observed and verified/i);
   assert.match(roadmap, /## Phase 5: Cross-Connector Interoperability\n\n\*\*Status:\*\* Next SDK development slice\./);
   assert.match(roadmap, /Release execution checklist/i);
+  assert.match(roadmap, /30766556678/);
+  assert.match(roadmap, /30766660796/);
+  assert.match(roadmap, /76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e/);
+  assert.match(roadmap, /4b93ec6df71e47196b55b5ca7325c07b0612673f/);
+  assert.match(roadmap, /attestations\/38461049/);
+  assert.match(roadmap, /publication step then failed.*lacked GitHub CLI repository context/s);
+  assert.match(roadmap, /exact transferred, checksummed, and attested artifact.*published without moving the tag/s);
+  assert.match(roadmap, /remains npm-unpublished/i);
   assert.match(rfcIndex, /RFC 0007: Markdown Cognition Adapter.*final-review verified/s);
 
   assert.match(runbook, /node --disable-warning=ExperimentalWarning --test tests\/release-readiness\.test\.ts/);
@@ -2531,10 +2535,11 @@ test("public documentation defines an unobserved GitHub prerelease boundary", ()
   assert.match(runbook, /request\.setTimeout\(/);
   assert.match(runbook, /assert\.equal\(statusCode, 404\)/);
   assert.match(runbook, /assert\.equal\(registryPayload, "Not Found"\)/);
+  assert.match(runbook, /GH_REPO.*github\.repository/s);
+  assert.match(runbook, /original no-checkout\s+publication step lacked explicit GitHub CLI repository context/s);
   assert.match(runbook, /new prerelease version rather than moving or retagging `v0\.6\.0`/i);
 
   assert.doesNotMatch(documentation, /\b(?:is|are|was|were)\s+(?:production[- ]ready|npm published|live vault accepted)\b/i);
-  assert.doesNotMatch(documentation, /release (?:URL|run ID|merge SHA|tag SHA):\s*https?:\/\/|release (?:URL|run ID|merge SHA|tag SHA):\s*[0-9a-f]{7,}/i);
 });
 
 test("prerelease documentation keeps verification fixtures and release predicates fail closed", () => {

@@ -4,7 +4,7 @@
 **Branch:** `feature/public-prerelease-readiness`
 **Correction parent:** `43d8d2e796c49db9e2503d58d646c138251a69f7`
 **Review source:** `.superpowers/sdd/2026-08-02-public-github-prerelease/final-review.md`
-**Status:** All I-1 through I-6, M-1/M-2, scoped residual R-1 through R-3, and Windows-EOL residual A-1 corrections are implemented and locally verified. Public GitHub/CI/release evidence remains intentionally unobserved.
+**Status:** Historical pre-release correction record. All I-1 through I-6, M-1/M-2, scoped residual R-1 through R-3, and Windows-EOL residual A-1 corrections were implemented and locally verified before publication. The statement that public release evidence was unobserved was superseded by the verified `v0.6.0` release recorded in `docs/ROADMAP.md`.
 
 ## Scope and Safety
 

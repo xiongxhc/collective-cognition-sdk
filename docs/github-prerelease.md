@@ -2,11 +2,12 @@
 
 This maintainer runbook prepares and verifies the experimental GitHub
 prerelease for private, unpublished package `0.6.0`. It does not authorize npm
-publication, remove `"private": true`, or treat a planned command as observed
-release evidence. The release must remain a prerelease and must not become
-GitHub's latest release.
+publication, remove `"private": true`, or treat a command for a future release
+as observed evidence. The [`v0.6.0` release](https://github.com/xiongxhc/collective-cognition-sdk/releases/tag/v0.6.0)
+is observed; it must remain a prerelease and must not become GitHub's latest
+release.
 
-The public release, once observed, contains exactly:
+The observed public release contains exactly:
 
 - `SHA256SUMS`;
 - `collective-cognition-sdk-0.6.0.cdx.json`;
@@ -21,6 +22,13 @@ The distribution verification environment is Ubuntu with Node.js `24.14.0`
 only. It runs examples, durable SQLite, deterministic assets, clean tarball
 installation, imports, and installed CLIs; the other three core-matrix
 environments do not verify those paths.
+
+The privileged no-checkout job sets `GH_REPO` from `github.repository` on its
+GitHub CLI steps so release operations have explicit repository context.
+After publication, branch CI reconstructs the byte-pinned `v0.6.0` assets only
+at release commit `76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e`; current examples and package
+checks continue on later commits without claiming that their changed
+documentation bytes are the released tarball.
 
 ## 1. Verify the Feature Head Locally
 
@@ -490,5 +498,13 @@ target SHA, workflow run URL, exact asset digests, tested Node/OS result,
 attestation verification, clean-install/import/CLI result, private
 vulnerability-reporting status, and npm-unpublished status in the roadmap.
 Use a documentation-only `docs/` branch and squash-merge it after CI.
+
+For `v0.6.0`, the immutable-tag verification, deterministic build, transfer
+verification, and all four attestations passed, but the original no-checkout
+publication step lacked explicit GitHub CLI repository context. Maintainers
+downloaded the exact workflow artifact, reverified its checksums and four
+attestations, and published those same bytes without moving the tag. The
+workflow now sets `GH_REPO` for both release API steps. Exact evidence and
+digests are recorded in the [roadmap](ROADMAP.md#github-prerelease-distribution-readiness).
 
 If any public tag verification fails, do not publish to npm and do not move or retag `v0.6.0`. Correct the reviewed implementation and issue a new prerelease version rather than moving or retagging `v0.6.0`.
