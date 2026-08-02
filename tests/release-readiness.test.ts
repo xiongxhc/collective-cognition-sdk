@@ -82,51 +82,272 @@ function assertSafePackageScripts(scripts: Readonly<Record<string, string>>): vo
   }
 }
 
-function workflowRunLines(workflow: string): string[] {
-  const commands: string[] = [];
-  let blockIndent: number | undefined;
-
-  for (const line of workflow.split("\n")) {
-    const trimmed = line.trim();
-    const indent = line.length - line.trimStart().length;
-    if (blockIndent !== undefined) {
-      if (!trimmed) {
-        continue;
-      }
-      if (indent > blockIndent) {
-        if (!trimmed.startsWith("#")) {
-          commands.push(trimmed);
-        }
-        continue;
-      }
-      blockIndent = undefined;
-    }
-    if (trimmed.startsWith("#")) {
-      continue;
-    }
-    const field = line.match(/^\s*(?:-\s*)?run:\s*(.*?)\s*$/);
-    if (!field) {
-      continue;
-    }
-    const value = field[1];
-    if (/^[>|]/.test(value)) {
-      blockIndent = indent;
-    } else {
-      commands.push(value.replace(/^['"]|['"]$/g, ""));
-    }
-  }
-
-  return commands;
+interface ParsedWorkflowStep {
+  readonly properties: Readonly<Record<string, string>>;
+  readonly run?: string;
+  readonly raw: string;
 }
 
-function workflowJob(workflow: string, name: string): string {
+interface ParsedWorkflowJob {
+  readonly properties: Readonly<Record<string, string>>;
+  readonly permissions?: Readonly<Record<string, string>> | string;
+  readonly steps: readonly ParsedWorkflowStep[];
+  readonly raw: string;
+}
+
+interface ParsedCiWorkflow {
+  readonly permissions: Readonly<Record<string, string>> | string;
+  readonly triggers: {
+    readonly pullRequest: boolean;
+    readonly pushBranches: readonly string[];
+    readonly workflowDispatch: boolean;
+  };
+  readonly jobs: Readonly<Record<string, ParsedWorkflowJob>>;
+}
+
+function yamlScalar(value: string): string {
+  return value.trim().replace(/^['"]|['"]$/g, "");
+}
+
+function indentation(line: string): number {
+  return line.length - line.trimStart().length;
+}
+
+function nestedMapping(
+  lines: readonly string[],
+  headerIndex: number,
+  childIndent: number,
+): Readonly<Record<string, string>> | string {
+  const inline = lines[headerIndex]?.match(/^\s*[a-z0-9_-]+:\s*(.*?)\s*$/)?.[1];
+  assert.notEqual(inline, undefined);
+  if (inline !== "") {
+    return yamlScalar(inline as string);
+  }
+
+  const values: Record<string, string> = {};
+  for (let index = headerIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index] as string;
+    if (!line.trim()) {
+      continue;
+    }
+    if (indentation(line) < childIndent) {
+      break;
+    }
+    if (indentation(line) !== childIndent) {
+      continue;
+    }
+    const entry = line.match(/^\s*([a-z0-9_-]+):\s*(.*?)\s*$/);
+    assert.ok(entry, `unsupported mapping entry: ${line}`);
+    values[entry[1] as string] = yamlScalar(entry[2] as string);
+  }
+  return values;
+}
+
+function parseWorkflowSteps(
+  lines: readonly string[],
+  stepsIndex: number,
+  end: number,
+): ParsedWorkflowStep[] {
+  const steps: ParsedWorkflowStep[] = [];
+  let index = stepsIndex + 1;
+
+  while (index < end) {
+    const line = lines[index] as string;
+    if (!/^ {6}- /.test(line)) {
+      index += 1;
+      continue;
+    }
+    const next = lines.findIndex(
+      (candidate, candidateIndex) =>
+        candidateIndex > index && candidateIndex < end && /^ {6}- /.test(candidate),
+    );
+    const stepEnd = next === -1 ? end : next;
+    const properties: Record<string, string> = {};
+    let run: string | undefined;
+    const first = line.match(/^ {6}- ([a-z0-9_-]+):\s*(.*?)\s*$/);
+    assert.ok(first, `unsupported step entry: ${line}`);
+    properties[first[1] as string] = yamlScalar(first[2] as string);
+
+    for (let propertyIndex = index + 1; propertyIndex < stepEnd; propertyIndex += 1) {
+      const propertyLine = lines[propertyIndex] as string;
+      if (indentation(propertyLine) !== 8 || !propertyLine.trim()) {
+        continue;
+      }
+      const property = propertyLine.match(/^ {8}([a-z0-9_-]+):\s*(.*?)\s*$/);
+      assert.ok(property, `unsupported step property: ${propertyLine}`);
+      const name = property[1] as string;
+      const value = property[2] as string;
+      if (name === "run" && /^[>|]/.test(value)) {
+        properties[name] = value;
+        const block: string[] = [];
+        for (let blockIndex = propertyIndex + 1; blockIndex < stepEnd; blockIndex += 1) {
+          const blockLine = lines[blockIndex] as string;
+          if (blockLine.trim() && indentation(blockLine) <= 8) {
+            break;
+          }
+          block.push(blockLine.startsWith("          ") ? blockLine.slice(10) : "");
+        }
+        run = block.join("\n").trimEnd();
+      } else {
+        properties[name] = yamlScalar(value);
+        if (name === "run") {
+          run = yamlScalar(value);
+        }
+      }
+    }
+    steps.push({
+      properties,
+      ...(run === undefined ? {} : { run }),
+      raw: lines.slice(index, stepEnd).join("\n"),
+    });
+    index = stepEnd;
+  }
+
+  return steps;
+}
+
+function parseCiWorkflow(workflow: string): ParsedCiWorkflow {
   const lines = workflow.split("\n");
-  const start = lines.indexOf(`  ${name}:`);
-  assert.notEqual(start, -1, `workflow job ${name} must exist`);
-  const next = lines.findIndex(
-    (line, index) => index > start && /^  [a-z0-9_-]+:$/.test(line),
+  const topLevelKeys = lines.flatMap((line) => {
+    if (indentation(line) !== 0 || !line.trim()) {
+      return [];
+    }
+    const entry = line.match(/^([a-z0-9_-]+):/);
+    return entry ? [entry[1] as string] : [];
+  });
+  assert.deepEqual(
+    topLevelKeys,
+    ["name", "on", "permissions", "concurrency", "jobs"],
+    "workflow top-level structure must remain closed",
   );
-  return lines.slice(start, next === -1 ? undefined : next).join("\n");
+  const permissionsIndex = lines.indexOf("permissions:");
+  const onIndex = lines.indexOf("on:");
+  const jobsIndex = lines.indexOf("jobs:");
+  assert.notEqual(permissionsIndex, -1, "workflow permissions must exist");
+  assert.notEqual(onIndex, -1, "literal GitHub Actions on key must exist");
+  assert.notEqual(jobsIndex, -1, "workflow jobs must exist");
+
+  const triggerLines = lines.slice(onIndex + 1, permissionsIndex);
+  assert.deepEqual(
+    triggerLines.filter((line) => line.trim()),
+    [
+      "  pull_request:",
+      "  push:",
+      "    branches:",
+      "      - master",
+      "  workflow_dispatch:",
+    ],
+    "workflow trigger structure must remain closed",
+  );
+  const pushIndex = triggerLines.indexOf("  push:");
+  const triggers = {
+    pullRequest: triggerLines.includes("  pull_request:"),
+    pushBranches: pushIndex === -1
+      ? []
+      : triggerLines
+        .slice(pushIndex + 1)
+        .filter((line) => /^ {6}- /.test(line))
+        .map((line) => yamlScalar(line.slice(8))),
+    workflowDispatch: triggerLines.includes("  workflow_dispatch:"),
+  };
+  const jobs: Record<string, ParsedWorkflowJob> = {};
+
+  for (let index = jobsIndex + 1; index < lines.length; index += 1) {
+    const jobHeader = (lines[index] as string).match(/^ {2}([a-z0-9_-]+):$/);
+    if (!jobHeader) {
+      continue;
+    }
+    const name = jobHeader[1] as string;
+    const next = lines.findIndex(
+      (line, candidateIndex) => candidateIndex > index && /^ {2}[a-z0-9_-]+:$/.test(line),
+    );
+    const end = next === -1 ? lines.length : next;
+    const properties: Record<string, string> = {};
+    let permissions: Readonly<Record<string, string>> | string | undefined;
+    let steps: ParsedWorkflowStep[] = [];
+
+    for (let propertyIndex = index + 1; propertyIndex < end; propertyIndex += 1) {
+      const propertyLine = lines[propertyIndex] as string;
+      if (indentation(propertyLine) !== 4 || !propertyLine.trim()) {
+        continue;
+      }
+      const property = propertyLine.match(/^ {4}([a-z0-9_-]+):\s*(.*?)\s*$/);
+      assert.ok(property, `unsupported job property: ${propertyLine}`);
+      const propertyName = property[1] as string;
+      if (propertyName === "permissions") {
+        permissions = nestedMapping(lines, propertyIndex, 6);
+      } else if (propertyName === "steps") {
+        steps = parseWorkflowSteps(lines, propertyIndex, end);
+      } else {
+        properties[propertyName] = yamlScalar(property[2] as string);
+      }
+    }
+    jobs[name] = {
+      properties,
+      ...(permissions === undefined ? {} : { permissions }),
+      steps,
+      raw: lines.slice(index, end).join("\n"),
+    };
+    index = end - 1;
+  }
+
+  return {
+    permissions: nestedMapping(lines, permissionsIndex, 2),
+    triggers,
+    jobs,
+  };
+}
+
+function requiredStep(job: ParsedWorkflowJob, name: string): ParsedWorkflowStep {
+  const matches = job.steps.filter((step) => step.properties.name === name);
+  assert.equal(matches.length, 1, `workflow step ${name} must exist exactly once`);
+  return matches[0] as ParsedWorkflowStep;
+}
+
+function assertReadOnlyPermissions(
+  permissions: Readonly<Record<string, string>> | string,
+  scope: string,
+): void {
+  assert.deepEqual(permissions, { contents: "read" }, `${scope} permissions must be read-only`);
+}
+
+function assertUnconditional(job: ParsedWorkflowJob, name: string): ParsedWorkflowStep {
+  assert.equal(job.properties.if, undefined, "required jobs must not use if");
+  assert.equal(
+    job.properties["continue-on-error"],
+    undefined,
+    "required jobs must propagate failures",
+  );
+  const step = requiredStep(job, name);
+  const allowedProperties = step.properties.uses === undefined
+    ? new Set(["name", "run"])
+    : new Set(["name", "uses", "with"]);
+  for (const property of Object.keys(step.properties)) {
+    assert.equal(
+      allowedProperties.has(property),
+      true,
+      `${name} uses unsupported control ${property}`,
+    );
+  }
+  assert.equal(step.properties.if, undefined, `${name} must not use if`);
+  assert.equal(
+    step.properties["continue-on-error"],
+    undefined,
+    `${name} must propagate failures`,
+  );
+  assert.doesNotMatch(
+    step.run ?? "",
+    /(?:\|\||;\s*true\b|&&\s*true\b|set\s+\+e\b|trap\b[^\n]*\bERR\b|exit\s+0\b)/,
+    `${name} must not suppress shell failures`,
+  );
+  return step;
+}
+
+function commandLines(step: ParsedWorkflowStep): string[] {
+  return (step.run ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 function assertReadOnlyCiWorkflow(workflow: string): void {
@@ -144,17 +365,24 @@ function assertReadOnlyCiWorkflow(workflow: string): void {
   assert.doesNotMatch(yaml, forbiddenPublicationOrAuthentication);
   assert.doesNotMatch(yaml, /\.npmrc\b/i);
   assert.doesNotMatch(yaml, /^\s*packages:\s*['"]?write['"]?\s*$/mi);
-  assert.match(
-    yaml,
-    /^on:\n  pull_request:\n  push:\n    branches:\n      - master\n  workflow_dispatch:\n/m,
-  );
-  assert.match(
-    yaml,
-    /^permissions:\n  contents: read\n\nconcurrency:\n  group: .+\n  cancel-in-progress: true$/m,
-  );
+  const parsed = parseCiWorkflow(yaml);
+  assert.deepEqual(parsed.triggers, {
+    pullRequest: true,
+    pushBranches: ["master"],
+    workflowDispatch: true,
+  });
+  assertReadOnlyPermissions(parsed.permissions, "workflow");
+  assert.deepEqual(Object.keys(parsed.jobs), ["verify", "distribution"]);
+  for (const [name, job] of Object.entries(parsed.jobs)) {
+    if (job.permissions !== undefined) {
+      assertReadOnlyPermissions(job.permissions, `job ${name}`);
+    }
+  }
+  assert.match(yaml, /^concurrency:\n  group: .+\n  cancel-in-progress: true$/m);
 
-  const actionReferences = [...yaml.matchAll(/^\s*uses:\s*(.*?)\s*$/gm)]
-    .map((match) => match[1].replace(/^['"]|['"]$/g, ""));
+  const actionReferences = Object.values(parsed.jobs)
+    .flatMap((job) => job.steps)
+    .flatMap((step) => step.properties.uses === undefined ? [] : [step.properties.uses]);
   assert.equal(actionReferences.length, 4);
   for (const reference of actionReferences) {
     assert.match(reference, /^actions\/[a-z0-9_-]+@[0-9a-f]{40}$/);
@@ -166,9 +394,20 @@ function assertReadOnlyCiWorkflow(workflow: string): void {
     "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
   ]);
 
-  const verifyJob = workflowJob(yaml, "verify");
-  const distributionJob = workflowJob(yaml, "distribution");
-  const matrixEntries = [...verifyJob.matchAll(
+  const verifyJob = parsed.jobs.verify as ParsedWorkflowJob;
+  const distributionJob = parsed.jobs.distribution as ParsedWorkflowJob;
+  assert.deepEqual(Object.keys(verifyJob.properties), [
+    "name",
+    "runs-on",
+    "timeout-minutes",
+    "strategy",
+  ]);
+  assert.deepEqual(Object.keys(distributionJob.properties), [
+    "name",
+    "runs-on",
+    "timeout-minutes",
+  ]);
+  const matrixEntries = [...verifyJob.raw.matchAll(
     /^ {10}- os: ([a-z-]+)\n {12}node: "([0-9.]+)"$/gm,
   )].map((match) => ({ os: match[1], node: match[2] }));
   assert.deepEqual(matrixEntries, [
@@ -177,33 +416,87 @@ function assertReadOnlyCiWorkflow(workflow: string): void {
     { os: "macos-latest", node: "24.14.0" },
     { os: "windows-latest", node: "24.14.0" },
   ]);
-  assert.doesNotMatch(verifyJob, /^ {8}(?:os|node):/m);
-  assert.match(verifyJob, /^    runs-on: \$\{\{ matrix\.os \}\}$/m);
-  assert.match(verifyJob, /^          node-version: \$\{\{ matrix\.node \}\}$/m);
+  assert.doesNotMatch(verifyJob.raw, /^ {8}(?:os|node|exclude):/m);
+  assert.equal(verifyJob.properties["runs-on"], "${{ matrix.os }}");
+  assert.equal(verifyJob.properties["timeout-minutes"], "30");
   assert.match(
-    distributionJob,
+    distributionJob.raw,
     /^  distribution:\n    name: Distribution verification\n    runs-on: ubuntu-latest\n    timeout-minutes: [1-9][0-9]*$/m,
   );
-  assert.match(distributionJob, /^          node-version: "24\.14\.0"$/m);
+  assert.equal(distributionJob.properties["runs-on"], "ubuntu-latest");
+  assert.equal(distributionJob.properties["timeout-minutes"], "30");
+  assert.match(distributionJob.raw, /^          node-version: "24\.14\.0"$/m);
   assert.equal([...yaml.matchAll(/^    timeout-minutes: [1-9][0-9]*$/gm)].length, 2);
 
-  const verifyRunLines = workflowRunLines(verifyJob);
-  for (const command of [
-    "npm ci --ignore-scripts",
-    "npm test",
-    "npx tsc --noEmit",
-    "npm run check",
-  ]) {
-    assert.equal(
-      verifyRunLines.filter((line) => line === command).length,
-      1,
-      `matrix must execute ${command}`,
-    );
+  const requiredSteps = [
+    ["Install dependencies without lifecycle scripts", "npm ci --ignore-scripts"],
+    ["Run package tests", "npm test"],
+    ["Typecheck", "npx tsc --noEmit"],
+    ["Check syntax", "npm run check"],
+  ] as const;
+  for (const [name, command] of requiredSteps) {
+    assert.equal(assertUnconditional(verifyJob, name).run, command);
   }
-  const distributionRunLines = workflowRunLines(distributionJob);
+  assertUnconditional(verifyJob, "Check out repository");
+  assertUnconditional(distributionJob, "Check out repository");
+  const verifySetup = assertUnconditional(verifyJob, "Set up Node.js");
+  const distributionSetup = assertUnconditional(distributionJob, "Set up Node.js");
+  assert.match(
+    verifySetup.raw,
+    /^      - name: Set up Node\.js\n        uses: actions\/setup-node@820762786026740c76f36085b0efc47a31fe5020\n        with:\n          node-version: \$\{\{ matrix\.node \}\}\n          cache: npm$/,
+  );
+  assert.match(
+    distributionSetup.raw,
+    /^      - name: Set up Node\.js\n        uses: actions\/setup-node@820762786026740c76f36085b0efc47a31fe5020\n        with:\n          node-version: "24\.14\.0"\n          cache: npm$/,
+  );
   assert.equal(
-    distributionRunLines.filter((line) => line === "npm run pack:check").length,
-    1,
+    assertUnconditional(distributionJob, "Install dependencies without lifecycle scripts").run,
+    "npm ci --ignore-scripts --prefer-offline",
+  );
+  const examplesStep = assertUnconditional(
+    distributionJob,
+    "Run examples and package checks",
+  );
+  const examples = commandLines(examplesStep);
+  assert.equal(examples[0], "set -euo pipefail");
+  for (const command of [
+    "npm run example",
+    "npm run example:markdown",
+    "npm run example:portable",
+    "npm run example:host",
+    'npm run example:teammem -- "$ledger"',
+    'npm run example:teammem:durable -- --ledger "$ledger" --cognition-db "$cognition" --project ci-synthetic --from 2026-08-02T00:00:00.000Z --limit 1 --create',
+    "npm run pack:check",
+  ]) {
+    assert.equal(examples.includes(command), true, `${command} must run in the examples step`);
+  }
+  assert.match(examplesStep.run ?? "", /CREATE TABLE events/);
+  assert.match(examplesStep.run ?? "", /INSERT INTO events/);
+  assert.match(examplesStep.run ?? "", /\n\s+"commit",\n/);
+  assert.match(examplesStep.run ?? "", /example_root="\$\(mktemp -d\)"/);
+  assert.match(examplesStep.run ?? "", /trap 'rm -rf "\$example_root"' EXIT/);
+  assert.match(examplesStep.run ?? "", /ledger="\$example_root\/events\.db"/);
+  assert.match(examplesStep.run ?? "", /cognition="\$example_root\/cognition\.db"/);
+  assert.ok(
+    examples.indexOf('LEDGER_PATH="$ledger" node --input-type=module <<\'NODE\'') <
+      examples.indexOf("npm run example"),
+  );
+  assert.ok(
+    examples.indexOf("npm run pack:check") > examples.indexOf(
+      'npm run example:teammem:durable -- --ledger "$ledger" --cognition-db "$cognition" --project ci-synthetic --from 2026-08-02T00:00:00.000Z --limit 1 --create',
+    ),
+  );
+  const distributionStep = assertUnconditional(
+    distributionJob,
+    "Verify deterministic distribution assets and clean installation",
+  );
+  const distributionRunLines = commandLines(distributionStep);
+  assert.equal(distributionRunLines[0], "set -euo pipefail");
+  assert.deepEqual(
+    distributionRunLines.filter((line) => /^npm install\b/.test(line)),
+    [
+      'npm install --ignore-scripts --offline --no-audit --no-fund "$first/collective-cognition-sdk-0.6.0.tgz"',
+    ],
   );
   assert.equal(
     distributionRunLines.filter(
@@ -211,11 +504,11 @@ function assertReadOnlyCiWorkflow(workflow: string): void {
     ).length,
     2,
   );
-  assert.match(distributionJob, /\bcmp\b/);
-  assert.match(distributionJob, /sha256sum -c SHA256SUMS/);
-  assert.match(distributionJob, /JSON\.parse/);
-  assert.match(distributionJob, /bomFormat/);
-  assert.match(distributionJob, /release-manifest\.json/);
+  assert.match(distributionStep.run ?? "", /\bcmp\b/);
+  assert.match(distributionStep.run ?? "", /sha256sum -c SHA256SUMS/);
+  assert.match(distributionStep.run ?? "", /JSON\.parse/);
+  assert.match(distributionStep.run ?? "", /bomFormat/);
+  assert.match(distributionStep.run ?? "", /release-manifest\.json/);
 
   for (const line of distributionRunLines) {
     if (/node scripts\/build-github-prerelease\.mjs\b/.test(line)) {
@@ -524,12 +817,24 @@ test("release builder isolates failing subprocesses and preserves swapped output
   const sentinel = join(external, "sentinel");
   const observedEnvironment = join(root, "observed-environment.json");
   const stagedPrefix = ".collective-cognition-release-";
-  const node = join(trustedBin, "node");
-  const npm = join(trustedBin, "npm");
+  const node = join(
+    trustedBin,
+    process.platform === "win32" ? "node.exe" : "node",
+  );
+  const npm = join(
+    trustedBin,
+    process.platform === "win32" ? "npm.cmd" : "npm",
+  );
   const npmCli = join(root, "lib", "node_modules", "npm", "bin", "npm-cli.js");
-  const shadowGit = join(shadowPath, "git");
+  const shadowGit = join(
+    shadowPath,
+    process.platform === "win32" ? "git.exe" : "git",
+  );
 
   try {
+    assert.equal(node.endsWith(".exe"), process.platform === "win32");
+    assert.equal(npm.endsWith(".cmd"), process.platform === "win32");
+    assert.equal(shadowGit.endsWith(".exe"), process.platform === "win32");
     writeFileSync(sentinel, "external sentinel\n");
     writeFileSync(join(callerHome, ".npmrc"), "script-shell=/missing-shell\n");
     copyFileSync(process.execPath, node);
@@ -710,14 +1015,14 @@ test("read-only CI verifies the exact supported matrix and distribution path", (
 
   assertSafePackageScripts(packageJson.scripts);
   assertReadOnlyCiWorkflow(workflow);
-  const distributionJob = workflowJob(workflow, "distribution");
+  const distributionJob = parseCiWorkflow(workflow).jobs.distribution as ParsedWorkflowJob;
 
   for (const name of Object.keys(packageJson.scripts).filter(
     (script) => script === "example" || script.startsWith("example:"),
   )) {
     assert.match(
-      distributionJob,
-      new RegExp(`^\\s+npm run ${name.replaceAll(":", "\\:")}$`, "m"),
+      distributionJob.raw,
+      new RegExp(`^\\s+npm run ${name.replaceAll(":", "\\:")}(?: -- .+)?$`, "m"),
     );
   }
   for (const subpath of Object.keys(packageJson.exports)) {
@@ -725,7 +1030,7 @@ test("read-only CI verifies the exact supported matrix and distribution path", (
       ? packageJson.name
       : `${packageJson.name}${subpath.slice(1)}`;
     assert.equal(
-      distributionJob.includes(JSON.stringify(specifier)),
+      distributionJob.raw.includes(JSON.stringify(specifier)),
       true,
       `distribution verification must consume ${specifier}`,
     );
@@ -735,7 +1040,7 @@ test("read-only CI verifies the exact supported matrix and distribution path", (
     "collective-cognition-teammem",
     "collective-cognition-markdown",
   ]) {
-    assert.match(distributionJob, new RegExp(`node_modules/\\.bin/${executable}\\b`));
+    assert.match(distributionJob.raw, new RegExp(`node_modules/\\.bin/${executable}\\b`));
   }
 });
 
@@ -754,6 +1059,18 @@ test("CI policy scanner rejects unsafe workflow and package mutations", () => {
     `${workflow}\nunsafe: echo token > ~/.npmrc\n`,
     workflow.replace("contents: read", "packages: write"),
     workflow.replace(
+      "    name: Node ${{ matrix.node }} on ${{ matrix.os }}",
+      "    permissions:\n      contents: write\n    name: Node ${{ matrix.node }} on ${{ matrix.os }}",
+    ),
+    workflow.replace(
+      "      - name: Run package tests\n        run: npm test",
+      "      - name: Run package tests\n        if: \${{ false }}\n        run: npm test",
+    ),
+    workflow.replace(
+      "      - name: Verify deterministic distribution assets and clean installation\n        run: |",
+      "      - name: Verify deterministic distribution assets and clean installation\n        continue-on-error: true\n        run: |",
+    ),
+    workflow.replace(
       "npm install --ignore-scripts --offline",
       "npm install --ignore-scripts",
     ),
@@ -763,8 +1080,11 @@ test("CI policy scanner rejects unsafe workflow and package mutations", () => {
     ),
   ];
 
-  for (const unsafeWorkflow of unsafeWorkflows) {
-    assert.throws(() => assertReadOnlyCiWorkflow(unsafeWorkflow));
+  for (const [index, unsafeWorkflow] of unsafeWorkflows.entries()) {
+    assert.throws(
+      () => assertReadOnlyCiWorkflow(unsafeWorkflow),
+      `unsafe workflow mutation ${index} must be rejected`,
+    );
   }
   assert.throws(() => assertSafePackageScripts({ release: "npm publish" }));
   assert.throws(() => assertSafePackageScripts({ release: "NODE_AUTH_TOKEN=secret npm pack" }));

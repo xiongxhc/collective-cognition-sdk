@@ -64,12 +64,62 @@ jobs:
         run: npm ci --ignore-scripts --prefer-offline
       - name: Run examples and package checks
         run: |
+          set -euo pipefail
+          example_root="$(mktemp -d)"
+          trap 'rm -rf "$example_root"' EXIT
+          ledger="$example_root/events.db"
+          cognition="$example_root/cognition.db"
+
+          LEDGER_PATH="$ledger" node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { DatabaseSync } from "node:sqlite";
+
+          const ledgerPath = process.env.LEDGER_PATH;
+          assert.ok(ledgerPath);
+          const database = new DatabaseSync(ledgerPath);
+          try {
+            database.exec(`
+              CREATE TABLE events (
+                id      INTEGER PRIMARY KEY,
+                person  TEXT NOT NULL,
+                project TEXT,
+                ts      TEXT NOT NULL,
+                source  TEXT NOT NULL,
+                kind    TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                refs    TEXT,
+                raw     TEXT,
+                hash    TEXT NOT NULL,
+                UNIQUE(person, source, hash)
+              );
+            `);
+            database.prepare(`
+              INSERT INTO events (
+                id, person, project, ts, source, kind, summary, refs, raw, hash
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+              1,
+              "ci-user",
+              "ci-synthetic",
+              "2026-08-02T00:00:00.000Z",
+              "ci:synthetic-event",
+              "commit",
+              "Synthetic CI distribution event.",
+              JSON.stringify({ url: "https://example.invalid/ci-synthetic" }),
+              null,
+              "ci-synthetic-hash-1",
+            );
+          } finally {
+            database.close();
+          }
+          NODE
+
           npm run example
           npm run example:markdown
           npm run example:portable
           npm run example:host
-          npm run example:teammem
-          npm run example:teammem:durable
+          npm run example:teammem -- "$ledger"
+          npm run example:teammem:durable -- --ledger "$ledger" --cognition-db "$cognition" --project ci-synthetic --from 2026-08-02T00:00:00.000Z --limit 1 --create
           npm run pack:check
       - name: Verify deterministic distribution assets and clean installation
         run: |
