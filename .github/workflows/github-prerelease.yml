@@ -1,0 +1,243 @@
+name: GitHub Prerelease
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    name: Attested GitHub prerelease
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out immutable tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24.14.0"
+          cache: npm
+      - name: Validate tag and package identity
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_TYPE" = "tag"
+          package_version="$(node -p "require('./package.json').version")"
+          package_private="$(node -p "require('./package.json').private")"
+          test "$GITHUB_REF_NAME" = "v$package_version"
+          test "$package_private" = "true"
+          git fetch --no-tags origin master
+          test "$GITHUB_SHA" = "$(git rev-parse origin/master)"
+      - name: Install dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --prefer-offline
+      - name: Run examples and package checks
+        run: |
+          set -euo pipefail
+          example_root="${{ runner.temp }}/release-examples"
+          rm -rf "$example_root"
+          mkdir "$example_root"
+          trap 'rm -rf "$example_root"' EXIT
+          ledger="$example_root/events.db"
+          cognition="$example_root/cognition.db"
+
+          LEDGER_PATH="$ledger" node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { DatabaseSync } from "node:sqlite";
+
+          const ledgerPath = process.env.LEDGER_PATH;
+          assert.ok(ledgerPath);
+          const database = new DatabaseSync(ledgerPath);
+          try {
+            database.exec(`
+              CREATE TABLE events (
+                id      INTEGER PRIMARY KEY,
+                person  TEXT NOT NULL,
+                project TEXT,
+                ts      TEXT NOT NULL,
+                source  TEXT NOT NULL,
+                kind    TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                refs    TEXT,
+                raw     TEXT,
+                hash    TEXT NOT NULL,
+                UNIQUE(person, source, hash)
+              );
+            `);
+            database.prepare(`
+              INSERT INTO events (
+                id, person, project, ts, source, kind, summary, refs, raw, hash
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+              1,
+              "ci-user",
+              "ci-synthetic",
+              "2026-08-02T00:00:00.000Z",
+              "ci:synthetic-event",
+              "commit",
+              "Synthetic CI distribution event.",
+              JSON.stringify({ url: "https://example.invalid/ci-synthetic" }),
+              null,
+              "ci-synthetic-hash-1",
+            );
+          } finally {
+            database.close();
+          }
+          NODE
+
+          npm run example
+          npm run example:markdown
+          npm run example:portable
+          npm run example:host
+          npm run example:teammem -- "$ledger"
+          npm run example:teammem:durable -- --ledger "$ledger" --cognition-db "$cognition" --project ci-synthetic --from 2026-08-02T00:00:00.000Z --limit 1 --create
+          npm run pack:check
+      - name: Verify deterministic distribution assets and clean installation
+        run: |
+          set -euo pipefail
+          release_root="${{ runner.temp }}/github-prerelease"
+          rm -rf "$release_root"
+          first="$release_root/first"
+          second="$release_root/second"
+          mkdir -p "$first" "$second"
+
+          npm_config_ignore_scripts=true npm_config_offline=true node scripts/build-github-prerelease.mjs --output "$first"
+          npm_config_ignore_scripts=true npm_config_offline=true node scripts/build-github-prerelease.mjs --output "$second"
+
+          for asset in SHA256SUMS collective-cognition-sdk-0.6.0.cdx.json collective-cognition-sdk-0.6.0.tgz release-manifest.json; do
+            cmp "$first/$asset" "$second/$asset"
+          done
+          for output in "$first" "$second"; do
+            (cd "$output" && sha256sum -c SHA256SUMS)
+          done
+
+          RELEASE_DIR="$first" node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFile, readdir } from "node:fs/promises";
+          import { join } from "node:path";
+
+          const releaseDirectory = process.env.RELEASE_DIR;
+          assert.ok(releaseDirectory);
+          const assets = (await readdir(releaseDirectory)).sort();
+          assert.deepEqual(assets, [
+            "SHA256SUMS",
+            "collective-cognition-sdk-0.6.0.cdx.json",
+            "collective-cognition-sdk-0.6.0.tgz",
+            "release-manifest.json",
+          ]);
+          const sbom = JSON.parse(await readFile(
+            join(releaseDirectory, "collective-cognition-sdk-0.6.0.cdx.json"),
+            "utf8",
+          ));
+          assert.equal(sbom.bomFormat, "CycloneDX");
+          assert.equal(sbom.specVersion, "1.6");
+          assert.equal(sbom.metadata.component.purl, "pkg:npm/collective-cognition-sdk@0.6.0");
+          assert.deepEqual(sbom.components, []);
+          const manifest = JSON.parse(await readFile(
+            join(releaseDirectory, "release-manifest.json"),
+            "utf8",
+          ));
+          assert.equal(manifest.repository, "xiongxhc/collective-cognition-sdk");
+          assert.equal(manifest.tag, "v0.6.0");
+          assert.match(manifest.commit, /^[0-9a-f]{40}$/);
+          assert.deepEqual(manifest.package, {
+            name: "collective-cognition-sdk",
+            version: "0.6.0",
+            private: true,
+          });
+          assert.equal(manifest.nodeVersion, process.version);
+          assert.deepEqual(
+            manifest.assets.map((asset) => asset.name),
+            [
+              "collective-cognition-sdk-0.6.0.tgz",
+              "collective-cognition-sdk-0.6.0.cdx.json",
+            ],
+          );
+          NODE
+
+          consumer="$release_root/consumer"
+          mkdir "$consumer"
+          printf '%s\n' '{"name":"distribution-consumer","private":true,"type":"module"}' > "$consumer/package.json"
+          (
+            cd "$consumer"
+            npm install --ignore-scripts --offline --no-audit --no-fund "$first/collective-cognition-sdk-0.6.0.tgz"
+            node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFile } from "node:fs/promises";
+
+          const moduleSpecifiers = [
+            "collective-cognition-sdk",
+            "collective-cognition-sdk/adapters/markdown/0.1.0",
+            "collective-cognition-sdk/connector-conformance/0.1.0",
+            "collective-cognition-sdk/connectors/team-memory/0.1.0",
+            "collective-cognition-sdk/host-conformance/0.1.0",
+            "collective-cognition-sdk/reference-host/0.1.0",
+            "collective-cognition-sdk/stores/sqlite/0.1.0",
+          ];
+          for (const specifier of moduleSpecifiers) {
+            assert.ok(await import(specifier));
+          }
+
+          const jsonSpecifiers = [
+            "collective-cognition-sdk/compatibility/0.1.0",
+            "collective-cognition-sdk/compatibility/0.2.0",
+            "collective-cognition-sdk/compatibility/0.3.0",
+            "collective-cognition-sdk/compatibility/0.4.0",
+            "collective-cognition-sdk/compatibility/0.5.0",
+            "collective-cognition-sdk/compatibility/0.6.0",
+            "collective-cognition-sdk/schemas/source-record/0.1.0",
+            "collective-cognition-sdk/schemas/portable-cognition/0.1.0",
+            "collective-cognition-sdk/package.json",
+          ];
+          for (const specifier of jsonSpecifiers) {
+            assert.ok(await import(specifier, { with: { type: "json" } }));
+          }
+
+          const textSpecifiers = [
+            "collective-cognition-sdk/contracts/host-integration/0.1.0",
+            "collective-cognition-sdk/conformance/portable-cognition/0.1.0/valid",
+            "collective-cognition-sdk/conformance/portable-cognition/0.1.0/invalid",
+            "collective-cognition-sdk/conformance/portable-cognition/0.1.0/cognitive-loop",
+          ];
+          for (const specifier of textSpecifiers) {
+            const content = await readFile(new URL(import.meta.resolve(specifier)), "utf8");
+            assert.ok(content.length > 0);
+          }
+          NODE
+            printf '%s\n' '{"schemaVersion":"0.1.0","id":"source-record:ci","source":{"system":"ci"},"sourceId":"item:ci","revisionId":"revision:1","capturedAt":"2026-08-02T00:00:00.000Z","mediaType":"text/plain","content":"CI distribution smoke."}' | ./node_modules/.bin/collective-cognition validate --input - --format jsonl
+            ./node_modules/.bin/collective-cognition-teammem --version
+            ./node_modules/.bin/collective-cognition-markdown --help
+          )
+      - name: Attest release assets
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373
+        with:
+          subject-path: |
+            ${{ runner.temp }}/github-prerelease/first/SHA256SUMS
+            ${{ runner.temp }}/github-prerelease/first/collective-cognition-sdk-0.6.0.cdx.json
+            ${{ runner.temp }}/github-prerelease/first/collective-cognition-sdk-0.6.0.tgz
+            ${{ runner.temp }}/github-prerelease/first/release-manifest.json
+      - name: Create or update GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          release_dir="${{ runner.temp }}/github-prerelease/first"
+          assets=(
+            "$release_dir/SHA256SUMS"
+            "$release_dir/collective-cognition-sdk-0.6.0.cdx.json"
+            "$release_dir/collective-cognition-sdk-0.6.0.tgz"
+            "$release_dir/release-manifest.json"
+          )
+
+          if release_is_prerelease="$(gh release view "$GITHUB_REF_NAME" --json isPrerelease --jq '.isPrerelease')"; then
+            test "$release_is_prerelease" = "true"
+          else
+            gh release create "$GITHUB_REF_NAME" --prerelease --verify-tag --generate-notes
+          fi
+          gh release upload "$GITHUB_REF_NAME" --clobber "${assets[@]}"

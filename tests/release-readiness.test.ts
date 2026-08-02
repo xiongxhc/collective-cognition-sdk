@@ -26,6 +26,12 @@ const builder = fileURLToPath(
 const ciWorkflow = fileURLToPath(
   new URL("../.github/workflows/ci.yml", import.meta.url),
 );
+const githubPrereleaseWorkflow = fileURLToPath(
+  new URL("../.github/workflows/github-prerelease.yml", import.meta.url),
+);
+const githubReleaseConfig = fileURLToPath(
+  new URL("../.github/release.yml", import.meta.url),
+);
 const expectedAssets = [
   "SHA256SUMS",
   "collective-cognition-sdk-0.6.0.cdx.json",
@@ -70,7 +76,7 @@ function readJson(path: string): unknown {
 }
 
 const forbiddenPublicationOrAuthentication =
-  /\b(?:npm\s+publish|NPM_TOKEN|NODE_AUTH_TOKEN|npm_[A-Za-z0-9_]*token|_authToken|authToken)\b/i;
+  /\b(?:npm\s+(?:publish|token|login|adduser|logout|whoami|profile)|NPM_TOKEN|NODE_AUTH_TOKEN|npm_[A-Za-z0-9_]*token|_auth|_authToken|authToken)\b/i;
 
 function assertSafePackageScripts(scripts: Readonly<Record<string, string>>): void {
   for (const [name, script] of Object.entries(scripts)) {
@@ -521,6 +527,228 @@ function assertReadOnlyCiWorkflow(workflow: string): void {
       assert.match(line, /(?:^|\s)--offline(?:\s|$)/);
     }
   }
+}
+
+function assertGitHubPrereleaseWorkflow(workflow: string): void {
+  const yaml = workflow
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("#"))
+    .join("\n");
+  const lines = yaml.split("\n");
+  const topLevelKeys = lines.flatMap((line) => {
+    if (indentation(line) !== 0 || !line.trim()) {
+      return [];
+    }
+    const entry = line.match(/^([a-z0-9_-]+):/);
+    return entry ? [entry[1] as string] : [];
+  });
+
+  assert.deepEqual(topLevelKeys, ["name", "on", "permissions", "jobs"]);
+  assert.doesNotMatch(workflow, /\t/, "workflow indentation must not use tabs");
+  assert.doesNotMatch(yaml, /(?:^|[\s:[{,])\*[A-Za-z_][A-Za-z0-9_-]*/m);
+  assert.doesNotMatch(yaml, forbiddenPublicationOrAuthentication);
+  assert.doesNotMatch(yaml, /\.npmrc\b/i);
+  assert.doesNotMatch(yaml, /^\s*packages:\s*['"]?write['"]?\s*$/mi);
+  assert.doesNotMatch(yaml, /\bworkflow_dispatch\b/);
+  assert.doesNotMatch(yaml, /--latest\b|make_latest\s*:/i);
+  assert.doesNotMatch(yaml, /\bmktemp\b/);
+  assert.doesNotMatch(yaml, /\bgit\s+(?:tag|push)\b|\/git\/refs\b/i);
+
+  const onIndex = lines.indexOf("on:");
+  const permissionsIndex = lines.indexOf("permissions:");
+  const jobsIndex = lines.indexOf("jobs:");
+  assert.notEqual(onIndex, -1);
+  assert.notEqual(permissionsIndex, -1);
+  assert.notEqual(jobsIndex, -1);
+  assert.deepEqual(
+    lines.slice(onIndex + 1, permissionsIndex).filter((line) => line.trim()),
+    [
+      "  push:",
+      "    tags:",
+      '      - "v*"',
+    ],
+  );
+  assert.deepEqual(nestedMapping(lines, permissionsIndex, 2), {
+    contents: "write",
+    "id-token": "write",
+    attestations: "write",
+  });
+
+  const jobHeader = lines.indexOf("  release:");
+  assert.notEqual(jobHeader, -1);
+  assert.equal(
+    lines.findIndex((line, index) => index > jobHeader && /^ {2}[a-z0-9_-]+:$/.test(line)),
+    -1,
+  );
+  const jobLines = lines.slice(jobHeader);
+  const jobProperties: Record<string, string> = {};
+  let steps: ParsedWorkflowStep[] = [];
+  for (let index = 1; index < jobLines.length; index += 1) {
+    const line = jobLines[index] as string;
+    if (indentation(line) !== 4 || !line.trim()) {
+      continue;
+    }
+    const property = line.match(/^ {4}([a-z0-9_-]+):\s*(.*?)\s*$/);
+    assert.ok(property, `unsupported release job property: ${line}`);
+    if (property[1] === "steps") {
+      steps = parseWorkflowSteps(jobLines, index, jobLines.length);
+    } else {
+      jobProperties[property[1] as string] = yamlScalar(property[2] as string);
+    }
+  }
+  assert.deepEqual(jobProperties, {
+    name: "Attested GitHub prerelease",
+    "runs-on": "ubuntu-latest",
+    "timeout-minutes": "30",
+  });
+
+  const job: ParsedWorkflowJob = {
+    properties: jobProperties,
+    steps,
+    raw: jobLines.join("\n"),
+  };
+  const actionReferences = steps.flatMap((step) =>
+    step.properties.uses === undefined ? [] : [step.properties.uses]
+  );
+  assert.deepEqual(actionReferences, [
+    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+    "actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373",
+  ]);
+  for (const reference of actionReferences) {
+    assert.match(reference, /^actions\/[a-z0-9_-]+@[0-9a-f]{40}$/);
+  }
+
+  const checkout = requiredStep(job, "Check out immutable tag");
+  assert.match(checkout.raw, /^ {10}fetch-depth: 0$/m);
+  const setup = requiredStep(job, "Set up Node.js");
+  assert.match(setup.raw, /^ {10}node-version: "24\.14\.0"$/m);
+  assert.match(setup.raw, /^ {10}cache: npm$/m);
+
+  const validate = requiredStep(job, "Validate tag and package identity");
+  const install = requiredStep(job, "Install dependencies without lifecycle scripts");
+  assert.ok(steps.indexOf(validate) < steps.indexOf(install));
+  assert.equal(install.run, "npm ci --ignore-scripts --prefer-offline");
+  assert.match(validate.run ?? "", /^set -euo pipefail$/m);
+  assert.match(validate.run ?? "", /^git fetch --no-tags origin master$/m);
+  assert.match(validate.run ?? "", /^test "\$GITHUB_REF_TYPE" = "tag"$/m);
+  assert.match(
+    validate.run ?? "",
+    /^package_version="\$\(node -p "require\('\.\/package\.json'\)\.version"\)"$/m,
+  );
+  assert.match(
+    validate.run ?? "",
+    /^package_private="\$\(node -p "require\('\.\/package\.json'\)\.private"\)"$/m,
+  );
+  assert.match(
+    validate.run ?? "",
+    /^test "\$GITHUB_REF_NAME" = "v\$package_version"$/m,
+  );
+  assert.match(validate.run ?? "", /^test "\$package_private" = "true"$/m);
+  assert.match(
+    validate.run ?? "",
+    /^test "\$GITHUB_SHA" = "\$\(git rev-parse origin\/master\)"$/m,
+  );
+
+  const examples = requiredStep(job, "Run examples and package checks");
+  const exampleCommands = commandLines(examples);
+  for (const command of [
+    "npm run example",
+    "npm run example:markdown",
+    "npm run example:portable",
+    "npm run example:host",
+    'npm run example:teammem -- "$ledger"',
+    'npm run example:teammem:durable -- --ledger "$ledger" --cognition-db "$cognition" --project ci-synthetic --from 2026-08-02T00:00:00.000Z --limit 1 --create',
+    "npm run pack:check",
+  ]) {
+    assert.equal(exampleCommands.includes(command), true, `${command} must run`);
+  }
+  assert.match(examples.run ?? "", /CREATE TABLE events/);
+  assert.match(examples.run ?? "", /INSERT INTO events/);
+  assert.match(examples.run ?? "", /\$\{\{ runner\.temp \}\}\/release-examples/);
+
+  const distribution = requiredStep(
+    job,
+    "Verify deterministic distribution assets and clean installation",
+  );
+  const distributionCommands = commandLines(distribution);
+  assert.equal(
+    distributionCommands.filter(
+      (line) => /node scripts\/build-github-prerelease\.mjs\b/.test(line),
+    ).length,
+    2,
+  );
+  assert.match(distribution.run ?? "", /\bcmp\b/);
+  assert.match(distribution.run ?? "", /sha256sum -c SHA256SUMS/);
+  assert.match(distribution.run ?? "", /\$\{\{ runner\.temp \}\}\/github-prerelease/);
+  assert.deepEqual(
+    distributionCommands.filter((line) => /^npm install\b/.test(line)),
+    [
+      'npm install --ignore-scripts --offline --no-audit --no-fund "$first/collective-cognition-sdk-0.6.0.tgz"',
+    ],
+  );
+  for (const asset of expectedAssets) {
+    assert.equal(distribution.run?.includes(JSON.stringify(asset)), true);
+  }
+  for (const executable of [
+    "collective-cognition",
+    "collective-cognition-teammem",
+    "collective-cognition-markdown",
+  ]) {
+    assert.match(distribution.run ?? "", new RegExp(`node_modules/\\.bin/${executable}\\b`));
+  }
+
+  const attest = requiredStep(job, "Attest release assets");
+  const subjectPaths = [...attest.raw.matchAll(/^ {12}([^\s].*)$/gm)].map(
+    (match) => match[1],
+  );
+  assert.deepEqual(subjectPaths, expectedAssets.map(
+    (asset) => `\${{ runner.temp }}/github-prerelease/first/${asset}`,
+  ));
+
+  const release = requiredStep(job, "Create or update GitHub prerelease");
+  assert.deepEqual(Object.keys(release.properties), ["name", "env", "run"]);
+  assert.match(
+    release.raw,
+    /^ {10}GH_TOKEN: \$\{\{ github\.token \}\}$/m,
+  );
+  assert.equal(
+    steps.filter((step) => /GH_TOKEN/.test(step.raw)).length,
+    1,
+  );
+  assert.match(release.run ?? "", /gh release view "\$GITHUB_REF_NAME"/);
+  assert.match(release.run ?? "", /test "\$release_is_prerelease" = "true"/);
+  assert.match(
+    release.run ?? "",
+    /gh release create "\$GITHUB_REF_NAME" --prerelease --verify-tag --generate-notes/,
+  );
+  assert.match(
+    release.run ?? "",
+    /gh release upload "\$GITHUB_REF_NAME" --clobber/,
+  );
+  for (const asset of expectedAssets) {
+    assert.equal(release.run?.includes(`"$release_dir/${asset}"`), true);
+  }
+}
+
+function assertGitHubReleaseConfig(config: string): void {
+  assert.doesNotMatch(config, /exclude:/i);
+  assert.doesNotMatch(config, /contributors?:|authors?:/i);
+  const categories = [...config.matchAll(/^ {4}- title: (.+)$/gm)].map(
+    (match) => yamlScalar(match[1] as string),
+  );
+  assert.deepEqual(categories, [
+    "Features",
+    "Fixes",
+    "Documentation",
+    "Dependencies",
+    "Other Changes",
+  ]);
+  assert.match(config, /labels:\n {8}- enhancement\n {8}- feature/);
+  assert.match(config, /labels:\n {8}- bug\n {8}- fix/);
+  assert.match(config, /labels:\n {8}- documentation\n {8}- docs/);
+  assert.match(config, /labels:\n {8}- dependencies/);
+  assert.match(config, /labels:\n {8}- "\*"/);
 }
 
 function assertNoAutoMergeWorkflows(workflows: string): void {
@@ -1088,4 +1316,84 @@ test("CI policy scanner rejects unsafe workflow and package mutations", () => {
   }
   assert.throws(() => assertSafePackageScripts({ release: "npm publish" }));
   assert.throws(() => assertSafePackageScripts({ release: "NODE_AUTH_TOKEN=secret npm pack" }));
+});
+
+test("tag-only workflow creates an exact-master attested GitHub prerelease", () => {
+  assert.equal(
+    existsSync(githubPrereleaseWorkflow),
+    true,
+    ".github/workflows/github-prerelease.yml must exist",
+  );
+  assert.equal(existsSync(githubReleaseConfig), true, ".github/release.yml must exist");
+
+  assertGitHubPrereleaseWorkflow(readFileSync(githubPrereleaseWorkflow, "utf8"));
+  assertGitHubReleaseConfig(readFileSync(githubReleaseConfig, "utf8"));
+});
+
+test("prerelease policy rejects unsafe workflow and release mutations", () => {
+  const workflow = readFileSync(githubPrereleaseWorkflow, "utf8");
+  const unsafeWorkflows = [
+    workflow.replace('      - "v*"', '      - "release-*"'),
+    workflow.replace("permissions:\n", "on:\n  workflow_dispatch:\n\npermissions:\n"),
+    workflow.replace("        fetch-depth: 0", "        fetch-depth: 1"),
+    workflow.replace("contents: write", "contents: read"),
+    workflow.replace("attestations: write", "packages: write"),
+    workflow.replace('node-version: "24.14.0"', 'node-version: "24"'),
+    workflow.replace("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", "actions/checkout@v4"),
+    workflow.replace(
+      'package_version="$(node -p "require(\'./package.json\').version")"',
+      'package_version="0.6.0"',
+    ),
+    workflow.replace(
+      'package_private="$(node -p "require(\'./package.json\').private")"',
+      'package_private="true"',
+    ),
+    workflow.replace('test "$package_private" = "true"', 'test "$package_private" = "false"'),
+    workflow.replace(
+      'test "$GITHUB_SHA" = "$(git rev-parse origin/master)"',
+      'test "$GITHUB_SHA" != "$(git rev-parse origin/master)"',
+    ),
+    workflow.replace(
+      "      - name: Validate tag and package identity",
+      "      - name: Install dependencies without lifecycle scripts",
+    ).replace(
+      "      - name: Install dependencies without lifecycle scripts\n        run: npm ci --ignore-scripts --prefer-offline\n",
+      "      - name: Validate tag and package identity\n        run: npm ci --ignore-scripts --prefer-offline\n",
+    ),
+    workflow.replace(
+      "          ${{ runner.temp }}/github-prerelease/first/SHA256SUMS\n",
+      "",
+    ),
+    workflow.replace(
+      "          ${{ runner.temp }}/github-prerelease/first/SHA256SUMS",
+      "          ${{ runner.temp }}/github-prerelease/first/*",
+    ),
+    workflow.replace("--prerelease --verify-tag --generate-notes", "--verify-tag --generate-notes"),
+    workflow.replace("--prerelease --verify-tag --generate-notes", "--prerelease --generate-notes"),
+    workflow.replace("--prerelease --verify-tag --generate-notes", "--prerelease --verify-tag"),
+    workflow.replace("--clobber", ""),
+    workflow.replace("--clobber", "--clobber --latest"),
+    workflow.replace('test "$release_is_prerelease" = "true"', "true"),
+    `${workflow}\nunsafe: git tag --force v0.6.0\n`,
+    `${workflow}\nunsafe: npm login\n`,
+    `${workflow}\nNPM_TOKEN: forbidden\n`,
+  ];
+
+  for (const [index, unsafeWorkflow] of unsafeWorkflows.entries()) {
+    assert.throws(
+      () => assertGitHubPrereleaseWorkflow(unsafeWorkflow),
+      `unsafe prerelease workflow mutation ${index} must be rejected`,
+    );
+  }
+
+  const releaseConfig = readFileSync(githubReleaseConfig, "utf8");
+  for (const [index, unsafeConfig] of [
+    releaseConfig.replace("    - title: Fixes", "    - title: Repairs"),
+    `${releaseConfig}\nexclude:\n  authors:\n    - dependabot[bot]\n`,
+  ].entries()) {
+    assert.throws(
+      () => assertGitHubReleaseConfig(unsafeConfig),
+      `unsafe release config mutation ${index} must be rejected`,
+    );
+  }
 });
