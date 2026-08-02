@@ -1,14 +1,14 @@
 # Final Release-Readiness Correction Report
 
-**Date:** 2026-08-02
+**Date:** 2026-08-03
 **Branch:** `feature/public-prerelease-readiness`
 **Correction parent:** `43d8d2e796c49db9e2503d58d646c138251a69f7`
 **Review source:** `.superpowers/sdd/2026-08-02-public-github-prerelease/final-review.md`
-**Status:** All I-1 through I-6, M-1/M-2, and scoped residual R-1 through R-3 corrections are implemented and locally verified. Public GitHub/CI/release evidence remains intentionally unobserved.
+**Status:** All I-1 through I-6, M-1/M-2, scoped residual R-1 through R-3, and Windows-EOL residual A-1 corrections are implemented and locally verified. Public GitHub/CI/release evidence remains intentionally unobserved.
 
 ## Scope and Safety
 
-This was the one authorized whole-branch correction round. Changes are limited to the release builder, release-readiness tests, prerelease workflow, public release/support/changelog guidance, and necessary design/plan/roadmap reconciliation. No package runtime API, `package.json`, compatibility baseline, source implementation, live ledger, vault, database, credential, tag, remote branch, or public release was changed.
+This was the one authorized whole-branch correction round. Changes are limited to the release builder, release/package-readiness tests, prerelease workflow, repository text-normalization policy, public release/support/changelog guidance, and necessary design/plan/roadmap reconciliation. No package runtime API, `package.json`, compatibility baseline, source implementation, live ledger, vault, database, credential, tag, remote branch, or public release was changed.
 
 The correction contains one explicit package-artifact decision: because `0.6.0` has no prior public artifact, the current docs-inclusive private tarball is the first finalized public artifact candidate. The stale README was not restored. Runtime, declaration, CLI, schema, RFC compatibility surface, and the exact 91-entry package inventory remain unchanged.
 
@@ -37,6 +37,15 @@ The same authorized correction round continued only for the three residuals in t
 
 - Every downloaded runbook attestation now verifies `"$release_dir/$asset"`; the checksum subshell cannot leave later operands relative to the repository working directory.
 - A runbook mutation that removes the `"$release_dir/"` prefix is rejected.
+
+### A-1 — Repository-enforced LF checkout contract
+
+- Added a tracked root `.gitattributes` that requires `text eol=lf` for the reviewed workflows, `package.json`, Markdown, JSON/JSONL, JavaScript/TypeScript, shell, citation, license, and notice text used by command-surface digests and package pinning.
+- Known image, archive, WebAssembly, and database extensions are explicitly binary; there is no catch-all `* text` rule that could normalize unknown binary content.
+- Release-readiness tests require the exact LF rules and use `git check-attr` plus path-aware `git hash-object` filtering to prove LF and CRLF inputs normalize to the same reviewed bytes. Representative binary inputs remain byte-distinct.
+- A disposable Git repository configured with `core.autocrlf=true` and `core.eol=crlf` restored all five representative tracked files with LF bytes and preserved both exact workflow digests.
+- The workflow digests and canonical package-script-map digest remain unchanged. The pinned tarball remains the exact 91-entry artifact at SHA-256 `3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978`.
+- Package tests require `.gitattributes` to exist in the repository and remain absent from both the dry-run package inventory and the actual npm tarball.
 
 ## Finding Resolution
 
@@ -199,6 +208,8 @@ The correction followed the recorded red/green sequence:
 11. The downloaded attestation simulation found every bare operand outside `$release_dir`; prefixed operands plus a prefix-removal mutation close that path error.
 12. The positional-expansion mutation `sh -c 'npm "$@"' -- --silent publish` reproduced four red failures: both builders reached package-artifact drift instead of early package rejection, and workflow/package policies accepted the executable form.
 13. Canonical package-script and exact workflow-byte digests changed that selected result to `6/6` green; the marker-script case confirms rejection occurs before package-script execution. Recursive shell interpretation was then removed while direct semantic npm checks remained green.
+14. Before `.gitattributes` existed, the selected LF-contract and package-inventory tests failed `0/2` on the missing repository policy.
+15. Adding only the targeted LF/binary contract changed the selection to `2/2` green; the complete focused release-readiness file then passed `21/21`.
 
 One local clean-install attempt encountered the existing inaccessible home npm cache. The same validation was rerun with a new temporary `npm_config_cache`; it passed. No repository change was made for that harness/environment condition.
 
@@ -211,14 +222,15 @@ All commands used the bundled Node `v24.14.0` unless a platform parser/shell uti
 | Gate | Result |
 | --- | --- |
 | `npm test` | PASS: source 426 pass/1 supported skip, schema 10/10, compatibility 19/19, package 9/9; 464 passes total, 0 failures |
-| Focused release readiness | PASS: 20/20, 0 failures; closed-contract selection 6/6 |
+| Focused release readiness | PASS: 21/21, 0 failures; closed-contract selection 6/6; LF/package selection 2/2 |
 | `tsc --noEmit` | PASS |
 | `npm run check` | PASS |
 | Six examples, including synthetic team-memory and durable SQLite fixture | PASS |
-| `npm run pack:check` | PASS |
+| `npm run pack:check` | PASS: schema 10/10, compatibility 19/19, package 9/9 |
 | Two independent release builds | PASS, byte-identical four-asset output |
-| Pinned tarball | PASS, 91 entries, SHA-256 `3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978` |
+| Pinned tarball | PASS, 91 entries, `.gitattributes` excluded, SHA-256 `3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978` |
 | Reviewed command surfaces | PASS: package scripts `574c12e5...4534e3`, CI workflow `9d88b4a2...40119`, prerelease workflow `c96c8879...b43e1` |
+| Windows checkout normalization | PASS: Git attributes require LF; simulated `core.autocrlf=true` plus `core.eol=crlf` preserved exact workflow bytes |
 | Manifest/SBOM/checksum verification | PASS; `npmVersion` is `9.6.7` locally |
 | Clean offline install and public subpaths | PASS: 7 JavaScript, 9 JSON, 4 text |
 | Installed CLIs | PASS: 3/3 |

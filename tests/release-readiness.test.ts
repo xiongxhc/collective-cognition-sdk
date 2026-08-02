@@ -33,6 +33,7 @@ const githubPrereleaseWorkflow = fileURLToPath(
 const githubReleaseConfig = fileURLToPath(
   new URL("../.github/release.yml", import.meta.url),
 );
+const gitAttributes = fileURLToPath(new URL("../.gitattributes", import.meta.url));
 const expectedAssets = [
   "SHA256SUMS",
   "collective-cognition-sdk-0.6.0.cdx.json",
@@ -129,6 +130,16 @@ function readReviewedWorkflow(path: string, expectedSha256: string): string {
   const workflow = bytes.toString("utf8");
   assert.deepEqual(Buffer.from(workflow), bytes);
   return workflow;
+}
+
+function gitFilteredHash(path: string, bytes: Buffer): string {
+  const result = spawnSync("git", ["hash-object", "--stdin", `--path=${path}`], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+    input: bytes,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout.trim();
 }
 
 function checksumNamesDeclaration(
@@ -1780,6 +1791,76 @@ test("release builder rejects drift from the finalized package artifact", () => 
   } finally {
     writeFileSync(readmePath, original);
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("reviewed release text uses repository-enforced LF normalization", () => {
+  assert.equal(existsSync(gitAttributes), true, ".gitattributes must be tracked");
+  const rules = readFileSync(gitAttributes, "utf8")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+  for (const rule of [
+    ".gitattributes text eol=lf",
+    ".github/workflows/*.yml text eol=lf",
+    "package.json text eol=lf",
+    "*.md text eol=lf",
+    "*.json text eol=lf",
+    "*.jsonl text eol=lf",
+    "*.ts text eol=lf",
+    "*.mjs text eol=lf",
+    "*.js text eol=lf",
+    "*.yml text eol=lf",
+    "*.yaml text eol=lf",
+    "*.sh text eol=lf",
+    "*.bash text eol=lf",
+    "*.zsh text eol=lf",
+    "*.cff text eol=lf",
+    "LICENSE text eol=lf",
+    "NOTICE text eol=lf",
+  ]) {
+    assert.equal(rules.includes(rule), true, `missing LF rule: ${rule}`);
+  }
+  assert.equal(rules.some((rule) => /^\*\s+.*\btext\b/.test(rule)), false);
+
+  const reviewedTextPaths = [
+    ".gitattributes",
+    ".github/workflows/ci.yml",
+    ".github/workflows/github-prerelease.yml",
+    "package.json",
+    "README.md",
+    "docs/github-prerelease.md",
+    "rfcs/README.md",
+    "spec/README.md",
+    "scripts/build-github-prerelease.mjs",
+    "src/index.ts",
+    "tests/release-readiness.test.ts",
+    "tests/package.test.mjs",
+    "spec/compatibility/0.6.0/baseline.json",
+    "spec/compatibility/0.6.0/change-cases.jsonl",
+    "scripts/release.sh",
+    "CITATION.cff",
+    "LICENSE",
+    "NOTICE",
+  ];
+  const lf = Buffer.from("first\nsecond\n");
+  const crlf = Buffer.from("first\r\nsecond\r\n");
+  for (const path of reviewedTextPaths) {
+    const attributes = runGit(["check-attr", "text", "eol", "--", path]);
+    assert.match(attributes, new RegExp(`^${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: text: set$`, "m"));
+    assert.match(attributes, new RegExp(`^${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: eol: lf$`, "m"));
+    assert.equal(gitFilteredHash(path, lf), gitFilteredHash(path, crlf));
+    const trackedPath = join(repositoryRoot, path);
+    if (existsSync(trackedPath)) {
+      assert.equal(readFileSync(trackedPath).includes(0x0d), false, `${path} must contain LF bytes`);
+    }
+  }
+
+  for (const path of ["assets/image.png", "artifacts/release.tgz", "fixtures/state.db"]) {
+    const attributes = runGit(["check-attr", "text", "eol", "--", path]);
+    assert.match(attributes, /: text: unset$/m);
+    assert.match(attributes, /: eol: unspecified$/m);
+    assert.notEqual(gitFilteredHash(path, lf), gitFilteredHash(path, crlf));
   }
 });
 
