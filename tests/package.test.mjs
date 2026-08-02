@@ -1636,10 +1636,14 @@ console.log(JSON.stringify({
       process.platform === "win32"
         ? "collective-cognition-markdown.cmd"
         : "collective-cognition-markdown";
-    const markdownExecutable =
-      `${consumerRoot}/node_modules/.bin/${markdownExecutableName}`;
-    const markdownTarget = `${consumerRoot}/Markdown Cognition`;
-    const markdownInput = `${consumerRoot}/markdown-input.jsonl`;
+    const markdownExecutable = join(
+      consumerRoot,
+      "node_modules",
+      ".bin",
+      markdownExecutableName,
+    );
+    const markdownTarget = join(consumerRoot, "Markdown Cognition");
+    const markdownInput = join(consumerRoot, "markdown-input.jsonl");
     writeFileSync(
       markdownInput,
       `${readFileSync(portableCognitionValidFixturesUrl, "utf8").split("\n")[0]}\n`,
