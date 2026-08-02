@@ -1,0 +1,43 @@
+name: Feature request
+description: Propose portable SDK behavior without private operational data.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: Describe the user problem, not only a proposed implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Portable behavior
+      description: Describe behavior that can remain portable across hosts and connectors.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Describe workarounds and alternatives considered.
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility impact
+      description: Identify expected impact on public APIs, artifacts, or existing users.
+    validations:
+      required: true
+  - type: dropdown
+    id: rfc
+    attributes:
+      label: Is an RFC needed?
+      options:
+        - "No: no semantic or compatibility change is expected"
+        - "Yes: semantic, normative, or compatibility change is expected"
+        - "Unsure"
+    validations:
+      required: true

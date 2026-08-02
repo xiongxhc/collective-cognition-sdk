@@ -38,6 +38,7 @@ const distMarkdownCognitionCliUrl = new URL(
 );
 const packageJsonUrl = new URL("../package.json", import.meta.url);
 const packageLockUrl = new URL("../package-lock.json", import.meta.url);
+const gitAttributesUrl = new URL("../.gitattributes", import.meta.url);
 const compatibilityBaselineUrl = new URL(
   "../spec/compatibility/0.6.0/baseline.json",
   import.meta.url,
@@ -463,6 +464,7 @@ test("public documentation explains the source-neutral connector model", () => {
 });
 
 test("npm package manifest and tarball expose only approved artifacts", () => {
+  assert.equal(existsSync(gitAttributesUrl), true, ".gitattributes must exist");
   const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
   const packageLock = JSON.parse(readFileSync(packageLockUrl, "utf8"));
   const baseline = JSON.parse(
@@ -713,6 +715,11 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "package 0.6 compatibility inventory must match its literal allowlist",
   );
   assert.deepEqual(paths, expectedPaths, "package contents must match allowlist");
+  assert.equal(
+    paths.includes(".gitattributes"),
+    false,
+    ".gitattributes must remain outside the npm tarball",
+  );
   assert.ok(
     paths.every(
       (path) =>
@@ -1629,10 +1636,14 @@ console.log(JSON.stringify({
       process.platform === "win32"
         ? "collective-cognition-markdown.cmd"
         : "collective-cognition-markdown";
-    const markdownExecutable =
-      `${consumerRoot}/node_modules/.bin/${markdownExecutableName}`;
-    const markdownTarget = `${consumerRoot}/Markdown Cognition`;
-    const markdownInput = `${consumerRoot}/markdown-input.jsonl`;
+    const markdownExecutable = join(
+      consumerRoot,
+      "node_modules",
+      ".bin",
+      markdownExecutableName,
+    );
+    const markdownTarget = join(consumerRoot, "markdown-cognition");
+    const markdownInput = join(consumerRoot, "markdown-input.jsonl");
     writeFileSync(
       markdownInput,
       `${readFileSync(portableCognitionValidFixturesUrl, "utf8").split("\n")[0]}\n`,

@@ -363,8 +363,8 @@ durableSqliteTest(
     assert.equal(existsSync(fixture.cognitionPath), true);
     assert.equal(existsSync(fixture.forbiddenHome), false);
     assert.deepEqual(filesBelow(fixture.root), [
-      "cognition/cognition.db",
-      "ledger/ledger.db",
+      join("cognition", "cognition.db"),
+      join("ledger", "ledger.db"),
     ]);
 
     const cognition = new DatabaseSync(fixture.cognitionPath, {
@@ -592,7 +592,7 @@ test("prints the complete closed durable usage without touching data", (t) => {
   assert.equal(result.stderr, "");
   assert.equal(result.stdout, expectedUsage);
   assert.equal(existsSync(fixture.cognitionPath), false);
-  assert.deepEqual(filesBelow(fixture.root), ["ledger/ledger.db"]);
+  assert.deepEqual(filesBelow(fixture.root), [join("ledger", "ledger.db")]);
 });
 
 test("rejects arguments outside the exact closed interface", (t) => {
@@ -620,5 +620,5 @@ test("rejects arguments outside the exact closed interface", (t) => {
     assert.equal(result.stdout, "");
   }
   assert.equal(existsSync(fixture.cognitionPath), false);
-  assert.deepEqual(filesBelow(fixture.root), ["ledger/ledger.db"]);
+  assert.deepEqual(filesBelow(fixture.root), [join("ledger", "ledger.db")]);
 });

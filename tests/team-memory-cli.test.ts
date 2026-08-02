@@ -313,12 +313,10 @@ test("generic CLI validates the exported JSONL", () => {
     assert.equal(exported.status, 0, exported.stderr);
 
     const validated = spawnSync(
-      "npm",
+      process.execPath,
       [
-        "run",
-        "--silent",
-        "cc",
-        "--",
+        "--disable-warning=ExperimentalWarning",
+        "src/cli.ts",
         "validate",
         "--input",
         "-",

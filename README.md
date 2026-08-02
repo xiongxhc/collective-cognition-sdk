@@ -2,7 +2,7 @@
 
 Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript reference implementation for attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, source system, or organizational beliefs.
 
-This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.6.0` remains private and unpublished; its source, emitted ESM build, declarations, and CLIs are runnable, but it is not production-ready. The Markdown adapter implementation, additive package export, compatibility baseline, dedicated executable, clean-consumer verification, and independent whole-branch review are complete and final-review verified.
+This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.6.0` remains private and unpublished; its source, emitted ESM build, declarations, and CLIs are runnable, but it is not production-ready. The Markdown adapter implementation, additive package export, compatibility baseline, dedicated executable, clean-consumer verification, and independent whole-branch review are complete and final-review verified. The GitHub prerelease workflow is implemented, but no public release evidence is recorded here until an operator observes it.
 
 Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.6.0` are implemented. The SQLite cognition-store and maintained-source-connector slices are implemented and final-review verified.
 
@@ -50,7 +50,8 @@ Runnable now:
 
 Not implemented yet:
 
-- package publication or external distribution;
+- npm package publication, registry-name confirmation, or removal of the private package guard;
+- observed GitHub prerelease evidence, including a release URL, immutable tag target, Actions run, downloaded-asset verification, and attestation results;
 - a confirmed registry package name, runtime policy, or security policy;
 - stricter standalone and type-specific semantic schemas for cognitive objects, relationships, transitions, authorization, events, and errors; the Portable Cognition serialized envelope remains normative;
 - services, UI, synchronization, a durable publication outbox, connector registry, or network-connector ecosystem;
@@ -252,6 +253,86 @@ import {
 - Node.js 24 or newer. The examples rely on Node 24 native TypeScript execution.
 - `npm install` for development-only TypeScript, Node type, and schema-validation packages.
 - No production dependencies.
+
+## GitHub Prerelease
+
+The repository can create an experimental GitHub prerelease for the private,
+unpublished `0.6.0` package. This section is an installation procedure for an
+observed release, not evidence that a release already exists. Confirm that
+`v0.6.0` is listed as a prerelease and is not GitHub's latest release before
+using the commands.
+
+The core verification matrix runs only `npm test`, `npx tsc --noEmit`, and
+`npm run check` on:
+
+- Ubuntu with Node.js `24.9.0`;
+- Ubuntu with Node.js `24.14.0`;
+- macOS with Node.js `24.14.0`; and
+- Windows with Node.js `24.14.0`.
+
+The distribution verification environment is Ubuntu with Node.js `24.14.0`
+only. It runs examples, durable SQLite, deterministic assets, clean tarball
+installation, imports, and installed CLIs; those checks are not verified on
+the other three core-matrix environments.
+
+The tag workflow keeps checkout, dependency installation, tests, examples, and
+artifact construction in a read-only job with persisted Git credentials
+disabled. A separate privileged job downloads only the four verified assets;
+it runs no checked-out package or dependency code before attestation and GitHub
+release publication.
+
+The release contains exactly these assets:
+
+- `SHA256SUMS`;
+- `collective-cognition-sdk-0.6.0.cdx.json`;
+- `collective-cognition-sdk-0.6.0.tgz`; and
+- `release-manifest.json`.
+
+`"private": true` blocks npm publication. It does not prevent installing a
+downloaded GitHub tarball locally; npm registry publication remains forbidden.
+
+This is the first public-artifact decision for `0.6.0`: finalize the current
+docs-inclusive private tarball rather than restore the stale pre-readiness
+README. Relative to the earlier private review artifact, only the packaged
+README and RFC-index documentation bytes changed. The runtime, type, CLI,
+schema, and RFC compatibility surface and the exact package file inventory are
+unchanged; the release builder pins the final tarball SHA-256 so later byte
+drift fails closed.
+
+```bash
+TAG=v0.6.0
+RELEASE_DIR="$(mktemp -d)"
+cd "$RELEASE_DIR"
+
+for asset in SHA256SUMS collective-cognition-sdk-0.6.0.cdx.json collective-cognition-sdk-0.6.0.tgz release-manifest.json; do
+  curl -fLO "https://github.com/xiongxhc/collective-cognition-sdk/releases/download/$TAG/$asset"
+done
+
+shasum -a 256 -c SHA256SUMS
+
+for asset in SHA256SUMS collective-cognition-sdk-0.6.0.cdx.json collective-cognition-sdk-0.6.0.tgz release-manifest.json; do
+  gh attestation verify "$asset" \
+    --repo xiongxhc/collective-cognition-sdk \
+    --signer-workflow xiongxhc/collective-cognition-sdk/.github/workflows/github-prerelease.yml \
+    --source-ref "refs/tags/$TAG"
+done
+
+npm install --ignore-scripts --offline ./collective-cognition-sdk-0.6.0.tgz
+node --input-type=module -e 'import "collective-cognition-sdk"'
+./node_modules/.bin/collective-cognition --help
+./node_modules/.bin/collective-cognition-teammem --help
+./node_modules/.bin/collective-cognition-markdown --help
+```
+
+The release manifest records the private package state, tag, commit, trusted
+Node and npm versions, and asset metadata; the CycloneDX SBOM and GitHub
+attestations add distribution integrity evidence. They are not npm provenance
+or production certification.
+Markdown acceptance used temporary vaults only and did not accept or mutate a
+live vault. SQLite remains an optional reference adapter, not a mandatory
+store or certification claim. For the maintainer procedure and the evidence
+that must be recorded after a release, read the
+[GitHub prerelease runbook](docs/github-prerelease.md).
 
 ## Package Development
 

@@ -60,8 +60,8 @@ function runCli(
   input?: string,
 ): CliResult {
   const result = spawnSync(
-    "npm",
-    ["run", "--silent", "cc", "--", ...args],
+    process.execPath,
+    ["--disable-warning=ExperimentalWarning", "src/cli.ts", ...args],
     {
       cwd: process.cwd(),
       encoding: "utf8",

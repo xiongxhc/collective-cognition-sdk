@@ -91,12 +91,10 @@ function runValidate(
   readonly stderr: string;
 } {
   const result = spawnSync(
-    "npm",
+    process.execPath,
     [
-      "run",
-      "--silent",
-      "cc",
-      "--",
+      "--disable-warning=ExperimentalWarning",
+      "src/cli.ts",
       "validate",
       "--input",
       "-",
