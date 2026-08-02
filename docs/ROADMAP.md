@@ -83,7 +83,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** In progress. The compatibility, Portable Cognition, and Host Integration slices are delivered and final-review verified; broader Phase 3 work remains.
+**Status:** In progress. The compatibility, Portable Cognition, and Host Integration slices are delivered and final-review verified; broader Phase 3 work remains. GitHub prerelease distribution readiness is implemented, but public release evidence remains unobserved and npm publication remains blocked.
 
 **Active next slice**
 
@@ -187,13 +187,42 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - Public exports and CLI behavior have compatibility tests.
 - Package dry-run verification includes only approved artifacts and publication remains blocked until every release gate is complete.
 
+**GitHub prerelease distribution readiness**
+
+- [x] Deterministic local generation of exactly `SHA256SUMS`,
+  `collective-cognition-sdk-0.6.0.cdx.json`,
+  `collective-cognition-sdk-0.6.0.tgz`, and `release-manifest.json`.
+- [x] Read-only CI covers Ubuntu with Node.js `24.9.0`, Ubuntu with Node.js
+  `24.14.0`, macOS with Node.js `24.14.0`, and Windows with Node.js `24.14.0`.
+- [x] A tag-only workflow validates an annotated exact-`master` tag, creates a
+  prerelease without marking it latest, and attests all four assets.
+- [ ] Observed public release evidence: release URL, merge SHA, tag target SHA,
+  workflow run URL, asset digests, attestation result, clean installation,
+  imported subpaths, installed CLI checks, private vulnerability reporting, and
+  npm-unpublished status. Record these only after inspection.
+
+**Release execution checklist**
+
+- [ ] Complete the local Node 24 verification gate and two identical asset
+  builds on the reviewed feature head.
+- [ ] Open, review, and squash-merge the feature pull request; delete its
+  branch and verify local and remote `master` match.
+- [ ] Enable and verify private vulnerability reporting before tagging.
+- [ ] Create one annotated `v0.6.0` tag on verified `master` and push only that
+  tag; do not force, delete, or move a public tag.
+- [ ] Wait for GitHub Actions, verify prerelease and not-latest state, download
+  the four assets, and verify checksums, attestations, installation, imports,
+  and all installed CLIs.
+- [ ] If a public tag fails verification, issue a new prerelease version after
+  correction; do not retag `v0.6.0`.
+
 **Explicit deferrals**
 
 - No standards-body claim, universal compatibility claim, hosted platform, or long-term support promise without operational capacity.
 
 ## Phase 4: Adapter Ecosystem Foundations
 
-**Status:** Active. The SQLite database persistence adapter, maintained source-connector slice, and [Markdown cognition adapter](markdown-cognition-adapter-guide.md) are implemented and final-review verified. The Markdown slice includes the private, unpublished package `0.6.0` export, executable, compatibility baseline, exact package allowlist, clean-consumer workflow, and temporary-vault acceptance.
+**Status:** Active. The SQLite database persistence adapter, maintained source-connector slice, and [Markdown cognition adapter](markdown-cognition-adapter-guide.md) are implemented and final-review verified. The Markdown slice includes the private, unpublished package `0.6.0` export, executable, compatibility baseline, exact package allowlist, clean-consumer workflow, and temporary-vault acceptance. GitHub prerelease verification is an implemented procedure whose public evidence remains unobserved.
 
 **Entry criteria**
 
@@ -272,7 +301,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 5: Cross-Connector Interoperability
 
-**Status:** Planned.
+**Status:** Next SDK development slice. Execution remains pending its entry criteria.
 
 **Entry criteria**
 

@@ -1665,3 +1665,75 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
     );
   }
 });
+
+test("public documentation defines an unobserved GitHub prerelease boundary", () => {
+  const readDocumentation = (path: string): string => {
+    const file = join(repositoryRoot, path);
+    assert.equal(existsSync(file), true, `${path} must exist`);
+    return readFileSync(file, "utf8");
+  };
+  const readme = readDocumentation("README.md");
+  const roadmap = readDocumentation("docs/ROADMAP.md");
+  const rfcIndex = readDocumentation("rfcs/README.md");
+  const runbook = readDocumentation("docs/github-prerelease.md");
+  const documentation = [readme, roadmap, rfcIndex, runbook].join("\n");
+
+  assert.match(readme, /^## GitHub Prerelease$/m);
+  for (const asset of expectedAssets) {
+    assert.match(documentation, new RegExp(`\\b${asset.replaceAll(".", "\\.")}\\b`));
+  }
+  for (const runtime of [
+    "Ubuntu with Node.js `24.9.0`",
+    "Ubuntu with Node.js `24.14.0`",
+    "macOS with Node.js `24.14.0`",
+    "Windows with Node.js `24.14.0`",
+  ]) {
+    assert.equal(documentation.includes(runtime), true, `document ${runtime}`);
+  }
+
+  assert.match(readme, /https:\/\/github\.com\/xiongxhc\/collective-cognition-sdk\/releases\/download\//);
+  assert.match(readme, /npm install --ignore-scripts --offline \.\/collective-cognition-sdk-0\.6\.0\.tgz/);
+  assert.match(readme, /shasum -a 256 -c SHA256SUMS/);
+  assert.match(readme, /gh attestation verify "\$asset"/);
+  assert.match(readme, /--repo xiongxhc\/collective-cognition-sdk/);
+  assert.match(
+    readme,
+    /--signer-workflow xiongxhc\/collective-cognition-sdk\/\.github\/workflows\/github-prerelease\.yml/,
+  );
+  assert.match(readme, /--source-ref "refs\/tags\/\$TAG"/);
+  assert.match(readme, /collective-cognition --help/);
+  assert.match(readme, /collective-cognition-teammem --help/);
+  assert.match(readme, /collective-cognition-markdown --help/);
+  assert.match(readme, /"private": true.*npm publication.*GitHub.*tarball/s);
+  assert.match(readme, /temporary vaults only/i);
+  assert.match(readme, /SQLite.*reference adapter/i);
+
+  assert.match(roadmap, /## Phase 3: Specification and Package Stabilization/);
+  assert.match(roadmap, /GitHub prerelease distribution readiness/i);
+  assert.match(roadmap, /## Phase 4: Adapter Ecosystem Foundations/);
+  assert.match(roadmap, /GitHub prerelease.*verification/i);
+  assert.match(roadmap, /## Phase 5: Cross-Connector Interoperability\n\n\*\*Status:\*\* Next SDK development slice\./);
+  assert.match(roadmap, /Release execution checklist/i);
+  assert.match(rfcIndex, /RFC 0007: Markdown Cognition Adapter.*final-review verified/s);
+
+  assert.match(runbook, /node --disable-warning=ExperimentalWarning --test tests\/release-readiness\.test\.ts/);
+  assert.match(runbook, /node scripts\/build-github-prerelease\.mjs --output/);
+  assert.match(runbook, /cmp "\$first\/\$asset" "\$second\/\$asset"/);
+  assert.match(runbook, /gh api --method PUT repos\/xiongxhc\/collective-cognition-sdk\/private-vulnerability-reporting/);
+  assert.match(runbook, /gh api repos\/xiongxhc\/collective-cognition-sdk\/private-vulnerability-reporting --jq '\.enabled'/);
+  assert.match(runbook, /gh pr create --base master --head feature\/public-prerelease-readiness/);
+  assert.match(runbook, /gh pr merge "\$PR_NUMBER" --squash --delete-branch/);
+  assert.match(runbook, /git tag -a v0\.6\.0 -m "Collective Cognition SDK 0\.6\.0 prerelease"/);
+  assert.match(runbook, /git push origin v0\.6\.0/);
+  assert.match(runbook, /gh run watch/);
+  assert.match(runbook, /gh release download v0\.6\.0 --dir "\$release_dir"/);
+  assert.match(runbook, /gh api repos\/xiongxhc\/collective-cognition-sdk\/releases\/tags\/v0\.6\.0/);
+  assert.match(runbook, /gh api repos\/xiongxhc\/collective-cognition-sdk\/releases\/latest/);
+  assert.match(runbook, /git rev-parse 'refs\/tags\/v0\.6\.0\^\{\}'/);
+  assert.match(runbook, /shasum -a 256 -c SHA256SUMS/);
+  assert.match(runbook, /gh attestation verify "\$asset"/);
+  assert.match(runbook, /new prerelease version rather than moving or retagging `v0\.6\.0`/i);
+
+  assert.doesNotMatch(documentation, /\b(?:is|are|was|were)\s+(?:production[- ]ready|npm published|live vault accepted)\b/i);
+  assert.doesNotMatch(documentation, /release (?:URL|run ID|merge SHA|tag SHA):\s*https?:\/\/|release (?:URL|run ID|merge SHA|tag SHA):\s*[0-9a-f]{7,}/i);
+});
