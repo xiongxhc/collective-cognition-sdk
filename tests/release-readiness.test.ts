@@ -79,18 +79,18 @@ function assertNoAutoMergeWorkflows(workflows: string): void {
       }
       return entry.isFile() && /\.ya?ml$/i.test(entry.name) ? [path] : [];
     });
-  const autoMergeMechanisms = [
-    /\bgh\s+pr\s+merge\b[\s\S]{0,200}\s--auto\b/i,
-    /\benablePullRequestAutoMerge\b/i,
-    /\bdependabot\b[\s\S]{0,200}\bauto[-_ ]?merge\b/i,
-    /\b(?:auto[-_ ]?merge|automerge)[-_ ]?action\b/i,
-    /\benable[-_ ]?pull[-_ ]?request[-_ ]?auto[-_ ]?merge\b/i,
-    /\bauto[-_ ]?merge\b/i,
+  const executableMergeMechanisms = [
+    /^\s*run:\s*(?:[^\n]*\bgh\s+pr\s+merge\b|[>|][-+]?\s*\n(?:[ \t]+[^\n]*\n)*?[ \t]+[^\n]*\bgh\s+pr\s+merge\b)/im,
+    /^\s*(?:run|script|query):\s*(?:[^\n]*\benablePullRequestAutoMerge\b|[>|][-+]?\s*\n(?:[ \t]+[^\n]*\n)*?[ \t]+[^\n]*\benablePullRequestAutoMerge\b)/im,
+    /^\s*uses:\s*(?:pascalgn\/automerge-action|peter-evans\/enable-pull-request-automerge|ahmadnassri\/action-dependabot-auto-merge|actions-ecosystem\/action-automerge)@/im,
   ];
 
   for (const path of workflowFiles(workflows)) {
-    const workflow = readFileSync(path, "utf8");
-    for (const mechanism of autoMergeMechanisms) {
+    const workflow = readFileSync(path, "utf8")
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith("#"))
+      .join("\n");
+    for (const mechanism of executableMergeMechanisms) {
       assert.doesNotMatch(workflow, mechanism, `${path} enables automatic pull-request merging`);
     }
   }
@@ -449,17 +449,21 @@ test("release readiness rejects executable auto-merge workflow instructions", ()
   const root = mkdtempSync(join(tmpdir(), "cc-auto-merge-workflows-"));
   const workflows = join(root, ".github/workflows");
   const prohibitedInstructions = [
-    "run: gh pr merge 42 --auto",
-    "query: mutation { enablePullRequestAutoMerge(input: {}) { clientMutationId } }",
+    "run: gh pr merge 42",
+    "script: github.graphql(`mutation { enablePullRequestAutoMerge(input: {}) { clientMutationId } }`)",
     "uses: pascalgn/automerge-action@v0.16.3",
     "uses: peter-evans/enable-pull-request-automerge@v3",
-    "run: dependabot auto-merge",
+    "uses: ahmadnassri/action-dependabot-auto-merge@v2",
   ];
 
   try {
     mkdirSync(workflows, { recursive: true });
     mkdirSync(join(workflows, "nested"));
     writeFileSync(join(workflows, "release.yml"), "run: git merge-base HEAD origin/main\n");
+    writeFileSync(
+      join(workflows, "documentation.yml"),
+      "name: Auto-merge documentation\n# auto-merge remains disabled\njobs:\n  explain:\n    name: Explain auto-merge policy\n",
+    );
     assert.doesNotThrow(() => assertNoAutoMergeWorkflows(workflows));
 
     for (const [index, instruction] of prohibitedInstructions.entries()) {
