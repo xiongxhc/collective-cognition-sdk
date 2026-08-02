@@ -247,30 +247,241 @@ if (exitCode === 0) {
 }
 NODE
 
-test "$(find "$release_dir" -maxdepth 1 -type f | wc -l | tr -d ' ')" = 4
 test "$(git rev-parse "refs/tags/$TAG^{}")" = "$(git rev-parse origin/master)"
-cd "$release_dir"
-shasum -a 256 -c SHA256SUMS
+
+RELEASE_DIR="$release_dir" TAG="$TAG" TAG_SHA="$TAG_SHA" node --input-type=module <<'NODE'
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { lstatSync, readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+
+const releaseDirectory = process.env.RELEASE_DIR;
+const tag = process.env.TAG;
+const tagSha = process.env.TAG_SHA;
+assert.equal(typeof releaseDirectory, "string");
+assert.equal(tag, "v0.6.0");
+assert.match(tagSha, /^[0-9a-f]{40}$/);
+
+const checksumNames = [
+  "collective-cognition-sdk-0.6.0.cdx.json",
+  "collective-cognition-sdk-0.6.0.tgz",
+  "release-manifest.json",
+];
+const checksumBytes = readFileSync(join(releaseDirectory, "SHA256SUMS"));
+const checksumText = checksumBytes.toString("utf8");
+assert.deepEqual(Buffer.from(checksumText, "utf8"), checksumBytes);
+const checksumLines = checksumText.split("\n");
+assert.equal(checksumLines.pop(), "");
+assert.equal(checksumLines.length, checksumNames.length);
+const checksumEntries = checksumLines.map((line) => {
+  const match = line.match(/^([0-9a-f]{64})  (.+)$/);
+  assert.ok(match);
+  return { sha256: match[1], name: match[2] };
+});
+assert.deepEqual(checksumEntries.map(({ name }) => name), checksumNames);
+for (const entry of checksumEntries) {
+  const bytes = readFileSync(join(releaseDirectory, entry.name));
+  assert.equal(entry.sha256, createHash("sha256").update(bytes).digest("hex"));
+}
+
+const expectedAssets = [
+  "SHA256SUMS",
+  "collective-cognition-sdk-0.6.0.cdx.json",
+  "collective-cognition-sdk-0.6.0.tgz",
+  "release-manifest.json",
+];
+const entries = readdirSync(releaseDirectory, { withFileTypes: true });
+assert.deepEqual(entries.map((entry) => entry.name).sort(), expectedAssets);
+for (const entry of entries) {
+  const status = lstatSync(join(releaseDirectory, entry.name));
+  assert.equal(status.isFile(), true);
+  assert.equal(status.isSymbolicLink(), false);
+}
+
+const manifest = JSON.parse(readFileSync(
+  join(releaseDirectory, "release-manifest.json"),
+  "utf8",
+));
+assert.deepEqual(Object.keys(manifest).sort(), [
+  "assets",
+  "commit",
+  "nodeVersion",
+  "npmVersion",
+  "package",
+  "repository",
+  "tag",
+]);
+assert.equal(manifest.repository, "xiongxhc/collective-cognition-sdk");
+assert.equal(manifest.tag, tag);
+assert.equal(manifest.commit, tagSha);
+assert.deepEqual(manifest.package, {
+  name: "collective-cognition-sdk",
+  version: "0.6.0",
+  private: true,
+});
+assert.equal(manifest.nodeVersion, "v24.14.0");
+assert.match(manifest.npmVersion, /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/);
+assert.deepEqual(
+  manifest.assets.map((asset) => asset.name),
+  [
+    "collective-cognition-sdk-0.6.0.tgz",
+    "collective-cognition-sdk-0.6.0.cdx.json",
+  ],
+);
+assert.equal(
+  manifest.assets.find((asset) =>
+    asset.name === "collective-cognition-sdk-0.6.0.tgz"
+  )?.sha256,
+  "3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978",
+);
+for (const asset of manifest.assets) {
+  assert.deepEqual(Object.keys(asset).sort(), ["bytes", "name", "sha256"]);
+  const bytes = readFileSync(join(releaseDirectory, asset.name));
+  assert.equal(asset.bytes, bytes.length);
+  assert.equal(
+    asset.sha256,
+    createHash("sha256").update(bytes).digest("hex"),
+  );
+}
+
+const sbom = JSON.parse(readFileSync(
+  join(releaseDirectory, "collective-cognition-sdk-0.6.0.cdx.json"),
+  "utf8",
+));
+assert.deepEqual(sbom, {
+  bomFormat: "CycloneDX",
+  specVersion: "1.6",
+  version: 1,
+  metadata: {
+    component: {
+      "bom-ref": "pkg:npm/collective-cognition-sdk@0.6.0",
+      name: "collective-cognition-sdk",
+      purl: "pkg:npm/collective-cognition-sdk@0.6.0",
+      type: "library",
+      version: "0.6.0",
+    },
+  },
+  components: [],
+  dependencies: [{
+    ref: "pkg:npm/collective-cognition-sdk@0.6.0",
+    dependsOn: [],
+  }],
+});
+NODE
+(cd "$release_dir" && shasum -a 256 -c SHA256SUMS)
 
 for asset in SHA256SUMS collective-cognition-sdk-0.6.0.cdx.json collective-cognition-sdk-0.6.0.tgz release-manifest.json; do
-  gh attestation verify "$asset" \
+  gh attestation verify "$release_dir/$asset" \
     --repo xiongxhc/collective-cognition-sdk \
     --signer-workflow xiongxhc/collective-cognition-sdk/.github/workflows/github-prerelease.yml \
     --source-ref "refs/tags/$TAG"
 done
 
-npm install --ignore-scripts --offline ./collective-cognition-sdk-0.6.0.tgz
-node --input-type=module -e 'import "collective-cognition-sdk"'
-./node_modules/.bin/collective-cognition --help
-./node_modules/.bin/collective-cognition-teammem --help
-./node_modules/.bin/collective-cognition-markdown --help
+consumer="$release_dir/consumer"
+mkdir "$consumer"
+printf '%s\n' '{"name":"release-consumer","private":true,"type":"module"}' > "$consumer/package.json"
+(
+  cd "$consumer"
+  npm install --ignore-scripts --offline --no-audit --no-fund "$release_dir/collective-cognition-sdk-0.6.0.tgz"
+  node --input-type=module <<'NODE'
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+
+const moduleSpecifiers = [
+  "collective-cognition-sdk",
+  "collective-cognition-sdk/adapters/markdown/0.1.0",
+  "collective-cognition-sdk/connector-conformance/0.1.0",
+  "collective-cognition-sdk/connectors/team-memory/0.1.0",
+  "collective-cognition-sdk/host-conformance/0.1.0",
+  "collective-cognition-sdk/reference-host/0.1.0",
+  "collective-cognition-sdk/stores/sqlite/0.1.0",
+];
+for (const specifier of moduleSpecifiers) {
+  assert.ok(await import(specifier));
+}
+
+const jsonSpecifiers = [
+  "collective-cognition-sdk/compatibility/0.1.0",
+  "collective-cognition-sdk/compatibility/0.2.0",
+  "collective-cognition-sdk/compatibility/0.3.0",
+  "collective-cognition-sdk/compatibility/0.4.0",
+  "collective-cognition-sdk/compatibility/0.5.0",
+  "collective-cognition-sdk/compatibility/0.6.0",
+  "collective-cognition-sdk/schemas/source-record/0.1.0",
+  "collective-cognition-sdk/schemas/portable-cognition/0.1.0",
+  "collective-cognition-sdk/package.json",
+];
+for (const specifier of jsonSpecifiers) {
+  assert.ok(await import(specifier, { with: { type: "json" } }));
+}
+
+const textSpecifiers = [
+  "collective-cognition-sdk/contracts/host-integration/0.1.0",
+  "collective-cognition-sdk/conformance/portable-cognition/0.1.0/valid",
+  "collective-cognition-sdk/conformance/portable-cognition/0.1.0/invalid",
+  "collective-cognition-sdk/conformance/portable-cognition/0.1.0/cognitive-loop",
+];
+for (const specifier of textSpecifiers) {
+  const content = await readFile(new URL(import.meta.resolve(specifier)), "utf8");
+  assert.ok(content.length > 0);
+}
+NODE
+  ./node_modules/.bin/collective-cognition --help
+  ./node_modules/.bin/collective-cognition-teammem --help
+  ./node_modules/.bin/collective-cognition-markdown --help
+)
+
+node --input-type=module <<'NODE'
+import assert from "node:assert/strict";
+import { get } from "node:https";
+
+const registryResult = await new Promise((resolve, reject) => {
+  const request = get(
+    "https://registry.npmjs.org/collective-cognition-sdk/0.6.0",
+    {
+      headers: {
+        accept: "application/json",
+        "user-agent": "collective-cognition-sdk-release-verifier/0.6.0",
+      },
+    },
+    (response) => {
+      const chunks = [];
+      let length = 0;
+      response.on("data", (chunk) => {
+        length += chunk.length;
+        if (length > 1024) {
+          response.destroy(new Error("Registry response exceeded 1024 bytes."));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on("error", reject);
+      response.on("end", () => resolve({
+        body: Buffer.concat(chunks).toString("utf8"),
+        contentType: response.headers["content-type"],
+        statusCode: response.statusCode,
+      }));
+    },
+  );
+  assert.equal(request.getHeader("authorization"), undefined);
+  request.setTimeout(15_000, () => request.destroy(new Error("Registry request timed out.")));
+  request.on("error", reject);
+});
+const { body, contentType, statusCode } = registryResult;
+assert.equal(statusCode, 404);
+assert.match(contentType ?? "", /^application\/json\b/i);
+const registryPayload = JSON.parse(body);
+assert.equal(registryPayload, "Not Found");
+NODE
 ```
 
 The release API predicates above require `prerelease: true`, `draft: false`,
 the exact tag, and exactly four unique asset names. The latest-release request
 accepts only HTTP `404` or a successful HTTP `200` response whose tag differs
-from `v0.6.0`; authentication, network, parsing, and every other HTTP failure
-stop the procedure.
+from `v0.6.0`. The npm check sends no authorization header and accepts only the
+official version endpoint's exact HTTP `404`, JSON content type, and `"Not
+Found"` body. Authentication, redirects, network errors, timeouts, oversized
+responses, parsing errors, and every other HTTP result stop the procedure.
 
 ## 6. Record Evidence or Correct Safely
 

@@ -199,7 +199,18 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
   environment for examples, durable SQLite, deterministic assets, clean
   tarball installation, imports, and installed CLI checks only.
 - [x] A tag-only workflow validates an annotated exact-`master` tag, creates a
-  prerelease without marking it latest, and attests all four assets.
+  prerelease without marking it latest, and attests all four assets. Repository
+  checkout, dependencies, and release construction run with read-only
+  permissions and no persisted checkout credential; a separate privileged job
+  downloads only the verified four-asset transfer and runs no repository
+  package or dependency code.
+- [x] The first public-artifact decision finalizes the current docs-inclusive
+  private `0.6.0` tarball rather than restoring stale documentation. Only the
+  packaged README and RFC-index bytes changed from the earlier private artifact;
+  the compatibility surface and exact package file inventory remain unchanged,
+  and final tarball SHA-256
+  `3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978`
+  is enforced against later byte drift.
 - [ ] Observed public release evidence: release URL, merge SHA, tag target SHA,
   workflow run URL, asset digests, attestation result, clean installation,
   imported subpaths, installed CLI checks, private vulnerability reporting, and
@@ -215,8 +226,10 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [ ] Create one annotated `v0.6.0` tag on verified `master` and push only that
   tag; do not force, delete, or move a public tag.
 - [ ] Wait for GitHub Actions, verify prerelease and not-latest state, download
-  the four assets, and verify checksums, attestations, installation, imports,
-  and all installed CLIs.
+  the four assets, and verify checksums, manifest and SBOM bytes and semantics,
+  tag commit, private state, Node/npm versions, attestations, every public
+  JavaScript/JSON/text subpath, all installed CLIs, and an unauthenticated exact
+  npm-registry `404` for `collective-cognition-sdk@0.6.0`.
 - [ ] If a public tag fails verification, issue a new prerelease version after
   correction; do not retag `v0.6.0`.
 

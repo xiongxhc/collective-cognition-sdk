@@ -4,7 +4,7 @@
 
 **Goal:** Publish a verifiable GitHub prerelease for private package `0.6.0` without enabling or contacting npm publication.
 
-**Architecture:** A repository-only Node.js builder creates an npm-compatible tarball, a deterministic CycloneDX SBOM, a canonical release manifest, and ordered checksums in an explicit empty output directory. Read-only cross-platform CI verifies the SDK and distribution path, while a tag-only GitHub workflow validates release identity, attests the exact assets, and creates an idempotent prerelease. Community, security, and release documentation state the experimental support boundary and keep npm publication explicitly blocked.
+**Architecture:** A repository-only Node.js builder creates an npm-compatible tarball, a deterministic CycloneDX SBOM, a canonical release manifest, and ordered checksums in an explicit empty output directory. Read-only cross-platform CI verifies the SDK and distribution path. The tag-only GitHub workflow performs checkout, dependency execution, verification, and asset construction in a read-only job, then transfers exactly four assets to a separate privileged job that executes no repository package or dependency code before attestation and idempotent prerelease publication. Community, security, and release documentation state the experimental support boundary and keep npm publication explicitly blocked.
 
 **Tech Stack:** Node.js `24`, npm, TypeScript, Node test runner, GitHub Actions, CycloneDX JSON `1.6`, GitHub artifact attestations, GitHub Releases.
 
@@ -13,9 +13,9 @@
 - Repository is `xiongxhc/collective-cognition-sdk`; package is `collective-cognition-sdk` version `0.6.0`; tag is exactly `v0.6.0`.
 - `package.json` must retain `"private": true`; do not add npm authentication, registry writes, `npm publish`, `NODE_AUTH_TOKEN`, or package write permissions.
 - The release contains exactly `collective-cognition-sdk-0.6.0.tgz`, `collective-cognition-sdk-0.6.0.cdx.json`, `release-manifest.json`, and `SHA256SUMS`.
-- Release-readiness files, workflows, tests, and scripts must remain outside the exact package tarball allowlist and must not change the `0.6.0` compatibility baseline.
+- Release-readiness files, workflows, tests, and scripts must remain outside the exact package tarball allowlist and must not change the `0.6.0` compatibility baseline. This first public artifact explicitly finalizes the current docs-inclusive private tarball: only packaged README/RFC-index bytes differ from the earlier private artifact, while the compatibility surface and exact file inventory remain unchanged and final tarball SHA-256 `3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978` is pinned.
 - CI tests Ubuntu Node `24.9.0`, Ubuntu Node `24.14.0`, macOS Node `24.14.0`, and Windows Node `24.14.0`.
-- GitHub Actions must be official `actions/*` projects pinned to exact commits: checkout `3d3c42e5aac5ba805825da76410c181273ba90b1` (`v7.0.1`), setup-node `820762786026740c76f36085b0efc47a31fe5020` (`v7.0.0`), and attest-build-provenance `0f67c3f4856b2e3261c31976d6725780e5e4c373` (`v4.1.1`).
+- GitHub Actions must be official `actions/*` projects pinned to exact commits: checkout `3d3c42e5aac5ba805825da76410c181273ba90b1` (`v7.0.1`), setup-node `820762786026740c76f36085b0efc47a31fe5020` (`v7.0.0`), upload-artifact `ea165f8d65b6e75b540449e92b4886f43607fa02`, download-artifact `d3f86a106a0bac45b974a628896c90dbdf5c8093`, and attest-build-provenance `0f67c3f4856b2e3261c31976d6725780e5e4c373` (`v4.1.1`).
 - The builder accepts only `node scripts/build-github-prerelease.mjs --output /absolute/empty/directory` and emits sanitized diagnostics without absolute paths, secrets, source content, or arbitrary subprocess output.
 - The SBOM is deterministic CycloneDX `1.6`, contains exactly the SDK component and its empty dependency edge, and rejects non-empty `dependencies`, `optionalDependencies`, or `peerDependencies`.
 - The release is a GitHub prerelease, is not latest, and does not claim production certification, LTS, npm publication, live-vault acceptance, or unsupported runtimes.
@@ -284,7 +284,7 @@ git commit -m "ci: verify supported release environments"
 
 Require a `push.tags: ["v*"]`-only trigger with no `workflow_dispatch`, checkout `fetch-depth: 0`, exact tag/package equality, exact `test "$GITHUB_SHA" = "$(git rev-parse origin/master)"`, and a `package.json` private guard. Require Node `24.14.0`, the same full validation commands as the distribution job, exact four-asset verification, and official pinned actions only. Recovery uses GitHub's rerun operation for the original immutable tag workflow, not a branch-based manual dispatch.
 
-Require release-workflow permissions to be exactly `contents: write`, `id-token: write`, and `attestations: write`; reject `packages: write`. Require:
+Require workflow-level and verification-job permissions to be exactly `contents: read`, checkout `persist-credentials: false`, and a separate dependent publish job whose permissions are exactly `contents: write`, `id-token: write`, and `attestations: write`; reject `packages: write`. Require:
 
 ```text
 actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373
@@ -300,7 +300,7 @@ Expected: FAIL because `.github/workflows/github-prerelease.yml` does not exist.
 
 - [ ] **Step 3: Implement the prerelease workflow**
 
-Validate the tag before dependency installation. Fetch `origin master`, reject a tag whose commit differs from `origin/master`, and keep all artifact work under `${{ runner.temp }}`. Run the full release verification, attest the four exact paths, then create or update only the release for `$GITHUB_REF_NAME`. For an existing release, assert it is a prerelease before replacing the four named assets; never create or move a tag. Set `GH_TOKEN: ${{ github.token }}` only on the release step.
+Validate the tag before dependency installation. Fetch `origin master`, reject a tag whose commit differs from `origin/master`, and keep all artifact work under `${{ runner.temp }}`. In the read-only job, run the full release verification and transfer the four exact paths with pinned `actions/upload-artifact`. In the dependent privileged job, use pinned `actions/download-artifact`, execute no checkout or repository package/dependency code, independently validate the transferred assets, attest them, then create or update only the release for `$GITHUB_REF_NAME`. For an existing release, assert it is a prerelease before replacing the four named assets; never create or move a tag. Set `GH_TOKEN: ${{ github.token }}` only on release API steps.
 
 `.github/release.yml` must categorize features, fixes, documentation, dependencies, and other changes without excluding contributors or inventing release claims.
 
@@ -375,7 +375,7 @@ npm run pack:check
 git diff --check
 ```
 
-Expected: all commands PASS; historical package baseline and exact tarball remain unchanged.
+Expected: all commands PASS; the historical compatibility baseline and exact package file inventory remain unchanged, and the explicitly finalized docs-inclusive tarball matches its pinned SHA-256.
 
 - [ ] **Step 6: Commit**
 
@@ -448,7 +448,7 @@ Expected: one annotated tag points to the verified merge commit. Never force, de
 
 - [ ] **Step 6: Wait for and verify the public prerelease**
 
-Use `gh run watch` for the tag workflow, then download the release into a fresh temporary directory. Require exactly four files; verify `gh api repos/xiongxhc/collective-cognition-sdk/releases/tags/v0.6.0` reports `prerelease: true`, `draft: false`, the exact tag, and the exact asset inventory. Fetch `origin master refs/tags/v0.6.0:refs/tags/v0.6.0`, then require `git rev-parse 'refs/tags/v0.6.0^{}'` to equal `git rev-parse origin/master`; do not use the release API's `target_commitish` as tag-target evidence. Query `gh api repos/xiongxhc/collective-cognition-sdk/releases/latest`; require either HTTP `404` or a different `tag_name`, proving `v0.6.0` is not GitHub's latest stable release. Then run `shasum -a 256 -c SHA256SUMS`, validate SBOM structure and manifest commit/tag/private status, and verify each downloaded asset with:
+Use `gh run watch` for the tag workflow, then download the release into a fresh temporary directory. Require exactly four regular non-symbolic files; verify `gh api repos/xiongxhc/collective-cognition-sdk/releases/tags/v0.6.0` reports `prerelease: true`, `draft: false`, the exact tag, and the exact asset inventory. Fetch `origin master refs/tags/v0.6.0:refs/tags/v0.6.0`, then require `git rev-parse 'refs/tags/v0.6.0^{}'` to equal `git rev-parse origin/master`; do not use the release API's `target_commitish` as tag-target evidence. Query `gh api repos/xiongxhc/collective-cognition-sdk/releases/latest`; require either HTTP `404` or a different `tag_name`, proving `v0.6.0` is not GitHub's latest stable release. Then run `shasum -a 256 -c SHA256SUMS`; independently validate exact SBOM structure and every manifest filename, byte length, SHA-256, commit, tag, private flag, Node version, and npm version; verify every public JavaScript, JSON, and text subpath; and make an unauthenticated official-registry request that accepts only the exact HTTP `404` plus JSON `"Not Found"` response. Verify each downloaded asset with:
 
 ```bash
 for asset in SHA256SUMS collective-cognition-sdk-0.6.0.cdx.json collective-cognition-sdk-0.6.0.tgz release-manifest.json; do

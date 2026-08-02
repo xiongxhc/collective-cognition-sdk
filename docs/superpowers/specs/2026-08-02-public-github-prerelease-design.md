@@ -75,6 +75,15 @@ tests. Release-readiness files, workflows, tests, and build scripts must not
 enter the npm tarball unless a later compatibility slice explicitly changes
 the package baseline.
 
+Because this is the first public artifact, the release explicitly finalizes the
+current docs-inclusive private `0.6.0` tarball instead of restoring the stale
+pre-readiness README. Only packaged README and RFC-index documentation bytes
+changed from the earlier private artifact; the runtime, type, CLI, schema, and
+RFC compatibility surface and exact file inventory remain unchanged. The final
+tarball SHA-256 is a literal release-tool invariant so any later byte drift
+fails before publication. The finalized digest is
+`3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978`.
+
 The CycloneDX `1.6` SBOM is produced deterministically by the repository release
 tool from `package.json`. The current SDK has zero runtime dependencies, so the
 SBOM contains exactly the SDK component and an empty dependency edge. The
@@ -83,8 +92,8 @@ become non-empty; supporting those fields requires a reviewed generator change
 rather than silently emitting an incomplete SBOM. `SHA256SUMS` contains lowercase
 SHA-256 digests and exact asset filenames in lexical filename order.
 `release-manifest.json` records the repository, tag, commit SHA, package name,
-package version, private-package status, Node version, and the tarball and SBOM
-payloads' exact filenames, byte lengths, and SHA-256 digests. `SHA256SUMS`
+package version, private-package status, trusted Node and npm versions, and the
+tarball and SBOM payloads' exact filenames, byte lengths, and SHA-256 digests. `SHA256SUMS`
 covers the tarball, SBOM, and completed manifest in lexical filename order; it
 does not recursively hash itself. The GitHub release inventory and attestation
 still cover all four release assets. Manifest JSON encoding is canonical for
@@ -141,10 +150,14 @@ Add `.github/workflows/github-prerelease.yml`, triggered only by tags matching
 9. create a GitHub prerelease with generated release notes and the four assets;
 10. leave npm untouched.
 
-The workflow permissions are closed by default and opened only where needed:
-
-- `contents: write` to create the GitHub release;
-- `id-token: write` and `attestations: write` for GitHub attestations.
+The workflow and verification job have only `contents: read`. Checkout disables
+credential persistence. Verification, dependency execution, examples, package
+checks, and deterministic builds complete before the four exact assets are
+uploaded with pinned `actions/upload-artifact`. A dependent publish job uses
+pinned `actions/download-artifact`, receives only `contents: write`,
+`id-token: write`, and `attestations: write`, and runs no checkout, package,
+dependency, or other repository code before revalidating, attesting, and
+publishing the transfer.
 
 The workflow must contain no npm token, registry token, package write
 permission, `NODE_AUTH_TOKEN`, `.npmrc` mutation, or `npm publish` command.
@@ -171,6 +184,10 @@ The script must:
   output targets before mutation;
 - require package name `collective-cognition-sdk`, version `0.6.0`, and
   `private: true`;
+- resolve npm only from closed adjacent or system CLI layouts, including the
+  reviewed `/usr/local/lib/node_modules/npm/bin/npm-cli.js` layout, and bind the
+  real npm package identity, version, POSIX owner, and non-writable mode where
+  applicable;
 - derive the manifest commit from `git rev-parse HEAD` and require a full
   lowercase 40-hex SHA;
 - run the reviewed local `npm run --ignore-scripts build` before packing so a
@@ -181,12 +198,17 @@ The script must:
 - generate the exact deterministic CycloneDX `1.6` document and reject
   unsupported runtime dependency fields;
 - compute release asset sizes and SHA-256 digests from complete file bytes;
+- require the finalized tarball's literal SHA-256 and record the verified npm
+  version in the release manifest;
 - write `release-manifest.json` and `SHA256SUMS` deterministically; and
 - emit one sanitized JSON success object without absolute paths.
 
 Failures use fixed public diagnostics, never arbitrary subprocess messages,
-source content, environment values, credentials, or absolute paths. Temporary
-files created by an invocation are removed on failure. The script never reads
+source content, environment values, credentials, or absolute paths. Runtime
+cleanup is non-throwing, completes before stage publication or success output,
+preserves an earlier failure code, and uses one fixed cleanup code when cleanup
+changes an otherwise successful outcome. Temporary files created by an
+invocation are removed when the operating system permits. The script never reads
 npm credentials and never contacts or writes a package registry except for
 normal dependency installation performed outside the script.
 

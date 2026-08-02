@@ -6,20 +6,21 @@ on:
       - "v*"
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 jobs:
-  release:
-    name: Attested GitHub prerelease
+  verify:
+    name: Read-only release verification
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
       - name: Check out immutable tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
@@ -224,20 +225,154 @@ jobs:
             ./node_modules/.bin/collective-cognition-teammem --version
             ./node_modules/.bin/collective-cognition-markdown --help
           )
-      - name: Attest release assets
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373
+      - name: Upload verified release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          subject-path: |
+          name: github-prerelease-assets
+          path: |
             ${{ runner.temp }}/github-prerelease/first/SHA256SUMS
             ${{ runner.temp }}/github-prerelease/first/collective-cognition-sdk-0.6.0.cdx.json
             ${{ runner.temp }}/github-prerelease/first/collective-cognition-sdk-0.6.0.tgz
             ${{ runner.temp }}/github-prerelease/first/release-manifest.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
+
+  publish:
+    name: Attest and publish GitHub prerelease
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download verified release assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: github-prerelease-assets
+          path: ${{ runner.temp }}/github-prerelease-assets
+      - name: Verify transferred release assets
+        run: |
+          set -euo pipefail
+          release_dir="${{ runner.temp }}/github-prerelease-assets"
+          expected_assets=(
+            SHA256SUMS
+            collective-cognition-sdk-0.6.0.cdx.json
+            collective-cognition-sdk-0.6.0.tgz
+            release-manifest.json
+          )
+          test "$(find "$release_dir" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" = 4
+          for asset in "${expected_assets[@]}"; do
+            test -f "$release_dir/$asset"
+            test ! -L "$release_dir/$asset"
+          done
+
+          RELEASE_DIR="$release_dir" node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { createHash } from "node:crypto";
+          import { readFileSync } from "node:fs";
+          import { join } from "node:path";
+
+          const releaseDirectory = process.env.RELEASE_DIR;
+          assert.equal(typeof releaseDirectory, "string");
+          const checksumNames = [
+            "collective-cognition-sdk-0.6.0.cdx.json",
+            "collective-cognition-sdk-0.6.0.tgz",
+            "release-manifest.json",
+          ];
+          const checksumBytes = readFileSync(join(releaseDirectory, "SHA256SUMS"));
+          const checksumText = checksumBytes.toString("utf8");
+          assert.deepEqual(Buffer.from(checksumText, "utf8"), checksumBytes);
+          const checksumLines = checksumText.split("\n");
+          assert.equal(checksumLines.pop(), "");
+          assert.equal(checksumLines.length, checksumNames.length);
+          const checksumEntries = checksumLines.map((line) => {
+            const match = line.match(/^([0-9a-f]{64})  (.+)$/);
+            assert.ok(match);
+            return { sha256: match[1], name: match[2] };
+          });
+          assert.deepEqual(checksumEntries.map(({ name }) => name), checksumNames);
+          for (const entry of checksumEntries) {
+            const bytes = readFileSync(join(releaseDirectory, entry.name));
+            assert.equal(entry.sha256, createHash("sha256").update(bytes).digest("hex"));
+          }
+          const manifest = JSON.parse(readFileSync(
+            join(releaseDirectory, "release-manifest.json"),
+            "utf8",
+          ));
+          assert.equal(manifest.repository, "xiongxhc/collective-cognition-sdk");
+          assert.equal(manifest.tag, process.env.GITHUB_REF_NAME);
+          assert.equal(manifest.commit, process.env.GITHUB_SHA);
+          assert.deepEqual(manifest.package, {
+            name: "collective-cognition-sdk",
+            version: "0.6.0",
+            private: true,
+          });
+          assert.equal(manifest.nodeVersion, "v24.14.0");
+          assert.match(manifest.npmVersion, /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/);
+          assert.deepEqual(
+            manifest.assets.map((asset) => asset.name),
+            [
+              "collective-cognition-sdk-0.6.0.tgz",
+              "collective-cognition-sdk-0.6.0.cdx.json",
+            ],
+          );
+          assert.equal(
+            manifest.assets.find((asset) =>
+              asset.name === "collective-cognition-sdk-0.6.0.tgz"
+            )?.sha256,
+            "3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978",
+          );
+          for (const asset of manifest.assets) {
+            const bytes = readFileSync(join(releaseDirectory, asset.name));
+            assert.equal(asset.bytes, bytes.length);
+            assert.equal(
+              asset.sha256,
+              createHash("sha256").update(bytes).digest("hex"),
+            );
+          }
+
+          const sbom = JSON.parse(readFileSync(
+            join(releaseDirectory, "collective-cognition-sdk-0.6.0.cdx.json"),
+            "utf8",
+          ));
+          assert.deepEqual(sbom, {
+            bomFormat: "CycloneDX",
+            specVersion: "1.6",
+            version: 1,
+            metadata: {
+              component: {
+                "bom-ref": "pkg:npm/collective-cognition-sdk@0.6.0",
+                name: "collective-cognition-sdk",
+                purl: "pkg:npm/collective-cognition-sdk@0.6.0",
+                type: "library",
+                version: "0.6.0",
+              },
+            },
+            components: [],
+            dependencies: [{
+              ref: "pkg:npm/collective-cognition-sdk@0.6.0",
+              dependsOn: [],
+            }],
+          });
+          NODE
+          (cd "$release_dir" && sha256sum -c SHA256SUMS)
+      - name: Attest release assets
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373
+        with:
+          subject-path: |
+            ${{ runner.temp }}/github-prerelease-assets/SHA256SUMS
+            ${{ runner.temp }}/github-prerelease-assets/collective-cognition-sdk-0.6.0.cdx.json
+            ${{ runner.temp }}/github-prerelease-assets/collective-cognition-sdk-0.6.0.tgz
+            ${{ runner.temp }}/github-prerelease-assets/release-manifest.json
       - name: Create or update GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          release_dir="${{ runner.temp }}/github-prerelease/first"
+          release_dir="${{ runner.temp }}/github-prerelease-assets"
           assets=(
             "$release_dir/SHA256SUMS"
             "$release_dir/collective-cognition-sdk-0.6.0.cdx.json"

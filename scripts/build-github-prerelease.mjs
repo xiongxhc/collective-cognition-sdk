@@ -21,6 +21,7 @@ const EXPECTED = Object.freeze({
   repository: "xiongxhc/collective-cognition-sdk",
   packageName: "collective-cognition-sdk",
   packageVersion: "0.6.0",
+  tarballSha256: "3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978",
   tag: "v0.6.0",
   assets: Object.freeze([
     "SHA256SUMS",
@@ -36,7 +37,26 @@ const RUNTIME_DEPENDENCY_FIELDS = Object.freeze([
   "bundleDependencies",
   "bundledDependencies",
 ]);
-const FORBIDDEN_SCRIPT_TOKENS = /\b(?:npm\s+(?:publish|token|login|adduser|logout|whoami|profile)|NPM_TOKEN|NODE_AUTH_TOKEN|_authToken|authToken)\b/i;
+const FORBIDDEN_SCRIPT_TOKENS = /\b(?:NPM_TOKEN|NODE_AUTH_TOKEN|_authToken|authToken)\b/i;
+const FORBIDDEN_NPM_VERBS = new Set([
+  "publish",
+  "dist-tag",
+  "deprecate",
+  "unpublish",
+  "access",
+  "owner",
+  "team",
+  "org",
+  "hook",
+  "star",
+  "unstar",
+  "profile",
+  "token",
+  "login",
+  "adduser",
+  "logout",
+  "whoami",
+]);
 
 class ReleaseError extends Error {
   constructor(code) {
@@ -69,6 +89,91 @@ function jsonBuffer(value) {
 
 function sha256(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
+}
+
+function shellTokens(value) {
+  const tokens = [];
+  let token = "";
+  let quote;
+  const pushToken = () => {
+    if (token) {
+      tokens.push(token);
+      token = "";
+    }
+  };
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (quote) {
+      if (character === quote) {
+        quote = undefined;
+      } else if (character === "\\" && quote === '"' && index + 1 < value.length) {
+        index += 1;
+        token += value[index];
+      } else {
+        token += character;
+      }
+    } else if (character === "'" || character === '"') {
+      quote = character;
+    } else if (character === "\\" && index + 1 < value.length) {
+      index += 1;
+      token += value[index];
+    } else if (character === "\n" || ";|&()".includes(character)) {
+      pushToken();
+      tokens.push(undefined);
+    } else if (/\s/.test(character)) {
+      pushToken();
+    } else {
+      token += character;
+    }
+  }
+  pushToken();
+  return tokens;
+}
+
+function hasForbiddenNpmInvocation(value, depth = 0) {
+  const tokens = shellTokens(value);
+  let npmInvocation = false;
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      npmInvocation = false;
+      continue;
+    }
+    const executable = token.split(/[\\/]/).at(-1).toLowerCase();
+    if (!npmInvocation) {
+      npmInvocation = executable === "npm" || executable === "npm.cmd" || executable === "npm.exe";
+    } else if (FORBIDDEN_NPM_VERBS.has(token.toLowerCase())) {
+      return true;
+    }
+
+    let body;
+    if (executable === "eval") {
+      const bodyTokens = [];
+      for (let bodyIndex = index + 1; bodyIndex < tokens.length; bodyIndex += 1) {
+        const bodyToken = tokens[bodyIndex];
+        if (bodyToken === undefined) {
+          break;
+        }
+        bodyTokens.push(bodyToken);
+      }
+      body = bodyTokens.join(" ");
+    } else if (executable === "sh" || executable === "bash" || executable === "zsh") {
+      for (let optionIndex = index + 1; optionIndex < tokens.length; optionIndex += 1) {
+        const option = tokens[optionIndex];
+        if (option === undefined) {
+          break;
+        }
+        if (/^-[A-Za-z]*c[A-Za-z]*$/.test(option)) {
+          body = tokens[optionIndex + 1];
+          break;
+        }
+      }
+    }
+    if (body && (depth >= 8 || hasForbiddenNpmInvocation(body, depth + 1))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function parseOutput(args) {
@@ -141,18 +246,54 @@ function readPackage() {
     }
   }
   for (const script of Object.values(metadata.scripts)) {
-    if (typeof script !== "string" || FORBIDDEN_SCRIPT_TOKENS.test(script)) {
+    if (
+      typeof script !== "string" ||
+      FORBIDDEN_SCRIPT_TOKENS.test(script) ||
+      hasForbiddenNpmInvocation(script)
+    ) {
       fail("INVALID_PACKAGE");
     }
   }
 }
 
-function trustedFile(path, code) {
+function trustedOwnershipAndMode(entry, code) {
+  if (process.platform === "win32" || typeof process.getuid !== "function") {
+    return;
+  }
+  const currentUser = process.getuid();
+  if ((entry.uid !== 0 && entry.uid !== currentUser) || (entry.mode & 0o022) !== 0) {
+    fail(code);
+  }
+}
+
+function trustedFile(path, code, optional = false) {
   try {
     const resolved = realpathSync(path);
-    if (!statSync(resolved).isFile()) {
+    const entry = statSync(resolved);
+    if (!entry.isFile()) {
       fail(code);
     }
+    trustedOwnershipAndMode(entry, code);
+    return resolved;
+  } catch (error) {
+    if (error instanceof ReleaseError) {
+      throw error;
+    }
+    if (optional && (error?.code === "ENOENT" || error?.code === "ENOTDIR")) {
+      return undefined;
+    }
+    fail(code);
+  }
+}
+
+function trustedDirectory(path, code) {
+  try {
+    const resolved = realpathSync(path);
+    const entry = statSync(resolved);
+    if (!entry.isDirectory()) {
+      fail(code);
+    }
+    trustedOwnershipAndMode(entry, code);
     return resolved;
   } catch (error) {
     if (error instanceof ReleaseError) {
@@ -160,6 +301,52 @@ function trustedFile(path, code) {
     }
     fail(code);
   }
+}
+
+function trustedNpm(path) {
+  const npmCli = trustedFile(path, "NPM_UNAVAILABLE", true);
+  if (!npmCli) {
+    return undefined;
+  }
+  const binDirectory = trustedDirectory(dirname(npmCli), "NPM_UNAVAILABLE");
+  const packageDirectory = trustedDirectory(dirname(binDirectory), "NPM_UNAVAILABLE");
+  if (
+    basename(npmCli) !== "npm-cli.js" ||
+    basename(binDirectory) !== "bin" ||
+    basename(packageDirectory) !== "npm"
+  ) {
+    fail("NPM_UNAVAILABLE");
+  }
+  const packagePath = trustedFile(
+    join(packageDirectory, "package.json"),
+    "NPM_UNAVAILABLE",
+  );
+  let metadata;
+  try {
+    metadata = JSON.parse(readFileSync(packagePath, "utf8"));
+  } catch {
+    fail("NPM_UNAVAILABLE");
+  }
+  if (
+    metadata.name !== "npm" ||
+    typeof metadata.version !== "string" ||
+    !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(metadata.version) ||
+    !metadata.bin ||
+    typeof metadata.bin !== "object" ||
+    metadata.bin.npm !== "bin/npm-cli.js"
+  ) {
+    fail("NPM_UNAVAILABLE");
+  }
+  let declaredCli;
+  try {
+    declaredCli = realpathSync(join(packageDirectory, metadata.bin.npm));
+  } catch {
+    fail("NPM_UNAVAILABLE");
+  }
+  if (declaredCli !== npmCli) {
+    fail("NPM_UNAVAILABLE");
+  }
+  return { npmCli, npmVersion: metadata.version };
 }
 
 function trustedExecutables() {
@@ -177,20 +364,23 @@ function trustedExecutables() {
       "bin",
       "npm-cli.js",
     ),
-    ...(process.platform === "win32" ? [] : [join(nodeDirectory, "npm")]),
+    ...(process.platform === "win32"
+      ? []
+      : [
+          join(nodeDirectory, "npm"),
+          "/usr/local/lib/node_modules/npm/bin/npm-cli.js",
+          "/opt/homebrew/lib/node_modules/npm/bin/npm-cli.js",
+          "/usr/lib/node_modules/npm/bin/npm-cli.js",
+        ]),
   ];
-  let npmCli;
+  let npm;
   for (const candidate of npmCliCandidates) {
-    try {
-      npmCli = trustedFile(candidate, "NPM_UNAVAILABLE");
+    npm = trustedNpm(candidate);
+    if (npm) {
       break;
-    } catch (error) {
-      if (!(error instanceof ReleaseError) || error.code !== "NPM_UNAVAILABLE") {
-        throw error;
-      }
     }
   }
-  if (!npmCli) {
+  if (!npm) {
     fail("NPM_UNAVAILABLE");
   }
   const gitCandidates = process.platform === "win32"
@@ -213,7 +403,7 @@ function trustedExecutables() {
   if (!git) {
     fail("GIT_UNAVAILABLE");
   }
-  return { git, node, nodeDirectory, npmCli };
+  return { git, node, nodeDirectory, ...npm };
 }
 
 function isolatedEnvironment(runtimeDirectory, nodeDirectory) {
@@ -325,6 +515,9 @@ function pack(node, npmCli, stage, environment) {
   if (generatedPath !== expectedPath) {
     renameSync(generatedPath, expectedPath);
   }
+  if (sha256(readFileSync(expectedPath)) !== EXPECTED.tarballSha256) {
+    fail("PACKAGE_ARTIFACT_DRIFT");
+  }
   return expectedPath;
 }
 
@@ -345,8 +538,17 @@ function cleanupStage(stage, identity, createdPaths) {
 }
 
 function cleanupRuntime(runtimeDirectory, identity) {
-  if (runtimeDirectory && identity && matchesDirectoryIdentity(runtimeDirectory, identity)) {
+  if (!runtimeDirectory && !identity) {
+    return true;
+  }
+  if (!runtimeDirectory || !identity || !matchesDirectoryIdentity(runtimeDirectory, identity)) {
+    return false;
+  }
+  try {
     rmSync(runtimeDirectory, { recursive: true, force: true });
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -387,10 +589,20 @@ function publishStage(stage, stageIdentity, output, outputIdentity) {
   }
 }
 
-function buildRelease(output, outputIdentity, stage, stageIdentity, runtimeDirectory, createdPaths) {
+function buildRelease(stage, runtimeDirectory, createdPaths) {
   readPackage();
   const executables = trustedExecutables();
   const { env } = isolatedEnvironment(runtimeDirectory, executables.nodeDirectory);
+  const npmVersion = runNpm(
+    executables.node,
+    executables.npmCli,
+    ["--version"],
+    "NPM_UNAVAILABLE",
+    env,
+  ).trim();
+  if (npmVersion !== executables.npmVersion) {
+    fail("NPM_UNAVAILABLE");
+  }
   const commit = currentCommit(executables.git, env);
   runNpm(
     executables.node,
@@ -440,6 +652,7 @@ function buildRelease(output, outputIdentity, stage, stageIdentity, runtimeDirec
       private: true,
     },
     nodeVersion: process.version,
+    npmVersion,
     assets: payloads,
   };
   writeFileSync(manifestPath, jsonBuffer(manifest));
@@ -456,7 +669,6 @@ function buildRelease(output, outputIdentity, stage, stageIdentity, runtimeDirec
   writeFileSync(checksumPath, `${checksums}\n`);
   createdPaths.push(checksumPath);
 
-  publishStage(stage, stageIdentity, output, outputIdentity);
 }
 
 const args = Object.freeze(Array.from(process.argv.slice(2)));
@@ -473,20 +685,18 @@ try {
   stageIdentity = directoryIdentity(stage);
   runtimeDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-release-"));
   runtimeIdentity = directoryIdentity(runtimeDirectory);
-  buildRelease(
-    output,
-    outputIdentity,
-    stage,
-    stageIdentity,
-    runtimeDirectory,
-    createdPaths,
-  );
+  buildRelease(stage, runtimeDirectory, createdPaths);
+  if (!cleanupRuntime(runtimeDirectory, runtimeIdentity)) {
+    fail("CLEANUP_FAILED");
+  }
+  runtimeDirectory = undefined;
+  runtimeIdentity = undefined;
+  publishStage(stage, stageIdentity, output, outputIdentity);
   process.stdout.write(JSON.stringify({ ok: true, tag: EXPECTED.tag, assets: EXPECTED.assets }) + "\n");
 } catch (error) {
   const code = error instanceof ReleaseError ? error.code : "BUILD_FAILED";
-  process.stderr.write(JSON.stringify({ ok: false, error: code }) + "\n");
-  process.exitCode = 1;
-} finally {
   cleanupStage(stage, stageIdentity, createdPaths);
   cleanupRuntime(runtimeDirectory, runtimeIdentity);
+  process.stderr.write(JSON.stringify({ ok: false, error: code }) + "\n");
+  process.exitCode = 1;
 }

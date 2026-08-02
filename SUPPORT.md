@@ -2,6 +2,8 @@
 
 Report reproducible SDK defects through GitHub Issues, including the prerelease revision, Node and operating-system versions, a minimal redacted reproduction, and expected versus actual behavior.
 
+This experimental prerelease provides no production support and no long-term support (LTS) promise.
+
 For suspected vulnerabilities, use the [private GitHub Security Advisory route](https://github.com/xiongxhc/collective-cognition-sdk/security/advisories/new), not a public issue.
 
 Do not share private data, personal data, secrets, credentials, live ledgers, vault data, or other operational records. Use synthetic or redacted examples.

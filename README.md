@@ -275,6 +275,12 @@ only. It runs examples, durable SQLite, deterministic assets, clean tarball
 installation, imports, and installed CLIs; those checks are not verified on
 the other three core-matrix environments.
 
+The tag workflow keeps checkout, dependency installation, tests, examples, and
+artifact construction in a read-only job with persisted Git credentials
+disabled. A separate privileged job downloads only the four verified assets;
+it runs no checked-out package or dependency code before attestation and GitHub
+release publication.
+
 The release contains exactly these assets:
 
 - `SHA256SUMS`;
@@ -284,6 +290,14 @@ The release contains exactly these assets:
 
 `"private": true` blocks npm publication. It does not prevent installing a
 downloaded GitHub tarball locally; npm registry publication remains forbidden.
+
+This is the first public-artifact decision for `0.6.0`: finalize the current
+docs-inclusive private tarball rather than restore the stale pre-readiness
+README. Relative to the earlier private review artifact, only the packaged
+README and RFC-index documentation bytes changed. The runtime, type, CLI,
+schema, and RFC compatibility surface and the exact package file inventory are
+unchanged; the release builder pins the final tarball SHA-256 so later byte
+drift fails closed.
 
 ```bash
 TAG=v0.6.0
@@ -310,9 +324,10 @@ node --input-type=module -e 'import "collective-cognition-sdk"'
 ./node_modules/.bin/collective-cognition-markdown --help
 ```
 
-The release manifest records the private package state, tag, commit, runtime,
-and asset metadata; the CycloneDX SBOM and GitHub attestations add distribution
-integrity evidence. They are not npm provenance or production certification.
+The release manifest records the private package state, tag, commit, trusted
+Node and npm versions, and asset metadata; the CycloneDX SBOM and GitHub
+attestations add distribution integrity evidence. They are not npm provenance
+or production certification.
 Markdown acceptance used temporary vaults only and did not accept or mutate a
 live vault. SQLite remains an optional reference adapter, not a mandatory
 store or certification claim. For the maintainer procedure and the evidence

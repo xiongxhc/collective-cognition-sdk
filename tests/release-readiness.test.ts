@@ -10,12 +10,13 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
@@ -38,7 +39,17 @@ const expectedAssets = [
   "collective-cognition-sdk-0.6.0.tgz",
   "release-manifest.json",
 ];
+const expectedChecksumAssets = expectedAssets.slice(1);
+const expectedTarballSha256 = "3ece9dfe61b3407722451ab541d1d43c5e12ec4ef1c155ad5c5b0d1df9d03978";
 const expectedCommit = runGit(["rev-parse", "HEAD"]);
+const expectedNpmVersion = readNpmVersion();
+const publicationWrapperMutations = [
+  "sh -c 'npm --silent publish'",
+  "bash -c 'npm --silent publish'",
+  "zsh -c 'npm --silent publish'",
+  "env -i bash --noprofile -c 'npm --silent publish'",
+  "eval 'npm --silent publish'",
+];
 
 function runGit(args: readonly string[]): string {
   const result = spawnSync("git", args, {
@@ -46,6 +57,39 @@ function runGit(args: readonly string[]): string {
     encoding: "utf8",
   });
   assert.equal(result.status, 0, result.stderr);
+  return result.stdout.trim();
+}
+
+function readNpmVersion(): string {
+  const executable = realpathSync(process.execPath);
+  const executableDirectory = dirname(executable);
+  const candidates = [
+    process.env.npm_execpath,
+    join(executableDirectory, "node_modules", "npm", "bin", "npm-cli.js"),
+    join(dirname(executableDirectory), "lib", "node_modules", "npm", "bin", "npm-cli.js"),
+    join(
+      dirname(executableDirectory),
+      "libexec",
+      "lib",
+      "node_modules",
+      "npm",
+      "bin",
+      "npm-cli.js",
+    ),
+    "/usr/local/lib/node_modules/npm/bin/npm-cli.js",
+    "/opt/homebrew/lib/node_modules/npm/bin/npm-cli.js",
+    "/usr/lib/node_modules/npm/bin/npm-cli.js",
+  ];
+  const npmCli = candidates.find((candidate) =>
+    typeof candidate === "string" && isAbsolute(candidate) && existsSync(candidate)
+  );
+  assert.ok(npmCli, "a closed npm CLI layout must be available to the release tests");
+  const result = spawnSync(executable, [npmCli, "--version"], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout.trim(), /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/);
   return result.stdout.trim();
 }
 
@@ -75,18 +119,175 @@ function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-const forbiddenPublicationOrAuthentication =
-  /\b(?:npm\s+(?:publish|dist-tag|deprecate|unpublish|access|owner|team|org|hook|star|unstar|profile|token|login|adduser|logout|whoami)|NPM_TOKEN|NODE_AUTH_TOKEN|npm_[A-Za-z0-9_]*token|_auth|_authToken|authToken)\b/i;
+function checksumNamesDeclaration(
+  names: readonly string[] = expectedChecksumAssets,
+  indentation = "",
+): string {
+  return [
+    `${indentation}const checksumNames = [`,
+    ...names.map((name) => `${indentation}  ${JSON.stringify(name)},`),
+    `${indentation}];`,
+  ].join("\n");
+}
+
+function checksumInventoryMutations(document: string, indentation = ""): readonly string[] {
+  const original = checksumNamesDeclaration(expectedChecksumAssets, indentation);
+  const variants = [
+    expectedChecksumAssets.slice(1),
+    [
+      expectedChecksumAssets[1] as string,
+      expectedChecksumAssets[0] as string,
+      expectedChecksumAssets[2] as string,
+    ],
+    [...expectedChecksumAssets, "../../etc/passwd"],
+  ];
+  return variants.map((names) => document.replace(
+    original,
+    checksumNamesDeclaration(names, indentation),
+  ));
+}
+
+function assertCanonicalChecksumVerifier(value: string): void {
+  assert.equal(value.includes(checksumNamesDeclaration()), true);
+  for (const fragment of [
+    'const checksumBytes = readFileSync(join(releaseDirectory, "SHA256SUMS"));',
+    'const checksumText = checksumBytes.toString("utf8");',
+    'assert.deepEqual(Buffer.from(checksumText, "utf8"), checksumBytes);',
+    'const checksumLines = checksumText.split("\\n");',
+    'assert.equal(checksumLines.pop(), "");',
+    "assert.equal(checksumLines.length, checksumNames.length);",
+    'const match = line.match(/^([0-9a-f]{64})  (.+)$/);',
+    "assert.ok(match);",
+    "return { sha256: match[1], name: match[2] };",
+    "assert.deepEqual(checksumEntries.map(({ name }) => name), checksumNames);",
+    "const bytes = readFileSync(join(releaseDirectory, entry.name));",
+    'assert.equal(entry.sha256, createHash("sha256").update(bytes).digest("hex"));',
+  ]) {
+    assert.equal(value.includes(fragment), true, `missing checksum verifier fragment: ${fragment}`);
+  }
+}
+
+const forbiddenAuthentication =
+  /\b(?:NPM_TOKEN|NODE_AUTH_TOKEN|npm_[A-Za-z0-9_]*token|_auth|_authToken|authToken)\b/i;
+const forbiddenNpmVerbs = new Set([
+  "publish",
+  "dist-tag",
+  "deprecate",
+  "unpublish",
+  "access",
+  "owner",
+  "team",
+  "org",
+  "hook",
+  "star",
+  "unstar",
+  "profile",
+  "token",
+  "login",
+  "adduser",
+  "logout",
+  "whoami",
+]);
 const forbiddenRegistryConfiguration =
   /(?:\bnpm\s+(?:(?:config\s+)?(?:set|delete|unset))\b|\bnpm_config_(?:registry|userconfig|globalconfig|always_auth|_?auth(?:token)?)\b|(?:^|\s)--(?:registry|userconfig|globalconfig|always-auth|_auth(?:Token)?)(?:=|\s+)\S+|(?:^|[\s'"])(?:(?:@[^\s:=]+:)?registry|always-auth|_auth(?:Token)?)\s*=\s*\S+|\.npmrc\b)/i;
 
+function shellTokens(value: string): readonly (string | undefined)[] {
+  const tokens: (string | undefined)[] = [];
+  let token = "";
+  let quote: string | undefined;
+  const pushToken = (): void => {
+    if (token) {
+      tokens.push(token);
+      token = "";
+    }
+  };
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index] as string;
+    if (quote) {
+      if (character === quote) {
+        quote = undefined;
+      } else if (character === "\\" && quote === '"' && index + 1 < value.length) {
+        index += 1;
+        token += value[index];
+      } else {
+        token += character;
+      }
+    } else if (character === "'" || character === '"') {
+      quote = character;
+    } else if (character === "\\" && index + 1 < value.length) {
+      index += 1;
+      token += value[index];
+    } else if (character === "\n" || ";|&()".includes(character)) {
+      pushToken();
+      tokens.push(undefined);
+    } else if (/\s/.test(character)) {
+      pushToken();
+    } else {
+      token += character;
+    }
+  }
+  pushToken();
+  return tokens;
+}
+
+function hasForbiddenNpmInvocation(value: string, depth = 0): boolean {
+  const tokens = shellTokens(value);
+  let npmInvocation = false;
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      npmInvocation = false;
+      continue;
+    }
+    const executable = token.split(/[\\/]/).at(-1)?.toLowerCase();
+    if (!npmInvocation) {
+      npmInvocation = executable === "npm" || executable === "npm.cmd" || executable === "npm.exe";
+    } else if (forbiddenNpmVerbs.has(token.toLowerCase())) {
+      return true;
+    }
+
+    let body: string | undefined;
+    if (executable === "eval") {
+      const bodyTokens: string[] = [];
+      for (let bodyIndex = index + 1; bodyIndex < tokens.length; bodyIndex += 1) {
+        const bodyToken = tokens[bodyIndex];
+        if (bodyToken === undefined) {
+          break;
+        }
+        bodyTokens.push(bodyToken);
+      }
+      body = bodyTokens.join(" ");
+    } else if (executable === "sh" || executable === "bash" || executable === "zsh") {
+      for (let optionIndex = index + 1; optionIndex < tokens.length; optionIndex += 1) {
+        const option = tokens[optionIndex];
+        if (option === undefined) {
+          break;
+        }
+        if (/^-[A-Za-z]*c[A-Za-z]*$/.test(option)) {
+          body = tokens[optionIndex + 1];
+          break;
+        }
+      }
+    }
+    if (body && (depth >= 8 || hasForbiddenNpmInvocation(body, depth + 1))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function assertNoForbiddenNpmInvocations(value: string, scope: string): void {
+  assert.equal(
+    hasForbiddenNpmInvocation(value),
+    false,
+    `${scope} must not execute an npm publication or authentication verb`,
+  );
+}
+
 function assertSafePackageScripts(scripts: Readonly<Record<string, string>>): void {
   for (const [name, script] of Object.entries(scripts)) {
-    assert.doesNotMatch(
-      script,
-      forbiddenPublicationOrAuthentication,
-      `package script ${name} must not publish or use authentication tokens`,
-    );
+    assertNoForbiddenNpmInvocations(script, `package script ${name}`);
+    assert.doesNotMatch(script, forbiddenAuthentication);
     assert.doesNotMatch(
       script,
       forbiddenRegistryConfiguration,
@@ -412,7 +613,8 @@ function assertReadOnlyCiWorkflow(workflow: string): void {
     /(?:^|[\s:[{,])\*[A-Za-z_][A-Za-z0-9_-]*/m,
     "workflow must not use YAML aliases",
   );
-  assert.doesNotMatch(yaml, forbiddenPublicationOrAuthentication);
+  assertNoForbiddenNpmInvocations(yaml, "CI workflow");
+  assert.doesNotMatch(yaml, forbiddenAuthentication);
   assert.doesNotMatch(yaml, forbiddenRegistryConfiguration);
   assert.doesNotMatch(yaml, /\.npmrc\b/i);
   assert.doesNotMatch(yaml, /^\s*packages:\s*['"]?write['"]?\s*$/mi);
@@ -591,7 +793,8 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
   assert.deepEqual(topLevelKeys, ["name", "on", "permissions", "jobs"]);
   assert.doesNotMatch(workflow, /\t/, "workflow indentation must not use tabs");
   assert.doesNotMatch(yaml, /(?:^|[\s:[{,])\*[A-Za-z_][A-Za-z0-9_-]*/m);
-  assert.doesNotMatch(yaml, forbiddenPublicationOrAuthentication);
+  assertNoForbiddenNpmInvocations(yaml, "GitHub prerelease workflow");
+  assert.doesNotMatch(yaml, forbiddenAuthentication);
   assert.doesNotMatch(yaml, forbiddenRegistryConfiguration);
   assert.doesNotMatch(yaml, /\.npmrc\b/i);
   assert.doesNotMatch(yaml, /^\s*packages:\s*['"]?write['"]?\s*$/mi);
@@ -614,56 +817,85 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
       '      - "v*"',
     ],
   );
-  assert.deepEqual(nestedMapping(lines, permissionsIndex, 2), {
+  assertReadOnlyPermissions(nestedMapping(lines, permissionsIndex, 2), "workflow");
+
+  const jobHeaders = lines.flatMap((line, index) => {
+    if (index <= jobsIndex) {
+      return [];
+    }
+    const match = line.match(/^ {2}([a-z0-9_-]+):$/);
+    return match ? [{ index, name: match[1] as string }] : [];
+  });
+  assert.deepEqual(jobHeaders.map(({ name }) => name), ["verify", "publish"]);
+  const parseJob = (position: number): ParsedWorkflowJob => {
+    const header = jobHeaders[position] as { readonly index: number; readonly name: string };
+    const end = jobHeaders[position + 1]?.index ?? lines.length;
+    const jobLines = lines.slice(header.index, end);
+    const properties: Record<string, string> = {};
+    let permissions: Readonly<Record<string, string>> | string | undefined;
+    let steps: ParsedWorkflowStep[] = [];
+    for (let index = 1; index < jobLines.length; index += 1) {
+      const line = jobLines[index] as string;
+      if (indentation(line) !== 4 || !line.trim()) {
+        continue;
+      }
+      const property = line.match(/^ {4}([a-z0-9_-]+):\s*(.*?)\s*$/);
+      assert.ok(property, `unsupported ${header.name} job property: ${line}`);
+      if (property[1] === "steps") {
+        steps = parseWorkflowSteps(jobLines, index, jobLines.length);
+      } else if (property[1] === "permissions") {
+        permissions = nestedMapping(jobLines, index, 6);
+      } else {
+        properties[property[1] as string] = yamlScalar(property[2] as string);
+      }
+    }
+    return {
+      properties,
+      ...(permissions === undefined ? {} : { permissions }),
+      steps,
+      raw: jobLines.join("\n"),
+    };
+  };
+  const job = parseJob(0);
+  const publishJob = parseJob(1);
+  const steps = job.steps;
+  const publishSteps = publishJob.steps;
+  assert.deepEqual(job.properties, {
+    name: "Read-only release verification",
+    "runs-on": "ubuntu-latest",
+    "timeout-minutes": "30",
+  });
+  assertReadOnlyPermissions(job.permissions as Readonly<Record<string, string>>, "verify job");
+  assert.deepEqual(publishJob.properties, {
+    name: "Attest and publish GitHub prerelease",
+    needs: "verify",
+    "runs-on": "ubuntu-latest",
+    "timeout-minutes": "15",
+  });
+  assert.deepEqual(publishJob.permissions, {
     contents: "write",
     "id-token": "write",
     attestations: "write",
   });
 
-  const jobHeader = lines.indexOf("  release:");
-  assert.notEqual(jobHeader, -1);
-  assert.equal(
-    lines.findIndex((line, index) => index > jobHeader && /^ {2}[a-z0-9_-]+:$/.test(line)),
-    -1,
-  );
-  const jobLines = lines.slice(jobHeader);
-  const jobProperties: Record<string, string> = {};
-  let steps: ParsedWorkflowStep[] = [];
-  for (let index = 1; index < jobLines.length; index += 1) {
-    const line = jobLines[index] as string;
-    if (indentation(line) !== 4 || !line.trim()) {
-      continue;
-    }
-    const property = line.match(/^ {4}([a-z0-9_-]+):\s*(.*?)\s*$/);
-    assert.ok(property, `unsupported release job property: ${line}`);
-    if (property[1] === "steps") {
-      steps = parseWorkflowSteps(jobLines, index, jobLines.length);
-    } else {
-      jobProperties[property[1] as string] = yamlScalar(property[2] as string);
-    }
-  }
-  assert.deepEqual(jobProperties, {
-    name: "Attested GitHub prerelease",
-    "runs-on": "ubuntu-latest",
-    "timeout-minutes": "30",
-  });
-
-  const job: ParsedWorkflowJob = {
-    properties: jobProperties,
-    steps,
-    raw: jobLines.join("\n"),
-  };
-  const actionReferences = steps.flatMap((step) =>
+  const actionReferences = [...steps, ...publishSteps].flatMap((step) =>
     step.properties.uses === undefined ? [] : [step.properties.uses]
   );
   assert.deepEqual(actionReferences, [
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+    "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
     "actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373",
   ]);
   for (const reference of actionReferences) {
     assert.match(reference, /^actions\/[a-z0-9_-]+@[0-9a-f]{40}$/);
   }
+  assert.doesNotMatch(publishJob.raw, /actions\/checkout|actions\/setup-node/);
+  assert.doesNotMatch(
+    publishJob.raw,
+    /(?:^|\s)(?:npm|npx)\b|node_modules|package\.json|scripts\/|git\s/m,
+  );
 
   const ci = parseCiWorkflow(readFileSync(ciWorkflow, "utf8"));
   const ciVerifyJob = ci.jobs.verify as ParsedWorkflowJob;
@@ -671,6 +903,7 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
 
   const checkout = assertUnconditional(job, "Check out immutable tag");
   assert.match(checkout.raw, /^ {10}fetch-depth: 0$/m);
+  assert.match(checkout.raw, /^ {10}persist-credentials: false$/m);
   const setup = assertUnconditional(job, "Set up Node.js");
   assert.match(setup.raw, /^ {10}node-version: "24\.14\.0"$/m);
   assert.match(setup.raw, /^ {10}cache: npm$/m);
@@ -773,21 +1006,55 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
   );
   assert.match(distribution.run ?? "", /\$\{\{ runner\.temp \}\}\/github-prerelease/);
 
-  const attest = assertUnconditional(job, "Attest release assets");
+  const upload = assertUnconditional(job, "Upload verified release assets");
+  assert.ok(steps.indexOf(distribution) < steps.indexOf(upload));
+  assert.match(upload.raw, /^ {10}name: github-prerelease-assets$/m);
+  assert.match(upload.raw, /^ {10}if-no-files-found: error$/m);
+  assert.match(upload.raw, /^ {10}overwrite: true$/m);
+  assert.match(upload.raw, /^ {10}retention-days: 1$/m);
+  for (const asset of expectedAssets) {
+    assert.match(
+      upload.raw,
+      new RegExp(`^ {12}\\$\\{\\{ runner\\.temp \\}\\}/github-prerelease/first/${asset.replaceAll(".", "\\.")}$`, "m"),
+    );
+  }
+
+  const download = assertUnconditional(publishJob, "Download verified release assets");
+  assert.match(download.raw, /^ {10}name: github-prerelease-assets$/m);
+  assert.match(
+    download.raw,
+    /^ {10}path: \$\{\{ runner\.temp \}\}\/github-prerelease-assets$/m,
+  );
+  const transferred = assertUnconditional(publishJob, "Verify transferred release assets");
+  assert.ok(publishSteps.indexOf(download) < publishSteps.indexOf(transferred));
+  assert.match(transferred.run ?? "", /sha256sum -c SHA256SUMS/);
+  assert.match(transferred.run ?? "", /manifest\.commit, process\.env\.GITHUB_SHA/);
+  assert.match(transferred.run ?? "", /manifest\.npmVersion/);
+  assert.match(transferred.run ?? "", new RegExp(expectedTarballSha256));
+  assert.match(transferred.run ?? "", /asset\.bytes, bytes\.length/);
+  assert.match(
+    transferred.run ?? "",
+    /assert\.equal\(\s*asset\.sha256,\s*createHash\("sha256"\)\.update\(bytes\)\.digest\("hex"\),\s*\);/,
+  );
+  assert.match(transferred.run ?? "", /assert\.deepEqual\(sbom,/);
+  assertCanonicalChecksumVerifier(transferred.run ?? "");
+
+  const attest = assertUnconditional(publishJob, "Attest release assets");
+  assert.ok(publishSteps.indexOf(transferred) < publishSteps.indexOf(attest));
   assert.equal(attest.run, undefined);
   const subjectPaths = [...attest.raw.matchAll(/^ {12}([^\s].*)$/gm)].map(
     (match) => match[1],
   );
   assert.deepEqual(subjectPaths, expectedAssets.map(
-    (asset) => `\${{ runner.temp }}/github-prerelease/first/${asset}`,
+    (asset) => `\${{ runner.temp }}/github-prerelease-assets/${asset}`,
   ));
 
   const release = assertUnconditional(
-    job,
+    publishJob,
     "Create or update GitHub prerelease",
     ["name", "env", "run"],
   );
-  assert.ok(steps.indexOf(attest) < steps.indexOf(release));
+  assert.ok(publishSteps.indexOf(attest) < publishSteps.indexOf(release));
   assert.deepEqual(Object.keys(release.properties), ["name", "env", "run"]);
   assert.match(
     release.raw,
@@ -795,7 +1062,7 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
   );
   assert.deepEqual(shellControlLines(release), [
     "set -euo pipefail",
-    'release_dir="${{ runner.temp }}/github-prerelease/first"',
+    'release_dir="${{ runner.temp }}/github-prerelease-assets"',
     "assets=(",
     '"$release_dir/SHA256SUMS"',
     '"$release_dir/collective-cognition-sdk-0.6.0.cdx.json"',
@@ -841,15 +1108,15 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
   );
 
   const inventory = assertUnconditional(
-    job,
+    publishJob,
     "Verify exact GitHub release inventory",
     ["name", "env", "run"],
   );
-  assert.ok(steps.indexOf(release) < steps.indexOf(inventory));
+  assert.ok(publishSteps.indexOf(release) < publishSteps.indexOf(inventory));
   assert.deepEqual(Object.keys(inventory.properties), ["name", "env", "run"]);
   assert.match(inventory.raw, /^ {10}GH_TOKEN: \$\{\{ github\.token \}\}$/m);
   assert.deepEqual(
-    steps.filter((step) => /GH_TOKEN/.test(step.raw)).map((step) => step.properties.name),
+    publishSteps.filter((step) => /GH_TOKEN/.test(step.raw)).map((step) => step.properties.name),
     ["Create or update GitHub prerelease", "Verify exact GitHub release inventory"],
   );
   assert.deepEqual(shellControlLines(inventory), [
@@ -1050,6 +1317,7 @@ test("release manifest, checksums, and SBOM are exact", () => {
     assert.equal(result.status, 0, result.stderr);
 
     const tarball = readFileSync(join(output, "collective-cognition-sdk-0.6.0.tgz"));
+    assert.equal(sha256(tarball), expectedTarballSha256);
     const sbom = readJson(
       join(output, "collective-cognition-sdk-0.6.0.cdx.json"),
     );
@@ -1059,6 +1327,7 @@ test("release manifest, checksums, and SBOM are exact", () => {
       readonly commit: string;
       readonly package: { readonly name: string; readonly version: string; readonly private: boolean };
       readonly nodeVersion: string;
+      readonly npmVersion: string;
       readonly assets: readonly { readonly name: string; readonly bytes: number; readonly sha256: string }[];
     };
     const manifestBuffer = readFileSync(join(output, "release-manifest.json"));
@@ -1095,6 +1364,7 @@ test("release manifest, checksums, and SBOM are exact", () => {
         private: true,
       },
       nodeVersion: process.version,
+      npmVersion: expectedNpmVersion,
       assets: [
         {
           name: "collective-cognition-sdk-0.6.0.tgz",
@@ -1156,12 +1426,101 @@ test("release diagnostics do not disclose paths or injected secrets", () => {
 test("release builder runs tools without a shell and preserves literal metacharacters", () => {
   const root = mkdtempSync(join(tmpdir(), "cc-release-shell-free-"));
   const output = createOutput(root, "output;literal&value");
+  const shadowPath = createOutput(root, "shadow-path");
+  const shadowMarker = join(root, "shadow-npm-ran");
+  const shadowNpm = join(
+    shadowPath,
+    process.platform === "win32" ? "npm.cmd" : "npm",
+  );
 
   try {
+    writeFileSync(
+      shadowNpm,
+      process.platform === "win32"
+        ? `@echo off\r\necho hostile>"${shadowMarker}"\r\nexit /b 1\r\n`
+        : `#!${process.execPath}\nimport { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(shadowMarker)}, "hostile\\n");\nprocess.exit(1);\n`,
+    );
+    chmodSync(shadowNpm, 0o755);
     assert.doesNotMatch(readFileSync(builder, "utf8"), /\bshell\s*:/);
-    const result = runBuilder(["--output", output]);
+    const result = runBuilder(["--output", output], { PATH: shadowPath });
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(readdirSync(output).sort(), expectedAssets);
+    assert.equal(existsSync(shadowMarker), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("release builder rejects forged npm identity version and POSIX mode", () => {
+  const root = mkdtempSync(join(tmpdir(), "cc-release-npm-trust-"));
+  const cases = [
+    {
+      name: "identity",
+      metadata: { name: "not-npm", version: "9.6.7", bin: { npm: "bin/npm-cli.js" } },
+      reportedVersion: "9.6.7",
+      invokesCli: false,
+      writableMode: false,
+    },
+    {
+      name: "metadata-version",
+      metadata: { name: "npm", version: "latest", bin: { npm: "bin/npm-cli.js" } },
+      reportedVersion: "9.6.7",
+      invokesCli: false,
+      writableMode: false,
+    },
+    {
+      name: "reported-version",
+      metadata: { name: "npm", version: "9.6.7", bin: { npm: "bin/npm-cli.js" } },
+      reportedVersion: "9.6.8",
+      invokesCli: true,
+      writableMode: false,
+    },
+    ...(process.platform === "win32"
+      ? []
+      : [{
+          name: "writable-mode",
+          metadata: { name: "npm", version: "9.6.7", bin: { npm: "bin/npm-cli.js" } },
+          reportedVersion: "9.6.7",
+          invokesCli: false,
+          writableMode: true,
+        }]),
+  ];
+
+  try {
+    for (const npmCase of cases) {
+      const caseRoot = createOutput(root, npmCase.name);
+      const output = createOutput(caseRoot, "output");
+      const trustedBin = createOutput(caseRoot, "trusted-bin");
+      const node = join(
+        trustedBin,
+        process.platform === "win32" ? "node.exe" : "node",
+      );
+      const npmCli = join(trustedBin, "node_modules", "npm", "bin", "npm-cli.js");
+      const marker = join(caseRoot, "npm-cli-invoked");
+      copyFileSync(process.execPath, node);
+      chmodSync(node, 0o755);
+      mkdirSync(dirname(npmCli), { recursive: true });
+      writeFileSync(
+        join(dirname(dirname(npmCli)), "package.json"),
+        `${JSON.stringify(npmCase.metadata)}\n`,
+      );
+      writeFileSync(
+        npmCli,
+        `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(marker)}, "invoked\\n");\nif (process.argv[2] === "--version") { process.stdout.write(${JSON.stringify(`${npmCase.reportedVersion}\n`)}); process.exit(0); }\nprocess.exit(1);\n`,
+      );
+      if (npmCase.writableMode) {
+        chmodSync(npmCli, 0o666);
+      }
+
+      const result = runBuilder(["--output", output], {}, node);
+      assert.notEqual(result.status, 0, npmCase.name);
+      assert.deepEqual(JSON.parse(result.stderr), {
+        ok: false,
+        error: "NPM_UNAVAILABLE",
+      });
+      assert.equal(existsSync(marker), npmCase.invokesCli);
+      assert.deepEqual(readdirSync(output), []);
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -1212,8 +1571,16 @@ test("release builder isolates failing subprocesses and preserves swapped output
     chmodSync(npm, 0o755);
     mkdirSync(dirname(npmCli), { recursive: true });
     writeFileSync(
+      join(dirname(dirname(npmCli)), "package.json"),
+      `${JSON.stringify({
+        name: "npm",
+        version: "9.6.7",
+        bin: { npm: "bin/npm-cli.js", npx: "bin/npx-cli.js" },
+      })}\n`,
+    );
+    writeFileSync(
       npmCli,
-      `import { rmSync, symlinkSync, writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(observedEnvironment)}, JSON.stringify({ home: process.env.HOME, path: process.env.PATH, userconfig: process.env.npm_config_userconfig, globalconfig: process.env.npm_config_globalconfig }));\nrmSync(${JSON.stringify(output)}, { recursive: true, force: true });\nsymlinkSync(${JSON.stringify(external)}, ${JSON.stringify(output)});\nprocess.stderr.write(${JSON.stringify(`${secret} ${root}\n`)});\nprocess.exit(1);\n`,
+      `import { rmSync, symlinkSync, writeFileSync } from "node:fs";\nif (process.argv[2] === "--version") { process.stdout.write("9.6.7\\n"); process.exit(0); }\nwriteFileSync(${JSON.stringify(observedEnvironment)}, JSON.stringify({ home: process.env.HOME, path: process.env.PATH, userconfig: process.env.npm_config_userconfig, globalconfig: process.env.npm_config_globalconfig }));\nrmSync(${JSON.stringify(output)}, { recursive: true, force: true });\nsymlinkSync(${JSON.stringify(external)}, ${JSON.stringify(output)});\nprocess.stderr.write(${JSON.stringify(`${secret} ${root}\n`)});\nprocess.exit(1);\n`,
     );
 
     const result = runBuilder(
@@ -1257,6 +1624,139 @@ test("release builder isolates failing subprocesses and preserves swapped output
   }
 });
 
+test("release cleanup failures preserve diagnostics and block publication", () => {
+  if (process.platform === "win32") {
+    return;
+  }
+  const root = mkdtempSync(join(tmpdir(), "cc-release-cleanup-"));
+  const sourceOutput = createOutput(root, "source-output");
+  const fixtureTarball = join(sourceOutput, "collective-cognition-sdk-0.6.0.tgz");
+  const secret = "cleanup-failure-secret-must-not-leak";
+
+  const runCase = (name: string, failBuild: boolean) => {
+    const caseRoot = createOutput(root, name);
+    const output = createOutput(caseRoot, "output");
+    const trustedBin = createOutput(caseRoot, "trusted-bin");
+    const runtimeRoot = createOutput(caseRoot, "runtime-root");
+    const node = join(trustedBin, "node");
+    const npmCli = join(caseRoot, "lib", "node_modules", "npm", "bin", "npm-cli.js");
+    copyFileSync(process.execPath, node);
+    chmodSync(node, 0o755);
+    mkdirSync(dirname(npmCli), { recursive: true });
+    writeFileSync(
+      join(dirname(dirname(npmCli)), "package.json"),
+      `${JSON.stringify({
+        name: "npm",
+        version: "9.6.7",
+        bin: { npm: "bin/npm-cli.js", npx: "bin/npx-cli.js" },
+      })}\n`,
+    );
+    writeFileSync(
+      npmCli,
+      `import { chmodSync, copyFileSync, mkdirSync, writeFileSync } from "node:fs";\nimport { dirname, join } from "node:path";\nconst args = process.argv.slice(2);\nconst blockCleanup = () => { const blocked = join(dirname(process.env.HOME), "blocked"); mkdirSync(blocked); writeFileSync(join(blocked, "sentinel"), "locked\\n"); chmodSync(blocked, 0o000); };\nif (args[0] === "--version") { process.stdout.write("9.6.7\\n"); process.exit(0); }\nif (args[0] === "run") { ${failBuild ? `blockCleanup(); process.stderr.write(${JSON.stringify(`${secret} ${caseRoot}\n`)}); process.exit(1);` : "process.exit(0);"} }\nif (args[0] === "pack") { const destination = args[args.indexOf("--pack-destination") + 1]; copyFileSync(${JSON.stringify(fixtureTarball)}, join(destination, "collective-cognition-sdk-0.6.0.tgz")); blockCleanup(); process.stdout.write(JSON.stringify([{ filename: "collective-cognition-sdk-0.6.0.tgz" }])); process.exit(0); }\nprocess.exit(1);\n`,
+    );
+
+    const result = runBuilder(
+      ["--output", output],
+      { TMPDIR: runtimeRoot, RELEASE_TEST_SECRET: secret },
+      node,
+    );
+    const runtimeDirectories = readdirSync(runtimeRoot).map((entry) =>
+      join(runtimeRoot, entry)
+    );
+    try {
+      assert.notEqual(result.status, 0);
+      assert.equal(result.stdout, "");
+      assert.deepEqual(JSON.parse(result.stderr), {
+        ok: false,
+        error: failBuild ? "BUILD_FAILED" : "CLEANUP_FAILED",
+      });
+      assert.deepEqual(readdirSync(output), []);
+      for (const value of [secret, caseRoot, repositoryRoot]) {
+        assert.doesNotMatch(
+          result.stderr,
+          new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+        );
+      }
+    } finally {
+      for (const runtimeDirectory of runtimeDirectories) {
+        const blocked = join(runtimeDirectory, "blocked");
+        if (existsSync(blocked)) {
+          chmodSync(blocked, 0o700);
+        }
+        rmSync(runtimeDirectory, { recursive: true, force: true });
+      }
+    }
+  };
+
+  try {
+    const fixtureResult = runBuilder(["--output", sourceOutput]);
+    assert.equal(fixtureResult.status, 0, fixtureResult.stderr);
+    runCase("primary-failure", true);
+    runCase("cleanup-changes-outcome", false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("release builder rejects npm publication verbs after global options", () => {
+  const packagePath = join(repositoryRoot, "package.json");
+  const original = readFileSync(packagePath, "utf8");
+  const root = mkdtempSync(join(tmpdir(), "cc-release-package-mutations-"));
+  const commands = [
+    "npm --silent publish",
+    "npm --workspace package-a publish",
+    "npm --workspace=package-a publish",
+    "npm -w package-a publish",
+    "npm --prefix /tmp/package-a publish",
+    ...publicationWrapperMutations,
+  ];
+
+  try {
+    for (const [index, command] of commands.entries()) {
+      const metadata = JSON.parse(original) as {
+        scripts: Record<string, string>;
+      };
+      metadata.scripts.releaseMutation = command;
+      writeFileSync(packagePath, `${JSON.stringify(metadata, null, 2)}\n`);
+      const output = createOutput(root, `output-${index}`);
+      const result = runBuilder(["--output", output]);
+      assert.notEqual(result.status, 0, command);
+      assert.deepEqual(JSON.parse(result.stderr), {
+        ok: false,
+        error: "INVALID_PACKAGE",
+      });
+      assert.equal(result.stdout, "");
+      assert.deepEqual(readdirSync(output), []);
+    }
+  } finally {
+    writeFileSync(packagePath, original);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("release builder rejects drift from the finalized package artifact", () => {
+  const readmePath = join(repositoryRoot, "README.md");
+  const original = readFileSync(readmePath, "utf8");
+  const root = mkdtempSync(join(tmpdir(), "cc-release-tarball-drift-"));
+  const output = createOutput(root, "output");
+
+  try {
+    writeFileSync(readmePath, `${original}\nUnreviewed packaged byte drift.\n`);
+    const result = runBuilder(["--output", output]);
+    assert.notEqual(result.status, 0);
+    assert.deepEqual(JSON.parse(result.stderr), {
+      ok: false,
+      error: "PACKAGE_ARTIFACT_DRIFT",
+    });
+    assert.equal(result.stdout, "");
+    assert.deepEqual(readdirSync(output), []);
+  } finally {
+    writeFileSync(readmePath, original);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("public contribution and security policies preserve the prerelease boundary", () => {
   const requiredFiles = [
     "SECURITY.md",
@@ -1296,8 +1796,12 @@ test("public contribution and security policies preserve the prerelease boundary
   assert.match(contributing, /Co-Authored-By/);
   assert.match(support, /GitHub Issues/);
   assert.match(support, /private data|personal data/i);
+  assert.match(support, /no production support|not provide production support/i);
+  assert.match(support, /no (?:long-term support|LTS)|not (?:an? )?LTS/i);
   assert.match(changelog, /0\.6\.0/);
   assert.match(changelog, /private|unpublished/i);
+  assert.match(changelog, /if .*GitHub prerelease.*will be distributed|planned GitHub prerelease/is);
+  assert.doesNotMatch(changelog, /\bit is distributed\b/i);
   assert.match(dependabot, /package-ecosystem: "github-actions"/);
   assert.match(dependabot, /package-ecosystem: "npm"/);
 
@@ -1416,6 +1920,22 @@ test("CI policy scanner rejects unsafe workflow and package mutations", () => {
     ),
     `${workflow}\nunsafe:\n  uses: \${{ github.action }}\n`,
     `${workflow}\n# publication\nunsafe: npm publish\n`,
+    `${workflow}\nunsafe: npm --silent publish\n`,
+    `${workflow}\nunsafe: npm --workspace package-a publish\n`,
+    `${workflow}\nunsafe: npm --workspace=package-a publish\n`,
+    `${workflow}\nunsafe: npm -w package-a publish\n`,
+    `${workflow}\nunsafe: npm --prefix /tmp/package-a publish\n`,
+    ...[
+      "npm --silent publish",
+      "npm --workspace package-a publish",
+      "npm --workspace=package-a publish",
+      "npm -w package-a publish",
+      "npm --prefix /tmp/package-a publish",
+      ...publicationWrapperMutations,
+    ].map((command) => workflow.replace(
+      "          npm run pack:check\n",
+      `          npm run pack:check\n          ${command}\n`,
+    )),
     `${workflow}\nunsafe: NODE_AUTH_TOKEN\n`,
     `${workflow}\nunsafe: echo token > ~/.npmrc\n`,
     workflow.replace("contents: read", "packages: write"),
@@ -1448,7 +1968,58 @@ test("CI policy scanner rejects unsafe workflow and package mutations", () => {
     );
   }
   assert.throws(() => assertSafePackageScripts({ release: "npm publish" }));
+  for (const command of [
+    "npm --silent publish",
+    "npm --workspace package-a publish",
+    "npm --workspace=package-a publish",
+    "npm -w package-a publish",
+    "npm --prefix /tmp/package-a publish",
+    ...publicationWrapperMutations,
+  ]) {
+    assert.throws(
+      () => assertSafePackageScripts({ release: command }),
+      `package script publication mutation must be rejected: ${command}`,
+    );
+  }
   assert.throws(() => assertSafePackageScripts({ release: "NODE_AUTH_TOKEN=secret npm pack" }));
+});
+
+test("prerelease workflow isolates privileged publication from repository code", () => {
+  const workflow = readFileSync(githubPrereleaseWorkflow, "utf8");
+  const verifyIndex = workflow.indexOf("  verify:\n");
+  const publishIndex = workflow.indexOf("  publish:\n");
+  assert.notEqual(verifyIndex, -1);
+  assert.ok(publishIndex > verifyIndex);
+  const verifyJob = workflow.slice(verifyIndex, publishIndex);
+  const publishJob = workflow.slice(publishIndex);
+
+  assert.match(workflow, /^permissions:\n  contents: read$/m);
+  assert.match(verifyJob, /^    permissions:\n      contents: read$/m);
+  assert.match(verifyJob, /^          persist-credentials: false$/m);
+  assert.match(
+    verifyJob,
+    /actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02/,
+  );
+  assert.match(publishJob, /^    needs: verify$/m);
+  assert.match(
+    publishJob,
+    /^    permissions:\n      contents: write\n      id-token: write\n      attestations: write$/m,
+  );
+  assert.match(
+    publishJob,
+    /actions\/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093/,
+  );
+  assert.match(
+    publishJob,
+    /actions\/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373/,
+  );
+  assert.doesNotMatch(publishJob, /actions\/checkout|actions\/setup-node/);
+  assert.doesNotMatch(
+    publishJob,
+    /(?:^|\s)(?:npm|npx)\b|node_modules|package\.json|scripts\/|git\s/m,
+  );
+  assert.match(publishJob, /Verify transferred release assets/);
+  assert.match(publishJob, /manifest\.npmVersion/);
 });
 
 test("tag-only workflow creates an exact-master attested GitHub prerelease", () => {
@@ -1485,11 +2056,19 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
     "Run full SDK verification",
     "Run examples and package checks",
     "Verify deterministic distribution assets and clean installation",
+    "Upload verified release assets",
+    "Download verified release assets",
+    "Verify transferred release assets",
     "Attest release assets",
     "Create or update GitHub prerelease",
     "Verify exact GitHub release inventory",
   ];
   const registryMutations = [
+    "--silent publish",
+    "--workspace package-a publish",
+    "--workspace=package-a publish",
+    "-w package-a publish",
+    "--prefix /tmp/package-a publish",
     "dist-tag add collective-cognition-sdk@0.6.0 latest",
     "deprecate collective-cognition-sdk@0.6.0 unsafe",
     "unpublish collective-cognition-sdk@0.6.0",
@@ -1527,11 +2106,28 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
   const unsafeWorkflows = [
     workflow.replace('      - "v*"', '      - "release-*"'),
     workflow.replace("permissions:\n", "on:\n  workflow_dispatch:\n\npermissions:\n"),
+    workflow.replace("permissions:\n  contents: read", "permissions:\n  contents: write"),
+    workflow.replace(
+      "    permissions:\n      contents: read\n    steps:",
+      "    permissions:\n      contents: write\n    steps:",
+    ),
     workflow.replace("        fetch-depth: 0", "        fetch-depth: 1"),
+    workflow.replace("          persist-credentials: false", "          persist-credentials: true"),
+    workflow.replace("          persist-credentials: false\n", ""),
     workflow.replace("contents: write", "contents: read"),
     workflow.replace("attestations: write", "packages: write"),
+    workflow.replace("    needs: verify", "    needs: missing"),
     workflow.replace('node-version: "24.14.0"', 'node-version: "24"'),
     workflow.replace("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", "actions/checkout@v4"),
+    workflow.replace(
+      "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "actions/upload-artifact@v4",
+    ),
+    workflow.replace(
+      "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+      "actions/download-artifact@v4",
+    ),
+    workflow.replace("          overwrite: true\n", ""),
     workflow.replace(
       'package_version="$(node -p "require(\'./package.json\').version")"',
       'package_version="0.6.0"',
@@ -1576,6 +2172,21 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
     workflow.replace("          npm test\n", ""),
     workflow.replace("          npx tsc --noEmit\n", ""),
     workflow.replace("          npm run check\n", ""),
+    workflow.replace(
+      "          npm run pack:check\n",
+      "          npm run pack:check\n          npm --silent publish\n",
+    ),
+    ...[
+      "npm --workspace package-a publish",
+      "npm --workspace=package-a publish",
+      "npm -w package-a publish",
+      "npm --prefix /tmp/package-a publish",
+      ...publicationWrapperMutations,
+    ].map((command) => workflow.replace(
+      "          npm run pack:check\n",
+      `          npm run pack:check\n          ${command}\n`,
+    )),
+    ...checksumInventoryMutations(workflow, "          "),
     workflow.replace('            "collective-cognition-sdk/compatibility/0.4.0",\n', ""),
     workflow.replace(
       '            "$release_dir/release-manifest.json"\n',
@@ -1595,6 +2206,28 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
     workflow.replace(
       "          assert.deepEqual([...names].sort(), expectedNames);\n",
       "",
+    ),
+    workflow.replace(
+      "          assert.equal(manifest.commit, process.env.GITHUB_SHA);\n",
+      "",
+    ),
+    workflow.replace(
+      "          assert.match(manifest.npmVersion, /^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$/);\n",
+      "",
+    ),
+    workflow.replace(expectedTarballSha256, "0".repeat(64)),
+    workflow.replace("            assert.equal(asset.bytes, bytes.length);\n", ""),
+    workflow.replace(
+      '              createHash("sha256").update(bytes).digest("hex"),\n',
+      '              "0".repeat(64),\n',
+    ),
+    workflow.replace(
+      "      - name: Download verified release assets\n",
+      "      - name: Check out repository\n        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n      - name: Download verified release assets\n",
+    ),
+    workflow.replace(
+      "      - name: Verify transferred release assets\n",
+      "      - name: Run repository package\n        run: npm test\n      - name: Verify transferred release assets\n",
     ),
     workflow.replace("--prerelease --verify-tag --generate-notes", "--verify-tag --generate-notes"),
     workflow.replace("--prerelease --verify-tag --generate-notes", "--prerelease --generate-notes"),
@@ -1628,8 +2261,8 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
       "          set -euo pipefail\n          eval 'exit 0'\n          npm test\n",
     ),
     workflow.replace(
-      '          release_dir="${{ runner.temp }}/github-prerelease/first"\n',
-      '          eval \'exit 0\'\n          release_dir="${{ runner.temp }}/github-prerelease/first"\n',
+      '          release_dir="${{ runner.temp }}/github-prerelease-assets"\n',
+      '          eval \'exit 0\'\n          release_dir="${{ runner.temp }}/github-prerelease-assets"\n',
     ),
     ...controlledSteps.flatMap((name) => [
       addStepControl(name, "if: ${{ false }}"),
@@ -1641,9 +2274,12 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
 
   for (const [index, unsafeWorkflow] of unsafeWorkflows.entries()) {
     assert.notEqual(unsafeWorkflow, workflow, `mutation ${index} must change the workflow`);
+    const mutationEvidence = unsafeWorkflow
+      .split("\n")
+      .find((line) => !workflow.includes(line)) ?? "deletion-only mutation";
     assert.throws(
       () => assertGitHubPrereleaseWorkflow(unsafeWorkflow),
-      `unsafe prerelease workflow mutation ${index} must be rejected`,
+      `unsafe prerelease workflow mutation ${index} must be rejected: ${mutationEvidence}`,
     );
   }
 
@@ -1664,6 +2300,12 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
       `package script registry reconfiguration must be rejected: ${command}`,
     );
   }
+  for (const command of publicationWrapperMutations) {
+    assert.throws(
+      () => assertSafePackageScripts({ release: command }),
+      `package script wrapper mutation must be rejected: ${command}`,
+    );
+  }
 });
 
 test("public documentation defines an unobserved GitHub prerelease boundary", () => {
@@ -1676,7 +2318,8 @@ test("public documentation defines an unobserved GitHub prerelease boundary", ()
   const roadmap = readDocumentation("docs/ROADMAP.md");
   const rfcIndex = readDocumentation("rfcs/README.md");
   const runbook = readDocumentation("docs/github-prerelease.md");
-  const documentation = [readme, roadmap, rfcIndex, runbook].join("\n");
+  const changelog = readDocumentation("CHANGELOG.md");
+  const documentation = [readme, roadmap, rfcIndex, runbook, changelog].join("\n");
 
   assert.match(readme, /^## GitHub Prerelease$/m);
   for (const asset of expectedAssets) {
@@ -1731,7 +2374,21 @@ test("public documentation defines an unobserved GitHub prerelease boundary", ()
   assert.match(runbook, /gh api --include repos\/xiongxhc\/collective-cognition-sdk\/releases\/latest/);
   assert.match(runbook, /git rev-parse "refs\/tags\/\$TAG\^\{\}"/);
   assert.match(runbook, /shasum -a 256 -c SHA256SUMS/);
-  assert.match(runbook, /gh attestation verify "\$asset"/);
+  assert.match(runbook, /gh attestation verify "\$release_dir\/\$asset"/);
+  assert.match(runbook, /manifest\.commit, tagSha/);
+  assert.match(runbook, /manifest\.npmVersion/);
+  assert.match(runbook, new RegExp(expectedTarballSha256));
+  assert.match(runbook, /asset\.bytes, bytes\.length/);
+  assert.match(runbook, /createHash\("sha256"\)/);
+  assert.match(runbook, /assert\.deepEqual\(sbom,/);
+  assert.match(
+    runbook,
+    /https:\/\/registry\.npmjs\.org\/collective-cognition-sdk\/0\.6\.0/,
+  );
+  assert.match(runbook, /request\.getHeader\("authorization"\), undefined/);
+  assert.match(runbook, /request\.setTimeout\(/);
+  assert.match(runbook, /assert\.equal\(statusCode, 404\)/);
+  assert.match(runbook, /assert\.equal\(registryPayload, "Not Found"\)/);
   assert.match(runbook, /new prerelease version rather than moving or retagging `v0\.6\.0`/i);
 
   assert.doesNotMatch(documentation, /\b(?:is|are|was|were)\s+(?:production[- ]ready|npm published|live vault accepted)\b/i);
@@ -1746,6 +2403,15 @@ test("prerelease documentation keeps verification fixtures and release predicate
   const readme = readDocumentation("README.md");
   const roadmap = readDocumentation("docs/ROADMAP.md");
   const runbook = readDocumentation("docs/github-prerelease.md");
+  const packageJson = readJson(join(repositoryRoot, "package.json")) as {
+    readonly name: string;
+    readonly exports: Readonly<Record<string, unknown>>;
+  };
+  const manifestPackageCheck = `assert.deepEqual(manifest.package, {
+  name: "collective-cognition-sdk",
+  version: "0.6.0",
+  private: true,
+});`;
   const expectedRuntimes = [
     "Ubuntu with Node.js `24.9.0`",
     "Ubuntu with Node.js `24.14.0`",
@@ -1791,21 +2457,104 @@ test("prerelease documentation keeps verification fixtures and release predicate
     assert.match(candidate, /assert\.equal\(statusCode, 200\)/);
     assert.match(candidate, /assert\.notEqual\(latest\.tag_name, tag\)/);
     assert.match(candidate, /assert\.equal\(exitCode, 1\)/);
-    assert.match(candidate, /assert\.equal\(statusCode, 404\)/);
+    assert.equal(
+      [...candidate.matchAll(/assert\.equal\(statusCode, 404\)/g)].length,
+      2,
+    );
+    assertCanonicalChecksumVerifier(candidate);
+    assert.equal([...candidate.matchAll(/gh attestation verify /g)].length, 1);
+    assert.match(candidate, /gh attestation verify "\$release_dir\/\$asset"/);
+    assert.doesNotMatch(candidate, /gh attestation verify "\$asset"/);
+    assert.match(candidate, /assert\.equal\(manifest\.commit, tagSha\)/);
+    assert.equal(candidate.includes(manifestPackageCheck), true);
+    assert.match(candidate, /assert\.equal\(manifest\.nodeVersion, "v24\.14\.0"\)/);
+    assert.match(candidate, /assert\.match\(manifest\.npmVersion,/);
+    assert.match(candidate, new RegExp(expectedTarballSha256));
+    assert.match(candidate, /assert\.equal\(asset\.bytes, bytes\.length\)/);
+    assert.match(candidate, /createHash\("sha256"\)\.update\(bytes\)\.digest\("hex"\)/);
+    const sbomCheck = candidate.match(/assert\.deepEqual\(sbom, \{[\s\S]*?\n\}\);/);
+    assert.ok(sbomCheck);
+    for (const fragment of [
+      'bomFormat: "CycloneDX"',
+      'specVersion: "1.6"',
+      'purl: "pkg:npm/collective-cognition-sdk@0.6.0"',
+      "components: []",
+      "dependencies: [{",
+      "dependsOn: []",
+    ]) {
+      assert.equal(sbomCheck[0].includes(fragment), true, `runbook SBOM must include ${fragment}`);
+    }
+    assert.match(candidate, /request\.getHeader\("authorization"\), undefined/);
+    assert.match(candidate, /request\.setTimeout\(/);
+    assert.match(candidate, /const registryPayload = JSON\.parse\(body\)/);
+    assert.equal(
+      candidate.includes('assert.match(contentType ?? "", /^application\\/json\\b/i);'),
+      true,
+    );
+    assert.match(candidate, /assert\.equal\(registryPayload, "Not Found"\)/);
+    for (const subpath of Object.keys(packageJson.exports)) {
+      const specifier = subpath === "."
+        ? packageJson.name
+        : `${packageJson.name}${subpath.slice(1)}`;
+      assert.equal(
+        candidate.includes(JSON.stringify(specifier)),
+        true,
+        `runbook must verify downloaded subpath ${specifier}`,
+      );
+    }
   };
 
   assertRuntimeBoundary([readme, roadmap, runbook].join("\n"));
   assertRunbook(runbook);
 
-  for (const unsafeRunbook of [
+  for (const [index, unsafeRunbook] of [
     runbook.replace('npm run example:teammem -- "$ledger"', "npm run example:teammem"),
     runbook.replace(' --cognition-db "$cognition"', ""),
     runbook.replace("--workflow github-prerelease.yml", "--workflow ci.yml"),
     runbook.replace('gh run watch "$RUN_ID" --exit-status', 'gh run watch "$RUN_ID"'),
     runbook.replace("assert.equal(release.prerelease, true)", "assert.equal(release.prerelease, false)"),
     runbook.replace("assert.equal(exitCode, 1)", "assert.equal(exitCode, 2)"),
-  ]) {
-    assert.throws(() => assertRunbook(unsafeRunbook));
+    runbook.replace("assert.equal(manifest.commit, tagSha)", "assert.notEqual(manifest.commit, tagSha)"),
+    runbook.replace(
+      manifestPackageCheck,
+      manifestPackageCheck.replace("private: true", "private: false"),
+    ),
+    runbook.replace(
+      'assert.equal(manifest.nodeVersion, "v24.14.0")',
+      'assert.equal(manifest.nodeVersion, "v24")',
+    ),
+    runbook.replace("assert.match(manifest.npmVersion", "assert.doesNotMatch(manifest.npmVersion"),
+    runbook.replace(expectedTarballSha256, "0".repeat(64)),
+    runbook.replace("assert.equal(asset.bytes, bytes.length)", "assert.notEqual(asset.bytes, bytes.length)"),
+    runbook.replace('createHash("sha256").update(bytes).digest("hex")', '"0".repeat(64)'),
+    runbook.replace("assert.deepEqual(sbom, {", "assert.notDeepEqual(sbom, {"),
+    runbook.replace('specVersion: "1.6"', 'specVersion: "1.5"'),
+    runbook.replace('"collective-cognition-sdk/adapters/markdown/0.1.0",\n', ""),
+    runbook.replace('"collective-cognition-sdk/compatibility/0.4.0",\n', ""),
+    runbook.replace('"collective-cognition-sdk/contracts/host-integration/0.1.0",\n', ""),
+    ...checksumInventoryMutations(runbook),
+    runbook.replace(
+      'gh attestation verify "$release_dir/$asset"',
+      'gh attestation verify "$asset"',
+    ),
+    runbook.replace('assert.equal(request.getHeader("authorization"), undefined);\n', ""),
+    runbook.replace('request.setTimeout(15_000, () => request.destroy(new Error("Registry request timed out.")));\n', ""),
+    runbook.replace("const registryPayload = JSON.parse(body)", "const registryPayload = body"),
+    runbook.replace(
+      'assert.match(contentType ?? "", /^application\\/json\\b/i)',
+      'assert.match(contentType ?? "", /^text\\/plain\\b/i)',
+    ),
+    runbook.replace("assert.equal(statusCode, 404)", "assert.equal(statusCode, 200)"),
+    runbook.replace('assert.equal(registryPayload, "Not Found")', 'assert.ok(registryPayload)'),
+  ].entries()) {
+    assert.notEqual(unsafeRunbook, runbook, `runbook mutation ${index} must change the document`);
+    const mutationEvidence = unsafeRunbook
+      .split("\n")
+      .find((line) => !runbook.includes(line)) ?? "deletion-only mutation";
+    assert.throws(
+      () => assertRunbook(unsafeRunbook),
+      `unsafe runbook mutation ${index} must be rejected: ${mutationEvidence}`,
+    );
   }
   assert.throws(() => assertRuntimeBoundary(`${readme}\n- Ubuntu with Node.js \`25.0.0\``));
 });
