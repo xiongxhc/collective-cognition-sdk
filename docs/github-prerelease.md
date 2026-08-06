@@ -133,18 +133,18 @@ value to the roadmap until it is observed from the merged release path.
 
 Open the feature pull request only after the local gate is clean. Wait for its
 required checks, squash-merge it, delete the remote branch, and fast-forward
-the primary checkout to `origin/master`.
+the primary checkout to `origin/main`.
 
 ```bash
 git push -u origin feature/public-prerelease-readiness
-PR_URL="$(gh pr create --base master --head feature/public-prerelease-readiness --title "feat: add public GitHub prerelease distribution" --body "Release readiness verification completed locally.")"
+PR_URL="$(gh pr create --base main --head feature/public-prerelease-readiness --title "feat: add public GitHub prerelease distribution" --body "Release readiness verification completed locally.")"
 PR_NUMBER="$(gh pr view "$PR_URL" --json number --jq .number)"
 gh pr checks --watch "$PR_NUMBER"
 gh pr merge "$PR_NUMBER" --squash --delete-branch
-git -C /Users/cx/Workspace/collective-cognition-sdk fetch origin master
-git -C /Users/cx/Workspace/collective-cognition-sdk checkout master
-git -C /Users/cx/Workspace/collective-cognition-sdk merge --ff-only origin/master
-test "$(git -C /Users/cx/Workspace/collective-cognition-sdk rev-parse master)" = "$(git -C /Users/cx/Workspace/collective-cognition-sdk rev-parse origin/master)"
+git -C /Users/cx/Workspace/collective-cognition-sdk fetch origin main
+git -C /Users/cx/Workspace/collective-cognition-sdk checkout main
+git -C /Users/cx/Workspace/collective-cognition-sdk merge --ff-only origin/main
+test "$(git -C /Users/cx/Workspace/collective-cognition-sdk rev-parse main)" = "$(git -C /Users/cx/Workspace/collective-cognition-sdk rev-parse origin/main)"
 ```
 
 ## 3. Enable Private Vulnerability Reporting
@@ -159,13 +159,13 @@ gh api repos/xiongxhc/collective-cognition-sdk/private-vulnerability-reporting -
 
 ## 4. Create the Immutable Prerelease Tag
 
-From clean, verified `master`, create exactly one annotated tag. Push only the
+From clean, verified `main`, create exactly one annotated tag. Push only the
 tag. Never force, delete, or move the tag after public publication.
 
 ```bash
 cd /Users/cx/Workspace/collective-cognition-sdk
-git fetch origin master
-test "$(git rev-parse master)" = "$(git rev-parse origin/master)"
+git fetch origin main
+test "$(git rev-parse main)" = "$(git rev-parse origin/main)"
 git tag -a v0.6.0 -m "Collective Cognition SDK 0.6.0 prerelease"
 git push origin v0.6.0
 ```
@@ -181,7 +181,7 @@ pass result before their actual GitHub output is inspected.
 set -euo pipefail
 TAG=v0.6.0
 cd /Users/cx/Workspace/collective-cognition-sdk
-git fetch origin master refs/tags/$TAG:refs/tags/$TAG
+git fetch origin main refs/tags/$TAG:refs/tags/$TAG
 TAG_SHA="$(git rev-parse "refs/tags/$TAG^{}")"
 RUNS_JSON="$(gh run list --repo xiongxhc/collective-cognition-sdk --workflow github-prerelease.yml --branch "$TAG" --event push --limit 20 --json databaseId,headSha,headBranch,event)"
 RUN_ID="$(RUNS_JSON="$RUNS_JSON" TAG="$TAG" TAG_SHA="$TAG_SHA" node --input-type=module <<'NODE'
@@ -255,7 +255,7 @@ if (exitCode === 0) {
 }
 NODE
 
-test "$(git rev-parse "refs/tags/$TAG^{}")" = "$(git rev-parse origin/master)"
+test "$(git rev-parse "refs/tags/$TAG^{}")" = "$(git rev-parse origin/main)"
 
 RELEASE_DIR="$release_dir" TAG="$TAG" TAG_SHA="$TAG_SHA" node --input-type=module <<'NODE'
 import assert from "node:assert/strict";

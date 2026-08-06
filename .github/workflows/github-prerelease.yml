@@ -34,12 +34,12 @@ jobs:
           package_private="$(node -p "require('./package.json').private")"
           test "$GITHUB_REF_NAME" = "v$package_version"
           test "$package_private" = "true"
-          git fetch --no-tags origin master
+          git fetch --no-tags origin main
           test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = "tag"
           tag_commit="$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{}")"
           test "$tag_commit" = "$GITHUB_SHA"
-          test "$tag_commit" = "$(git rev-parse origin/master)"
-          test "$GITHUB_SHA" = "$(git rev-parse origin/master)"
+          test "$tag_commit" = "$(git rev-parse origin/main)"
+          test "$GITHUB_SHA" = "$(git rev-parse origin/main)"
       - name: Install dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --prefer-offline
       - name: Run full SDK verification
