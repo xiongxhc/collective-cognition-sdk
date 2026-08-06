@@ -42,8 +42,8 @@ const expectedAssets = [
 ];
 const expectedChecksumAssets = expectedAssets.slice(1);
 const expectedPackageScriptsSha256 = "574c12e5cc890227a58b16939ef1e0e861b9a011c4b8040f6df03ee4044534e3";
-const expectedCiWorkflowSha256 = "fcc4a9f4b3437779e85d084a086e99a55b18305c3f6a483c7f77f4ca83511a8d";
-const expectedGitHubPrereleaseWorkflowSha256 = "86794d89ce311731ff9b7e7addce329f7ea4fcd538d92660aa2733e28df9be2d";
+const expectedCiWorkflowSha256 = "4ffd26bf39c2f859aac567bcfda421d3ba834ae993e0ca2b0ff3e384794eba7a";
+const expectedGitHubPrereleaseWorkflowSha256 = "e069a3d8f21d9cfc62651922bd2528ef0c1ddcd343708aae4955be55c097f080";
 const expectedTarballSha256 = "3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe";
 const expectedReleaseCommit = "76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e";
 const expectedCommit = runGit(["rev-parse", "HEAD"]);
@@ -457,7 +457,7 @@ function parseCiWorkflow(workflow: string): ParsedCiWorkflow {
       "  pull_request:",
       "  push:",
       "    branches:",
-      "      - master",
+      "      - main",
       "  workflow_dispatch:",
     ],
     "workflow trigger structure must remain closed",
@@ -631,7 +631,7 @@ function assertReadOnlyCiWorkflow(workflow: string): void {
   const parsed = parseCiWorkflow(yaml);
   assert.deepEqual(parsed.triggers, {
     pullRequest: true,
-    pushBranches: ["master"],
+    pushBranches: ["main"],
     workflowDispatch: true,
   });
   assertReadOnlyPermissions(parsed.permissions, "workflow");
@@ -909,7 +909,7 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
   assert.ok(steps.indexOf(validate) < steps.indexOf(install));
   assert.equal(install.run, "npm ci --ignore-scripts --prefer-offline");
   assert.match(validate.run ?? "", /^set -euo pipefail$/m);
-  assert.match(validate.run ?? "", /^git fetch --no-tags origin master$/m);
+  assert.match(validate.run ?? "", /^git fetch --no-tags origin main$/m);
   assert.match(validate.run ?? "", /^test "\$GITHUB_REF_TYPE" = "tag"$/m);
   assert.match(
     validate.run ?? "",
@@ -935,14 +935,14 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
   assert.match(validate.run ?? "", /^test "\$tag_commit" = "\$GITHUB_SHA"$/m);
   assert.match(
     validate.run ?? "",
-    /^test "\$tag_commit" = "\$\(git rev-parse origin\/master\)"$/m,
+    /^test "\$tag_commit" = "\$\(git rev-parse origin\/main\)"$/m,
   );
   assert.match(
     validate.run ?? "",
-    /^test "\$GITHUB_SHA" = "\$\(git rev-parse origin\/master\)"$/m,
+    /^test "\$GITHUB_SHA" = "\$\(git rev-parse origin\/main\)"$/m,
   );
   assert.ok(
-    (validate.run ?? "").indexOf("git fetch --no-tags origin master") <
+    (validate.run ?? "").indexOf("git fetch --no-tags origin main") <
       (validate.run ?? "").indexOf("git cat-file -t"),
   );
   assert.deepEqual(shellControlLines(validate), [
@@ -952,12 +952,12 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
     'package_private="$(node -p "require(\'./package.json\').private")"',
     'test "$GITHUB_REF_NAME" = "v$package_version"',
     'test "$package_private" = "true"',
-    "git fetch --no-tags origin master",
+    "git fetch --no-tags origin main",
     'test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = "tag"',
     'tag_commit="$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{}")"',
     'test "$tag_commit" = "$GITHUB_SHA"',
-    'test "$tag_commit" = "$(git rev-parse origin/master)"',
-    'test "$GITHUB_SHA" = "$(git rev-parse origin/master)"',
+    'test "$tag_commit" = "$(git rev-parse origin/main)"',
+    'test "$GITHUB_SHA" = "$(git rev-parse origin/main)"',
   ]);
 
   const fullVerification = assertUnconditional(job, "Run full SDK verification");
@@ -2141,7 +2141,7 @@ test("prerelease workflow isolates privileged publication from repository code",
   assert.match(publishJob, /manifest\.npmVersion/);
 });
 
-test("tag-only workflow creates an exact-master attested GitHub prerelease", () => {
+test("tag-only workflow creates an exact-main attested GitHub prerelease", () => {
   assert.equal(
     existsSync(githubPrereleaseWorkflow),
     true,
@@ -2275,12 +2275,12 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
     ),
     workflow.replace('test "$tag_commit" = "$GITHUB_SHA"', "true"),
     workflow.replace(
-      'test "$tag_commit" = "$(git rev-parse origin/master)"',
+      'test "$tag_commit" = "$(git rev-parse origin/main)"',
       "true",
     ),
     workflow.replace(
-      'test "$GITHUB_SHA" = "$(git rev-parse origin/master)"',
-      'test "$GITHUB_SHA" != "$(git rev-parse origin/master)"',
+      'test "$GITHUB_SHA" = "$(git rev-parse origin/main)"',
+      'test "$GITHUB_SHA" != "$(git rev-parse origin/main)"',
     ),
     workflow.replace(
       "      - name: Validate tag and package identity",
@@ -2510,7 +2510,7 @@ test("public documentation records the observed GitHub prerelease boundary", () 
   assert.match(runbook, /cmp "\$first\/\$asset" "\$second\/\$asset"/);
   assert.match(runbook, /gh api --method PUT repos\/xiongxhc\/collective-cognition-sdk\/private-vulnerability-reporting/);
   assert.match(runbook, /gh api repos\/xiongxhc\/collective-cognition-sdk\/private-vulnerability-reporting --jq '\.enabled'/);
-  assert.match(runbook, /gh pr create --base master --head feature\/public-prerelease-readiness/);
+  assert.match(runbook, /gh pr create --base main --head feature\/public-prerelease-readiness/);
   assert.match(runbook, /gh pr merge "\$PR_NUMBER" --squash --delete-branch/);
   assert.match(runbook, /git tag -a v0\.6\.0 -m "Collective Cognition SDK 0\.6\.0 prerelease"/);
   assert.match(runbook, /git push origin v0\.6\.0/);

@@ -6,8 +6,8 @@ This directory contains the implemented and final-review verified Normative Stab
 
 The current direction is defined by:
 
-- the [implemented cognitive-core design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-collective-cognition-core-design.md);
-- the [approved universal-ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
+- the [implemented cognitive-core design](https://github.com/xiongxhc/collective-cognition-sdk/blob/main/docs/superpowers/specs/2026-07-24-collective-cognition-core-design.md);
+- the [approved universal-ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/main/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
 - the [approved compatibility, versioning, and deprecation design](../docs/superpowers/specs/2026-07-27-compatibility-versioning-deprecation-design.md).
 - the [implemented and final-review verified Portable Cognition design](../docs/superpowers/specs/2026-07-27-portable-cognition-contract-design.md).
 - the [SQLite cognition-store design](../docs/superpowers/specs/2026-07-29-sqlite-cognition-store-design.md), which is implemented and final-review verified.
@@ -26,7 +26,7 @@ The historical team-memory direct-to-Evidence path was replaced. `SourceRecord` 
 
 ## Start Here
 
-- Review the [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/ROADMAP.md) and distinguish completed phases from planned ones.
+- Review the [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/main/docs/ROADMAP.md) and distinguish completed phases from planned ones.
 - Run `npm test`, `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, and `npm run example:teammem:durable` with explicit source-ledger and cognition-database paths for the durable workflow.
 - Run `npm run example:markdown` for a self-cleaning temporary Markdown target; it does not access a vault or database.
 - Read the normative [`SourceRecord 0.1.0` contract](source-record.md) and its [`JSON Schema`](schemas/0.1.0/source-record.schema.json).

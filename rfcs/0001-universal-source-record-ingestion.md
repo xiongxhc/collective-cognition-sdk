@@ -39,7 +39,7 @@ The SDK needs an ingestion contract that works across organizations and source s
 24. `teammem:export` failures MUST use `{stage,error:{code,message,details}}` and MUST sanitize non-domain exception messages.
 25. The complete SourceRecord MUST contain at most 256 nested JSON containers, counting the root object as depth 1. Direct SDK values, JSON, JSONL, and CLI input MUST reject deeper records with item-level `INVALID_SOURCE_RECORD` before recursive processing.
 
-The proposed record shape and complete rationale are in the [universal ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
+The proposed record shape and complete rationale are in the [universal ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/main/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md).
 
 ## Alternatives
 
@@ -107,10 +107,10 @@ Implementation evidence:
 - normative SourceRecord contract: [`spec/source-record.md`](../spec/source-record.md);
 - SourceRecord schema: [`spec/schemas/0.1.0/source-record.schema.json`](../spec/schemas/0.1.0/source-record.schema.json);
 - canonical fixtures: [`spec/conformance/0.1.0/source-record/`](../spec/conformance/0.1.0/source-record/);
-- conformance suite: [`tests/conformance.test.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/tests/conformance.test.ts);
-- generic CLI: [`src/cli.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/src/cli.ts);
-- migrated connector: [`src/adapters/team-memory.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/src/adapters/team-memory.ts);
-- second fixture connector: [`src/adapters/git-commit.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/src/adapters/git-commit.ts);
+- conformance suite: [`tests/conformance.test.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/main/tests/conformance.test.ts);
+- generic CLI: [`src/cli.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/main/src/cli.ts);
+- migrated connector: [`src/adapters/team-memory.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/main/src/adapters/team-memory.ts);
+- second fixture connector: [`src/adapters/git-commit.ts`](https://github.com/xiongxhc/collective-cognition-sdk/blob/main/src/adapters/git-commit.ts);
 - completion commands: `npm test`, `npx tsc --noEmit`, `npm run check`, and `npm run example`;
 - bounded live verification: default-privacy team-memory SourceRecord export, generic validation, explicit `neutral-evidence-v1` promotion, complete JSON-line parsing, and unchanged source-ledger metadata.
 
