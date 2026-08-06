@@ -229,7 +229,7 @@ git diff --check: exit 0, 0 output bytes
 Source ledger:
 
 ```text
-/Users/cx/Workspace/local-agent-team/team-memory-agent/ledger.db
+~/Workspace/local-agent-team/team-memory-agent/ledger.db
 ```
 
 Flow:
@@ -526,7 +526,7 @@ Phase 2 and RFC 0001 remain marked Implemented only after this full second-wave 
 Source ledger:
 
 ```text
-/Users/cx/Workspace/local-agent-team/team-memory-agent/ledger.db
+~/Workspace/local-agent-team/team-memory-agent/ledger.db
 ```
 
 The flow exported at most five records without `--include-raw`, validated them through the generic CLI, promoted the complete accepted set, parsed every output line, asserted empty stderr, compared exact ledger metadata, and removed all scratch files.

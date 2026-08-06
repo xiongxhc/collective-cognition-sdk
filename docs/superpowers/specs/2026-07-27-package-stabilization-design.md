@@ -117,4 +117,4 @@ Removing `"private": true` is a separate consequential release decision. It requ
 
 ## Documentation Boundary
 
-Public documentation describes the generic host, source-store, and cognition-store architecture. Estidama's `team-cognition-agent`, `team-memory-agent`, member bundle transport, and deployment details remain private reference-application concerns and do not define package behavior.
+Public documentation describes the generic host, source-store, and cognition-store architecture. The reference operator's `team-cognition-agent`, `team-memory-agent`, member bundle transport, and deployment details remain private reference-application concerns and do not define package behavior.

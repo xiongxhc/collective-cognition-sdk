@@ -54,7 +54,7 @@ The final two APIs and CLI command were explicitly experimental and source-speci
 - Agent output does not satisfy a human-confirmation requirement.
 - The default authorization evaluator validates asserted metadata but does not authenticate consent.
 - Team-memory SQLite access uses read-only mode and `SELECT` queries.
-- The personal vault at `/Users/cx/Dropbox/NOTES` is never read or written by runtime code.
+- The personal vault at `~/Dropbox/NOTES` is never read or written by runtime code.
 - Team-memory activity never becomes a Decision or Principle automatically.
 
 ## Superseding Architecture Work

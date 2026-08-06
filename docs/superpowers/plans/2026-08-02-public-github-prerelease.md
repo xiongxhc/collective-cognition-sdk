@@ -424,9 +424,9 @@ PR_URL="$(gh pr create --base master --head feature/public-prerelease-readiness 
 PR_NUMBER="$(gh pr view "$PR_URL" --json number --jq .number)"
 gh pr checks --watch "$PR_NUMBER"
 gh pr merge "$PR_NUMBER" --squash --delete-branch
-git -C /Users/cx/Workspace/collective-cognition-sdk fetch origin master
-git -C /Users/cx/Workspace/collective-cognition-sdk checkout master
-git -C /Users/cx/Workspace/collective-cognition-sdk merge --ff-only origin/master
+git -C ~/Workspace/collective-cognition-sdk fetch origin master
+git -C ~/Workspace/collective-cognition-sdk checkout master
+git -C ~/Workspace/collective-cognition-sdk merge --ff-only origin/master
 ```
 
 Expected: required checks pass, PR merges once, remote feature branch is deleted, and local `master` fast-forwards to exactly `origin/master`.

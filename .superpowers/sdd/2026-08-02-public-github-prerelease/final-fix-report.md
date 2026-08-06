@@ -66,7 +66,7 @@ Resolved in `scripts/build-github-prerelease.mjs` and `tests/release-readiness.t
 Verified local tool identity:
 
 ```text
-Node: /Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node
+Node: ~/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node
 Node version: v24.14.0
 npm CLI: /usr/local/lib/node_modules/npm/bin/npm-cli.js
 npm package: npm@9.6.7

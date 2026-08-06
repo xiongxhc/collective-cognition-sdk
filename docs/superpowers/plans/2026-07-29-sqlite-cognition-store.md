@@ -639,7 +639,7 @@ Use a temporary cognition target:
 
 ```bash
 npm run --silent example:teammem:durable -- \
-  --ledger /Users/cx/Workspace/local-agent-team/team-memory-agent/ledger.db \
+  --ledger ~/Workspace/local-agent-team/team-memory-agent/ledger.db \
   --cognition-db /tmp/collective-cognition-real-ledger-acceptance.db \
   --project unified-portal \
   --from 2026-07-28T17:59:00+08:00 \

@@ -141,10 +141,10 @@ PR_URL="$(gh pr create --base main --head feature/public-prerelease-readiness --
 PR_NUMBER="$(gh pr view "$PR_URL" --json number --jq .number)"
 gh pr checks --watch "$PR_NUMBER"
 gh pr merge "$PR_NUMBER" --squash --delete-branch
-git -C /Users/cx/Workspace/collective-cognition-sdk fetch origin main
-git -C /Users/cx/Workspace/collective-cognition-sdk checkout main
-git -C /Users/cx/Workspace/collective-cognition-sdk merge --ff-only origin/main
-test "$(git -C /Users/cx/Workspace/collective-cognition-sdk rev-parse main)" = "$(git -C /Users/cx/Workspace/collective-cognition-sdk rev-parse origin/main)"
+git -C ~/Workspace/collective-cognition-sdk fetch origin main
+git -C ~/Workspace/collective-cognition-sdk checkout main
+git -C ~/Workspace/collective-cognition-sdk merge --ff-only origin/main
+test "$(git -C ~/Workspace/collective-cognition-sdk rev-parse main)" = "$(git -C ~/Workspace/collective-cognition-sdk rev-parse origin/main)"
 ```
 
 ## 3. Enable Private Vulnerability Reporting
@@ -163,7 +163,7 @@ From clean, verified `main`, create exactly one annotated tag. Push only the
 tag. Never force, delete, or move the tag after public publication.
 
 ```bash
-cd /Users/cx/Workspace/collective-cognition-sdk
+cd ~/Workspace/collective-cognition-sdk
 git fetch origin main
 test "$(git rev-parse main)" = "$(git rev-parse origin/main)"
 git tag -a v0.6.0 -m "Collective Cognition SDK 0.6.0 prerelease"
@@ -180,7 +180,7 @@ pass result before their actual GitHub output is inspected.
 ```bash
 set -euo pipefail
 TAG=v0.6.0
-cd /Users/cx/Workspace/collective-cognition-sdk
+cd ~/Workspace/collective-cognition-sdk
 git fetch origin main refs/tags/$TAG:refs/tags/$TAG
 TAG_SHA="$(git rev-parse "refs/tags/$TAG^{}")"
 RUNS_JSON="$(gh run list --repo xiongxhc/collective-cognition-sdk --workflow github-prerelease.yml --branch "$TAG" --event push --limit 20 --json databaseId,headSha,headBranch,event)"
