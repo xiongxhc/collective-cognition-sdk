@@ -2,6 +2,13 @@
 
 All notable changes to this experimental SDK are documented here. Versioning and compatibility follow [the compatibility policy](spec/compatibility.md), [RFC 0002](rfcs/0002-compatibility-versioning-and-deprecation.md), and the immutable [compatibility baselines](spec/compatibility/).
 
+## Unreleased
+
+- Clarifies that the source-neutral core consumes portable contracts while optional connectors and adapters operate only on explicit sources or managed targets.
+- Updates active repository links and release checks for the `main` default branch.
+- Updates development dependencies to remove the `fast-uri` security advisory and refresh Node.js declarations.
+- Repins the official artifact-download and build-provenance actions to reviewed commits.
+
 ## 0.6.0
 
 - Adds the supported experimental Markdown adapter subpath, dedicated CLI, object-version ceiling, and related package artifacts.

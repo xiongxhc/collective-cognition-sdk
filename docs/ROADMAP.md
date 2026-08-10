@@ -198,7 +198,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Ubuntu with Node.js `24.14.0` is the distribution verification
   environment for examples, durable SQLite, deterministic assets, clean
   tarball installation, imports, and installed CLI checks only.
-- [x] A tag-only workflow validates an annotated exact-`master` tag, creates a
+- [x] A tag-only workflow validates an annotated exact-`main` tag, creates a
   prerelease without marking it latest, and attests all four assets. Repository
   checkout, dependencies, and release construction run with read-only
   permissions and no persisted checkout credential; a separate privileged job
@@ -227,7 +227,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Complete the local Node 24 verification gate and two identical asset
   builds on the reviewed feature head.
 - [x] Open, review, and squash-merge the feature pull request; delete its
-  branch and verify local and remote `master` match.
+  branch and verify the local and remote default branch match.
 - [x] Enable and verify private vulnerability reporting before tagging.
 - [x] Create one annotated `v0.6.0` tag on verified `master` and push only that
   tag; do not force, delete, or move a public tag.

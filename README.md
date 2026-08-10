@@ -1,7 +1,8 @@
 # Collective Cognition SDK
 
-> Integrates with other systems only by reading Markdown vaults through its
-> adapter — never another system's internals.
+> The source-neutral core integrates through portable contracts. Optional
+> connectors and adapters operate only on explicitly supplied sources or
+> managed Markdown targets; they never discover another system's internals.
 
 Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript reference implementation for attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, source system, or organizational beliefs.
 
@@ -197,7 +198,7 @@ A `SourceRecord` accepts only the documented top-level and `source` fields. Ever
 
 A convenience workflow may ingest and promote in one operation, but it must preserve and expose both artifacts. Successful parsing never means that material is true, accepted evidence, or authorized for a consequential decision.
 
-Read the [normative SourceRecord contract](spec/source-record.md), [universal ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md), [implemented RFC](rfcs/0001-universal-source-record-ingestion.md), and [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/ROADMAP.md).
+Read the [normative SourceRecord contract](spec/source-record.md), [universal ingestion design](https://github.com/xiongxhc/collective-cognition-sdk/blob/main/docs/superpowers/specs/2026-07-24-universal-ingestion-design.md), [implemented RFC](rfcs/0001-universal-source-record-ingestion.md), and [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/main/docs/ROADMAP.md).
 
 ### Maintained Team-Memory-Compatible Connector
 
@@ -531,7 +532,7 @@ The project does not claim universal compatibility, production readiness, or bro
 
 ## Roadmap
 
-The tracked [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/master/docs/ROADMAP.md) separates:
+The tracked [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/main/docs/ROADMAP.md) separates:
 
 1. the completed runnable core;
 2. the completed universal neutral-first ingestion foundation;
