@@ -174,7 +174,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, `npm run example:markdown`, `npm run pack:check`, and `git diff --check` exit successfully.
 - A byte comparison against `main` finds `0` changes across `23` tracked historical compatibility `0.1.0`–`0.6.0`, SourceRecord, Portable Cognition, and Host Integration artifacts.
 - `npm pack --dry-run --json` with an isolated temporary npm cache reports `96` files (`52` under `dist/`), with `0` unexpected and `0` missing allowlisted paths.
-- `npm audit --audit-level=high` cannot reach `registry.npmjs.org` (`getaddrinfo ENOTFOUND`); it reports no vulnerability result and remains an outstanding network-dependent gate.
+- `PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm_config_update_notifier=false npm_config_cache=/private/tmp/collective-cognition-npm-audit npm audit --audit-level=high` exits `0` and reports `found 0 vulnerabilities`.
 
 **Delivered in the licensing and attribution slice**
 
