@@ -93,6 +93,8 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Compatibility, versioning, and deprecation slice delivered and verified.
 - [x] Portable Cognition Contract `0.1.0` design approved and implementation completed.
 - [x] Host integration contracts for cognition persistence and event publication without selecting a mandatory database, service, or delivery architecture. Implemented and final-review verified.
+- [x] Runtime and Security Profile `0.1.0` design approved.
+- [ ] Implement the normative policy, machine-readable control inventory, RFC, package subpath, compatibility baseline, and conformance evidence described in [`2026-08-10-runtime-security-policy-design.md`](superpowers/specs/2026-08-10-runtime-security-policy-design.md).
 
 **Delivered in the SourceRecord normative-conformance slice**
 
