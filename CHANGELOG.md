@@ -4,6 +4,8 @@ All notable changes to this experimental SDK are documented here. Versioning and
 
 ## Unreleased
 
+- Publishes the normative Runtime and Security Profile `0.1.0`, its `collective-cognition-sdk/runtime-security/0.1.0` JSON subpath, and the additive private package `0.7.0` compatibility baseline while keeping the package private and unpublished.
+- Clarifies the public runtime/security boundary: the profile tells hosts what remains unimplemented, importing it does not enforce host-required controls, and conformance is not certification.
 - Clarifies that the source-neutral core consumes portable contracts while optional connectors and adapters operate only on explicit sources or managed targets.
 - Updates active repository links and release checks for the `main` default branch.
 - Updates development dependencies to remove the `fast-uri` security advisory and refresh Node.js declarations.

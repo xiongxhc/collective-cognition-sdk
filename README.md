@@ -6,9 +6,9 @@
 
 Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript reference implementation for attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, source system, or organizational beliefs.
 
-This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.6.0` remains private and unpublished on npm; its source, emitted ESM build, declarations, and CLIs are runnable, but it is not production-ready. The Markdown adapter implementation, additive package export, compatibility baseline, dedicated executable, clean-consumer verification, and independent whole-branch review are complete and final-review verified. The experimental [`v0.6.0` GitHub prerelease](https://github.com/xiongxhc/collective-cognition-sdk/releases/tag/v0.6.0) is the first observed public package artifact.
+This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.7.0` remains private and unpublished on npm; its source, emitted ESM build, declarations, and CLIs are runnable, but it is not production-ready. The Markdown adapter implementation, additive package export, compatibility baseline, dedicated executable, clean-consumer verification, and independent whole-branch review are complete and final-review verified. The experimental [`v0.6.0` GitHub prerelease](https://github.com/xiongxhc/collective-cognition-sdk/releases/tag/v0.6.0) is the first observed public package artifact.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.6.0` are implemented. The SQLite cognition-store and maintained-source-connector slices are implemented and final-review verified.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, Host Integration `0.1.0`, Runtime and Security Profile `0.1.0`, and compatibility baselines `0.1.0` through `0.7.0` are implemented. The SQLite cognition-store and maintained-source-connector slices are implemented and final-review verified.
 
 Markdown adapter verification used bundled Node.js `24.14.0`: the full matrix
 passed `444` tests with `1` expected skip (`406` source passes and `1` source
@@ -37,6 +37,7 @@ Runnable now:
 - package compatibility tests covering built imports, runtime exports, declarations, CLI behavior, npm tarball contents, and installation into a clean temporary consumer;
 - Portable Cognition `0.1.0`: a closed versioned envelope for cognitive objects, events, transition contexts, authorization decisions, and domain-error projections, with schema, fixtures, runtime codecs, and a runnable round trip;
 - Host Integration `0.1.0`: storage-neutral `CognitionStore` and `CognitionEventPublisher` ports, commit coordinators, observable and retryable publication failure, an in-memory reference host, conformance checks, and a runnable recovery example;
+- Runtime and Security Profile `0.1.0`: normative prose, a machine-readable JSON inventory at `collective-cognition-sdk/runtime-security/0.1.0`, four explicit enforcement classes, and a host checklist for authentication, encryption, tenant or workspace isolation, and durable publication recovery;
 - source-neutral connector conformance at `collective-cognition-sdk/connector-conformance/0.1.0`;
 - one maintained compatible connector for structurally compatible `teammem-event-ledger/1` databases at `collective-cognition-sdk/connectors/team-memory/0.1.0`;
 - the dedicated `collective-cognition-teammem` export CLI, with generic validation and promotion left to the root CLI or APIs;
@@ -55,7 +56,7 @@ Runnable now:
 Not implemented yet:
 
 - npm package publication, registry-name confirmation, or removal of the private package guard;
-- a confirmed registry package name, runtime policy, or security policy;
+- a confirmed registry package name or runtime policy engine;
 - stricter standalone and type-specific semantic schemas for cognitive objects, relationships, transitions, authorization, events, and errors; the Portable Cognition serialized envelope remains normative;
 - services, UI, synchronization, a durable publication outbox, connector registry, or network-connector ecosystem;
 - connector credential policy;
@@ -67,11 +68,11 @@ Not implemented yet:
 
 ## Compatibility Status
 
-- SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and compatibility baselines `0.1.0` through `0.6.0` are **Normative Stable** contracts.
+- SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, Runtime and Security Profile `0.1.0`, and compatibility baselines `0.1.0` through `0.7.0` are **Normative Stable** contracts.
 - Before `1.0.0`, the package root, installed CLIs, and declared non-normative package subpaths are **Supported Experimental**.
 - Unexported connector modules and repository-only examples remain **Internal** and create no public compatibility promise.
 - The baseline locks runtime and type exports, selected package metadata, independent declaration closures and literal digests for public TypeScript entrypoints, CLI behavior, domain error codes, policy identities, and normative artifact hashes.
-- Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0` through `collective-cognition-sdk/compatibility/0.6.0`.
+- Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0` through `collective-cognition-sdk/compatibility/0.7.0`.
 - Compatibility tests detect exact baseline drift and declared process consequences; they do not automatically determine semantic compatibility.
 - Package `0.3.0` is classified as a `minor-before-1.0` breaking correction: the Host Integration additions are optional, while `PortableDomainError.code` is narrowed from package `0.2.0`'s package-wide `DomainErrorCode` to the immutable Portable Cognition `0.1.0` allowlist under `COMP-012`.
 - Package `0.4.0` is an additive minor release before `1.0`: it adds the optional SQLite subpath and its compatibility baseline without changing root exports or the generic CLI contract.
@@ -80,10 +81,29 @@ Not implemented yet:
   Supported Experimental `adapters/markdown/0.1.0` subpath and
   `collective-cognition-markdown` executable without changing root exports,
   existing CLIs, or prior Normative Stable contracts.
+- Private package `0.7.0` is an additive minor release before `1.0`: it adds the Normative Stable `collective-cognition-sdk/runtime-security/0.1.0` JSON profile without changing root exports, existing CLIs, historical `v0.6.0` records, or prior Normative Stable contracts.
 
-Read the [compatibility policy](spec/compatibility.md) and [RFC 0002](rfcs/0002-compatibility-versioning-and-deprecation.md). npm publication, registry confirmation, runtime and security policy, broader schemas, and production readiness remain open. The manifest retains `"private": true`, and the package is unpublished.
+Read the [compatibility policy](spec/compatibility.md) and [RFC 0002](rfcs/0002-compatibility-versioning-and-deprecation.md). npm publication, registry confirmation, a runtime policy engine, broader schemas, and production readiness remain open. The manifest retains `"private": true`, and the package is unpublished.
 
 Conformance is not certification, does not imply endorsement, and is not an LTS commitment.
+
+## Runtime and Security Profile
+
+Adopters can import the Runtime and Security Profile `0.1.0` as descriptive JSON:
+
+```js
+import runtimeSecurityProfile from "collective-cognition-sdk/runtime-security/0.1.0"
+  with { type: "json" };
+```
+
+The JSON tells a host what remains unimplemented; importing it does not enforce host-required controls.
+
+- `sdk-enforced` means the reference SDK rejects or constrains unsafe behavior.
+- `conformance-verified` means repository checks verify a documented property without turning it into a universal runtime guarantee.
+- `host-required` means the production host must implement and verify the control itself.
+- `out-of-scope` means the SDK explicitly makes no claim or guarantee.
+
+See the [normative Runtime and Security Profile `0.1.0`](spec/runtime-security.md), [RFC 0008](rfcs/0008-runtime-security-profile.md), and the [host-required controls checklist](spec/runtime-security.md#host-required-controls). That checklist covers authentication, encryption, tenant or workspace isolation, durable publication recovery, and related host-owned controls. Conformance is not certification, and the profile does not certify a deployment as secure.
 
 ## Universal Architecture
 

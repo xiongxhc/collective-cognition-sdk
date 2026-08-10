@@ -1,6 +1,6 @@
 # Collective Cognition Specification
 
-This directory contains the implemented and final-review verified Normative Stable SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and [Host Integration `0.1.0`](host-integration.md) contracts plus compatibility baselines `0.1.0` through `0.6.0`. The source checkout and private package implement the Supported Experimental Markdown cognition adapter; its package baseline, export, executable, clean-consumer verification, temporary-vault acceptance, and independent whole-branch review are complete and final-review verified. The runnable TypeScript code and emitted package artifacts are the current reference implementation; package `0.6.0` remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
+This directory contains the implemented and final-review verified Normative Stable SourceRecord `0.1.0`, Portable Cognition `0.1.0`, [Host Integration `0.1.0`](host-integration.md), and Runtime and Security Profile `0.1.0` contracts plus compatibility baselines `0.1.0` through `0.7.0`. The source checkout and private package implement the Supported Experimental Markdown cognition adapter; its package baseline, export, executable, clean-consumer verification, temporary-vault acceptance, and independent whole-branch review are complete and final-review verified. The runnable TypeScript code and emitted package artifacts are the current reference implementation; package `0.7.0` remains private and unpublished, and the repository is not yet a protocol, production-ready package, or cross-language standard.
 
 ## Current Architecture
 
@@ -13,6 +13,7 @@ The current direction is defined by:
 - the [SQLite cognition-store design](../docs/superpowers/specs/2026-07-29-sqlite-cognition-store-design.md), which is implemented and final-review verified.
 - [RFC 0006: Maintained Source Connectors](../rfcs/0006-maintained-source-connectors.md), implemented and final-review verified.
 - the implemented and final-review verified [Markdown cognition adapter guide](../docs/markdown-cognition-adapter-guide.md) and [RFC 0007](../rfcs/0007-markdown-cognition-adapter.md).
+- [RFC 0008: Runtime and Security Profile](../rfcs/0008-runtime-security-profile.md), implemented and verified with the versioned JSON inventory at `collective-cognition-sdk/runtime-security/0.1.0`.
 
 The core design and Phase 2 universal ingestion are implemented and final-review verified locally. [RFC 0001](../rfcs/0001-universal-source-record-ingestion.md) records the implemented ingestion semantics.
 
@@ -32,6 +33,8 @@ The historical team-memory direct-to-Evidence path was replaced. `SourceRecord` 
 - Read the normative [`SourceRecord 0.1.0` contract](source-record.md) and its [`JSON Schema`](schemas/0.1.0/source-record.schema.json).
 - Read the normative [`Portable Cognition 0.1.0` contract](portable-cognition.md), its [`JSON Schema`](schemas/0.1.0/portable-cognition.schema.json), and its [conformance fixtures](conformance/0.1.0/portable-cognition/).
 - Read the normative [Host Integration Contract `0.1.0`](host-integration.md) and [RFC 0004](../rfcs/0004-host-integration-contract.md) before changing host-owned cognition persistence, publication, replay, or read behavior.
+- Read the normative [Runtime and Security Profile `0.1.0`](runtime-security.md) and [RFC 0008](../rfcs/0008-runtime-security-profile.md) before changing authentication, encryption, tenant or workspace isolation, durable publication recovery, or the boundary between `sdk-enforced`, `conformance-verified`, `host-required`, and `out-of-scope` controls.
+- Import `collective-cognition-sdk/runtime-security/0.1.0` when a host needs the machine-readable inventory; the JSON tells a host what remains unimplemented and does not enforce host-required controls.
 - Read [RFC 0005](../rfcs/0005-sqlite-cognition-store.md) before changing the optional SQLite adapter, its source/cognition separation, or its package subpath.
 - Read [RFC 0006](../rfcs/0006-maintained-source-connectors.md) and the [connector author guide](../docs/connector-author-guide.md) before changing connector packaging, conformance, source identity, or maintained mapping behavior.
 - Read the normative [compatibility policy](compatibility.md), [baseline `0.1.0`](compatibility/0.1.0/baseline.json), and [change cases](compatibility/0.1.0/change-cases.jsonl).

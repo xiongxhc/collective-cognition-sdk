@@ -83,9 +83,9 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** In progress. The compatibility, Portable Cognition, and Host Integration slices are delivered and final-review verified; broader Phase 3 work remains. The experimental `v0.6.0` GitHub prerelease is observed and verified, while npm publication remains blocked.
+**Status:** In progress. The compatibility, Portable Cognition, Host Integration, and Runtime and Security slices are delivered and final-review verified; broader Phase 3 work remains. The experimental `v0.6.0` GitHub prerelease is observed and verified, while npm publication remains blocked.
 
-**Active next slice**
+**Phase 3 slice progress**
 
 - [x] SourceRecord-first normative conformance design approved.
 - [x] Implement the versioned SourceRecord schema, normative prose, fixtures, differential conformance tests, and packaged artifacts described in [`2026-07-27-source-record-normative-conformance-design.md`](superpowers/specs/2026-07-27-source-record-normative-conformance-design.md).
@@ -94,7 +94,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Portable Cognition Contract `0.1.0` design approved and implementation completed.
 - [x] Host integration contracts for cognition persistence and event publication without selecting a mandatory database, service, or delivery architecture. Implemented and final-review verified.
 - [x] Runtime and Security Profile `0.1.0` design approved.
-- [ ] Implement the normative policy, machine-readable control inventory, RFC, package subpath, compatibility baseline, and conformance evidence described in [`2026-08-10-runtime-security-policy-design.md`](superpowers/specs/2026-08-10-runtime-security-policy-design.md).
+- [x] Implement the normative policy, machine-readable control inventory, RFC, package subpath, compatibility baseline, and conformance evidence described in [`2026-08-10-runtime-security-policy-design.md`](superpowers/specs/2026-08-10-runtime-security-policy-design.md).
 
 **Delivered in the SourceRecord normative-conformance slice**
 
@@ -159,6 +159,20 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - Public declaration closure hashes: root `7f9e352c9adf8a48d433d280c8040ddad57240726276a15d690133b3dfcf7333`; host-conformance `4cb58d68d6796cc77a8dfdb5a31013e441c99142bbb5bc62a91e5e71d64db94b`; reference-host `1447986d26b53d77a083fe414da8d744056df30db4e0094bb28a656d0f8965b2`.
 - Independent byte comparisons confirm all historical baseline/artifact `0.1.0` and `0.2.0` files remain unchanged. The Portable Cognition `0.1.0` runtime allowlist remains fixed and its correction-pass source/tests are untouched.
 - Host Integration `0.1.0` is implemented and final-review verified.
+
+**Delivered and verified in the Runtime and Security Profile `0.1.0` slice**
+
+- [x] Normative [Runtime and Security Profile `0.1.0`](../spec/runtime-security.md), synchronized JSON inventory at `collective-cognition-sdk/runtime-security/0.1.0`, and [RFC 0008](../rfcs/0008-runtime-security-profile.md).
+- [x] Four explicit enforcement classes: `sdk-enforced`, `conformance-verified`, `host-required`, and `out-of-scope`.
+- [x] Closed control coverage for authentication, encryption, tenant or workspace isolation, durable publication recovery, and related host-owned boundaries without adding a runtime policy engine.
+- [x] Private and unpublished package `0.7.0` compatibility baseline and additive classification without changing root exports, existing CLIs, or historical `v0.6.0` records.
+- [x] Public documentation reconciliation that explains host-owned responsibilities and states that conformance is not certification.
+
+**Runtime and Security Profile final verification evidence**
+
+- `node --test tests/runtime-security-profile.test.ts` passes the closed control inventory, anchors, and repository evidence references.
+- `node --test tests/package.test.mjs tests/compatibility.test.mjs` passes the package subpath, public navigation, and compatibility baseline checks.
+- `npm run build` and `git diff --check` exit successfully with the private and unpublished package `0.7.0` surface intact.
 
 **Delivered in the licensing and attribution slice**
 

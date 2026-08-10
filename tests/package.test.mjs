@@ -15,7 +15,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
@@ -64,10 +64,18 @@ const connectorRfcUrl = new URL(
   "../rfcs/0006-maintained-source-connectors.md",
   import.meta.url,
 );
+const runtimeSecurityRfcUrl = new URL(
+  "../rfcs/0008-runtime-security-profile.md",
+  import.meta.url,
+);
 const rfcIndexUrl = new URL("../rfcs/README.md", import.meta.url);
 const specificationIndexUrl = new URL("../spec/README.md", import.meta.url);
 const compatibilityPolicyUrl = new URL(
   "../spec/compatibility.md",
+  import.meta.url,
+);
+const runtimeSecurityProfileUrl = new URL(
+  "../spec/runtime-security.md",
   import.meta.url,
 );
 const typescriptCli = fileURLToPath(
@@ -219,6 +227,53 @@ function declaredProductionDependencyFields(packageMetadata) {
   );
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function assertMarkdownLinksResolve(markdown, sourceUrl) {
+  const sourcePath = fileURLToPath(sourceUrl);
+
+  for (const match of markdown.matchAll(/\[[^\]]+\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+    const rawTarget = match[1];
+    if (rawTarget.startsWith("#") || /^[a-z]+:/i.test(rawTarget)) {
+      continue;
+    }
+    const targetPath = resolve(dirname(sourcePath), rawTarget.split("#", 1)[0]);
+    assert.equal(
+      statSync(targetPath).isFile() || statSync(targetPath).isDirectory(),
+      true,
+      `${rawTarget} from ${relative(repositoryRoot, sourcePath)} must resolve`,
+    );
+  }
+}
+
+function assertContainsRequiredPhrase(documents, phrase) {
+  assert.equal(
+    documents.some((document) => document.content.toLowerCase().includes(phrase.toLowerCase())),
+    true,
+    `expected one public runtime-security document to contain or link ${JSON.stringify(phrase)}`,
+  );
+}
+
+function assertNoPositiveClaimWithoutNearbyNegation(markdown, claim) {
+  const lines = markdown.split("\n");
+  const claimPattern = new RegExp(`\\b${escapeRegExp(claim)}\\b`, "i");
+  const negationPattern = /\b(?:not|no|without|isn't|aren't|does not|doesn't|never)\b/i;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!claimPattern.test(lines[index])) {
+      continue;
+    }
+    const nearby = lines.slice(Math.max(0, index - 1), index + 2).join(" ");
+    assert.match(
+      nearby,
+      negationPattern,
+      `README must not claim ${claim} without a nearby negation`,
+    );
+  }
+}
+
 test("built package exposes only the source-neutral runtime API", async () => {
   assert.equal(
     existsSync(distIndexUrl),
@@ -365,9 +420,19 @@ test("public documentation explains the source-neutral connector model", () => {
   const authorGuide = readFileSync(connectorAuthorGuideUrl, "utf8");
   const roadmap = readFileSync(roadmapUrl, "utf8");
   const connectorRfc = readFileSync(connectorRfcUrl, "utf8");
+  const runtimeSecurityRfc = readFileSync(runtimeSecurityRfcUrl, "utf8");
   const rfcIndex = readFileSync(rfcIndexUrl, "utf8");
   const specificationIndex = readFileSync(specificationIndexUrl, "utf8");
   const compatibilityPolicy = readFileSync(compatibilityPolicyUrl, "utf8");
+  const runtimeSecurityProfile = readFileSync(runtimeSecurityProfileUrl, "utf8");
+  const publicRuntimeSecurityDocuments = [
+    { url: readmeUrl, content: readme },
+    { url: specificationIndexUrl, content: specificationIndex },
+    { url: rfcIndexUrl, content: rfcIndex },
+    { url: roadmapUrl, content: roadmap },
+    { url: runtimeSecurityRfcUrl, content: runtimeSecurityRfc },
+    { url: runtimeSecurityProfileUrl, content: runtimeSecurityProfile },
+  ];
 
   assert.equal(packageJson.private, true);
   assert.match(readme, /private and unpublished/i);
@@ -434,9 +499,64 @@ test("public documentation explains the source-neutral connector model", () => {
     /conformance is not\s+certification, does not imply\s+endorsement, and is not an LTS commitment/i,
   );
 
+  [
+    "Runtime and Security Profile 0.1.0",
+    "sdk-enforced",
+    "conformance-verified",
+    "host-required",
+    "out-of-scope",
+    "collective-cognition-sdk/runtime-security/0.1.0",
+    "conformance is not certification",
+    "authentication",
+    "encryption",
+    "tenant or workspace isolation",
+    "durable publication recovery",
+    "private and unpublished",
+  ].forEach((phrase) => assertContainsRequiredPhrase(publicRuntimeSecurityDocuments, phrase));
+
+  assert.match(
+    runtimeSecurityRfc,
+    /^# RFC 0008: Runtime and Security Profile$/m,
+  );
+  [
+    "## Problem",
+    "## Proposed Semantics",
+    "## Enforcement Classes",
+    "## Machine-Readable Profile",
+    "## Alternatives",
+    "## Compatibility and Migration",
+    "## Security and Human Authority",
+    "## Acceptance Checks",
+    "## Explicit Deferrals",
+  ].forEach((heading) =>
+    assert.match(runtimeSecurityRfc, new RegExp(`^${escapeRegExp(heading)}$`, "m"))
+  );
+  [
+    "sdk-enforced",
+    "conformance-verified",
+    "host-required",
+    "out-of-scope",
+    "collective-cognition-sdk/runtime-security/0.1.0",
+    "does not add a runtime policy engine",
+  ].forEach((phrase) =>
+    assert.match(runtimeSecurityRfc, new RegExp(escapeRegExp(phrase)))
+  );
+  assert.match(
+    runtimeSecurityRfc,
+    /Private package `0\.7\.0` classifies this addition as `additive` with a `minor`\s+package-version effect\./,
+  );
+  assert.match(
+    runtimeSecurityRfc,
+    /Passing SDK\s+or repository checks does not certify a host as secure, compliant, or\s+production-ready\./,
+  );
+
   assert.match(
     rfcIndex,
     /\[RFC 0006: Maintained Source Connectors\]\(0006-maintained-source-connectors\.md\)/,
+  );
+  assert.match(
+    rfcIndex,
+    /\[RFC 0008: Runtime and Security Profile\]\(0008-runtime-security-profile\.md\)/,
   );
   assert.match(
     specificationIndex,
@@ -446,6 +566,30 @@ test("public documentation explains the source-neutral connector model", () => {
     specificationIndex,
     /collective-cognition-sdk\/connectors\/team-memory\/0\.1\.0/,
   );
+  assert.match(specificationIndex, /Runtime and Security Profile `0\.1\.0`/);
+  assert.match(
+    specificationIndex,
+    /collective-cognition-sdk\/runtime-security\/0\.1\.0/,
+  );
+  assert.match(readme, /Runtime and Security Profile/i);
+  assert.match(
+    readme,
+    /import runtimeSecurityProfile from "collective-cognition-sdk\/runtime-security\/0\.1\.0"/,
+  );
+  assert.match(
+    readme,
+    /importing it does not enforce host-required controls/i,
+  );
+  assert.match(roadmap, /Runtime and Security Profile `0\.1\.0`/);
+  assert.match(roadmap, /delivered|verified/i);
+
+  ["secure", "production-ready", "certified"].forEach((claim) =>
+    assertNoPositiveClaimWithoutNearbyNegation(readme, claim)
+  );
+
+  for (const document of publicRuntimeSecurityDocuments) {
+    assertMarkdownLinksResolve(document.content, document.url);
+  }
 
   [
     /scheduler/i,
