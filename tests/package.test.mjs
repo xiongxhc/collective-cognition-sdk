@@ -205,6 +205,8 @@ const productionDependencyFields = Object.freeze([
   "dependencies",
   "optionalDependencies",
   "peerDependencies",
+  "bundleDependencies",
+  "bundledDependencies",
 ]);
 
 function emittedFiles(directory) {
@@ -577,6 +579,10 @@ test("public documentation explains the source-neutral connector model", () => {
   assert.match(specificationIndex, /Runtime and Security Profile `0\.1\.0`/);
   assert.match(
     specificationIndex,
+    /implemented, full local-gate verified, and independently reviewed/,
+  );
+  assert.match(
+    specificationIndex,
     /collective-cognition-sdk\/runtime-security\/0\.1\.0/,
   );
   assert.match(
@@ -618,6 +624,10 @@ test("public documentation explains the source-neutral connector model", () => {
     /Runtime and Security Profile/i,
   );
   assert.match(roadmap, /Runtime and Security Profile `0\.1\.0`/);
+  assert.match(
+    roadmap,
+    /implemented, full local-gate verified, and independently reviewed/,
+  );
   assert.match(roadmap, /delivered|verified/i);
   assert.match(
     roadmap,
@@ -720,6 +730,16 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.deepEqual(packageLock.packages[""].engines, {
     node: ">=24",
   });
+  assert.deepEqual(
+    productionDependencyFields,
+    [
+      "dependencies",
+      "optionalDependencies",
+      "peerDependencies",
+      "bundleDependencies",
+      "bundledDependencies",
+    ],
+  );
   assert.deepEqual(declaredProductionDependencyFields(packageJson), []);
   assert.deepEqual(
     declaredProductionDependencyFields(packageLock.packages[""]),
@@ -1625,6 +1645,10 @@ try {
         ),
         "utf8",
       ),
+    );
+    assert.deepEqual(
+      declaredProductionDependencyFields(packedManifest),
+      [],
     );
     ["preinstall", "install", "postinstall"].forEach((hook) => {
       assert.equal(Object.hasOwn(packedManifest.scripts, hook), false, hook);

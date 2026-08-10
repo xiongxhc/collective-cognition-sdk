@@ -126,6 +126,8 @@ const productionDependencyFieldNames = Object.freeze([
   "dependencies",
   "optionalDependencies",
   "peerDependencies",
+  "bundleDependencies",
+  "bundledDependencies",
 ]);
 
 function sha256(value) {
@@ -1126,6 +1128,16 @@ test("package compatibility metadata matches exactly", () => {
   const baseline = readJson(currentBaselineUrl);
   const packageJson = readJson(new URL("../package.json", import.meta.url));
 
+  assert.deepEqual(
+    productionDependencyFieldNames,
+    [
+      "dependencies",
+      "optionalDependencies",
+      "peerDependencies",
+      "bundleDependencies",
+      "bundledDependencies",
+    ],
+  );
   assert.deepEqual(
     selectedPackageMetadata(packageJson),
     baseline.package.metadata,

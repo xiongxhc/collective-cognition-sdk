@@ -83,7 +83,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** In progress. The compatibility, Portable Cognition, and Host Integration slices are final-review verified; the Runtime and Security slice is delivered with local-gate evidence and awaits independent final review. Broader Phase 3 work remains. The experimental `v0.6.0` GitHub prerelease is observed and verified, while npm publication remains blocked.
+**Status:** In progress. The compatibility, Portable Cognition, and Host Integration slices are final-review verified; the Runtime and Security slice is implemented, full local-gate verified, and independently reviewed. Broader Phase 3 work remains. The experimental `v0.6.0` GitHub prerelease is observed and verified, while npm publication remains blocked.
 
 **Phase 3 slice progress**
 

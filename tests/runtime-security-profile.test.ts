@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync, statSync } from "node:fs";
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
@@ -107,6 +107,58 @@ function assertSingleLineText(value: unknown, label: string): asserts value is s
   assert.equal(value.includes("\n"), false, `${label} must be single-line`);
 }
 
+function resolveRepositoryEvidencePath(evidencePath: string): string {
+  const normalizedEvidencePath = evidencePath.replaceAll("\\", "/");
+  assert.equal(
+    isAbsolute(normalizedEvidencePath) || win32.isAbsolute(evidencePath),
+    false,
+    "evidence path must be repository-relative",
+  );
+  const resolvedEvidencePath = resolve(repositoryRoot, normalizedEvidencePath);
+  const repositoryRelativePath = relative(repositoryRoot, resolvedEvidencePath);
+  assert.equal(
+    isAbsolute(repositoryRelativePath) ||
+      repositoryRelativePath === ".." ||
+      repositoryRelativePath.startsWith(`..${sep}`),
+    false,
+    "evidence path must stay inside the repository",
+  );
+  return resolvedEvidencePath;
+}
+
+test("runtime security prose distinguishes profile and package versions", () => {
+  const prose = readFileSync(proseUrl, "utf8");
+
+  assert.match(prose, /profile version `0\.1\.0`/);
+  assert.match(prose, /private package version `0\.7\.0`/);
+  assert.doesNotMatch(prose, /SDK version `0\.1\.0`/);
+});
+
+test("evidence path validation rejects POSIX-style internal traversal", () => {
+  assert.throws(
+    () => resolveRepositoryEvidencePath("tests/../../outside.json"),
+    /must stay inside the repository/,
+  );
+});
+
+test("evidence path validation rejects Windows-style internal traversal", () => {
+  assert.throws(
+    () => resolveRepositoryEvidencePath("tests\\..\\..\\outside.json"),
+    /must stay inside the repository/,
+  );
+});
+
+test("evidence path validation accepts valid repository paths", () => {
+  assert.equal(
+    resolveRepositoryEvidencePath("tests/runtime-security-profile.test.ts"),
+    fileURLToPath(new URL("runtime-security-profile.test.ts", import.meta.url)),
+  );
+  assert.equal(
+    resolveRepositoryEvidencePath("spec/runtime-security/0.1.0/profile.json"),
+    fileURLToPath(profileUrl),
+  );
+});
+
 test("runtime security profile pins the approved closed inventory", () => {
   const profile = readProfile();
   const headings = readAnchors();
@@ -186,17 +238,7 @@ test("runtime security profile pins the approved closed inventory", () => {
         `${control.id} evidence.kind must be recognized`,
       );
       assertSingleLineText(evidence.path, `${control.id}.evidence.path`);
-      assert.equal(
-        evidence.path.startsWith("/"),
-        false,
-        `${control.id}.evidence.path must be repository-relative`,
-      );
-      assert.equal(
-        evidence.path.startsWith("../"),
-        false,
-        `${control.id}.evidence.path must stay inside the repository`,
-      );
-      const evidencePath = resolve(repositoryRoot, evidence.path);
+      const evidencePath = resolveRepositoryEvidencePath(evidence.path);
       assert.equal(
         statSync(evidencePath).isFile(),
         true,

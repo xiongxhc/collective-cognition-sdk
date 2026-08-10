@@ -166,7 +166,7 @@
       "spec/compatibility/0.5.0/change-cases.jsonl": "992a3dfb12f5edcc96604007e61d28c102f0581d9bdba80f63697199be7e698e",
       "spec/compatibility/0.6.0/change-cases.jsonl": "344c98585ab3c6572ea460a5902bea92bb9266bb29e33813492dd1c9bada62c8",
       "spec/compatibility/0.7.0/change-cases.jsonl": "23d6577eb6aa927ab37f33278363f00a38cb2e0e67adfbc50a9dc2075b1b9e9e",
-      "spec/runtime-security.md": "b53d4be2522c9c46990f619d5b7a0483da595a66f9a8012957c60997ea494a1f",
+      "spec/runtime-security.md": "a4ec4d386ecec9d670effb8b82997933bdcd763556b08f96163c93bc24d0f2e9",
       "spec/runtime-security/0.1.0/profile.json": "960fe7a5927f1df1082cb88a9006b088f7669bb597c1d219b27dda9a4e5c66a1"
     },
     "hostIntegration": {
@@ -200,7 +200,7 @@
     "runtimeSecurity": {
       "version": "0.1.0",
       "prosePath": "spec/runtime-security.md",
-      "proseSha256": "b53d4be2522c9c46990f619d5b7a0483da595a66f9a8012957c60997ea494a1f",
+      "proseSha256": "a4ec4d386ecec9d670effb8b82997933bdcd763556b08f96163c93bc24d0f2e9",
       "profile": {
         "path": "spec/runtime-security/0.1.0/profile.json",
         "sha256": "960fe7a5927f1df1082cb88a9006b088f7669bb597c1d219b27dda9a4e5c66a1",

@@ -2,12 +2,13 @@
 
 ## Status and Scope
 
-This profile defines the normative runtime and security boundary for
-`collective-cognition-sdk` version `0.1.0`. It states what the SDK enforces,
-what repository conformance demonstrates, what a production host must supply,
-and what the project explicitly does not claim. The profile is source-neutral,
-backend-neutral, and deployment-neutral. Host-required controls remain
-unsatisfied until a host implements and verifies them in its own environment.
+This document defines profile version `0.1.0` for the normative runtime and
+security boundary carried by private package version `0.7.0`. It states what
+the SDK enforces, what repository conformance demonstrates, what a production
+host must supply, and what the project explicitly does not claim. The profile
+is source-neutral, backend-neutral, and deployment-neutral. Host-required
+controls remain unsatisfied until a host implements and verifies them in its
+own environment.
 
 ## Terms
 
