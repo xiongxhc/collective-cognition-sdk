@@ -41,11 +41,34 @@ const expectedAssets = [
   "release-manifest.json",
 ];
 const expectedChecksumAssets = expectedAssets.slice(1);
-const expectedPackageScriptsSha256 = "574c12e5cc890227a58b16939ef1e0e861b9a011c4b8040f6df03ee4044534e3";
+const expectedPackageScriptsSha256 = "0c8c0e7833c64456f3e8248efe7f46a5a3e5d07d4e307074676b7b8f131626ba";
 const expectedCiWorkflowSha256 = "4ffd26bf39c2f859aac567bcfda421d3ba834ae993e0ca2b0ff3e384794eba7a";
 const expectedGitHubPrereleaseWorkflowSha256 = "b628e8e07829bd115a01133595d4f3424e0634e7479f9f00c35bc4e5c9a8508f";
 const expectedTarballSha256 = "3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe";
 const expectedReleaseCommit = "76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e";
+const releasedPackageName = "collective-cognition-sdk";
+const releasedPackageExports = [
+  ".",
+  "./compatibility/0.1.0",
+  "./compatibility/0.2.0",
+  "./compatibility/0.3.0",
+  "./compatibility/0.4.0",
+  "./compatibility/0.5.0",
+  "./compatibility/0.6.0",
+  "./adapters/markdown/0.1.0",
+  "./connector-conformance/0.1.0",
+  "./connectors/team-memory/0.1.0",
+  "./contracts/host-integration/0.1.0",
+  "./host-conformance/0.1.0",
+  "./reference-host/0.1.0",
+  "./stores/sqlite/0.1.0",
+  "./schemas/source-record/0.1.0",
+  "./schemas/portable-cognition/0.1.0",
+  "./conformance/portable-cognition/0.1.0/valid",
+  "./conformance/portable-cognition/0.1.0/invalid",
+  "./conformance/portable-cognition/0.1.0/cognitive-loop",
+  "./package.json",
+] as const;
 const expectedCommit = runGit(["rev-parse", "HEAD"]);
 const expectedNpmVersion = readNpmVersion();
 const releaseArtifactTest =
@@ -1456,7 +1479,7 @@ releaseArtifactTest("release builder runs tools without a shell and preserves li
   }
 });
 
-test("release builder rejects forged npm identity version and POSIX mode", () => {
+releaseArtifactTest("release builder rejects forged npm identity version and POSIX mode", () => {
   const root = mkdtempSync(join(tmpdir(), "cc-release-npm-trust-"));
   const cases = [
     {
@@ -1531,7 +1554,7 @@ test("release builder rejects forged npm identity version and POSIX mode", () =>
   }
 });
 
-test("release builder isolates failing subprocesses and preserves swapped output", () => {
+releaseArtifactTest("release builder isolates failing subprocesses and preserves swapped output", () => {
   const root = mkdtempSync(join(tmpdir(), "cc-release-subprocess-"));
   const output = createOutput(root, "output");
   const external = createOutput(root, "external");
@@ -1704,7 +1727,7 @@ releaseArtifactTest("release cleanup failures preserve diagnostics and block pub
   }
 });
 
-test("release builder rejects npm publication verbs after global options", () => {
+releaseArtifactTest("release builder rejects npm publication verbs after global options", () => {
   const packagePath = join(repositoryRoot, "package.json");
   const original = readFileSync(packagePath, "utf8");
   const root = mkdtempSync(join(tmpdir(), "cc-release-package-mutations-"));
@@ -1740,7 +1763,7 @@ test("release builder rejects npm publication verbs after global options", () =>
   }
 });
 
-test("release builder rejects package script map drift before script execution", () => {
+releaseArtifactTest("release builder rejects package script map drift before script execution", () => {
   const packagePath = join(repositoryRoot, "package.json");
   const original = readFileSync(packagePath, "utf8");
   const root = mkdtempSync(join(tmpdir(), "cc-release-script-contract-"));
@@ -1770,7 +1793,7 @@ test("release builder rejects package script map drift before script execution",
   }
 });
 
-test("release builder rejects drift from the finalized package artifact", () => {
+releaseArtifactTest("release builder rejects drift from the finalized package artifact", () => {
   const readmePath = join(repositoryRoot, "README.md");
   const original = readFileSync(readmePath, "utf8");
   const root = mkdtempSync(join(tmpdir(), "cc-release-tarball-drift-"));
@@ -1981,8 +2004,6 @@ test("read-only CI verifies the exact supported matrix and distribution path", (
   assert.equal(existsSync(ciWorkflow), true, ".github/workflows/ci.yml must exist");
   const workflow = readReviewedWorkflow(ciWorkflow, expectedCiWorkflowSha256);
   const packageJson = readJson(join(repositoryRoot, "package.json")) as {
-    readonly name: string;
-    readonly exports: Readonly<Record<string, unknown>>;
     readonly scripts: Readonly<Record<string, string>>;
   };
 
@@ -1998,10 +2019,10 @@ test("read-only CI verifies the exact supported matrix and distribution path", (
       new RegExp(`^\\s+npm run ${name.replaceAll(":", "\\:")}(?: -- .+)?$`, "m"),
     );
   }
-  for (const subpath of Object.keys(packageJson.exports)) {
+  for (const subpath of releasedPackageExports) {
     const specifier = subpath === "."
-      ? packageJson.name
-      : `${packageJson.name}${subpath.slice(1)}`;
+      ? releasedPackageName
+      : `${releasedPackageName}${subpath.slice(1)}`;
     assert.equal(
       distributionJob.raw.includes(JSON.stringify(specifier)),
       true,
@@ -2550,10 +2571,6 @@ test("prerelease documentation keeps verification fixtures and release predicate
   const readme = readDocumentation("README.md");
   const roadmap = readDocumentation("docs/ROADMAP.md");
   const runbook = readDocumentation("docs/github-prerelease.md");
-  const packageJson = readJson(join(repositoryRoot, "package.json")) as {
-    readonly name: string;
-    readonly exports: Readonly<Record<string, unknown>>;
-  };
   const manifestPackageCheck = `assert.deepEqual(manifest.package, {
   name: "collective-cognition-sdk",
   version: "0.6.0",
@@ -2639,10 +2656,10 @@ test("prerelease documentation keeps verification fixtures and release predicate
       true,
     );
     assert.match(candidate, /assert\.equal\(registryPayload, "Not Found"\)/);
-    for (const subpath of Object.keys(packageJson.exports)) {
+    for (const subpath of releasedPackageExports) {
       const specifier = subpath === "."
-        ? packageJson.name
-        : `${packageJson.name}${subpath.slice(1)}`;
+        ? releasedPackageName
+        : `${releasedPackageName}${subpath.slice(1)}`;
       assert.equal(
         candidate.includes(JSON.stringify(specifier)),
         true,

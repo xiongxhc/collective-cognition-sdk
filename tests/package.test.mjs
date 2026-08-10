@@ -15,7 +15,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
@@ -40,11 +40,15 @@ const packageJsonUrl = new URL("../package.json", import.meta.url);
 const packageLockUrl = new URL("../package-lock.json", import.meta.url);
 const gitAttributesUrl = new URL("../.gitattributes", import.meta.url);
 const compatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.6.0/baseline.json",
+  "../spec/compatibility/0.7.0/baseline.json",
   import.meta.url,
 );
 const historicalCompatibilityBaselineUrl = new URL(
   "../spec/compatibility/0.5.0/baseline.json",
+  import.meta.url,
+);
+const previousCompatibilityBaselineUrl = new URL(
+  "../spec/compatibility/0.6.0/baseline.json",
   import.meta.url,
 );
 const licenseUrl = new URL("../LICENSE", import.meta.url);
@@ -60,10 +64,18 @@ const connectorRfcUrl = new URL(
   "../rfcs/0006-maintained-source-connectors.md",
   import.meta.url,
 );
+const runtimeSecurityRfcUrl = new URL(
+  "../rfcs/0008-runtime-security-profile.md",
+  import.meta.url,
+);
 const rfcIndexUrl = new URL("../rfcs/README.md", import.meta.url);
 const specificationIndexUrl = new URL("../spec/README.md", import.meta.url);
 const compatibilityPolicyUrl = new URL(
   "../spec/compatibility.md",
+  import.meta.url,
+);
+const runtimeSecurityProfileUrl = new URL(
+  "../spec/runtime-security.md",
   import.meta.url,
 );
 const typescriptCli = fileURLToPath(
@@ -193,6 +205,8 @@ const productionDependencyFields = Object.freeze([
   "dependencies",
   "optionalDependencies",
   "peerDependencies",
+  "bundleDependencies",
+  "bundledDependencies",
 ]);
 
 function emittedFiles(directory) {
@@ -213,6 +227,53 @@ function declaredProductionDependencyFields(packageMetadata) {
   return productionDependencyFields.filter((field) =>
     Object.hasOwn(packageMetadata, field)
   );
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function assertMarkdownLinksResolve(markdown, sourceUrl) {
+  const sourcePath = fileURLToPath(sourceUrl);
+
+  for (const match of markdown.matchAll(/\[[^\]]+\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+    const rawTarget = match[1];
+    if (rawTarget.startsWith("#") || /^[a-z]+:/i.test(rawTarget)) {
+      continue;
+    }
+    const targetPath = resolve(dirname(sourcePath), rawTarget.split("#", 1)[0]);
+    assert.equal(
+      statSync(targetPath).isFile() || statSync(targetPath).isDirectory(),
+      true,
+      `${rawTarget} from ${relative(repositoryRoot, sourcePath)} must resolve`,
+    );
+  }
+}
+
+function assertContainsRequiredPhrase(documents, phrase) {
+  assert.equal(
+    documents.some((document) => document.content.toLowerCase().includes(phrase.toLowerCase())),
+    true,
+    `expected one public runtime-security document to contain or link ${JSON.stringify(phrase)}`,
+  );
+}
+
+function assertNoPositiveClaimWithoutNearbyNegation(markdown, claim) {
+  const lines = markdown.split("\n");
+  const claimPattern = new RegExp(`\\b${escapeRegExp(claim)}\\b`, "i");
+  const negationPattern = /\b(?:not|no|without|isn't|aren't|does not|doesn't|never)\b/i;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!claimPattern.test(lines[index])) {
+      continue;
+    }
+    const nearby = lines.slice(Math.max(0, index - 1), index + 2).join(" ");
+    assert.match(
+      nearby,
+      negationPattern,
+      `README must not claim ${claim} without a nearby negation`,
+    );
+  }
 }
 
 test("built package exposes only the source-neutral runtime API", async () => {
@@ -361,9 +422,19 @@ test("public documentation explains the source-neutral connector model", () => {
   const authorGuide = readFileSync(connectorAuthorGuideUrl, "utf8");
   const roadmap = readFileSync(roadmapUrl, "utf8");
   const connectorRfc = readFileSync(connectorRfcUrl, "utf8");
+  const runtimeSecurityRfc = readFileSync(runtimeSecurityRfcUrl, "utf8");
   const rfcIndex = readFileSync(rfcIndexUrl, "utf8");
   const specificationIndex = readFileSync(specificationIndexUrl, "utf8");
   const compatibilityPolicy = readFileSync(compatibilityPolicyUrl, "utf8");
+  const runtimeSecurityProfile = readFileSync(runtimeSecurityProfileUrl, "utf8");
+  const publicRuntimeSecurityDocuments = [
+    { url: readmeUrl, content: readme },
+    { url: specificationIndexUrl, content: specificationIndex },
+    { url: rfcIndexUrl, content: rfcIndex },
+    { url: roadmapUrl, content: roadmap },
+    { url: runtimeSecurityRfcUrl, content: runtimeSecurityRfc },
+    { url: runtimeSecurityProfileUrl, content: runtimeSecurityProfile },
+  ];
 
   assert.equal(packageJson.private, true);
   assert.match(readme, /private and unpublished/i);
@@ -430,9 +501,72 @@ test("public documentation explains the source-neutral connector model", () => {
     /conformance is not\s+certification, does not imply\s+endorsement, and is not an LTS commitment/i,
   );
 
+  [
+    "Runtime and Security Profile 0.1.0",
+    "sdk-enforced",
+    "conformance-verified",
+    "host-required",
+    "out-of-scope",
+    "collective-cognition-sdk/runtime-security/0.1.0",
+    "conformance is not certification",
+    "authentication",
+    "encryption",
+    "tenant or workspace isolation",
+    "durable publication recovery",
+    "private and unpublished",
+  ].forEach((phrase) => assertContainsRequiredPhrase(publicRuntimeSecurityDocuments, phrase));
+
+  assert.match(
+    runtimeSecurityRfc,
+    /^# RFC 0008: Runtime and Security Profile$/m,
+  );
+  [
+    "## Problem",
+    "## Proposed Semantics",
+    "## Enforcement Classes",
+    "## Machine-Readable Profile",
+    "## Alternatives",
+    "## Compatibility and Migration",
+    "## Security and Human Authority",
+    "## Acceptance Checks",
+    "## Explicit Deferrals",
+  ].forEach((heading) =>
+    assert.match(runtimeSecurityRfc, new RegExp(`^${escapeRegExp(heading)}$`, "m"))
+  );
+  [
+    "sdk-enforced",
+    "conformance-verified",
+    "host-required",
+    "out-of-scope",
+    "collective-cognition-sdk/runtime-security/0.1.0",
+    "does not add a runtime policy engine",
+  ].forEach((phrase) =>
+    assert.match(runtimeSecurityRfc, new RegExp(escapeRegExp(phrase)))
+  );
+  assert.match(
+    runtimeSecurityRfc,
+    /Private package `0\.7\.0` classifies this addition as `additive` with a `minor`\s+package-version effect\./,
+  );
+  assert.match(
+    runtimeSecurityRfc,
+    /Passing SDK\s+or repository checks does not certify a host as secure, compliant, or\s+production-ready\./,
+  );
+
   assert.match(
     rfcIndex,
     /\[RFC 0006: Maintained Source Connectors\]\(0006-maintained-source-connectors\.md\)/,
+  );
+  assert.match(
+    rfcIndex,
+    /\[RFC 0008: Runtime and Security Profile\]\(0008-runtime-security-profile\.md\)/,
+  );
+  assert.match(
+    rfcIndex,
+    /current package is private, unpublished `0\.7\.0`/,
+  );
+  assert.doesNotMatch(
+    rfcIndex,
+    /current package is private, unpublished `0\.6\.0`/,
   );
   assert.match(
     specificationIndex,
@@ -442,6 +576,75 @@ test("public documentation explains the source-neutral connector model", () => {
     specificationIndex,
     /collective-cognition-sdk\/connectors\/team-memory\/0\.1\.0/,
   );
+  assert.match(specificationIndex, /Runtime and Security Profile `0\.1\.0`/);
+  assert.match(
+    specificationIndex,
+    /implemented, full local-gate verified, and independently reviewed/,
+  );
+  assert.match(
+    specificationIndex,
+    /collective-cognition-sdk\/runtime-security\/0\.1\.0/,
+  );
+  assert.match(
+    readme,
+    /## Runtime and Security Profile/,
+  );
+  assert.match(
+    readme,
+    /```js\nimport runtimeSecurityProfile from "collective-cognition-sdk\/runtime-security\/0\.1\.0"\n  with \{ type: "json" \};\n```/,
+  );
+  [
+    "`sdk-enforced`",
+    "`conformance-verified`",
+    "`host-required`",
+    "`out-of-scope`",
+  ].forEach((className) =>
+    assert.match(readme, new RegExp(escapeRegExp(className)))
+  );
+  assert.match(
+    readme,
+    /The JSON tells a host what remains unimplemented; importing it does not enforce host-required controls\./,
+  );
+  assert.match(
+    readme,
+    /\[host-required controls checklist\]\(spec\/runtime-security\.md#host-required-controls\)/,
+  );
+  [
+    "authentication",
+    "encryption",
+    "tenant or workspace isolation",
+    "durable publication recovery",
+    "Conformance is not certification",
+    "does not certify a deployment as secure",
+  ].forEach((phrase) =>
+    assert.match(readme, new RegExp(escapeRegExp(phrase), "i"))
+  );
+  assert.match(
+    readme,
+    /Runtime and Security Profile/i,
+  );
+  assert.match(roadmap, /Runtime and Security Profile `0\.1\.0`/);
+  assert.match(
+    roadmap,
+    /implemented, full local-gate verified, and independently reviewed/,
+  );
+  assert.match(roadmap, /delivered|verified/i);
+  assert.match(
+    roadmap,
+    /current private, unpublished package `0\.7\.0`/,
+  );
+  assert.doesNotMatch(
+    roadmap,
+    /current private, unpublished package `0\.6\.0`/,
+  );
+
+  ["secure", "production-ready", "certified"].forEach((claim) =>
+    assertNoPositiveClaimWithoutNearbyNegation(readme, claim)
+  );
+
+  for (const document of publicRuntimeSecurityDocuments) {
+    assertMarkdownLinksResolve(document.content, document.url);
+  }
 
   [
     /scheduler/i,
@@ -501,30 +704,50 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   const historicalBaseline = JSON.parse(
     readFileSync(historicalCompatibilityBaselineUrl, "utf8"),
   );
+  const previousBaseline = JSON.parse(
+    readFileSync(previousCompatibilityBaselineUrl, "utf8"),
+  );
   assert.deepEqual(
     baseline.package.runtimeExports,
-    historicalBaseline.package.runtimeExports,
-    "package 0.6 root runtime exports must remain identical to 0.5",
+    previousBaseline.package.runtimeExports,
+    "package 0.7 root runtime exports must remain identical to 0.6",
   );
   assert.deepEqual(
     baseline.package.typeExports,
-    historicalBaseline.package.typeExports,
-    "package 0.6 root type exports must remain identical to 0.5",
+    previousBaseline.package.typeExports,
+    "package 0.7 root type exports must remain identical to 0.6",
   );
-  assert.equal(packageJson.version, "0.6.0");
-  assert.equal(packageLock.version, "0.6.0");
-  assert.equal(packageLock.packages[""].version, "0.6.0");
+  assert.equal(packageJson.version, "0.7.0");
+  assert.equal(packageLock.version, "0.7.0");
+  assert.equal(packageLock.packages[""].version, "0.7.0");
+  assert.equal(
+    packageJson.exports["./runtime-security/0.1.0"],
+    "./spec/runtime-security/0.1.0/profile.json",
+  );
   assert.deepEqual(packageJson.engines, {
     node: ">=24",
   });
   assert.deepEqual(packageLock.packages[""].engines, {
     node: ">=24",
   });
+  assert.deepEqual(
+    productionDependencyFields,
+    [
+      "dependencies",
+      "optionalDependencies",
+      "peerDependencies",
+      "bundleDependencies",
+      "bundledDependencies",
+    ],
+  );
   assert.deepEqual(declaredProductionDependencyFields(packageJson), []);
   assert.deepEqual(
     declaredProductionDependencyFields(packageLock.packages[""]),
     [],
   );
+  ["preinstall", "install", "postinstall"].forEach((hook) => {
+    assert.equal(Object.hasOwn(packageJson.scripts, hook), false, hook);
+  });
   assert.equal(
     packageJson.scripts["test:schema"],
     "node --test tests/schema-conformance.test.mjs tests/portable-cognition-schema.test.mjs",
@@ -560,6 +783,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       "./spec/compatibility/0.5.0/baseline.json",
     "./compatibility/0.6.0":
       "./spec/compatibility/0.6.0/baseline.json",
+    "./compatibility/0.7.0":
+      "./spec/compatibility/0.7.0/baseline.json",
     "./adapters/markdown/0.1.0": {
       types: "./dist/markdown-cognition.d.ts",
       import: "./dist/markdown-cognition.js",
@@ -596,6 +821,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       "./spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
     "./conformance/portable-cognition/0.1.0/cognitive-loop":
       "./spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
+    "./runtime-security/0.1.0":
+      "./spec/runtime-security/0.1.0/profile.json",
     "./package.json": "./package.json",
   });
   assert.deepEqual(packageJson.files, [
@@ -614,6 +841,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0005-sqlite-cognition-store.md",
     "rfcs/0006-maintained-source-connectors.md",
     "rfcs/0007-markdown-cognition-adapter.md",
+    "rfcs/0008-runtime-security-profile.md",
     "spec/README.md",
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
@@ -628,9 +856,13 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.5.0/change-cases.jsonl",
     "spec/compatibility/0.6.0/baseline.json",
     "spec/compatibility/0.6.0/change-cases.jsonl",
+    "spec/compatibility/0.7.0/baseline.json",
+    "spec/compatibility/0.7.0/change-cases.jsonl",
     "spec/host-integration.md",
     "spec/source-record.md",
     "spec/portable-cognition.md",
+    "spec/runtime-security.md",
+    "spec/runtime-security/0.1.0/profile.json",
     "spec/schemas/0.1.0/source-record.schema.json",
     "spec/schemas/0.1.0/portable-cognition.schema.json",
     "spec/conformance/0.1.0/source-record/valid.jsonl",
@@ -655,14 +887,14 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.deepEqual(
     baseline.package.emittedFiles,
     expectedEmittedFiles060,
-    "package 0.6 emitted inventory must match its literal allowlist",
+    "package 0.7 emitted inventory must match its literal allowlist",
   );
   assert.deepEqual(
     baseline.package.emittedFiles.filter(
       (path) => !expectedEmittedFiles040.includes(path),
     ),
     [...expectedConnectorEmittedFiles050, ...expectedMarkdownEmittedFiles060].sort(),
-    "package 0.6 emitted additions must be exactly the approved files",
+    "package 0.7 emitted additions must be exactly the approved files",
   );
   assert.deepEqual(
     actualEmittedFiles,
@@ -705,6 +937,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0005-sqlite-cognition-store.md",
     "rfcs/0006-maintained-source-connectors.md",
     "rfcs/0007-markdown-cognition-adapter.md",
+    "rfcs/0008-runtime-security-profile.md",
     "rfcs/README.md",
     "spec/README.md",
     "spec/compatibility.md",
@@ -720,6 +953,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.5.0/change-cases.jsonl",
     "spec/compatibility/0.6.0/baseline.json",
     "spec/compatibility/0.6.0/change-cases.jsonl",
+    "spec/compatibility/0.7.0/baseline.json",
+    "spec/compatibility/0.7.0/change-cases.jsonl",
     "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
     "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
@@ -727,6 +962,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/conformance/0.1.0/source-record/valid.jsonl",
     "spec/host-integration.md",
     "spec/portable-cognition.md",
+    "spec/runtime-security.md",
+    "spec/runtime-security/0.1.0/profile.json",
     "spec/schemas/0.1.0/portable-cognition.schema.json",
     "spec/schemas/0.1.0/source-record.schema.json",
     "spec/source-record.md",
@@ -1121,6 +1358,8 @@ import {
   renderMarkdownCognitionRecord,
   verifyMarkdownCognitionTarget,
 } from ${JSON.stringify(`${packageJson.name}/adapters/markdown/0.1.0`)};
+import assert from "node:assert/strict";
+import profile from ${JSON.stringify(`${packageJson.name}/runtime-security/0.1.0`)} with { type: "json" };
 import {
   existsSync,
   mkdtempSync,
@@ -1148,6 +1387,9 @@ const validRecords = readFileSync(new URL(fixturesUrl), "utf8")
   .trim()
   .split("\\n")
   .map((line) => JSON.parse(line));
+
+assert.equal(profile.profile, "collective-cognition-runtime-security");
+assert.equal(profile.version, "0.1.0");
 
 const record = createPortableCognitionRecord(validRecords[0]);
 const restored = deserializePortableCognitionRecord(
@@ -1355,6 +1597,7 @@ try {
   const environment = {
     ...process.env,
     npm_config_cache: npmCache,
+    npm_config_dry_run: "false",
   };
 
   try {
@@ -1392,6 +1635,24 @@ try {
       },
     );
     assert.equal(installed.status, 0, installed.stderr);
+    const packedManifest = JSON.parse(
+      readFileSync(
+        join(
+          consumerRoot,
+          "node_modules",
+          packageJson.name,
+          "package.json",
+        ),
+        "utf8",
+      ),
+    );
+    assert.deepEqual(
+      declaredProductionDependencyFields(packedManifest),
+      [],
+    );
+    ["preinstall", "install", "postinstall"].forEach((hook) => {
+      assert.equal(Object.hasOwn(packedManifest.scripts, hook), false, hook);
+    });
 
     const typechecked = spawnSync(
       process.execPath,
