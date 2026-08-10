@@ -83,7 +83,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** In progress. The compatibility, Portable Cognition, Host Integration, and Runtime and Security slices are delivered and final-review verified; broader Phase 3 work remains. The experimental `v0.6.0` GitHub prerelease is observed and verified, while npm publication remains blocked.
+**Status:** In progress. The compatibility, Portable Cognition, and Host Integration slices are final-review verified; the Runtime and Security slice is delivered with local-gate evidence and awaits independent final review. Broader Phase 3 work remains. The experimental `v0.6.0` GitHub prerelease is observed and verified, while npm publication remains blocked.
 
 **Phase 3 slice progress**
 
@@ -160,7 +160,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - Independent byte comparisons confirm all historical baseline/artifact `0.1.0` and `0.2.0` files remain unchanged. The Portable Cognition `0.1.0` runtime allowlist remains fixed and its correction-pass source/tests are untouched.
 - Host Integration `0.1.0` is implemented and final-review verified.
 
-**Delivered and verified in the Runtime and Security Profile `0.1.0` slice**
+**Delivered Runtime and Security Profile `0.1.0` slice**
 
 - [x] Normative [Runtime and Security Profile `0.1.0`](../spec/runtime-security.md), synchronized JSON inventory at `collective-cognition-sdk/runtime-security/0.1.0`, and [RFC 0008](../rfcs/0008-runtime-security-profile.md).
 - [x] Four explicit enforcement classes: `sdk-enforced`, `conformance-verified`, `host-required`, and `out-of-scope`.
@@ -170,9 +170,11 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 **Runtime and Security Profile final verification evidence**
 
-- `node --test tests/runtime-security-profile.test.ts` passes the closed control inventory, anchors, and repository evidence references.
-- `node --test tests/package.test.mjs tests/compatibility.test.mjs` passes the package subpath, public navigation, and compatibility baseline checks.
-- `npm run build` and `git diff --check` exit successfully with the private and unpublished package `0.7.0` surface intact.
+- Bundled Node.js `24.14.0` `npm test` reports `459` passes, `10` expected immutable-`v0.6.0` release-context skips, and `0` failures: `419` source, `10` schema, `20` compatibility, and `10` package passes.
+- `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, `npm run example:markdown`, `npm run pack:check`, and `git diff --check` exit successfully.
+- A byte comparison against `main` finds `0` changes across `23` tracked historical compatibility `0.1.0`–`0.6.0`, SourceRecord, Portable Cognition, and Host Integration artifacts.
+- `npm pack --dry-run --json` with an isolated temporary npm cache reports `96` files (`52` under `dist/`), with `0` unexpected and `0` missing allowlisted paths.
+- `npm audit --audit-level=high` cannot reach `registry.npmjs.org` (`getaddrinfo ENOTFOUND`); it reports no vulnerability result and remains an outstanding network-dependent gate.
 
 **Delivered in the licensing and attribution slice**
 

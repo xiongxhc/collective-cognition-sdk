@@ -1577,6 +1577,7 @@ try {
   const environment = {
     ...process.env,
     npm_config_cache: npmCache,
+    npm_config_dry_run: "false",
   };
 
   try {

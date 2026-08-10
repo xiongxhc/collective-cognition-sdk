@@ -99,7 +99,9 @@ function readAnchors(): Set<string> {
 }
 
 function assertSingleLineText(value: unknown, label: string): asserts value is string {
-  assert.equal(typeof value, "string", `${label} must be a string`);
+  if (typeof value !== "string") {
+    assert.fail(`${label} must be a string`);
+  }
   assert.equal(value.trim(), value, `${label} must be trimmed`);
   assert.notEqual(value.length, 0, `${label} must not be empty`);
   assert.equal(value.includes("\n"), false, `${label} must be single-line`);
