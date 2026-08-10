@@ -43,7 +43,7 @@ const expectedAssets = [
 const expectedChecksumAssets = expectedAssets.slice(1);
 const expectedPackageScriptsSha256 = "574c12e5cc890227a58b16939ef1e0e861b9a011c4b8040f6df03ee4044534e3";
 const expectedCiWorkflowSha256 = "4ffd26bf39c2f859aac567bcfda421d3ba834ae993e0ca2b0ff3e384794eba7a";
-const expectedGitHubPrereleaseWorkflowSha256 = "e069a3d8f21d9cfc62651922bd2528ef0c1ddcd343708aae4955be55c097f080";
+const expectedGitHubPrereleaseWorkflowSha256 = "b628e8e07829bd115a01133595d4f3424e0634e7479f9f00c35bc4e5c9a8508f";
 const expectedTarballSha256 = "3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe";
 const expectedReleaseCommit = "76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e";
 const expectedCommit = runGit(["rev-parse", "HEAD"]);
@@ -881,8 +881,8 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
     "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
-    "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
-    "actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373",
+    "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+    "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
   ]);
   for (const reference of actionReferences) {
     assert.match(reference, /^actions\/[a-z0-9_-]+@[0-9a-f]{40}$/);
@@ -2126,11 +2126,11 @@ test("prerelease workflow isolates privileged publication from repository code",
   );
   assert.match(
     publishJob,
-    /actions\/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093/,
+    /actions\/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c/,
   );
   assert.match(
     publishJob,
-    /actions\/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373/,
+    /actions\/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8/,
   );
   assert.doesNotMatch(publishJob, /actions\/checkout|actions\/setup-node/);
   assert.doesNotMatch(
@@ -2252,7 +2252,7 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
       "actions/upload-artifact@v4",
     ),
     workflow.replace(
-      "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+      "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
       "actions/download-artifact@v4",
     ),
     workflow.replace("          overwrite: true\n", ""),

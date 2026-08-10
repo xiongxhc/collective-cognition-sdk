@@ -369,6 +369,21 @@ test("public documentation explains the source-neutral connector model", () => {
   assert.match(readme, /private and unpublished/i);
   assert.match(
     readme,
+    /> The source-neutral core integrates through portable contracts\./,
+  );
+  assert.match(
+    readme,
+    /Optional\n> connectors and adapters operate only on explicitly supplied sources or\n> managed Markdown targets; they never discover another system's internals\./,
+  );
+  assert.doesNotMatch(
+    readme,
+    /Integrates with other systems only by reading Markdown vaults/i,
+  );
+  assert.doesNotMatch(readme, /github\.com\/xiongxhc\/collective-cognition-sdk\/blob\/master\//);
+  assert.doesNotMatch(roadmap, /exact-`master`/);
+  assert.match(roadmap, /exact-`main` tag/);
+  assert.match(
+    readme,
     /\[connector author guide\]\(docs\/connector-author-guide\.md\)/i,
   );
   assert.match(
@@ -461,6 +476,19 @@ test("public documentation explains the source-neutral connector model", () => {
       /not\s+(?:an\s+)?LTS|no\s+LTS|does not\s+promise[\s\S]*long-term support/i,
     );
   }
+});
+
+test("development dependency security floors remain pinned", () => {
+  const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
+  const packageLock = JSON.parse(readFileSync(packageLockUrl, "utf8"));
+
+  assert.equal(packageJson.devDependencies["@types/node"], "^26.2.0");
+  assert.equal(
+    packageLock.packages[""].devDependencies["@types/node"],
+    "^26.2.0",
+  );
+  assert.equal(packageLock.packages["node_modules/@types/node"].version, "26.2.0");
+  assert.equal(packageLock.packages["node_modules/fast-uri"].version, "3.1.5");
 });
 
 test("npm package manifest and tarball expose only approved artifacts", () => {
