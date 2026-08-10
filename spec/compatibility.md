@@ -4,7 +4,7 @@
 
 This document defines the normative compatibility policy for the Collective Cognition SDK. It separates portable serialized contracts from the installable package, public experimental APIs, and repository internals.
 
-The historical compatibility baseline `0.1.0` records the inaugural surface of the unpublished package `0.1.0`; it does not represent a migration from an earlier published release. Baseline `0.2.0` records the additive Portable Cognition package surface. Historical baseline `0.3.0` records the additive Host Integration package surface plus the source-breaking correction that narrows `PortableDomainError.code` to the already-normative Portable Cognition `0.1.0` allowlist, while retaining prior baselines and serialized artifacts byte-for-byte. Historical baseline `0.4.0` adds the optional SQLite cognition-store subpath and its packaged RFC. Historical baseline `0.5.0` adds source-neutral connector conformance, one maintained compatible connector subpath, and a dedicated connector CLI without changing root exports or the generic CLI contract. The current `0.6.0` baseline adds the independent Supported Experimental `adapters/markdown/0.1.0` subpath, dedicated Markdown CLI, explicit eight-digit object-version ceiling, documentation, and package artifacts while preserving all prior exports, executables, contracts, and baselines. Package `0.6.0` remains private, unpublished, and not production-ready.
+The historical compatibility baseline `0.1.0` records the inaugural surface of the unpublished package `0.1.0`; it does not represent a migration from an earlier published release. Baseline `0.2.0` records the additive Portable Cognition package surface. Historical baseline `0.3.0` records the additive Host Integration package surface plus the source-breaking correction that narrows `PortableDomainError.code` to the already-normative Portable Cognition `0.1.0` allowlist, while retaining prior baselines and serialized artifacts byte-for-byte. Historical baseline `0.4.0` adds the optional SQLite cognition-store subpath and its packaged RFC. Historical baseline `0.5.0` adds source-neutral connector conformance, one maintained compatible connector subpath, and a dedicated connector CLI without changing root exports or the generic CLI contract. Historical baseline `0.6.0` adds the independent Supported Experimental `adapters/markdown/0.1.0` subpath, dedicated Markdown CLI, explicit eight-digit object-version ceiling, documentation, and package artifacts while preserving all prior exports, executables, contracts, and baselines. The current additive private baseline `0.7.0` packages Runtime and Security Profile `0.1.0` as normative prose and a versioned machine-readable JSON subpath without changing existing runtime, type, CLI, connector, adapter, or host behavior. Package `0.7.0` remains private, unpublished, and not production-ready.
 
 The terms **MUST**, **MUST NOT**, **SHOULD**, and **MAY** express normative requirements.
 
@@ -12,7 +12,7 @@ The terms **MUST**, **MUST NOT**, **SHOULD**, and **MAY** express normative requ
 
 | Level | Meaning | Current surfaces |
 | --- | --- | --- |
-| Normative Stable | Portable behavior and immutable versioned artifacts on which implementations and stored data can rely. | SourceRecord `0.1.0`, Portable Cognition `0.1.0`, and Host Integration `0.1.0` prose, schemas or conformance fixtures where applicable, stable contract error codes, versioned artifact package subpaths, this policy, versioned compatibility baselines, change cases, and compatibility package subpaths. |
+| Normative Stable | Portable behavior and immutable versioned artifacts on which implementations and stored data can rely. | SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, and Runtime and Security Profile `0.1.0` prose, schemas or conformance fixtures where applicable, stable contract error codes, versioned artifact package subpaths, this policy, versioned compatibility baselines, change cases, and compatibility package subpaths. |
 | Supported Experimental | Public and tested package behavior that can evolve under this policy before `1.0.0`. | Root runtime exports, root TypeScript declarations, declared non-normative package subpaths, the `collective-cognition`, `collective-cognition-teammem`, and `collective-cognition-markdown` executables, generic and dedicated CLI behavior, and non-SourceRecord domain error codes. |
 | Internal | Repository implementation details with no compatibility promise. | Unexported source modules and connectors, examples, tests, scripts, plans, repository utilities, and generated layout beyond declared package entrypoints. |
 
@@ -175,6 +175,13 @@ Team-memory is one maintained compatible connector, not root SDK behavior.
 External connectors may live in independent repositories and packages.
 Collection does not imply interpretation, promotion, or persistence.
 
+Baseline `0.6.0` remains historical. Baseline `0.7.0` adds Runtime and
+Security Profile `0.1.0` prose and the
+`collective-cognition-sdk/runtime-security/0.1.0` JSON subpath without
+changing existing runtime, type, CLI, connector, adapter, or host contracts.
+The machine profile is data, not certification or a host security
+implementation.
+
 ### COMP-018 — Deliberate Baseline Updates
 
 A baseline failure MUST receive human classification. Contributors MUST NOT update a baseline snapshot automatically. A deliberate change MUST identify the affected consumer, classify the change, follow the required RFC, migration, deprecation, and release process, and create a new baseline version when the inventory or policy snapshot changes.
@@ -195,5 +202,6 @@ This policy does not:
 - claim cross-language interoperability without conformance evidence; or
 - make this repository a standards body.
 
-Package `0.6.0` is private and unpublished. Connector conformance is not
+Package `0.7.0` is private and unpublished. The Runtime and Security Profile
+machine data is not certification or a host security implementation. Connector conformance is not
 certification, does not imply endorsement, and is not an LTS commitment.
