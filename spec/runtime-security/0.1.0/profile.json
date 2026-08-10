@@ -1,0 +1,352 @@
+{
+  "profile": "collective-cognition-runtime-security",
+  "version": "0.1.0",
+  "status": "normative-stable",
+  "enforcementClasses": [
+    "sdk-enforced",
+    "conformance-verified",
+    "host-required",
+    "out-of-scope"
+  ],
+  "controls": [
+    {
+      "id": "RSP-001",
+      "title": "Explicit External Selection",
+      "enforcementClass": "sdk-enforced",
+      "requirement": "The SDK MUST require callers to select external sources, connectors, and target adapters explicitly and MUST NOT infer a hidden upstream or downstream system.",
+      "normativeAnchor": "#rsp-001--explicit-external-selection",
+      "evidence": [
+        {
+          "kind": "test",
+          "path": "tests/team-memory-connector.test.ts"
+        },
+        {
+          "kind": "test",
+          "path": "tests/markdown-cognition-target.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "RSP-002",
+      "title": "Logical Store Separation",
+      "enforcementClass": "sdk-enforced",
+      "requirement": "The SDK MUST preserve a logical separation between source stores and cognition stores and MUST NOT merge raw source persistence with cognition persistence into one implicit state boundary.",
+      "normativeAnchor": "#rsp-002--logical-store-separation",
+      "evidence": [
+        {
+          "kind": "test",
+          "path": "tests/sqlite-store.test.ts"
+        },
+        {
+          "kind": "contract",
+          "path": "spec/host-integration.md"
+        }
+      ]
+    },
+    {
+      "id": "RSP-003",
+      "title": "Bounded Own-Data Snapshots",
+      "enforcementClass": "sdk-enforced",
+      "requirement": "The SDK MUST capture untrusted values through bounded own-data snapshots and MUST NOT traverse arbitrary inherited or cyclic structures as trusted input.",
+      "normativeAnchor": "#rsp-003--bounded-own-data-snapshots",
+      "evidence": [
+        {
+          "kind": "test",
+          "path": "tests/ingestion.test.ts"
+        },
+        {
+          "kind": "test",
+          "path": "tests/connector-conformance.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "RSP-004",
+      "title": "Detached Frozen Accepted Boundaries",
+      "enforcementClass": "sdk-enforced",
+      "requirement": "The SDK MUST detach and deeply freeze accepted boundary records before downstream use and MUST NOT expose mutable accepted structures for later mutation.",
+      "normativeAnchor": "#rsp-004--detached-frozen-accepted-boundaries",
+      "evidence": [
+        {
+          "kind": "test",
+          "path": "tests/source-records.test.ts"
+        },
+        {
+          "kind": "test",
+          "path": "tests/host-integration.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "RSP-005",
+      "title": "Documented Ingestion Resource Limits",
+      "enforcementClass": "sdk-enforced",
+      "requirement": "The SDK MUST enforce documented byte, record, and depth limits during ingestion and MUST NOT accept unbounded source payload expansion.",
+      "normativeAnchor": "#rsp-005--documented-ingestion-resource-limits",
+      "evidence": [
+        {
+          "kind": "test",
+          "path": "tests/ingestion.test.ts"
+        },
+        {
+          "kind": "test",
+          "path": "tests/cli.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "RSP-006",
+      "title": "Raw Source Content Omitted by Default",
+      "enforcementClass": "sdk-enforced",
+      "requirement": "The SDK MUST omit raw team-memory source content by default and MUST NOT expose raw source content unless a caller chooses an explicit content-bearing path.",
+      "normativeAnchor": "#rsp-006--raw-source-content-omitted-by-default",
+      "evidence": [
+        {
+          "kind": "test",
+          "path": "tests/team-memory-connector.test.ts"
+        },
+        {
+          "kind": "test",
+          "path": "tests/team-memory-cli.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "RSP-007",
+      "title": "Explicit Collection Promotion Persistence and Authorization",
+      "enforcementClass": "sdk-enforced",
+      "requirement": "The SDK MUST require collection, promotion, persistence, and authorization to remain explicit operations and MUST NOT auto-promote raw source material into authorized cognition.",
+      "normativeAnchor": "#rsp-007--explicit-collection-promotion-persistence-and-authorization",
+      "evidence": [
+        {
+          "kind": "test",
+          "path": "tests/promotion.test.ts"
+        },
+        {
+          "kind": "test",
+          "path": "tests/team-memory-cli.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "RSP-008",
+      "title": "Fail-Closed Authorization Decisions",
+      "enforcementClass": "sdk-enforced",
+      "requirement": "The SDK MUST fail closed when authorization policy evaluation is malformed, mutated, or erroneous and MUST NOT treat ambiguous authorization input as an approval.",
+      "normativeAnchor": "#rsp-008--fail-closed-authorization-decisions",
+      "evidence": [
+        {
+          "kind": "test",
+          "path": "tests/transitions.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "RSP-009",
+      "title": "Secret-Safe Boundary Diagnostics",
+      "enforcementClass": "sdk-enforced",
+      "requirement": "The SDK MUST emit fixed secret-safe boundary diagnostics for documented top level failures and MUST NOT include live credentials or private source content in those diagnostics.",
+      "normativeAnchor": "#rsp-009--secret-safe-boundary-diagnostics",
+      "evidence": [
+        {
+          "kind": "test",
+          "path": "tests/cli.test.ts"
+        },
+        {
+          "kind": "test",
+          "path": "tests/team-memory-cli.test.ts"
+        },
+        {
+          "kind": "test",
+          "path": "tests/host-integration.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "RSP-010",
+      "title": "Package Install Surface",
+      "enforcementClass": "conformance-verified",
+      "requirement": "Repository conformance MUST verify that the package declares no production dependency fields and no install lifecycle hooks.",
+      "normativeAnchor": "#rsp-010--package-install-surface",
+      "evidence": [
+        {
+          "kind": "package",
+          "path": "package.json"
+        },
+        {
+          "kind": "test",
+          "path": "tests/package.test.mjs"
+        }
+      ]
+    },
+    {
+      "id": "RSP-011",
+      "title": "Package Content Allowlists",
+      "enforcementClass": "conformance-verified",
+      "requirement": "Repository conformance MUST verify that the packaged artifact contains only the documented allowlisted runtime, specification, and documentation files for the published contract surface.",
+      "normativeAnchor": "#rsp-011--package-content-allowlists",
+      "evidence": [
+        {
+          "kind": "package",
+          "path": "package.json"
+        },
+        {
+          "kind": "test",
+          "path": "tests/package.test.mjs"
+        }
+      ]
+    },
+    {
+      "id": "RSP-012",
+      "title": "Documented Runtime Matrix",
+      "enforcementClass": "conformance-verified",
+      "requirement": "Repository conformance MUST document and verify the supported Node and operating-system matrix for the reference source tree.",
+      "normativeAnchor": "#rsp-012--documented-runtime-matrix",
+      "evidence": [
+        {
+          "kind": "workflow",
+          "path": ".github/workflows/ci.yml"
+        },
+        {
+          "kind": "test",
+          "path": "tests/release-readiness.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "RSP-013",
+      "title": "Maintained Read-Only Team-Memory Connector",
+      "enforcementClass": "conformance-verified",
+      "requirement": "Repository conformance MUST verify that the maintained team-memory connector preserves documented read-only behavior.",
+      "normativeAnchor": "#rsp-013--maintained-read-only-team-memory-connector",
+      "evidence": [
+        {
+          "kind": "test",
+          "path": "tests/team-memory-connector.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "RSP-014",
+      "title": "Deterministic Reference Behavior",
+      "enforcementClass": "conformance-verified",
+      "requirement": "Repository conformance MUST verify deterministic behavior for the documented reference adapters, conformance fixtures, and contract examples.",
+      "normativeAnchor": "#rsp-014--deterministic-reference-behavior",
+      "evidence": [
+        {
+          "kind": "test",
+          "path": "tests/conformance.test.ts"
+        },
+        {
+          "kind": "test",
+          "path": "tests/host-conformance.test.ts"
+        },
+        {
+          "kind": "test",
+          "path": "tests/markdown-cognition-projection.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "RSP-015",
+      "title": "Authenticated Human Authority",
+      "enforcementClass": "host-required",
+      "requirement": "A production host MUST authenticate actors and trusted human approvals before using this SDK for protected operations.",
+      "normativeAnchor": "#rsp-015--authenticated-human-authority",
+      "evidence": []
+    },
+    {
+      "id": "RSP-016",
+      "title": "Access Control and Workspace Isolation",
+      "enforcementClass": "host-required",
+      "requirement": "A production host MUST enforce access control and tenant or workspace isolation where required by its deployment.",
+      "normativeAnchor": "#rsp-016--access-control-and-workspace-isolation",
+      "evidence": []
+    },
+    {
+      "id": "RSP-017",
+      "title": "Encryption and Secret Management",
+      "enforcementClass": "host-required",
+      "requirement": "A production host MUST provide encryption, secret storage, rotation, and revocation where required by its threat model and policy.",
+      "normativeAnchor": "#rsp-017--encryption-and-secret-management",
+      "evidence": []
+    },
+    {
+      "id": "RSP-018",
+      "title": "Data Minimization and Retention Handling",
+      "enforcementClass": "host-required",
+      "requirement": "A production host MUST implement data minimization, retention, deletion, and legal-policy handling for the data it collects or persists.",
+      "normativeAnchor": "#rsp-018--data-minimization-and-retention-handling",
+      "evidence": []
+    },
+    {
+      "id": "RSP-019",
+      "title": "Backup Restore and Recovery",
+      "enforcementClass": "host-required",
+      "requirement": "A production host MUST implement backup, restore, corruption detection, and disaster recovery for the systems that matter to its deployment.",
+      "normativeAnchor": "#rsp-019--backup-restore-and-recovery",
+      "evidence": []
+    },
+    {
+      "id": "RSP-020",
+      "title": "Durable Cognition-Event Publication Recovery",
+      "enforcementClass": "host-required",
+      "requirement": "A production host MUST supply durable publication recovery when cognition-event delivery matters to its application.",
+      "normativeAnchor": "#rsp-020--durable-cognition-event-publication-recovery",
+      "evidence": []
+    },
+    {
+      "id": "RSP-021",
+      "title": "Monitoring Abuse Limits and Incident Response",
+      "enforcementClass": "host-required",
+      "requirement": "A production host MUST provide monitoring, abuse limits, dependency response, and incident response appropriate to its deployment.",
+      "normativeAnchor": "#rsp-021--monitoring-abuse-limits-and-incident-response",
+      "evidence": []
+    },
+    {
+      "id": "RSP-022",
+      "title": "Sensitive Connector Review",
+      "enforcementClass": "host-required",
+      "requirement": "A production host MUST complete connector-specific review before enabling raw or sensitive content flows.",
+      "normativeAnchor": "#rsp-022--sensitive-connector-review",
+      "evidence": []
+    }
+  ],
+  "nonClaims": [
+    {
+      "id": "RSP-NC-001",
+      "title": "Source Truth and Semantic Quality",
+      "enforcementClass": "out-of-scope",
+      "statement": "The SDK does not claim that collected source material is true, complete, well-evidenced, or semantically correct.",
+      "normativeAnchor": "#rsp-nc-001--source-truth-and-semantic-quality"
+    },
+    {
+      "id": "RSP-NC-002",
+      "title": "Caller-Supplied Content Hash Authenticity",
+      "enforcementClass": "out-of-scope",
+      "statement": "The SDK does not claim that a caller-supplied contentHash value is authentic or independently verified.",
+      "normativeAnchor": "#rsp-nc-002--caller-supplied-content-hash-authenticity"
+    },
+    {
+      "id": "RSP-NC-003",
+      "title": "Exactly-Once End-to-End Delivery",
+      "enforcementClass": "out-of-scope",
+      "statement": "The SDK does not claim exactly-once end-to-end delivery across host queues, storage, connectors, or downstream systems.",
+      "normativeAnchor": "#rsp-nc-003--exactly-once-end-to-end-delivery"
+    },
+    {
+      "id": "RSP-NC-004",
+      "title": "SDK-Supplied Deployment Security",
+      "enforcementClass": "out-of-scope",
+      "statement": "The SDK does not claim to supply deployment authentication, encryption, tenant isolation, or other host security controls by itself.",
+      "normativeAnchor": "#rsp-nc-004--sdk-supplied-deployment-security"
+    },
+    {
+      "id": "RSP-NC-005",
+      "title": "Production Security Certification",
+      "enforcementClass": "out-of-scope",
+      "statement": "The SDK does not claim to certify that a host deployment is secure, compliant, or production-ready.",
+      "normativeAnchor": "#rsp-nc-005--production-security-certification"
+    }
+  ]
+}
