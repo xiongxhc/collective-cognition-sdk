@@ -559,6 +559,14 @@ test("public documentation explains the source-neutral connector model", () => {
     /\[RFC 0008: Runtime and Security Profile\]\(0008-runtime-security-profile\.md\)/,
   );
   assert.match(
+    rfcIndex,
+    /current package is private, unpublished `0\.7\.0`/,
+  );
+  assert.doesNotMatch(
+    rfcIndex,
+    /current package is private, unpublished `0\.6\.0`/,
+  );
+  assert.match(
     specificationIndex,
     /collective-cognition-sdk\/connector-conformance\/0\.1\.0/,
   );
@@ -571,17 +579,54 @@ test("public documentation explains the source-neutral connector model", () => {
     specificationIndex,
     /collective-cognition-sdk\/runtime-security\/0\.1\.0/,
   );
-  assert.match(readme, /Runtime and Security Profile/i);
   assert.match(
     readme,
-    /import runtimeSecurityProfile from "collective-cognition-sdk\/runtime-security\/0\.1\.0"/,
+    /## Runtime and Security Profile/,
   );
   assert.match(
     readme,
-    /importing it does not enforce host-required controls/i,
+    /```js\nimport runtimeSecurityProfile from "collective-cognition-sdk\/runtime-security\/0\.1\.0"\n  with \{ type: "json" \};\n```/,
+  );
+  [
+    "`sdk-enforced`",
+    "`conformance-verified`",
+    "`host-required`",
+    "`out-of-scope`",
+  ].forEach((className) =>
+    assert.match(readme, new RegExp(escapeRegExp(className)))
+  );
+  assert.match(
+    readme,
+    /The JSON tells a host what remains unimplemented; importing it does not enforce host-required controls\./,
+  );
+  assert.match(
+    readme,
+    /\[host-required controls checklist\]\(spec\/runtime-security\.md#host-required-controls\)/,
+  );
+  [
+    "authentication",
+    "encryption",
+    "tenant or workspace isolation",
+    "durable publication recovery",
+    "Conformance is not certification",
+    "does not certify a deployment as secure",
+  ].forEach((phrase) =>
+    assert.match(readme, new RegExp(escapeRegExp(phrase), "i"))
+  );
+  assert.match(
+    readme,
+    /Runtime and Security Profile/i,
   );
   assert.match(roadmap, /Runtime and Security Profile `0\.1\.0`/);
   assert.match(roadmap, /delivered|verified/i);
+  assert.match(
+    roadmap,
+    /current private, unpublished package `0\.7\.0`/,
+  );
+  assert.doesNotMatch(
+    roadmap,
+    /current private, unpublished package `0\.6\.0`/,
+  );
 
   ["secure", "production-ready", "certified"].forEach((claim) =>
     assertNoPositiveClaimWithoutNearbyNegation(readme, claim)
