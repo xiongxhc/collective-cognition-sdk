@@ -149,7 +149,8 @@ The ordered control inventory is fixed for `0.1.0`:
 | `RSP-021` | `host-required` | Monitoring, abuse limits, dependency response, and incident response |
 | `RSP-022` | `host-required` | Connector-specific review before sensitive-content enablement |
 
-The ordered non-claim inventory is also fixed:
+The ordered non-claim inventory is also fixed, and every non-claim uses
+enforcement class `out-of-scope`:
 
 - `RSP-NC-001`: source truth, evidence quality, and semantic correctness;
 - `RSP-NC-002`: authenticity of caller-supplied `contentHash` values;
