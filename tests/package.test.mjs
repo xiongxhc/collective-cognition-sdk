@@ -40,7 +40,7 @@ const packageJsonUrl = new URL("../package.json", import.meta.url);
 const packageLockUrl = new URL("../package-lock.json", import.meta.url);
 const gitAttributesUrl = new URL("../.gitattributes", import.meta.url);
 const compatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.7.0/baseline.json",
+  "../spec/compatibility/0.8.0/baseline.json",
   import.meta.url,
 );
 const historicalCompatibilityBaselineUrl = new URL(
@@ -48,7 +48,7 @@ const historicalCompatibilityBaselineUrl = new URL(
   import.meta.url,
 );
 const previousCompatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.6.0/baseline.json",
+  "../spec/compatibility/0.7.0/baseline.json",
   import.meta.url,
 );
 const licenseUrl = new URL("../LICENSE", import.meta.url);
@@ -710,19 +710,19 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.deepEqual(
     baseline.package.runtimeExports,
     previousBaseline.package.runtimeExports,
-    "package 0.7 root runtime exports must remain identical to 0.6",
+    "package 0.8 root runtime exports must remain identical to 0.7",
   );
   assert.deepEqual(
     baseline.package.typeExports,
     previousBaseline.package.typeExports,
-    "package 0.7 root type exports must remain identical to 0.6",
+    "package 0.8 root type exports must remain identical to 0.7",
   );
-  assert.equal(packageJson.version, "0.7.0");
-  assert.equal(packageLock.version, "0.7.0");
-  assert.equal(packageLock.packages[""].version, "0.7.0");
+  assert.equal(packageJson.version, "0.8.0");
+  assert.equal(packageLock.version, "0.8.0");
+  assert.equal(packageLock.packages[""].version, "0.8.0");
   assert.equal(
-    packageJson.exports["./runtime-security/0.1.0"],
-    "./spec/runtime-security/0.1.0/profile.json",
+    packageJson.exports["./distribution-readiness/0.1.0"],
+    "./spec/distribution-readiness/0.1.0/profile.json",
   );
   assert.deepEqual(packageJson.engines, {
     node: ">=24",
@@ -785,6 +785,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       "./spec/compatibility/0.6.0/baseline.json",
     "./compatibility/0.7.0":
       "./spec/compatibility/0.7.0/baseline.json",
+    "./compatibility/0.8.0":
+      "./spec/compatibility/0.8.0/baseline.json",
     "./adapters/markdown/0.1.0": {
       types: "./dist/markdown-cognition.d.ts",
       import: "./dist/markdown-cognition.js",
@@ -821,6 +823,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       "./spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
     "./conformance/portable-cognition/0.1.0/cognitive-loop":
       "./spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
+    "./distribution-readiness/0.1.0":
+      "./spec/distribution-readiness/0.1.0/profile.json",
     "./runtime-security/0.1.0":
       "./spec/runtime-security/0.1.0/profile.json",
     "./package.json": "./package.json",
@@ -833,6 +837,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "README.md",
     "docs/connector-author-guide.md",
     "docs/markdown-cognition-adapter-guide.md",
+    "docs/public-api.md",
     "rfcs/README.md",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
@@ -842,6 +847,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0006-maintained-source-connectors.md",
     "rfcs/0007-markdown-cognition-adapter.md",
     "rfcs/0008-runtime-security-profile.md",
+    "rfcs/0009-public-api-and-distribution-readiness.md",
     "spec/README.md",
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
@@ -858,6 +864,10 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.6.0/change-cases.jsonl",
     "spec/compatibility/0.7.0/baseline.json",
     "spec/compatibility/0.7.0/change-cases.jsonl",
+    "spec/compatibility/0.8.0/baseline.json",
+    "spec/compatibility/0.8.0/change-cases.jsonl",
+    "spec/distribution-readiness.md",
+    "spec/distribution-readiness/0.1.0/profile.json",
     "spec/host-integration.md",
     "spec/source-record.md",
     "spec/portable-cognition.md",
@@ -887,14 +897,14 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.deepEqual(
     baseline.package.emittedFiles,
     expectedEmittedFiles060,
-    "package 0.7 emitted inventory must match its literal allowlist",
+    "package 0.8 emitted inventory must match its literal allowlist",
   );
   assert.deepEqual(
     baseline.package.emittedFiles.filter(
       (path) => !expectedEmittedFiles040.includes(path),
     ),
     [...expectedConnectorEmittedFiles050, ...expectedMarkdownEmittedFiles060].sort(),
-    "package 0.7 emitted additions must be exactly the approved files",
+    "package 0.8 emitted additions must be exactly the approved files",
   );
   assert.deepEqual(
     actualEmittedFiles,
@@ -938,6 +948,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0006-maintained-source-connectors.md",
     "rfcs/0007-markdown-cognition-adapter.md",
     "rfcs/0008-runtime-security-profile.md",
+    "rfcs/0009-public-api-and-distribution-readiness.md",
     "rfcs/README.md",
     "spec/README.md",
     "spec/compatibility.md",
@@ -955,11 +966,15 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.6.0/change-cases.jsonl",
     "spec/compatibility/0.7.0/baseline.json",
     "spec/compatibility/0.7.0/change-cases.jsonl",
+    "spec/compatibility/0.8.0/baseline.json",
+    "spec/compatibility/0.8.0/change-cases.jsonl",
     "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
     "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
     "spec/conformance/0.1.0/source-record/invalid.jsonl",
     "spec/conformance/0.1.0/source-record/valid.jsonl",
+    "spec/distribution-readiness.md",
+    "spec/distribution-readiness/0.1.0/profile.json",
     "spec/host-integration.md",
     "spec/portable-cognition.md",
     "spec/runtime-security.md",
@@ -972,12 +987,13 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     ...expectedBaselinePaths,
     "docs/connector-author-guide.md",
     "docs/markdown-cognition-adapter-guide.md",
+    "docs/public-api.md",
   ].sort();
 
   assert.deepEqual(
     baseline.package.packageFiles,
     expectedPaths,
-    "package 0.6 compatibility inventory must match its literal allowlist",
+    "package 0.8 compatibility inventory must match its literal allowlist",
   );
   assert.deepEqual(paths, expectedPaths, "package contents must match allowlist");
   assert.equal(
@@ -992,7 +1008,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
         (
           !/^docs\//.test(path) ||
           path === "docs/connector-author-guide.md" ||
-          path === "docs/markdown-cognition-adapter-guide.md"
+          path === "docs/markdown-cognition-adapter-guide.md" ||
+          path === "docs/public-api.md"
         ) &&
         !/(?:^|\/)adapters?\//i.test(path) &&
         !/(?:git-commit|team-memory-activity|teammem-cli)/i.test(path),
@@ -1359,6 +1376,7 @@ import {
   verifyMarkdownCognitionTarget,
 } from ${JSON.stringify(`${packageJson.name}/adapters/markdown/0.1.0`)};
 import assert from "node:assert/strict";
+import distributionReadinessProfile from ${JSON.stringify(`${packageJson.name}/distribution-readiness/0.1.0`)} with { type: "json" };
 import profile from ${JSON.stringify(`${packageJson.name}/runtime-security/0.1.0`)} with { type: "json" };
 import {
   existsSync,
@@ -1390,6 +1408,8 @@ const validRecords = readFileSync(new URL(fixturesUrl), "utf8")
 
 assert.equal(profile.profile, "collective-cognition-runtime-security");
 assert.equal(profile.version, "0.1.0");
+assert.equal(distributionReadinessProfile.profileVersion, "0.1.0");
+assert.equal(distributionReadinessProfile.describesPackageVersion, "0.8.0");
 
 const record = createPortableCognitionRecord(validRecords[0]);
 const restored = deserializePortableCognitionRecord(

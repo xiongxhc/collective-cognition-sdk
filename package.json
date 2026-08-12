@@ -1,6 +1,6 @@
 {
   "name": "collective-cognition-sdk",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Portable cognitive objects, provenance, lifecycle, and governance boundaries for long-term human-AI collaboration.",
   "private": true,
   "license": "Apache-2.0",
@@ -20,6 +20,7 @@
     "./compatibility/0.5.0": "./spec/compatibility/0.5.0/baseline.json",
     "./compatibility/0.6.0": "./spec/compatibility/0.6.0/baseline.json",
     "./compatibility/0.7.0": "./spec/compatibility/0.7.0/baseline.json",
+    "./compatibility/0.8.0": "./spec/compatibility/0.8.0/baseline.json",
     "./adapters/markdown/0.1.0": {
       "types": "./dist/markdown-cognition.d.ts",
       "import": "./dist/markdown-cognition.js"
@@ -50,6 +51,7 @@
     "./conformance/portable-cognition/0.1.0/valid": "./spec/conformance/0.1.0/portable-cognition/valid.jsonl",
     "./conformance/portable-cognition/0.1.0/invalid": "./spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
     "./conformance/portable-cognition/0.1.0/cognitive-loop": "./spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
+    "./distribution-readiness/0.1.0": "./spec/distribution-readiness/0.1.0/profile.json",
     "./runtime-security/0.1.0": "./spec/runtime-security/0.1.0/profile.json",
     "./package.json": "./package.json"
   },
@@ -66,6 +68,7 @@
     "README.md",
     "docs/connector-author-guide.md",
     "docs/markdown-cognition-adapter-guide.md",
+    "docs/public-api.md",
     "rfcs/README.md",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
@@ -75,6 +78,7 @@
     "rfcs/0006-maintained-source-connectors.md",
     "rfcs/0007-markdown-cognition-adapter.md",
     "rfcs/0008-runtime-security-profile.md",
+    "rfcs/0009-public-api-and-distribution-readiness.md",
     "spec/README.md",
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
@@ -91,6 +95,10 @@
     "spec/compatibility/0.6.0/change-cases.jsonl",
     "spec/compatibility/0.7.0/baseline.json",
     "spec/compatibility/0.7.0/change-cases.jsonl",
+    "spec/compatibility/0.8.0/baseline.json",
+    "spec/compatibility/0.8.0/change-cases.jsonl",
+    "spec/distribution-readiness.md",
+    "spec/distribution-readiness/0.1.0/profile.json",
     "spec/host-integration.md",
     "spec/source-record.md",
     "spec/portable-cognition.md",

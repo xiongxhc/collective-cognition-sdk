@@ -67,10 +67,12 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
 - `./compatibility/0.5.0` — Compatibility baseline for package `0.5.0`.
 - `./compatibility/0.6.0` — Compatibility baseline for package `0.6.0`.
 - `./compatibility/0.7.0` — Compatibility baseline for package `0.7.0`.
+- `./compatibility/0.8.0` — Compatibility baseline for package `0.8.0`.
 - `./contracts/host-integration/0.1.0` — Host integration prose contract.
 - `./conformance/portable-cognition/0.1.0/valid` — Portable Cognition valid conformance corpus.
 - `./conformance/portable-cognition/0.1.0/invalid` — Portable Cognition invalid conformance corpus.
 - `./conformance/portable-cognition/0.1.0/cognitive-loop` — Portable Cognition cognitive-loop conformance corpus.
+- `./distribution-readiness/0.1.0` — Distribution Readiness Profile JSON inventory.
 - `./runtime-security/0.1.0` — Runtime and Security Profile JSON inventory.
 - `./schemas/source-record/0.1.0` — SourceRecord JSON Schema.
 - `./schemas/portable-cognition/0.1.0` — Portable Cognition JSON Schema.

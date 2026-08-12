@@ -65,23 +65,31 @@ const previousCurrentChangeCasesUrl = new URL(
   import.meta.url,
 );
 const currentBaselineUrl = new URL(
-  "../spec/compatibility/0.7.0/baseline.json",
+  "../spec/compatibility/0.8.0/baseline.json",
   import.meta.url,
 );
 const latestReleaseBaselineUrl = new URL(
-  "../spec/compatibility/0.6.0/baseline.json",
+  "../spec/compatibility/0.7.0/baseline.json",
   import.meta.url,
 );
 const latestReleaseChangeCasesUrl = new URL(
-  "../spec/compatibility/0.6.0/change-cases.jsonl",
+  "../spec/compatibility/0.7.0/change-cases.jsonl",
   import.meta.url,
 );
-const previousReleaseBaselineUrl = new URL(
+const currentHistoricalBaselineUrl = new URL(
   "../spec/compatibility/0.5.0/baseline.json",
   import.meta.url,
 );
-const previousReleaseChangeCasesUrl = new URL(
+const currentHistoricalChangeCasesUrl = new URL(
   "../spec/compatibility/0.5.0/change-cases.jsonl",
+  import.meta.url,
+);
+const previousReleaseBaselineUrl = new URL(
+  "../spec/compatibility/0.6.0/baseline.json",
+  import.meta.url,
+);
+const previousReleaseChangeCasesUrl = new URL(
+  "../spec/compatibility/0.6.0/change-cases.jsonl",
   import.meta.url,
 );
 const expectedHistoricalBaselineSha256 =
@@ -104,10 +112,14 @@ const expectedCurrentHistoricalBaselineSha256 =
   "5350c0b6eda15f84539c0e7b8f33c377cfdce781425ed20bbafd61250f7e3327";
 const expectedCurrentHistoricalChangeCasesSha256 =
   "992a3dfb12f5edcc96604007e61d28c102f0581d9bdba80f63697199be7e698e";
-const expectedLatestReleaseBaselineSha256 =
+const expectedPreviousReleaseBaselineSha256 =
   "5549845df16c610d3b418220ebe895941ffcbb1f9dbe849d0a231e51e17d7289";
-const expectedLatestReleaseChangeCasesSha256 =
+const expectedPreviousReleaseChangeCasesSha256 =
   "344c98585ab3c6572ea460a5902bea92bb9266bb29e33813492dd1c9bada62c8";
+const expectedLatestReleaseBaselineSha256 =
+  "732dad2f2aff303c0b80cfcf1474e64b71648d82256e2ba5c9efcf9e6575e50f";
+const expectedLatestReleaseChangeCasesSha256 =
+  "23d6577eb6aa927ab37f33278363f00a38cb2e0e67adfbc50a9dc2075b1b9e9e";
 const expectedHistoricalChangeCaseDigests = Object.freeze({
   "spec/compatibility/0.1.0/change-cases.jsonl":
     expectedHistoricalChangeCasesSha256,
@@ -120,6 +132,8 @@ const expectedHistoricalChangeCaseDigests = Object.freeze({
   "spec/compatibility/0.5.0/change-cases.jsonl":
     expectedCurrentHistoricalChangeCasesSha256,
   "spec/compatibility/0.6.0/change-cases.jsonl":
+    expectedPreviousReleaseChangeCasesSha256,
+  "spec/compatibility/0.7.0/change-cases.jsonl":
     expectedLatestReleaseChangeCasesSha256,
 });
 const productionDependencyFieldNames = Object.freeze([
@@ -450,16 +464,27 @@ test("historical compatibility 0.4.0 artifacts remain immutable", () => {
 
 test("historical compatibility 0.5.0 artifacts remain immutable", () => {
   assert.equal(
-    sha256(readFileSync(previousReleaseBaselineUrl)),
+    sha256(readFileSync(currentHistoricalBaselineUrl)),
     expectedCurrentHistoricalBaselineSha256,
   );
   assert.equal(
-    sha256(readFileSync(previousReleaseChangeCasesUrl)),
+    sha256(readFileSync(currentHistoricalChangeCasesUrl)),
     expectedCurrentHistoricalChangeCasesSha256,
   );
 });
 
 test("historical compatibility 0.6.0 artifacts remain immutable", () => {
+  assert.equal(
+    sha256(readFileSync(previousReleaseBaselineUrl)),
+    expectedPreviousReleaseBaselineSha256,
+  );
+  assert.equal(
+    sha256(readFileSync(previousReleaseChangeCasesUrl)),
+    expectedPreviousReleaseChangeCasesSha256,
+  );
+});
+
+test("historical compatibility 0.7.0 artifacts remain immutable", () => {
   assert.equal(
     sha256(readFileSync(latestReleaseBaselineUrl)),
     expectedLatestReleaseBaselineSha256,
@@ -470,11 +495,11 @@ test("historical compatibility 0.6.0 artifacts remain immutable", () => {
   );
 });
 
-test("current baseline describes the additive package 0.7.0 release", () => {
+test("current baseline describes the additive package 0.8.0 release", () => {
   const baseline = readJson(currentBaselineUrl);
 
-  assert.equal(baseline.baselineVersion, "0.7.0");
-  assert.equal(baseline.appliesToPackageVersion, "0.7.0");
+  assert.equal(baseline.baselineVersion, "0.8.0");
+  assert.equal(baseline.appliesToPackageVersion, "0.8.0");
   assert.deepEqual(baseline.packageChange, {
     classification: "additive",
     packageVersionEffect: "minor",
@@ -505,6 +530,10 @@ test("current baseline describes the additive package 0.7.0 release", () => {
     },
     "0.6.0": {
       path: "spec/compatibility/0.6.0/baseline.json",
+      sha256: expectedPreviousReleaseBaselineSha256,
+    },
+    "0.7.0": {
+      path: "spec/compatibility/0.7.0/baseline.json",
       sha256: expectedLatestReleaseBaselineSha256,
     },
   });
@@ -544,6 +573,8 @@ test("normative machine artifacts match exact digests", () => {
   assert.deepEqual(
     Object.keys(baseline.normative.artifacts).sort(),
     [
+      "docs/public-api.md",
+      "rfcs/0009-public-api-and-distribution-readiness.md",
       "spec/compatibility/0.1.0/change-cases.jsonl",
       "spec/compatibility/0.2.0/change-cases.jsonl",
       "spec/compatibility/0.3.0/change-cases.jsonl",
@@ -551,11 +582,14 @@ test("normative machine artifacts match exact digests", () => {
       "spec/compatibility/0.5.0/change-cases.jsonl",
       "spec/compatibility/0.6.0/change-cases.jsonl",
       "spec/compatibility/0.7.0/change-cases.jsonl",
+      "spec/compatibility/0.8.0/change-cases.jsonl",
       "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
       "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
       "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
       "spec/conformance/0.1.0/source-record/invalid.jsonl",
       "spec/conformance/0.1.0/source-record/valid.jsonl",
+      "spec/distribution-readiness.md",
+      "spec/distribution-readiness/0.1.0/profile.json",
       "spec/runtime-security.md",
       "spec/runtime-security/0.1.0/profile.json",
       "spec/schemas/0.1.0/portable-cognition.schema.json",
@@ -684,6 +718,85 @@ test("normative prose matches its hash and stable rule identifiers", () => {
   assert.deepEqual(
     runtimeSecurityProfile.nonClaims.map((nonClaim) => nonClaim.id),
     baseline.normative.runtimeSecurity.nonClaimIds,
+  );
+  assert.deepEqual(baseline.normative.distributionReadiness, {
+    version: "0.1.0",
+    prosePath: "spec/distribution-readiness.md",
+    proseSha256: sha256(
+      readFileSync(new URL("spec/distribution-readiness.md", repositoryRoot)),
+    ),
+    profile: {
+      path: "spec/distribution-readiness/0.1.0/profile.json",
+      sha256: sha256(
+        readFileSync(
+          new URL(
+            "spec/distribution-readiness/0.1.0/profile.json",
+            repositoryRoot,
+          ),
+        ),
+      ),
+      packageSubpath: "./distribution-readiness/0.1.0",
+      describesPackageVersion: "0.8.0",
+    },
+    publicApiReference: {
+      path: "docs/public-api.md",
+      sha256: sha256(
+        readFileSync(new URL("docs/public-api.md", repositoryRoot)),
+      ),
+    },
+    rfc: {
+      path: "rfcs/0009-public-api-and-distribution-readiness.md",
+      sha256: sha256(
+        readFileSync(
+          new URL(
+            "rfcs/0009-public-api-and-distribution-readiness.md",
+            repositoryRoot,
+          ),
+        ),
+      ),
+    },
+    ruleIds: Array.from({ length: 12 }, (_, index) =>
+      `DRP-${String(index + 1).padStart(3, "0")}`,
+    ),
+    gateIds: Array.from({ length: 5 }, (_, index) =>
+      `DRP-GATE-${String(index + 1).padStart(3, "0")}`,
+    ),
+    npmBlockerIds: Array.from({ length: 2 }, (_, index) =>
+      `DRP-NPM-${String(index + 1).padStart(3, "0")}`,
+    ),
+    nonClaimIds: Array.from({ length: 5 }, (_, index) =>
+      `DRP-NC-${String(index + 1).padStart(3, "0")}`,
+    ),
+  });
+  const distributionReadinessProfile = readJson(
+    new URL(
+      baseline.normative.distributionReadiness.profile.path,
+      repositoryRoot,
+    ),
+  );
+  assert.equal(
+    distributionReadinessProfile.profileVersion,
+    baseline.normative.distributionReadiness.version,
+  );
+  assert.equal(
+    distributionReadinessProfile.describesPackageVersion,
+    baseline.normative.distributionReadiness.profile.describesPackageVersion,
+  );
+  assert.deepEqual(
+    ruleIds("spec/distribution-readiness.md", "DRP"),
+    baseline.normative.distributionReadiness.ruleIds,
+  );
+  assert.deepEqual(
+    distributionReadinessProfile.gates.map((gate) => gate.id),
+    baseline.normative.distributionReadiness.gateIds,
+  );
+  assert.deepEqual(
+    distributionReadinessProfile.npmBlockers.map((blocker) => blocker.id),
+    baseline.normative.distributionReadiness.npmBlockerIds,
+  );
+  assert.deepEqual(
+    distributionReadinessProfile.nonClaims.map((nonClaim) => nonClaim.id),
+    baseline.normative.distributionReadiness.nonClaimIds,
   );
 });
 
@@ -1153,7 +1266,7 @@ test("CLI registry matches the exact baseline", () => {
   assert.equal(
     JSON.stringify(baseline.cli),
     JSON.stringify(previousCurrentBaseline.cli),
-    "generic CLI contract serialization must remain byte-identical to 0.6",
+    "generic CLI contract serialization must remain byte-identical to 0.7",
   );
   assert.deepEqual(
     baseline.package.policyIdentities,
@@ -1195,7 +1308,7 @@ test("CLI and SDK promotion policy identities remain linked", () => {
 test("change cases exercise the additive package process", () => {
   const cases = readJsonLines(
     new URL(
-      "../spec/compatibility/0.7.0/change-cases.jsonl",
+      "../spec/compatibility/0.8.0/change-cases.jsonl",
       import.meta.url,
     ),
   );
@@ -1207,9 +1320,9 @@ test("change cases exercise the additive package process", () => {
 
   assert.deepEqual(cases, [
     {
-      id: "additive-runtime-security-profile",
+      id: "additive-distribution-readiness-profile",
       description:
-        "Add Runtime and Security Profile 0.1.0 as normative prose and a versioned machine-readable package subpath while preserving every existing runtime, type, CLI, connector, adapter, and host contract.",
+        "Add Distribution Readiness Profile 0.1.0 as normative prose, a checked public API reference, an RFC, and a versioned machine-readable package subpath while preserving every existing runtime, type, CLI, connector, adapter, host contract, and runtime-security surface.",
       surface: "normative-stable",
       classification: "additive",
       packageVersionEffect: "minor",
@@ -1217,7 +1330,7 @@ test("change cases exercise the additive package process", () => {
       requiresMigrationNotes: false,
       requiresDeprecation: false,
       rationale:
-        "Existing imports and behavior remain unchanged; the new JSON subpath classifies SDK-enforced, conformance-verified, host-required, and out-of-scope controls without adding a runtime policy engine or production dependency.",
+        "Existing imports and behavior remain unchanged; the new JSON subpath, prose, API reference, and RFC describe private distribution status without enabling npm publication, production claims, or new production dependencies.",
     },
   ]);
   cases.forEach((changeCase) => {
@@ -1234,7 +1347,7 @@ test("change cases exercise the additive package process", () => {
   );
   assert.equal(cases.length, 1);
   assert.equal(
-    readJson(currentBaselineUrl).normative.runtimeSecurity.profile.packageSubpath,
-    "./runtime-security/0.1.0",
+    readJson(currentBaselineUrl).normative.distributionReadiness.profile.packageSubpath,
+    "./distribution-readiness/0.1.0",
   );
 });
