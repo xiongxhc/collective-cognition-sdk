@@ -272,9 +272,9 @@ function assertDistributionReadinessProfile(profile: Record<string, unknown>): v
         "github prerelease evidence must include the historical release tag",
       );
       assert.equal(
-        readText(githubPrereleaseUrl).includes("0.6.0"),
+        readText(githubPrereleaseUrl).includes("private, unpublished package `0.6.0`"),
         true,
-        "github prerelease evidence must include the historical package version",
+        "github prerelease evidence must include the exact historical package-version phrase",
       );
       assert.equal(
         readText(githubPrereleaseUrl).includes("76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e"),
