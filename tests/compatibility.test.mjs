@@ -121,9 +121,9 @@ const expectedLatestReleaseBaselineSha256 =
 const expectedLatestReleaseChangeCasesSha256 =
   "23d6577eb6aa927ab37f33278363f00a38cb2e0e67adfbc50a9dc2075b1b9e9e";
 const expectedPublicApiReferenceSha256 =
-  "f731b0e776977ef3461a20f8ce0ddcb8badbbef09c5ef1ec1dafb277d01b5ca3";
+  "41218dc679217ceba8851d643139af2ab670fcc3b3b340ddc692168955250728";
 const expectedDistributionReadinessRfcSha256 =
-  "1af6ec6f193d07e572d207024c41d6a5118e313fa73416364e834a0c8cb200bf";
+  "73c4a89eed7c7bf0145806a5261874708c72899d5be6de511301f00012e602d3";
 const expectedDistributionReadinessProseSha256 =
   "9c88e7fdce4dbcbfae2a27cf40d76dea7e7e7cefa84f43ad4aef7e848d5e6f78";
 const expectedDistributionReadinessProfileSha256 =

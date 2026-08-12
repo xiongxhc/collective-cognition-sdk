@@ -75,6 +75,8 @@ responsibilities.
 
 ## Explicit Deferrals
 
-This RFC does not add a package subpath, npm registry credentials, a
-publication workflow, a production certification claim, or a change to the
-existing runtime surface. Those belong to later packaging and release work.
+This RFC does add the read-only `./distribution-readiness/0.1.0` JSON package
+subpath. It does not add npm registry credentials, a publication workflow, a
+production certification claim, or a change to the existing runtime surface.
+Those deferred capabilities belong to later packaging, release, host, or
+runtime work.

@@ -34,7 +34,7 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
 
 ### Cognitive Objects
 
-- Stability: Supported Experimental root-package support for a Normative Stable object model; governed by [RFC 0003: Portable Cognition Contract](../rfcs/0003-portable-cognition-contract.md), [Portable Cognition](../spec/portable-cognition.md), and [Compatibility Policy](../spec/compatibility.md).
+- Stability: the root cognitive-object API is Supported Experimental. The Portable Cognition `0.1.0` serialized envelope is Normative Stable; type-specific cognitive-object semantics and additional schemas remain open. Governed by [RFC 0003: Portable Cognition Contract](../rfcs/0003-portable-cognition-contract.md), [Portable Cognition](../spec/portable-cognition.md), and [Compatibility Policy](../spec/compatibility.md).
 - Runtime exports: `createObject`, `deserializeObject`, `serializeObject`
 - Type exports: `ActorKind`, `Attribution`, `CognitiveObject`, `CognitiveObjectFor`, `CreateObjectInput`, `CreateObjectInputFor`, `DataByType`, `DecisionData`, `DecisionState`, `EvidenceData`, `EvidenceState`, `ExperimentData`, `ExperimentState`, `GoalData`, `GoalState`, `HypothesisData`, `HypothesisState`, `IdentityData`, `IdentityState`, `ObjectType`, `PrincipleData`, `PrincipleState`, `ProvenanceRef`, `Relationship`, `RelationshipType`, `StateByType`
 

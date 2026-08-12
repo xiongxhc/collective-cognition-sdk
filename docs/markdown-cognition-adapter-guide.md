@@ -209,8 +209,9 @@ closed CLI, fixture round trips, and a temporary-directory runnable example.
 The automated tests do not operate on a live team vault, personal vault, live
 ledger, or live cognition database.
 
-The private package `0.6.0` export, executable, compatibility baseline,
-package allowlist, and clean-consumer verification are complete. Final
-whole-branch review and delivery, publication, vault synchronization, Git
-automation, native descriptor-relative filesystem hardening, and any hosted
-collaboration service remain deferred.
+The private package `0.6.0` slice, including its export, executable,
+compatibility baseline, package allowlist, clean-consumer verification, final
+whole-branch review, and experimental GitHub prerelease delivery, is complete.
+npm publication, vault synchronization, Git automation, native
+descriptor-relative filesystem hardening, and any hosted collaboration service
+remain deferred.

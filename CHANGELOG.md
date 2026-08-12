@@ -4,7 +4,9 @@ All notable changes to this experimental SDK are documented here. Versioning and
 
 ## Unreleased
 
-- Publishes the normative Runtime and Security Profile `0.1.0`, its `collective-cognition-sdk/runtime-security/0.1.0` JSON subpath, and the additive private package `0.7.0` compatibility baseline while keeping the package private and unpublished.
+- Adds the checked public API reference, normative Distribution Readiness Profile `0.1.0`, read-only `collective-cognition-sdk/distribution-readiness/0.1.0` JSON subpath, RFC 0009, and additive private package `0.8.0` compatibility baseline.
+- Reports npm publication as blocked and production use as not claimed; package `0.8.0` remains private and unpublished.
+- Records historical private package `0.7.0` as the additive Runtime and Security Profile `0.1.0` delivery, including its `collective-cognition-sdk/runtime-security/0.1.0` JSON subpath.
 - Clarifies the public runtime/security boundary: the profile tells hosts what remains unimplemented, importing it does not enforce host-required controls, and conformance is not certification.
 - Clarifies that the source-neutral core consumes portable contracts while optional connectors and adapters operate only on explicit sources or managed targets.
 - Updates active repository links and release checks for the `main` default branch.

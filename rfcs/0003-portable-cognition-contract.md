@@ -17,7 +17,7 @@ This RFC adopts the [Portable Cognition Contract `0.1.0`](../spec/portable-cogni
 
 The contract is Normative Stable. Its schema, prose, valid and invalid fixtures, cognitive-loop fixture, stable portable error code, and versioned package subpaths are immutable `0.1.0` artifacts. The TypeScript runtime creates one own-descriptor JSON snapshot per validation, creation, or serialization operation, validates and serializes only that snapshot, and deeply freezes created records without invoking caller accessors or inherited `toJSON` hooks.
 
-The historical package `0.2.0` delivery added this surface without removing or redirecting a prior surface. The current private, unpublished package is `0.3.0`, which retains that Portable Cognition surface and adds [Host Integration `0.1.0`](0004-host-integration-contract.md); neither package version is a published release or a production-readiness claim.
+The historical package `0.2.0` delivery added this surface without removing or redirecting a prior surface, and historical package `0.3.0` retained it while adding [Host Integration `0.1.0`](0004-host-integration-contract.md). The current private, unpublished package `0.8.0` retains the Portable Cognition surface; its [current compatibility baseline](../spec/compatibility/0.8.0/baseline.json) records the complete additive package inventory. None of these private package versions is a published npm release or a production-readiness claim.
 
 ## Alternatives
 
@@ -35,7 +35,7 @@ Rejected for this slice. Storage atomicity, queries, transaction boundaries, del
 
 ## Compatibility and Migration
 
-There is no migration from an earlier published Portable Cognition contract. The historical `0.2.0` package delivery preserves SourceRecord `0.1.0`, compatibility baseline `0.1.0`, and their package subpaths. Its [`0.2.0` baseline](../spec/compatibility/0.2.0/baseline.json) records the added runtime and type exports, portable schema and fixture subpaths, rule and artifact hashes, and package inventory. The current [`0.3.0` baseline](../spec/compatibility/0.3.0/baseline.json) retains those artifacts and adds Host Integration package surfaces.
+There is no migration from an earlier published Portable Cognition contract. The historical `0.2.0` package delivery preserves SourceRecord `0.1.0`, compatibility baseline `0.1.0`, and their package subpaths. Its [`0.2.0` baseline](../spec/compatibility/0.2.0/baseline.json) records the added runtime and type exports, portable schema and fixture subpaths, rule and artifact hashes, and package inventory. Historical [`0.3.0` baseline](../spec/compatibility/0.3.0/baseline.json) retains those artifacts and adds Host Integration package surfaces. The current private package `0.8.0` still retains the Portable Cognition surface, as recorded in the current [`0.8.0` baseline](../spec/compatibility/0.8.0/baseline.json).
 
 The [compatibility policy](../spec/compatibility.md) classifies the addition as additive. Future changes to the accepted `0.1.0` record shape require a new contract version while preserving the existing versioned artifacts.
 
@@ -57,7 +57,7 @@ Hosts remain responsible for trusted identity, authorization, access control, se
 
 Independent final review found no remaining Critical or Important issue after the correction wave. The complete local matrix passes: `npm test` reports 194 source, 10 combined SourceRecord and Portable Cognition schema, 14 compatibility, and 6 package tests; TypeScript checking, syntax checking, both examples, `pack:check`, and `git diff --check` also exit successfully.
 
-At that historical delivery point, package version `0.2.0` retained `"private": true`, and Host Integration was deferred. The current private, unpublished package is `0.3.0`; [RFC 0004](0004-host-integration-contract.md) and the [Host Integration Contract `0.1.0`](../spec/host-integration.md) record the implemented and final-review verified host boundary. Concrete persistence and connector adapters remain deferred.
+At that historical delivery point, package version `0.2.0` retained `"private": true`, and Host Integration was deferred. Historical package `0.3.0` then added the implemented and final-review verified host boundary recorded by [RFC 0004](0004-host-integration-contract.md) and the [Host Integration Contract `0.1.0`](../spec/host-integration.md). The current private, unpublished package is `0.8.0`, whose [current baseline](../spec/compatibility/0.8.0/baseline.json) retains both Portable Cognition and Host Integration; this current status does not rewrite the historical `0.2.0` verification snapshot.
 
 - Compatibility hashes: baseline `0.1.0` `4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b`; change cases `0.1.0` `3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b`; baseline `0.2.0` `3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4`; change cases `0.2.0` `e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5`.
 - SourceRecord artifact hashes remain byte-identical: schema `56cf53c5da98dfbec19a021fbb90673beab8248c7a77df44989b535a0e155648`; valid fixtures `f52c212026b70bf2b339e1132b2895c91be509f250dde841319dbbb4edd3f74a`; invalid fixtures `4705f32eb5ea48ddd693759728294d2557b0a6f4a5cc666843b2e03bb03e99c0`.
