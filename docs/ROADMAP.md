@@ -182,8 +182,17 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] A checked [public API reference](public-api.md) enumerates the baseline-recorded package root, subpaths, executables, and stability classes.
 - [x] Normative [Distribution Readiness Profile `0.1.0`](../spec/distribution-readiness.md), [descriptive JSON](../spec/distribution-readiness/0.1.0/profile.json), and [RFC 0009](../rfcs/0009-public-api-and-distribution-readiness.md) report source availability separately from the immutable historical `v0.6.0` prerelease, blocked npm publication, and production use that is not claimed.
 - [x] Private package `0.8.0` adds only the distribution-readiness JSON subpath, public documentation, RFC, and additive compatibility evidence; root runtime/type exports, executables, and historical artifacts are unchanged.
-- [x] Current public status and indexes are reconciled without recording final Task 4 test counts.
-- [ ] Complete the full Task 4 local gate, immutable-history comparison, exact package inventory, independent whole-branch review, and final observed evidence.
+- [x] Current public status and indexes are reconciled, and every baseline-recorded root and supported subpath runtime/type member is checked against the public API reference.
+- [x] The full local gate, immutable-history comparison, exact package inventory, independent whole-branch review, and residual correction review are complete.
+
+**Public API and Distribution Readiness final verification evidence**
+
+- Bundled Node.js `24.14.0` `npm test` reports `476` passes, `10` expected immutable-`v0.6.0` release-context skips, and `0` failures: `434` source, `10` schema, `22` compatibility, and `10` package passes.
+- `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, `npm run example:markdown`, `npm run pack:check`, and `git diff --check` exit successfully.
+- A byte comparison against `main` finds `0` changes under compatibility baselines `0.1.0` through `0.7.0`, conformance `0.1.0`, schemas `0.1.0`, and Runtime and Security Profile `0.1.0`.
+- An isolated `npm pack --dry-run --json --ignore-scripts` reports exactly `102` files (`52` under `dist/`), with `0` unexpected and `0` missing baseline-allowlisted paths; package `0.8.0` remains private.
+- `npm audit --audit-level=high` exits `0` and reports `found 0 vulnerabilities`.
+- The independent residual review reports **READY** with `0` unresolved Critical, Important, or Minor findings after the whole-branch correction wave.
 
 **Delivered in the licensing and attribution slice**
 

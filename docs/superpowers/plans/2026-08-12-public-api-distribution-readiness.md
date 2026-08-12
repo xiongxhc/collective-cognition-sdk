@@ -179,7 +179,7 @@ Confirm root runtime/type exports and executable mappings are unchanged, the exp
 
 Update all `0.7.0` current-package references that should become `0.8.0`. Add links to `docs/public-api.md`, the Distribution Readiness Profile prose/JSON, and RFC 0009. Mark only this Phase 3 slice complete. Keep broader language-neutral object semantics, npm publication, production readiness, independently useful second connector, named exchange owner, and Phase 5 entry criteria open.
 
-- [ ] **Step 2: Run focused and full verification**
+- [x] **Step 2: Run focused and full verification**
 
 Run:
 
@@ -197,14 +197,16 @@ git diff --check
 
 Expected: zero failures; only the immutable historical prerelease-context tests may skip on a non-release commit.
 
-- [ ] **Step 3: Verify immutable history and exact package contents**
+- [x] **Step 3: Verify immutable history and exact package contents**
 
 Compare every pre-existing file under `spec/compatibility/0.1.0` through `0.7.0`, `spec/conformance/0.1.0`, `spec/schemas/0.1.0`, and `spec/runtime-security/0.1.0` byte-for-byte against `main`. Run `npm pack --dry-run --json` with an isolated temporary cache and verify no unexpected or missing path.
 
-- [ ] **Step 4: Run independent whole-branch review**
+- [x] **Step 4: Run independent whole-branch review**
 
 Give a fresh reviewer the design, plan, `main...HEAD` diff, test output, package inventory, and immutable-history comparison. Correct every Critical or Important finding, rerun affected checks, then request a residual review.
 
-- [ ] **Step 5: Record final evidence and commit**
+- [x] **Step 5: Record final evidence and commit**
 
 Update this plan's checkboxes and the roadmap with observed counts only after the final rerun. Commit the verified scope with a Conventional Commit message. Do not push without a current explicit push instruction.
+
+Observed final evidence on bundled Node.js `24.14.0`: `npm test` passed `476` tests with `10` expected immutable-`v0.6.0` release-context skips and `0` failures (`434` source, `10` schema, `22` compatibility, `10` package). TypeScript, syntax, four examples, `pack:check`, and diff checks passed. Historical protected artifacts have `0` byte changes from `main`; the exact dry-run package contains `102` files (`52` generated distribution files) with no missing or unexpected path; npm audit reports `0` vulnerabilities; the residual whole-branch review returned **READY** with no Critical, Important, or Minor finding.
