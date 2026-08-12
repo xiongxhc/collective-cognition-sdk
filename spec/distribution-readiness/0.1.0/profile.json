@@ -1,0 +1,96 @@
+{
+  "profileVersion": "0.1.0",
+  "describesPackageVersion": "0.8.0",
+  "overallStatus": "blocked",
+  "channels": [
+    {
+      "id": "public-source",
+      "status": "available"
+    },
+    {
+      "id": "github-prerelease",
+      "status": "available"
+    },
+    {
+      "id": "npm-registry",
+      "status": "blocked"
+    },
+    {
+      "id": "production-use",
+      "status": "not-claimed"
+    }
+  ],
+  "gates": [
+    {
+      "id": "DRP-GATE-001",
+      "status": "satisfied",
+      "rationale": "Public source evidence and Apache-2.0 attribution files are present in the repository.",
+      "evidence": ["LICENSE", "NOTICE", "CITATION.cff", "package.json"]
+    },
+    {
+      "id": "DRP-GATE-002",
+      "status": "satisfied",
+      "rationale": "The GitHub prerelease evidence remains a historical immutable record rather than current publication authority.",
+      "evidence": ["docs/github-prerelease.md", "tests/release-readiness.test.ts"]
+    },
+    {
+      "id": "DRP-GATE-003",
+      "status": "blocked",
+      "rationale": "npm registry readiness remains blocked while the package stays private and registry-name verification is unresolved.",
+      "evidence": ["package.json", "tests/package.test.mjs"]
+    },
+    {
+      "id": "DRP-GATE-004",
+      "status": "blocked",
+      "rationale": "Accountable human publication approval remains a required separate release decision.",
+      "evidence": ["spec/distribution-readiness.md", "rfcs/0009-public-api-and-distribution-readiness.md"]
+    },
+    {
+      "id": "DRP-GATE-005",
+      "status": "not-claimed",
+      "rationale": "Production use remains a host-owned responsibility and is not claimed by this repository.",
+      "evidence": ["spec/runtime-security.md", "rfcs/0008-runtime-security-profile.md"]
+    }
+  ],
+  "npmBlockers": [
+    {
+      "id": "DRP-NPM-001",
+      "status": "blocked",
+      "rationale": "Registry-name verification has not been completed.",
+      "evidence": ["package.json", "tests/package.test.mjs"]
+    },
+    {
+      "id": "DRP-NPM-002",
+      "status": "blocked",
+      "rationale": "No accountable human publication approval has been recorded.",
+      "evidence": ["spec/distribution-readiness.md", "rfcs/0009-public-api-and-distribution-readiness.md"]
+    }
+  ],
+  "nonClaims": [
+    {
+      "id": "DRP-NC-001",
+      "status": "not-claimed",
+      "statement": "The profile does not claim publication authority."
+    },
+    {
+      "id": "DRP-NC-002",
+      "status": "not-claimed",
+      "statement": "The profile does not claim security certification."
+    },
+    {
+      "id": "DRP-NC-003",
+      "status": "not-claimed",
+      "statement": "The profile does not claim production readiness."
+    },
+    {
+      "id": "DRP-NC-004",
+      "status": "not-claimed",
+      "statement": "The profile does not claim endorsement."
+    },
+    {
+      "id": "DRP-NC-005",
+      "status": "not-claimed",
+      "statement": "The profile does not claim long-term support."
+    }
+  ]
+}
