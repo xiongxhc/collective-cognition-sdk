@@ -83,7 +83,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** In progress. The compatibility, Portable Cognition, and Host Integration slices are final-review verified; the Runtime and Security slice is implemented, full local-gate verified, and independently reviewed. Broader Phase 3 work remains. The experimental `v0.6.0` GitHub prerelease is observed and verified, while npm publication remains blocked.
+**Status:** In progress. The compatibility, Portable Cognition, and Host Integration slices are final-review verified; the Runtime and Security slice is implemented, full local-gate verified, and independently reviewed. The checked public-API and distribution-readiness documentation slice for private package `0.8.0` is complete, while its final whole-branch gate and broader Phase 3 work remain open. The experimental `v0.6.0` GitHub prerelease is observed and verified, while npm publication remains blocked and production readiness is not claimed.
 
 **Phase 3 slice progress**
 
@@ -95,6 +95,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Host integration contracts for cognition persistence and event publication without selecting a mandatory database, service, or delivery architecture. Implemented and final-review verified.
 - [x] Runtime and Security Profile `0.1.0` design approved.
 - [x] Implement the normative policy, machine-readable control inventory, RFC, package subpath, compatibility baseline, and conformance evidence described in [`2026-08-10-runtime-security-policy-design.md`](superpowers/specs/2026-08-10-runtime-security-policy-design.md).
+- [x] Reconcile the checked [public API reference](public-api.md), [Distribution Readiness Profile `0.1.0`](../spec/distribution-readiness.md), [machine-readable profile](../spec/distribution-readiness/0.1.0/profile.json), [RFC 0009](../rfcs/0009-public-api-and-distribution-readiness.md), private package `0.8.0` compatibility narrative, and public indexes without enabling publication or claiming production readiness.
 
 **Delivered in the SourceRecord normative-conformance slice**
 
@@ -132,7 +133,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 - Independent final review found no remaining Critical or Important issue after the correction wave.
 - The complete local matrix passes: `npm test` reports 194 source, 10 combined SourceRecord and Portable Cognition schema, 14 compatibility, and 6 package tests; TypeScript checking, syntax checking, both examples, `pack:check`, and `git diff --check` also exit successfully.
-- Package version `0.2.0` retained `"private": true` at the time of this slice. It was later superseded by the private `0.3.0` Host Integration slice, private `0.4.0` SQLite slice, private `0.5.0` connector slice, and current private, unpublished package `0.7.0`; the maintained connector implementation, final verification, and real-ledger acceptance are complete.
+- Package version `0.2.0` retained `"private": true` at the time of this slice. It was later superseded by the private `0.3.0` Host Integration slice, private `0.4.0` SQLite slice, private `0.5.0` connector slice, private `0.6.0` Markdown slice, private `0.7.0` Runtime and Security slice, and current private, unpublished package `0.8.0`; the maintained connector implementation, final verification, and real-ledger acceptance are complete.
 - Compatibility hashes: baseline `0.1.0` `4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b`; change cases `0.1.0` `3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b`; baseline `0.2.0` `3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4`; change cases `0.2.0` `e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5`.
 - SourceRecord artifact hashes remain byte-identical: schema `56cf53c5da98dfbec19a021fbb90673beab8248c7a77df44989b535a0e155648`; valid fixtures `f52c212026b70bf2b339e1132b2895c91be509f250dde841319dbbb4edd3f74a`; invalid fixtures `4705f32eb5ea48ddd693759728294d2557b0a6f4a5cc666843b2e03bb03e99c0`.
 - Portable Cognition artifact hashes: prose `d73a6de049c7408715d7e717dd326e79830d99fe84ff85cb5936dfb8a757be89`; schema `6dec3f942ca88994fef588a2ffb93240d716e116dbec7ded46a1f362446f6bdd`; valid fixtures `cc3854706ace472b0d5335ecb9596c7ea3bf2b48c04fd9dd950f9683e8b203f4`; invalid fixtures `0f8e21f7379824223482e26ae26ec0b7b5031077ab63f6dac4558239b4908ba4`; cognitive-loop fixtures `1693d97e207cfeee63d370ba23d07ffd9023e8b087e5dbd3c0ad53e945184053`.
@@ -165,7 +166,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Normative [Runtime and Security Profile `0.1.0`](../spec/runtime-security.md), synchronized JSON inventory at `collective-cognition-sdk/runtime-security/0.1.0`, and [RFC 0008](../rfcs/0008-runtime-security-profile.md).
 - [x] Four explicit enforcement classes: `sdk-enforced`, `conformance-verified`, `host-required`, and `out-of-scope`.
 - [x] Closed control coverage for authentication, encryption, tenant or workspace isolation, durable publication recovery, and related host-owned boundaries without adding a runtime policy engine.
-- [x] Private and unpublished package `0.7.0` compatibility baseline and additive classification without changing root exports, existing CLIs, or historical `v0.6.0` records.
+- [x] At the Runtime and Security slice boundary, the current private, unpublished package `0.7.0` added its compatibility baseline without changing root exports, existing CLIs, or historical `v0.6.0` records; current package `0.8.0` supersedes that private baseline additively.
 - [x] Public documentation reconciliation that explains host-owned responsibilities and states that conformance is not certification.
 
 **Runtime and Security Profile final verification evidence**
@@ -175,6 +176,14 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - A byte comparison against `main` finds `0` changes across `23` tracked historical compatibility `0.1.0`–`0.6.0`, SourceRecord, Portable Cognition, and Host Integration artifacts.
 - `npm pack --dry-run --json` with an isolated temporary npm cache reports `96` files (`52` under `dist/`), with `0` unexpected and `0` missing allowlisted paths.
 - `PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm_config_update_notifier=false npm_config_cache=/private/tmp/collective-cognition-npm-audit npm audit --audit-level=high` exits `0` and reports `found 0 vulnerabilities`.
+
+**Delivered public API and distribution-readiness documentation slice**
+
+- [x] A checked [public API reference](public-api.md) enumerates the baseline-recorded package root, subpaths, executables, and stability classes.
+- [x] Normative [Distribution Readiness Profile `0.1.0`](../spec/distribution-readiness.md), [descriptive JSON](../spec/distribution-readiness/0.1.0/profile.json), and [RFC 0009](../rfcs/0009-public-api-and-distribution-readiness.md) report source availability separately from the immutable historical `v0.6.0` prerelease, blocked npm publication, and production use that is not claimed.
+- [x] Private package `0.8.0` adds only the distribution-readiness JSON subpath, public documentation, RFC, and additive compatibility evidence; root runtime/type exports, executables, and historical artifacts are unchanged.
+- [x] Current public status and indexes are reconciled without recording final Task 4 test counts.
+- [ ] Complete the full Task 4 local gate, immutable-history comparison, exact package inventory, independent whole-branch review, and final observed evidence.
 
 **Delivered in the licensing and attribution slice**
 
@@ -191,11 +200,12 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 **Deliverables**
 
-- A language-neutral charter and normative definitions for objects, source records, relationships, transitions, authorization, errors, and events.
-- Additional versioned machine-readable schemas and normative fixtures beyond SourceRecord.
-- Host integration contracts for cognition persistence and event publication without selecting a mandatory database or service architecture.
-- Final stable package guarantees, API documentation, registry publication, and external-distribution readiness criteria.
-- Runtime and security policy.
+- [ ] A broader language-neutral charter and normative definitions for objects, source records, relationships, transitions, authorization, errors, and events.
+- [ ] Additional versioned machine-readable schemas and normative fixtures beyond the existing SourceRecord and Portable Cognition artifacts.
+- [x] Host integration contracts for cognition persistence and event publication without selecting a mandatory database or service architecture.
+- [x] Checked public API documentation and versioned external-distribution readiness criteria.
+- [ ] Final stable package guarantees and npm registry publication.
+- [x] Runtime and security policy.
 
 **Acceptance checks**
 
