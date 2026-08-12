@@ -52,9 +52,11 @@ confuse descriptive readiness with release authority.
 ## Compatibility and Migration
 
 This slice is additive and does not change the root runtime, CLI behavior, or
-existing historical artifacts. The package remains private. The new profile and
-prose are closed policy artifacts that later packaging work can consume without
-changing the runtime contract.
+existing historical artifacts. Private package `0.8.0` already packages the
+read-only `./distribution-readiness/0.1.0` JSON subpath. Reading or importing it
+is side-effect-free and grants no publication, authentication, certification,
+endorsement, host-configuration, or production authority. The package remains
+private.
 
 ## Security and Human Authority
 

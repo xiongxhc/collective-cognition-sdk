@@ -159,7 +159,7 @@ Run all Task 1 and Task 3 commands. Expected: all pass, including clean temporar
 
 - [x] **Step 6: Review Task 3 for compatibility**
 
-Confirm root runtime/type exports and executable mappings are unchanged, the only export-map addition is the profile subpath, package remains private, no production dependency exists, and all historical artifact hashes still match.
+Confirm root runtime/type exports and executable mappings are unchanged, the export-map additions are `./compatibility/0.8.0` and `./distribution-readiness/0.1.0`, package remains private, no production dependency exists, and all historical artifact hashes still match.
 
 ### Task 4: Public Documentation and Final Verification
 

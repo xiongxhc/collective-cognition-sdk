@@ -173,9 +173,9 @@
       "spec/runtime-security.md": "a4ec4d386ecec9d670effb8b82997933bdcd763556b08f96163c93bc24d0f2e9",
       "spec/runtime-security/0.1.0/profile.json": "960fe7a5927f1df1082cb88a9006b088f7669bb597c1d219b27dda9a4e5c66a1",
       "spec/compatibility/0.8.0/change-cases.jsonl": "9cb7bd259d2b84e7fb1f8839263bfae0d54eb2ba8aaa07de9f15957660244572",
-      "docs/public-api.md": "41218dc679217ceba8851d643139af2ab670fcc3b3b340ddc692168955250728",
-      "rfcs/0009-public-api-and-distribution-readiness.md": "73c4a89eed7c7bf0145806a5261874708c72899d5be6de511301f00012e602d3",
-      "spec/distribution-readiness.md": "9c88e7fdce4dbcbfae2a27cf40d76dea7e7e7cefa84f43ad4aef7e848d5e6f78",
+      "docs/public-api.md": "49b0febc7bad7cffa95cb78d29f079df18157a8739774509d4aa7cf83e10ca80",
+      "rfcs/0009-public-api-and-distribution-readiness.md": "967b0cc1b6584902c4d606bbdc7cf47f9801283a3f67d7a802152994dabc6da3",
+      "spec/distribution-readiness.md": "72d583c3e83b3a8c909c421bb1aa65ece2fa7bbda9a5eaca665d5998c429e936",
       "spec/distribution-readiness/0.1.0/profile.json": "5d1d236c946820be65d04648b66ca215073810a908ad8d44da8f04f800909af9"
     },
     "hostIntegration": {
@@ -250,7 +250,7 @@
     "distributionReadiness": {
       "version": "0.1.0",
       "prosePath": "spec/distribution-readiness.md",
-      "proseSha256": "9c88e7fdce4dbcbfae2a27cf40d76dea7e7e7cefa84f43ad4aef7e848d5e6f78",
+      "proseSha256": "72d583c3e83b3a8c909c421bb1aa65ece2fa7bbda9a5eaca665d5998c429e936",
       "profile": {
         "path": "spec/distribution-readiness/0.1.0/profile.json",
         "sha256": "5d1d236c946820be65d04648b66ca215073810a908ad8d44da8f04f800909af9",
@@ -259,11 +259,11 @@
       },
       "publicApiReference": {
         "path": "docs/public-api.md",
-        "sha256": "41218dc679217ceba8851d643139af2ab670fcc3b3b340ddc692168955250728"
+        "sha256": "49b0febc7bad7cffa95cb78d29f079df18157a8739774509d4aa7cf83e10ca80"
       },
       "rfc": {
         "path": "rfcs/0009-public-api-and-distribution-readiness.md",
-        "sha256": "73c4a89eed7c7bf0145806a5261874708c72899d5be6de511301f00012e602d3"
+        "sha256": "967b0cc1b6584902c4d606bbdc7cf47f9801283a3f67d7a802152994dabc6da3"
       },
       "ruleIds": [
         "DRP-001",
@@ -1067,6 +1067,37 @@
     }
   },
   "deprecations": [],
+  "hostConformance": {
+    "version": "0.1.0",
+    "packageSubpath": "./host-conformance/0.1.0",
+    "runtimeExports": [
+      "runCognitionHostConformance"
+    ],
+    "typeExports": [
+      "CognitionHostConformanceCaseResult",
+      "CognitionHostConformanceFactory",
+      "CognitionHostConformanceReport"
+    ]
+  },
+  "referenceHost": {
+    "version": "0.1.0",
+    "packageSubpath": "./reference-host/0.1.0",
+    "runtimeExports": [
+      "InMemoryCognitionEventPublisher",
+      "InMemoryCognitionStore"
+    ],
+    "typeExports": []
+  },
+  "sqlite": {
+    "version": "0.1.0",
+    "packageSubpath": "./stores/sqlite/0.1.0",
+    "runtimeExports": [
+      "SqliteCognitionStore"
+    ],
+    "typeExports": [
+      "SqliteCognitionStoreOptions"
+    ]
+  },
   "connectorConformance": {
     "version": "0.1.0",
     "packageSubpath": "./connector-conformance/0.1.0",

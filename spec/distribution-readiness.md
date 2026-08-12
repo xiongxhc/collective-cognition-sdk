@@ -3,10 +3,11 @@
 ## Status and Scope
 
 This document defines profile version `0.1.0` for private package version
-`0.8.0`. It is descriptive policy data, not publication authority, production
-certification, or an operational release workflow. The profile can be read,
-checked, and packaged later, but it does not itself authorize npm publication
-or production use.
+`0.8.0`. Private package `0.8.0` already packages the read-only
+`./distribution-readiness/0.1.0` JSON subpath. Reading or importing it is
+side-effect-free and grants no publication, authentication, certification,
+endorsement, host-configuration, or production authority. It is descriptive
+policy data, not an operational release workflow.
 
 ## Closed Vocabulary
 
@@ -89,63 +90,60 @@ These non-claims are explicit boundaries, not omissions.
 
 ## DRP-001
 
-The profile version and the package version it describes MUST both be explicit
-and versioned.
+The profile version and described package version MUST be explicit.
 
 ## DRP-002
 
-The profile MUST use closed top-level keys and closed state vocabularies.
-Unknown keys or unknown states are invalid.
+Status values and object members MUST use the closed profile vocabulary.
 
 ## DRP-003
 
-The `public-source` channel MUST remain separate from registry or production
-claims. Source availability does not authorize publication.
+npm publication MUST remain blocked while `package.json` is private or any
+mandatory npm gate is not satisfied.
 
 ## DRP-004
 
-The `github-prerelease` channel MUST describe immutable historical evidence,
-not a mutable release target.
+Registry-name availability MUST remain unverified until checked against the
+registry at release time.
 
 ## DRP-005
 
-The `npm-registry` channel MUST stay blocked while `package.json` remains
-private or any npm blocker remains unresolved.
+Explicit accountable-human approval MUST be a mandatory npm publication gate.
 
 ## DRP-006
 
-The `production-use` channel MUST stay separate from package availability and
-MUST remain `not-claimed` until a future profile says otherwise.
+Production readiness MUST be reported separately from package or prerelease
+availability.
 
 ## DRP-007
 
-Release gates MUST use stable `DRP-GATE-*` identifiers, a closed status, a
-single-line rationale, and repository evidence paths.
+Every satisfied repository-controlled gate MUST point to existing evidence;
+external gates MUST NOT be represented as repository-verified.
 
 ## DRP-008
 
-Repository evidence paths MUST be repository-relative, must already exist, and
-must not rely on inferred external state.
+The public API reference MUST enumerate every baseline root export, package
+subpath, and executable.
 
 ## DRP-009
 
-Npm blockers MUST capture registry-name verification and accountable human
-publication approval as separate concerns.
+Stability labels MUST match the compatibility policy and MUST NOT upgrade
+Supported Experimental surfaces implicitly.
 
 ## DRP-010
 
-The non-claim inventory MUST explicitly cover publication authority, security
-certification, production readiness, endorsement, and long-term support.
+Reading or importing the profile MUST NOT publish, authenticate, certify,
+endorse, or configure a host.
 
 ## DRP-011
 
-Reading or importing the profile MUST NOT publish, authenticate, certify,
-endorse, or configure any host.
+Profile replacement MUST use a new version and preserve previously distributed
+bytes.
 
 ## DRP-012
 
-Any semantic replacement MUST use a new versioned profile artifact and MUST
-preserve previously distributed bytes.
+Package contents MUST include the public reference, normative prose, machine
+profile, RFC, and compatibility evidence while excluding implementation plans.
 
 ## Rule-to-Check Mapping
 
@@ -153,16 +151,16 @@ preserve previously distributed bytes.
 | --- | --- |
 | DRP-001 | `tests/distribution-readiness-profile.test.ts` compares the explicit profile and package versions. |
 | DRP-002 | `tests/distribution-readiness-profile.test.ts` rejects unknown keys and unknown states. |
-| DRP-003 | `tests/distribution-readiness-profile.test.ts` confirms the public-source channel inventory. |
-| DRP-004 | `tests/distribution-readiness-profile.test.ts` confirms the immutable prerelease evidence. |
-| DRP-005 | `tests/distribution-readiness-profile.test.ts` confirms the npm registry channel stays blocked while `package.json.private === true`. |
-| DRP-006 | `tests/distribution-readiness-profile.test.ts` confirms `production-use` is `not-claimed`. |
-| DRP-007 | `tests/distribution-readiness-profile.test.ts` checks unique `DRP-GATE-*` identifiers and required gate fields. |
-| DRP-008 | `tests/distribution-readiness-profile.test.ts` validates repository-relative evidence paths and existing files. |
-| DRP-009 | `tests/distribution-readiness-profile.test.ts` checks distinct npm blocker entries. |
-| DRP-010 | `tests/distribution-readiness-profile.test.ts` checks the explicit non-claim inventory. |
-| DRP-011 | `rfcs/0009-public-api-and-distribution-readiness.md` and this document state the non-authority boundary. |
-| DRP-012 | Future versioned replacements must add a new profile version and preserve historical bytes. |
+| DRP-003 | `tests/distribution-readiness-profile.test.ts` requires a blocked npm channel while the package is private and blockers remain. |
+| DRP-004 | `tests/distribution-readiness-profile.test.ts` requires the registry-name blocker to remain unresolved without external release-time evidence. |
+| DRP-005 | `tests/distribution-readiness-profile.test.ts` requires a distinct accountable-human approval blocker. |
+| DRP-006 | `tests/distribution-readiness-profile.test.ts` verifies production readiness separately as `not-claimed`. |
+| DRP-007 | `tests/distribution-readiness-profile.test.ts` validates satisfied gate evidence with repository containment and keeps external gates blocked. |
+| DRP-008 | `tests/distribution-readiness-profile.test.ts` reconciles the public reference with baseline root exports, subpaths, and executables. |
+| DRP-009 | `tests/distribution-readiness-profile.test.ts` verifies Supported Experimental labels without implicit stability upgrades. |
+| DRP-010 | `tests/distribution-readiness-profile.test.ts` and `tests/package.test.mjs` verify read-only import plus the non-authority boundary. |
+| DRP-011 | `tests/compatibility.test.mjs` pins historical baselines and previously distributed artifact digests. |
+| DRP-012 | `tests/package.test.mjs` checks exact package contents and excludes `docs/superpowers/plans/`. |
 
 ## Versioning and Replacement
 

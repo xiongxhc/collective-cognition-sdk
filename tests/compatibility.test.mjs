@@ -26,6 +26,9 @@ import {
 import { API } from "typescript/unstable/sync";
 
 import * as publicApi from "../dist/index.js";
+import * as hostConformanceApi from "../dist/host-conformance.js";
+import * as referenceHostApi from "../dist/reference-host.js";
+import * as sqliteApi from "../dist/stores/sqlite.js";
 import * as connectorConformanceApi from "../dist/connector-conformance.js";
 import * as teamMemoryConnectorApi from "../dist/connectors/team-memory.js";
 import * as markdownCognitionApi from "../dist/markdown-cognition.js";
@@ -121,11 +124,11 @@ const expectedLatestReleaseBaselineSha256 =
 const expectedLatestReleaseChangeCasesSha256 =
   "23d6577eb6aa927ab37f33278363f00a38cb2e0e67adfbc50a9dc2075b1b9e9e";
 const expectedPublicApiReferenceSha256 =
-  "41218dc679217ceba8851d643139af2ab670fcc3b3b340ddc692168955250728";
+  "49b0febc7bad7cffa95cb78d29f079df18157a8739774509d4aa7cf83e10ca80";
 const expectedDistributionReadinessRfcSha256 =
-  "73c4a89eed7c7bf0145806a5261874708c72899d5be6de511301f00012e602d3";
+  "967b0cc1b6584902c4d606bbdc7cf47f9801283a3f67d7a802152994dabc6da3";
 const expectedDistributionReadinessProseSha256 =
-  "9c88e7fdce4dbcbfae2a27cf40d76dea7e7e7cefa84f43ad4aef7e848d5e6f78";
+  "72d583c3e83b3a8c909c421bb1aa65ece2fa7bbda9a5eaca665d5998c429e936";
 const expectedDistributionReadinessProfileSha256 =
   "5d1d236c946820be65d04648b66ca215073810a908ad8d44da8f04f800909af9";
 const expectedCurrentChangeCasesSha256 =
@@ -921,6 +924,62 @@ test("root runtime and domain error inventories match exactly", () => {
       "TransitionCognitionCommit",
       "TransitionCommitOutcome",
     ].every((name) => baseline.package.typeExports.includes(name)),
+  );
+});
+
+test("host and store subpath contracts match exact additive inventories", () => {
+  const baseline = readJson(currentBaselineUrl);
+
+  assert.deepEqual(baseline.hostConformance, {
+    version: "0.1.0",
+    packageSubpath: "./host-conformance/0.1.0",
+    runtimeExports: ["runCognitionHostConformance"],
+    typeExports: [
+      "CognitionHostConformanceCaseResult",
+      "CognitionHostConformanceFactory",
+      "CognitionHostConformanceReport",
+    ],
+  });
+  assert.deepEqual(
+    Object.keys(hostConformanceApi).sort(),
+    baseline.hostConformance.runtimeExports,
+  );
+  assert.deepEqual(
+    directDeclarationTypeExports("dist/host-conformance.d.ts"),
+    baseline.hostConformance.typeExports,
+  );
+
+  assert.deepEqual(baseline.referenceHost, {
+    version: "0.1.0",
+    packageSubpath: "./reference-host/0.1.0",
+    runtimeExports: [
+      "InMemoryCognitionEventPublisher",
+      "InMemoryCognitionStore",
+    ],
+    typeExports: [],
+  });
+  assert.deepEqual(
+    Object.keys(referenceHostApi).sort(),
+    baseline.referenceHost.runtimeExports,
+  );
+  assert.deepEqual(
+    directDeclarationTypeExports("dist/reference-host.d.ts"),
+    baseline.referenceHost.typeExports,
+  );
+
+  assert.deepEqual(baseline.sqlite, {
+    version: "0.1.0",
+    packageSubpath: "./stores/sqlite/0.1.0",
+    runtimeExports: ["SqliteCognitionStore"],
+    typeExports: ["SqliteCognitionStoreOptions"],
+  });
+  assert.deepEqual(
+    Object.keys(sqliteApi).sort(),
+    baseline.sqlite.runtimeExports,
+  );
+  assert.deepEqual(
+    directDeclarationTypeExports("dist/stores/sqlite.d.ts"),
+    baseline.sqlite.typeExports,
   );
 });
 

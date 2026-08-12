@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
-import { readFileSync, statSync } from "node:fs";
+import {
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import {
   isAbsolute,
+  join,
   relative,
   resolve,
   sep,
@@ -29,6 +40,10 @@ const distributionReadinessRfcUrl = new URL(
   import.meta.url,
 );
 const publicApiReferenceUrl = new URL("../docs/public-api.md", import.meta.url);
+const implementationPlanUrl = new URL(
+  "../docs/superpowers/plans/2026-08-12-public-api-distribution-readiness.md",
+  import.meta.url,
+);
 
 const allowedTopLevelKeys = [
   "profileVersion",
@@ -136,6 +151,31 @@ const expectedNonClaims = [
   },
 ];
 
+const expectedDrpRuleMeanings = {
+  "DRP-001": "The profile version and described package version MUST be explicit.",
+  "DRP-002": "Status values and object members MUST use the closed profile vocabulary.",
+  "DRP-003":
+    "npm publication MUST remain blocked while package.json is private or any mandatory npm gate is not satisfied.",
+  "DRP-004":
+    "Registry-name availability MUST remain unverified until checked against the registry at release time.",
+  "DRP-005":
+    "Explicit accountable-human approval MUST be a mandatory npm publication gate.",
+  "DRP-006":
+    "Production readiness MUST be reported separately from package or prerelease availability.",
+  "DRP-007":
+    "Every satisfied repository-controlled gate MUST point to existing evidence; external gates MUST NOT be represented as repository-verified.",
+  "DRP-008":
+    "The public API reference MUST enumerate every baseline root export, package subpath, and executable.",
+  "DRP-009":
+    "Stability labels MUST match the compatibility policy and MUST NOT upgrade Supported Experimental surfaces implicitly.",
+  "DRP-010":
+    "Reading or importing the profile MUST NOT publish, authenticate, certify, endorse, or configure a host.",
+  "DRP-011":
+    "Profile replacement MUST use a new version and preserve previously distributed bytes.",
+  "DRP-012":
+    "Package contents MUST include the public reference, normative prose, machine profile, RFC, and compatibility evidence while excluding implementation plans.",
+};
+
 const allowedOverallStatuses = ["ready", "blocked", "not-claimed"];
 const allowedChannelStatuses = ["available", "blocked", "not-claimed"];
 const allowedGateStatuses = ["satisfied", "blocked", "not-claimed"];
@@ -151,6 +191,56 @@ function readText(url: URL): string {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeNormativeMeaning(value: string): string {
+  return value.replace(/`([^`]+)`/g, "$1").replace(/\s+/g, " ").trim();
+}
+
+function drpRuleMeanings(markdown: string): Record<string, string> {
+  const sections: Record<string, string> = {};
+  const lines = markdown.split("\n");
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const heading = lines[index]!.match(/^## (DRP-\d{3})$/);
+    if (heading === null) {
+      continue;
+    }
+
+    const body: string[] = [];
+    for (index += 1; index < lines.length && !lines[index]!.startsWith("## "); index += 1) {
+      body.push(lines[index]!);
+    }
+    index -= 1;
+    sections[heading[1]!] = normalizeNormativeMeaning(body.join("\n"));
+  }
+
+  return sections;
+}
+
+function documentedSubpathExportInventory(
+  markdown: string,
+  packageSubpath: string,
+): { runtimeExports: string[]; typeExports: string[] } {
+  const marker = `- \`${packageSubpath}\` —`;
+  const start = markdown.indexOf(marker);
+  assert.notEqual(start, -1, `${packageSubpath} must have a documented subpath block`);
+  const next = markdown.indexOf("\n- `", start + marker.length);
+  const block = markdown.slice(start, next === -1 ? markdown.length : next);
+
+  const inventory = (label: "Runtime exports" | "Type exports"): string[] => {
+    const match = block.match(new RegExp(`^  - ${label}: (.+)$`, "m"));
+    assert.ok(match?.[1], `${packageSubpath} must document ${label.toLowerCase()}`);
+    if (match[1] === "none.") {
+      return [];
+    }
+    return [...match[1].matchAll(/`([^`]+)`/g)].map((token) => token[1]!);
+  };
+
+  return {
+    runtimeExports: inventory("Runtime exports"),
+    typeExports: inventory("Type exports"),
+  };
 }
 
 function assertSingleLineText(value: unknown, label: string): asserts value is string {
@@ -183,18 +273,46 @@ function resolveRepositoryEvidencePath(evidencePath: string): string {
     "evidence path must stay inside the repository",
   );
 
-  return resolvedEvidencePath;
+  lstatSync(resolvedEvidencePath);
+  const canonicalRepositoryRoot = realpathSync(repositoryRoot);
+  const canonicalEvidencePath = realpathSync(resolvedEvidencePath);
+  const canonicalRepositoryRelativePath = relative(
+    canonicalRepositoryRoot,
+    canonicalEvidencePath,
+  );
+
+  assert.equal(
+    isAbsolute(canonicalRepositoryRelativePath) ||
+      canonicalRepositoryRelativePath === ".." ||
+      canonicalRepositoryRelativePath.startsWith(`..${sep}`),
+    false,
+    "evidence path must stay inside the repository after resolving symlinks",
+  );
+
+  return canonicalEvidencePath;
 }
 
 function assertRepositoryEvidencePath(evidencePath: unknown, label: string): asserts evidencePath is string {
   assertSingleLineText(evidencePath, label);
-  const resolvedEvidencePath = resolveRepositoryEvidencePath(evidencePath);
+  let resolvedEvidencePath: string;
+  try {
+    resolvedEvidencePath = resolveRepositoryEvidencePath(evidencePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      assert.fail(`${label} must resolve to an existing repository file`);
+    }
+    throw error;
+  }
   const stats = statSync(resolvedEvidencePath);
   assert.ok(stats.isFile(), `${label} must resolve to an existing repository file`);
 }
 
 function assertDistributionReadinessProfile(profile: Record<string, unknown>): void {
-  assert.deepEqual(Object.keys(profile), allowedTopLevelKeys);
+  assert.deepEqual(
+    Object.keys(profile),
+    allowedTopLevelKeys,
+    "profile top-level keys must match the closed vocabulary",
+  );
 
   assert.equal(profile.profileVersion, "0.1.0");
   assert.equal(profile.describesPackageVersion, "0.8.0");
@@ -214,45 +332,26 @@ function assertDistributionReadinessProfile(profile: Record<string, unknown>): v
   const npmBlockers = profile.npmBlockers as Array<Record<string, unknown>>;
   const nonClaims = profile.nonClaims as Array<Record<string, unknown>>;
 
-  assert.deepEqual(
-    channels.map((channel) => {
-      const mappedChannel: Record<string, unknown> = {
-        id: channel.id,
-        status: channel.status,
-      };
-      if (channel.id === "github-prerelease") {
-        mappedChannel.historicalRelease = channel.historicalRelease;
-      }
-      return mappedChannel;
-    }),
-    expectedChannels,
+  assert.equal(
+    new Set(channels.map((channel) => channel.id)).size,
+    channels.length,
+    "channel IDs must be unique",
   );
-  assert.deepEqual(
-    gates.map((gate) => ({ id: gate.id, status: gate.status, rationale: gate.rationale, evidence: gate.evidence })),
-    expectedGates,
+  assert.equal(
+    new Set(gates.map((gate) => gate.id)).size,
+    gates.length,
+    "gate IDs must be unique",
   );
-  assert.deepEqual(
-    npmBlockers.map((blocker) => ({
-      id: blocker.id,
-      status: blocker.status,
-      rationale: blocker.rationale,
-      evidence: blocker.evidence,
-    })),
-    expectedNpmBlockers,
+  assert.equal(
+    new Set(npmBlockers.map((blocker) => blocker.id)).size,
+    npmBlockers.length,
+    "npm blocker IDs must be unique",
   );
-  assert.deepEqual(
-    nonClaims.map((nonClaim) => ({
-      id: nonClaim.id,
-      status: nonClaim.status,
-      statement: nonClaim.statement,
-    })),
-    expectedNonClaims,
+  assert.equal(
+    new Set(nonClaims.map((nonClaim) => nonClaim.id)).size,
+    nonClaims.length,
+    "non-claim IDs must be unique",
   );
-
-  assert.equal(new Set(channels.map((channel) => channel.id)).size, channels.length);
-  assert.equal(new Set(gates.map((gate) => gate.id)).size, gates.length);
-  assert.equal(new Set(npmBlockers.map((blocker) => blocker.id)).size, npmBlockers.length);
-  assert.equal(new Set(nonClaims.map((nonClaim) => nonClaim.id)).size, nonClaims.length);
 
   for (const channel of channels) {
     assert.deepEqual(
@@ -337,7 +436,11 @@ function assertDistributionReadinessProfile(profile: Record<string, unknown>): v
       expectedNpmBlockers.some((expected) => expected.id === blocker.id),
       `${blocker.id} must be recognized`,
     );
-    assert.equal(blocker.status, "blocked");
+    assert.equal(
+      blocker.status,
+      "blocked",
+      `${blocker.id}.status must remain blocked`,
+    );
     assertSingleLineText(blocker.rationale, `${blocker.id}.rationale`);
     assert.ok(Array.isArray(blocker.evidence), `${blocker.id}.evidence must be an array`);
     assert.notEqual(blocker.evidence.length, 0, `${blocker.id}.evidence must not be empty`);
@@ -359,6 +462,12 @@ function assertDistributionReadinessProfile(profile: Record<string, unknown>): v
       `${nonClaim.id}.status must be recognized`,
     );
     assertSingleLineText(nonClaim.statement, `${nonClaim.id}.statement`);
+    const expected = expectedNonClaims.find((candidate) => candidate.id === nonClaim.id);
+    assert.equal(
+      nonClaim.statement,
+      expected?.statement,
+      `${nonClaim.id}.statement must preserve the exact non-claim`,
+    );
   }
 
   assert.equal(new Set(nonClaims.map((nonClaim) => nonClaim.statement)).size, nonClaims.length);
@@ -376,6 +485,41 @@ function assertDistributionReadinessProfile(profile: Record<string, unknown>): v
   ]) {
     assertRepositoryEvidencePath(path, path);
   }
+
+  assert.deepEqual(
+    channels.map((channel) => {
+      const mappedChannel: Record<string, unknown> = {
+        id: channel.id,
+        status: channel.status,
+      };
+      if (channel.id === "github-prerelease") {
+        mappedChannel.historicalRelease = channel.historicalRelease;
+      }
+      return mappedChannel;
+    }),
+    expectedChannels,
+  );
+  assert.deepEqual(
+    gates.map((gate) => ({ id: gate.id, status: gate.status, rationale: gate.rationale, evidence: gate.evidence })),
+    expectedGates,
+  );
+  assert.deepEqual(
+    npmBlockers.map((blocker) => ({
+      id: blocker.id,
+      status: blocker.status,
+      rationale: blocker.rationale,
+      evidence: blocker.evidence,
+    })),
+    expectedNpmBlockers,
+  );
+  assert.deepEqual(
+    nonClaims.map((nonClaim) => ({
+      id: nonClaim.id,
+      status: nonClaim.status,
+      statement: nonClaim.statement,
+    })),
+    expectedNonClaims,
+  );
 }
 
 function mutateProfile(profile: Record<string, unknown>): Record<string, unknown> {
@@ -391,38 +535,108 @@ test("distribution readiness profile pins the closed release contract", () => {
 test("distribution readiness profile rejects unknown top-level keys", () => {
   const profile = mutateProfile(readProfile());
   profile.unexpected = true;
-  assert.throws(() => assertDistributionReadinessProfile(profile));
+  assert.throws(
+    () => assertDistributionReadinessProfile(profile),
+    /profile top-level keys must match the closed vocabulary/,
+  );
 });
 
 test("distribution readiness profile rejects unknown statuses", () => {
   const profile = mutateProfile(readProfile());
   (profile.channels as Array<Record<string, unknown>>)[0]!.status = "experimental";
-  assert.throws(() => assertDistributionReadinessProfile(profile));
+  assert.throws(
+    () => assertDistributionReadinessProfile(profile),
+    /public-source\.status must be recognized/,
+  );
 });
 
 test("distribution readiness profile rejects duplicate gate IDs", () => {
   const profile = mutateProfile(readProfile());
   (profile.gates as Array<Record<string, unknown>>)[1]!.id = (profile.gates as Array<Record<string, unknown>>)[0]!.id;
-  assert.throws(() => assertDistributionReadinessProfile(profile));
+  assert.throws(
+    () => assertDistributionReadinessProfile(profile),
+    /gate IDs must be unique/,
+  );
 });
 
 test("distribution readiness profile rejects false npm readiness", () => {
   const profile = mutateProfile(readProfile());
   (profile.npmBlockers as Array<Record<string, unknown>>)[0]!.status = "available";
-  assert.throws(() => assertDistributionReadinessProfile(profile));
+  assert.throws(
+    () => assertDistributionReadinessProfile(profile),
+    /DRP-NPM-001\.status must remain blocked/,
+  );
 });
 
 test("distribution readiness profile rejects missing evidence", () => {
   const profile = mutateProfile(readProfile());
   (profile.gates as Array<Record<string, unknown>>)[0]!.evidence = ["tests/does-not-exist.json"];
-  assert.throws(() => assertDistributionReadinessProfile(profile));
+  assert.throws(
+    () => assertDistributionReadinessProfile(profile),
+    /DRP-GATE-001\.evidence must resolve to an existing repository file/,
+  );
 });
 
 test("distribution readiness profile rejects publication-authority claims", () => {
   const profile = mutateProfile(readProfile());
   (profile.nonClaims as Array<Record<string, unknown>>)[0]!.statement =
     "The profile claims publication authority.";
-  assert.throws(() => assertDistributionReadinessProfile(profile));
+  assert.throws(
+    () => assertDistributionReadinessProfile(profile),
+    /DRP-NC-001\.statement must preserve the exact non-claim/,
+  );
+});
+
+test("distribution readiness profile rejects evidence symlinks that escape the repository", () => {
+  const outsideRoot = mkdtempSync(join(tmpdir(), "ccsdk-drp-evidence-outside-"));
+  const insideRoot = mkdtempSync(join(repositoryRoot, ".ccsdk-drp-evidence-inside-"));
+  const outsideEvidencePath = join(outsideRoot, "evidence.txt");
+  const symlinkPath = join(insideRoot, "escape");
+  writeFileSync(outsideEvidencePath, "outside repository\n");
+  symlinkSync(outsideRoot, symlinkPath, process.platform === "win32" ? "junction" : "dir");
+
+  try {
+    assert.throws(
+      () =>
+        assertRepositoryEvidencePath(
+          relative(repositoryRoot, join(symlinkPath, "evidence.txt")),
+          "symlink evidence",
+        ),
+      /evidence path must stay inside the repository after resolving symlinks/,
+    );
+  } finally {
+    rmSync(insideRoot, { recursive: true, force: true });
+    rmSync(outsideRoot, { recursive: true, force: true });
+  }
+});
+
+test("distribution readiness prose pins every approved DRP normative meaning", () => {
+  assert.deepEqual(
+    drpRuleMeanings(readText(distributionReadinessProseUrl)),
+    expectedDrpRuleMeanings,
+  );
+});
+
+test("distribution readiness packaging text matches the implemented private subpaths", () => {
+  const prose = readText(distributionReadinessProseUrl);
+  const rfc = readText(distributionReadinessRfcUrl);
+  const plan = readText(implementationPlanUrl);
+
+  for (const document of [prose, rfc]) {
+    const normalizedDocument = normalizeNormativeMeaning(document);
+    assert.match(
+      normalizedDocument,
+      /Private package 0\.8\.0 already packages the read-only \.\/distribution-readiness\/0\.1\.0 JSON subpath\./,
+    );
+    assert.match(
+      normalizedDocument,
+      /Reading or importing it is side-effect-free and grants no publication, authentication, certification, endorsement, host-configuration, or production authority\./,
+    );
+  }
+  assert.match(
+    plan,
+    /the export-map additions are `\.\/compatibility\/0\.8\.0` and `\.\/distribution-readiness\/0\.1\.0`/,
+  );
 });
 
 test("public API reference names every supported package surface", async () => {
@@ -489,33 +703,59 @@ test("public API reference names every supported package surface", async () => {
   assert.match(publicApiReference, /Authorization and Transitions/);
   assert.match(publicApiReference, /Host Integration/);
 
+  for (const heading of ["Promotion", "Authorization and Transitions"]) {
+    const section = publicApiReference.match(
+      new RegExp(`^### ${escapeRegExp(heading)}$([\\s\\S]*?)(?=^### |^## )`, "m"),
+    );
+    assert.ok(section?.[1], `${heading} must have a root API section`);
+    assert.match(section[1], /Stability: Supported Experimental only\./);
+    assert.doesNotMatch(section[1], /Normative Stable (?:promotion|authorization|transition)/i);
+  }
+
   const packageSymbolTokens = [
     ...compatibilityPackage.runtimeExports,
     ...compatibilityPackage.typeExports,
     ...Object.keys(compatibilityPackage.metadata.exports),
     ...Object.keys(compatibilityPackage.metadata.bin),
   ];
-  const sectionSymbolTokens = Object.values(compatibilityBaseline)
-    .flatMap((section) => {
-      if (section === null || typeof section !== "object" || Array.isArray(section)) {
-        return [];
-      }
-
-      const typedSection = section as Record<string, unknown>;
-      return [
-        ...(Array.isArray(typedSection.runtimeExports)
-          ? (typedSection.runtimeExports as string[])
-          : []),
-        ...(Array.isArray(typedSection.typeExports)
-          ? (typedSection.typeExports as string[])
-          : []),
-      ];
-    });
-
-  for (const token of [...packageSymbolTokens, ...sectionSymbolTokens]) {
+  for (const token of packageSymbolTokens) {
     assert.match(
       publicApiReference,
       new RegExp(`\`${escapeRegExp(token)}\``),
+    );
+  }
+
+  for (const sectionName of ["hostConformance", "referenceHost", "sqlite"]) {
+    assert.ok(
+      Object.hasOwn(compatibilityBaseline, sectionName),
+      `compatibility baseline must define ${sectionName}`,
+    );
+  }
+
+  for (const [sectionName, section] of Object.entries(compatibilityBaseline)) {
+    if (section === null || typeof section !== "object" || Array.isArray(section)) {
+      continue;
+    }
+
+    const typedSection = section as Record<string, unknown>;
+    if (
+      typeof typedSection.packageSubpath !== "string" ||
+      !Array.isArray(typedSection.runtimeExports) ||
+      !Array.isArray(typedSection.typeExports)
+    ) {
+      continue;
+    }
+
+    assert.deepEqual(
+      documentedSubpathExportInventory(
+        publicApiReference,
+        typedSection.packageSubpath,
+      ),
+      {
+        runtimeExports: typedSection.runtimeExports,
+        typeExports: typedSection.typeExports,
+      },
+      sectionName,
     );
   }
 });

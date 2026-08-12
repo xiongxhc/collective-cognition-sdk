@@ -28,7 +28,7 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
 
 ### Promotion
 
-- Stability: Supported Experimental root-package support for a Normative Stable promotion contract; governed by [RFC 0003: Portable Cognition Contract](../rfcs/0003-portable-cognition-contract.md), [Portable Cognition](../spec/portable-cognition.md), and [Compatibility Policy](../spec/compatibility.md).
+- Stability: Supported Experimental only. The related Normative Stable Portable Cognition serialized envelope is documented separately; promotion semantics remain Supported Experimental. Governed by [RFC 0003: Portable Cognition Contract](../rfcs/0003-portable-cognition-contract.md), [Portable Cognition](../spec/portable-cognition.md), and [Compatibility Policy](../spec/compatibility.md).
 - Runtime exports: `ingestAndPromoteEvidence`, `neutralEvidencePolicyV1`, `promoteSourceRecordsToEvidence`
 - Type exports: `EvidencePromotionContext`, `EvidencePromotionMapping`, `EvidencePromotionPolicy`, `EvidencePromotionRequest`, `EvidencePromotionResult`, `IngestAndPromoteEvidenceResult`, `PromotionFailure`
 
@@ -46,7 +46,7 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
 
 ### Authorization and Transitions
 
-- Stability: Supported Experimental root-package support for a Normative Stable authorization and transition contract; governed by [Portable Cognition](../spec/portable-cognition.md), [Host Integration](../spec/host-integration.md), and [Compatibility Policy](../spec/compatibility.md).
+- Stability: Supported Experimental only. Related Normative Stable Portable Cognition and Host Integration envelopes are documented separately; authorization and transition semantics remain Supported Experimental. Governed by [Portable Cognition](../spec/portable-cognition.md), [Host Integration](../spec/host-integration.md), and [Compatibility Policy](../spec/compatibility.md).
 - Runtime exports: `evaluateAuthorization`, `transitionObject`
 - Type exports: `AuthorizationDecision`, `AuthorizationPolicy`, `AutomationMode`, `ConsequenceLevel`, `HumanConfirmation`, `TransitionActor`, `TransitionContext`, `TransitionResult`
 
@@ -93,8 +93,17 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
   - Runtime exports: `TEAM_MEMORY_LEDGER_FORMAT`, `TeamMemoryConnectorError`, `readTeamMemorySourceRecords`
   - Type exports: `TeamMemoryConnectorErrorCode`, `TeamMemorySourceRecordOptions`
 - `./host-conformance/0.1.0` — Host conformance checks.
+  - Stability: Supported Experimental host-conformance surface; governed by [Host Integration](../spec/host-integration.md), [RFC 0004: Host Integration Contract](../rfcs/0004-host-integration-contract.md), and [Compatibility Policy](../spec/compatibility.md).
+  - Runtime exports: `runCognitionHostConformance`
+  - Type exports: `CognitionHostConformanceCaseResult`, `CognitionHostConformanceFactory`, `CognitionHostConformanceReport`
 - `./reference-host/0.1.0` — Reference host implementation.
+  - Stability: Supported Experimental reference-host surface; governed by [Host Integration](../spec/host-integration.md), [RFC 0004: Host Integration Contract](../rfcs/0004-host-integration-contract.md), and [Compatibility Policy](../spec/compatibility.md).
+  - Runtime exports: `InMemoryCognitionEventPublisher`, `InMemoryCognitionStore`
+  - Type exports: none.
 - `./stores/sqlite/0.1.0` — SQLite cognition-store adapter.
+  - Stability: Supported Experimental store surface; governed by [RFC 0005: SQLite Cognition Store](../rfcs/0005-sqlite-cognition-store.md), [Host Integration](../spec/host-integration.md), and [Compatibility Policy](../spec/compatibility.md).
+  - Runtime exports: `SqliteCognitionStore`
+  - Type exports: `SqliteCognitionStoreOptions`
 - `./package.json` — Package manifest export for introspection only.
 
 ## Executables
