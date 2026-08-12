@@ -79,3 +79,28 @@ After the minimal implementation:
 
 - `node_modules` is pre-existing and remains untracked in this worktree; it was not added or modified intentionally.
 - The checked API reference needed a minimal additive update in `docs/public-api.md` so the existing Task 1 verification could stay green against package `0.8.0`.
+
+## Fix Round 1
+
+- Replaced the `0.8.0` distribution-readiness digest checks in `tests/compatibility.test.mjs` with independent literal constants for:
+  - `docs/public-api.md`
+  - `rfcs/0009-public-api-and-distribution-readiness.md`
+  - `spec/distribution-readiness.md`
+  - `spec/distribution-readiness/0.1.0/profile.json`
+  - `spec/compatibility/0.8.0/change-cases.jsonl`
+- Added assertions that both:
+  - the file bytes hash to the exact pinned literals; and
+  - the corresponding baseline fields equal those same literals.
+- Kept the existing frozen `0.7.0` digest pins unchanged.
+
+### Fix Round 1 Verification
+
+- `PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run build`
+- `PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run test:compatibility`
+  - Result: `21/21` tests passed
+- `PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run test:package`
+  - Result: `10/10` tests passed
+- `PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH node --disable-warning=ExperimentalWarning --test tests/distribution-readiness-profile.test.ts`
+  - Result: `8/8` tests passed
+- `git diff --check`
+  - Result: clean

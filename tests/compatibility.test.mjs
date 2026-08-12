@@ -120,6 +120,16 @@ const expectedLatestReleaseBaselineSha256 =
   "732dad2f2aff303c0b80cfcf1474e64b71648d82256e2ba5c9efcf9e6575e50f";
 const expectedLatestReleaseChangeCasesSha256 =
   "23d6577eb6aa927ab37f33278363f00a38cb2e0e67adfbc50a9dc2075b1b9e9e";
+const expectedPublicApiReferenceSha256 =
+  "f731b0e776977ef3461a20f8ce0ddcb8badbbef09c5ef1ec1dafb277d01b5ca3";
+const expectedDistributionReadinessRfcSha256 =
+  "1af6ec6f193d07e572d207024c41d6a5118e313fa73416364e834a0c8cb200bf";
+const expectedDistributionReadinessProseSha256 =
+  "9c88e7fdce4dbcbfae2a27cf40d76dea7e7e7cefa84f43ad4aef7e848d5e6f78";
+const expectedDistributionReadinessProfileSha256 =
+  "5d1d236c946820be65d04648b66ca215073810a908ad8d44da8f04f800909af9";
+const expectedCurrentChangeCasesSha256 =
+  "9cb7bd259d2b84e7fb1f8839263bfae0d54eb2ba8aaa07de9f15957660244572";
 const expectedHistoricalChangeCaseDigests = Object.freeze({
   "spec/compatibility/0.1.0/change-cases.jsonl":
     expectedHistoricalChangeCasesSha256,
@@ -605,6 +615,75 @@ test("normative machine artifacts match exact digests", () => {
     ),
     expectedHistoricalChangeCaseDigests,
   );
+  assert.equal(
+    baseline.normative.artifacts["docs/public-api.md"],
+    expectedPublicApiReferenceSha256,
+  );
+  assert.equal(
+    baseline.normative.artifacts[
+      "rfcs/0009-public-api-and-distribution-readiness.md"
+    ],
+    expectedDistributionReadinessRfcSha256,
+  );
+  assert.equal(
+    baseline.normative.artifacts["spec/distribution-readiness.md"],
+    expectedDistributionReadinessProseSha256,
+  );
+  assert.equal(
+    baseline.normative.artifacts[
+      "spec/distribution-readiness/0.1.0/profile.json"
+    ],
+    expectedDistributionReadinessProfileSha256,
+  );
+  assert.equal(
+    baseline.normative.artifacts["spec/compatibility/0.8.0/change-cases.jsonl"],
+    expectedCurrentChangeCasesSha256,
+  );
+  assert.equal(
+    sha256(readFileSync(new URL("docs/public-api.md", repositoryRoot))),
+    expectedPublicApiReferenceSha256,
+    "docs/public-api.md",
+  );
+  assert.equal(
+    sha256(
+      readFileSync(
+        new URL(
+          "rfcs/0009-public-api-and-distribution-readiness.md",
+          repositoryRoot,
+        ),
+      ),
+    ),
+    expectedDistributionReadinessRfcSha256,
+    "rfcs/0009-public-api-and-distribution-readiness.md",
+  );
+  assert.equal(
+    sha256(
+      readFileSync(new URL("spec/distribution-readiness.md", repositoryRoot)),
+    ),
+    expectedDistributionReadinessProseSha256,
+    "spec/distribution-readiness.md",
+  );
+  assert.equal(
+    sha256(
+      readFileSync(
+        new URL(
+          "spec/distribution-readiness/0.1.0/profile.json",
+          repositoryRoot,
+        ),
+      ),
+    ),
+    expectedDistributionReadinessProfileSha256,
+    "spec/distribution-readiness/0.1.0/profile.json",
+  );
+  assert.equal(
+    sha256(
+      readFileSync(
+        new URL("spec/compatibility/0.8.0/change-cases.jsonl", repositoryRoot),
+      ),
+    ),
+    expectedCurrentChangeCasesSha256,
+    "spec/compatibility/0.8.0/change-cases.jsonl",
+  );
   Object.entries(baseline.normative.artifacts).forEach(
     ([path, expectedDigest]) => {
       assert.equal(
@@ -722,38 +801,20 @@ test("normative prose matches its hash and stable rule identifiers", () => {
   assert.deepEqual(baseline.normative.distributionReadiness, {
     version: "0.1.0",
     prosePath: "spec/distribution-readiness.md",
-    proseSha256: sha256(
-      readFileSync(new URL("spec/distribution-readiness.md", repositoryRoot)),
-    ),
+    proseSha256: expectedDistributionReadinessProseSha256,
     profile: {
       path: "spec/distribution-readiness/0.1.0/profile.json",
-      sha256: sha256(
-        readFileSync(
-          new URL(
-            "spec/distribution-readiness/0.1.0/profile.json",
-            repositoryRoot,
-          ),
-        ),
-      ),
+      sha256: expectedDistributionReadinessProfileSha256,
       packageSubpath: "./distribution-readiness/0.1.0",
       describesPackageVersion: "0.8.0",
     },
     publicApiReference: {
       path: "docs/public-api.md",
-      sha256: sha256(
-        readFileSync(new URL("docs/public-api.md", repositoryRoot)),
-      ),
+      sha256: expectedPublicApiReferenceSha256,
     },
     rfc: {
       path: "rfcs/0009-public-api-and-distribution-readiness.md",
-      sha256: sha256(
-        readFileSync(
-          new URL(
-            "rfcs/0009-public-api-and-distribution-readiness.md",
-            repositoryRoot,
-          ),
-        ),
-      ),
+      sha256: expectedDistributionReadinessRfcSha256,
     },
     ruleIds: Array.from({ length: 12 }, (_, index) =>
       `DRP-${String(index + 1).padStart(3, "0")}`,
