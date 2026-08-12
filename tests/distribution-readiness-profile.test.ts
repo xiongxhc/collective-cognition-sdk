@@ -28,6 +28,7 @@ const distributionReadinessRfcUrl = new URL(
   "../rfcs/0009-public-api-and-distribution-readiness.md",
   import.meta.url,
 );
+const publicApiReferenceUrl = new URL("../docs/public-api.md", import.meta.url);
 
 const allowedTopLevelKeys = [
   "profileVersion",
@@ -146,6 +147,10 @@ function readProfile(): Record<string, unknown> {
 
 function readText(url: URL): string {
   return readFileSync(url, "utf8");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function assertSingleLineText(value: unknown, label: string): asserts value is string {
@@ -418,4 +423,81 @@ test("distribution readiness profile rejects publication-authority claims", () =
   (profile.nonClaims as Array<Record<string, unknown>>)[0]!.statement =
     "The profile claims publication authority.";
   assert.throws(() => assertDistributionReadinessProfile(profile));
+});
+
+test("public API reference names every supported package surface", async () => {
+  const packageMetadata = JSON.parse(
+    readFileSync(packageJsonUrl, "utf8"),
+  ) as Record<string, unknown>;
+  assert.equal(packageMetadata.private, true);
+  assert.equal(typeof packageMetadata.version, "string");
+
+  const compatibilityBaselineUrl = new URL(
+    `../spec/compatibility/${packageMetadata.version}/baseline.json`,
+    import.meta.url,
+  );
+  const compatibilityBaseline = JSON.parse(
+    readFileSync(compatibilityBaselineUrl, "utf8"),
+  ) as Record<string, unknown>;
+
+  assert.equal(
+    compatibilityBaseline.appliesToPackageVersion,
+    packageMetadata.version,
+  );
+  assert.deepEqual(packageMetadata.exports, compatibilityBaseline.package.metadata.exports);
+  assert.deepEqual(packageMetadata.bin, compatibilityBaseline.package.metadata.bin);
+
+  const builtRootApi = await import("../dist/index.js");
+  assert.deepEqual(
+    Object.keys(builtRootApi).sort(),
+    compatibilityBaseline.package.runtimeExports,
+  );
+
+  const publicApiReference = readText(publicApiReferenceUrl);
+  const requiredSections = [
+    "Stability",
+    "Root API",
+    "Package Subpaths",
+    "Executables",
+    "Not Public API",
+  ];
+
+  for (const section of requiredSections) {
+    assert.match(publicApiReference, new RegExp(`^## ${escapeRegExp(section)}$`, "m"));
+  }
+
+  assert.match(
+    publicApiReference,
+    /Supported Experimental is not Normative Stable\./,
+  );
+  assert.match(
+    publicApiReference,
+    /source paths absent from `exports` are internal\./,
+  );
+  assert.match(publicApiReference, /SourceRecord Ingestion/);
+  assert.match(publicApiReference, /Promotion/);
+  assert.match(publicApiReference, /Cognitive Objects/);
+  assert.match(publicApiReference, /Portable Cognition/);
+  assert.match(publicApiReference, /Authorization and Transitions/);
+  assert.match(publicApiReference, /Host Integration/);
+
+  for (const token of [
+    ...((compatibilityBaseline.package as Record<string, unknown>)
+      .runtimeExports as string[]),
+    ...((compatibilityBaseline.package as Record<string, unknown>)
+      .typeExports as string[]),
+    ...Object.keys(compatibilityBaseline.package.metadata.exports as Record<
+      string,
+      unknown
+    >),
+    ...Object.keys(compatibilityBaseline.package.metadata.bin as Record<
+      string,
+      unknown
+    >),
+  ]) {
+    assert.match(
+      publicApiReference,
+      new RegExp(`\`${escapeRegExp(token)}\``),
+    );
+  }
 });
