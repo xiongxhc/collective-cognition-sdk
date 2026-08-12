@@ -28,6 +28,11 @@ The profile records:
 - explicit non-claims for publication authority, security certification,
   production readiness, endorsement, and long-term support.
 
+The `github-prerelease` channel is closed to the historical identity
+`v0.6.0` / `0.6.0` / `76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e`, and the
+checked evidence bytes must contain that same identity instead of merely
+existing as a file path.
+
 The profile is not publication authority. Reading it does not publish,
 authenticate, certify, endorse, or configure a host.
 
@@ -61,7 +66,8 @@ responsibilities.
 ## Acceptance Checks
 
 - The profile test validates the closed top-level keys, status vocabularies,
-  gate IDs, npm blockers, non-claims, and repository evidence paths.
+  gate IDs, npm blockers, non-claims, repository evidence paths, and the exact
+  historical prerelease identity bytes.
 - The prose document states `DRP-001` through `DRP-012`, rule-to-check
   mappings, version replacement behavior, channel separation, and
   non-authority.

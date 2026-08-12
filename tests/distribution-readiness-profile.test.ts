@@ -16,11 +16,10 @@ const profileUrl = new URL(
   "../spec/distribution-readiness/0.1.0/profile.json",
   import.meta.url,
 );
-const runtimeSecurityProfileUrl = new URL(
-  "../spec/runtime-security/0.1.0/profile.json",
+const githubPrereleaseUrl = new URL(
+  "../docs/github-prerelease.md",
   import.meta.url,
 );
-const githubPrereleaseUrl = new URL("../docs/github-prerelease.md", import.meta.url);
 const distributionReadinessProseUrl = new URL(
   "../spec/distribution-readiness.md",
   import.meta.url,
@@ -42,7 +41,15 @@ const allowedTopLevelKeys = [
 
 const expectedChannels = [
   { id: "public-source", status: "available" },
-  { id: "github-prerelease", status: "available" },
+  {
+    id: "github-prerelease",
+    status: "available",
+    historicalRelease: {
+      tag: "v0.6.0",
+      packageVersion: "0.6.0",
+      commitSha: "76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e",
+    },
+  },
   { id: "npm-registry", status: "blocked" },
   { id: "production-use", status: "not-claimed" },
 ];
@@ -137,6 +144,10 @@ function readProfile(): Record<string, unknown> {
   return JSON.parse(readFileSync(profileUrl, "utf8")) as Record<string, unknown>;
 }
 
+function readText(url: URL): string {
+  return readFileSync(url, "utf8");
+}
+
 function assertSingleLineText(value: unknown, label: string): asserts value is string {
   if (typeof value !== "string") {
     assert.fail(`${label} must be a string`);
@@ -183,6 +194,10 @@ function assertDistributionReadinessProfile(profile: Record<string, unknown>): v
   assert.equal(profile.profileVersion, "0.1.0");
   assert.equal(profile.describesPackageVersion, "0.8.0");
   assert.equal(profile.overallStatus, "blocked");
+  assert.ok(
+    allowedOverallStatuses.includes(profile.overallStatus as (typeof allowedOverallStatuses)[number]),
+    "overallStatus must use the closed vocabulary",
+  );
 
   assert.ok(Array.isArray(profile.channels), "channels must be an array");
   assert.ok(Array.isArray(profile.gates), "gates must be an array");
@@ -195,7 +210,16 @@ function assertDistributionReadinessProfile(profile: Record<string, unknown>): v
   const nonClaims = profile.nonClaims as Array<Record<string, unknown>>;
 
   assert.deepEqual(
-    channels.map((channel) => ({ id: channel.id, status: channel.status })),
+    channels.map((channel) => {
+      const mappedChannel: Record<string, unknown> = {
+        id: channel.id,
+        status: channel.status,
+      };
+      if (channel.id === "github-prerelease") {
+        mappedChannel.historicalRelease = channel.historicalRelease;
+      }
+      return mappedChannel;
+    }),
     expectedChannels,
   );
   assert.deepEqual(
@@ -226,13 +250,58 @@ function assertDistributionReadinessProfile(profile: Record<string, unknown>): v
   assert.equal(new Set(nonClaims.map((nonClaim) => nonClaim.id)).size, nonClaims.length);
 
   for (const channel of channels) {
-    assert.deepEqual(Object.keys(channel), ["id", "status"]);
+    assert.deepEqual(
+      Object.keys(channel),
+      channel.id === "github-prerelease"
+        ? ["id", "status", "historicalRelease"]
+        : ["id", "status"],
+    );
     assertSingleLineText(channel.id, "channel.id");
     assert.ok(expectedChannels.some((expected) => expected.id === channel.id), `${channel.id} must be recognized`);
     assert.ok(
       allowedChannelStatuses.includes(channel.status as (typeof allowedChannelStatuses)[number]),
       `${channel.id}.status must be recognized`,
     );
+    if (channel.id === "github-prerelease") {
+      const historicalRelease = channel.historicalRelease as Record<string, unknown>;
+      assert.deepEqual(Object.keys(historicalRelease), ["tag", "packageVersion", "commitSha"]);
+      assert.deepEqual(historicalRelease, expectedChannels[1].historicalRelease);
+      assert.equal(
+        readText(githubPrereleaseUrl).includes("v0.6.0"),
+        true,
+        "github prerelease evidence must include the historical release tag",
+      );
+      assert.equal(
+        readText(githubPrereleaseUrl).includes("0.6.0"),
+        true,
+        "github prerelease evidence must include the historical package version",
+      );
+      assert.equal(
+        readText(githubPrereleaseUrl).includes("76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e"),
+        true,
+        "github prerelease evidence must include the historical release commit",
+      );
+      assert.equal(
+        readText(distributionReadinessProseUrl).includes("v0.6.0"),
+        true,
+        "distribution readiness prose must name the historical prerelease tag",
+      );
+      assert.equal(
+        readText(distributionReadinessProseUrl).includes("76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e"),
+        true,
+        "distribution readiness prose must name the historical prerelease commit",
+      );
+      assert.equal(
+        readText(distributionReadinessRfcUrl).includes("v0.6.0"),
+        true,
+        "RFC 0009 must name the historical prerelease tag",
+      );
+      assert.equal(
+        readText(distributionReadinessRfcUrl).includes("76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e"),
+        true,
+        "RFC 0009 must name the historical prerelease commit",
+      );
+    }
   }
 
   for (const gate of gates) {

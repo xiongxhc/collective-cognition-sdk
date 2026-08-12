@@ -34,14 +34,19 @@ The four channels are separated on purpose.
 
 - `public-source` reports whether the repository source and attribution
   evidence are present.
-- `github-prerelease` reports whether the immutable historical GitHub
-  prerelease evidence exists.
+- `github-prerelease` reports the immutable historical GitHub prerelease
+  release tag `v0.6.0`, package version `0.6.0`, and commit
+  `76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e`.
 - `npm-registry` reports whether registry publication is blocked.
 - `production-use` reports whether production use is claimed.
 
 The current profile sets public source and GitHub prerelease to `available`,
 npm registry to `blocked`, production use to `not-claimed`, and overall status
 to `blocked`.
+
+The GitHub prerelease evidence bytes at `docs/github-prerelease.md` must name
+the same historical tag, package version, and commit so the profile is tied to
+an immutable release identity rather than a generic file presence check.
 
 ## Release Gates
 
