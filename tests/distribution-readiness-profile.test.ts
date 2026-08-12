@@ -481,7 +481,7 @@ test("public API reference names every supported package surface", async () => {
   assert.match(publicApiReference, /Authorization and Transitions/);
   assert.match(publicApiReference, /Host Integration/);
 
-  for (const token of [
+  const packageSymbolTokens = [
     ...((compatibilityBaseline.package as Record<string, unknown>)
       .runtimeExports as string[]),
     ...((compatibilityBaseline.package as Record<string, unknown>)
@@ -494,7 +494,25 @@ test("public API reference names every supported package surface", async () => {
       string,
       unknown
     >),
-  ]) {
+  ];
+  const sectionSymbolTokens = Object.values(compatibilityBaseline)
+    .flatMap((section) => {
+      if (section === null || typeof section !== "object" || Array.isArray(section)) {
+        return [];
+      }
+
+      const typedSection = section as Record<string, unknown>;
+      return [
+        ...(Array.isArray(typedSection.runtimeExports)
+          ? (typedSection.runtimeExports as string[])
+          : []),
+        ...(Array.isArray(typedSection.typeExports)
+          ? (typedSection.typeExports as string[])
+          : []),
+      ];
+    });
+
+  for (const token of [...packageSymbolTokens, ...sectionSymbolTokens]) {
     assert.match(
       publicApiReference,
       new RegExp(`\`${escapeRegExp(token)}\``),

@@ -79,8 +79,17 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
 
 - `.` — Root package export for `collective-cognition-sdk`.
 - `./adapters/markdown/0.1.0` — Markdown cognition adapter.
+  - Stability: Supported Experimental adapter surface; governed by [docs/markdown-cognition-adapter-guide](../docs/markdown-cognition-adapter-guide.md), [RFC 0007: Markdown Cognition Adapter](../rfcs/0007-markdown-cognition-adapter.md), and [Compatibility Policy](../spec/compatibility.md).
+  - Runtime exports: `MARKDOWN_COGNITION_MANIFEST_FILE`, `MARKDOWN_COGNITION_MARKER_FILE`, `MARKDOWN_COGNITION_MAX_INPUT_BYTES`, `MARKDOWN_COGNITION_MAX_MANIFEST_ENTRIES`, `MARKDOWN_COGNITION_MAX_NOTE_BYTES`, `MARKDOWN_COGNITION_MAX_OBJECT_VERSION`, `MARKDOWN_COGNITION_MAX_PATH_SEGMENTS`, `MARKDOWN_COGNITION_MAX_RECORDS`, `MARKDOWN_COGNITION_MAX_RELATIVE_PATH_BYTES`, `MARKDOWN_COGNITION_MAX_TOTAL_BYTES`, `MARKDOWN_COGNITION_PROFILE_VERSION`, `MARKDOWN_COGNITION_TARGET_FORMAT`, `MarkdownCognitionError`, `initializeMarkdownCognitionTarget`, `markdownCognitionRelativePath`, `parseMarkdownCognitionRecord`, `projectMarkdownCognition`, `renderMarkdownCognitionIndex`, `renderMarkdownCognitionRecord`, `verifyMarkdownCognitionTarget`
+  - Type exports: `MarkdownCognitionErrorCode`, `MarkdownCognitionProjectionOptions`, `MarkdownCognitionProjectionReport`, `MarkdownCognitionRecord`, `MarkdownCognitionRenderContext`, `MarkdownCognitionTargetOptions`, `MarkdownCognitionVerificationDiagnostic`, `MarkdownCognitionVerificationReport`
 - `./connector-conformance/0.1.0` — Source connector conformance checks.
+  - Stability: Supported Experimental connector-conformance surface; governed by [RFC 0006: Maintained Source Connectors](../rfcs/0006-maintained-source-connectors.md) and [Compatibility Policy](../spec/compatibility.md).
+  - Runtime exports: `runSourceConnectorConformance`
+  - Type exports: `SourceConnectorConformanceCase`, `SourceConnectorConformanceDiagnostic`, `SourceConnectorConformanceDiagnosticCode`, `SourceConnectorConformanceResult`
 - `./connectors/team-memory/0.1.0` — Maintained team-memory connector.
+  - Stability: Supported Experimental connector surface; governed by [docs/connector-author-guide](../docs/connector-author-guide.md), [RFC 0006: Maintained Source Connectors](../rfcs/0006-maintained-source-connectors.md), and [Compatibility Policy](../spec/compatibility.md).
+  - Runtime exports: `TEAM_MEMORY_LEDGER_FORMAT`, `TeamMemoryConnectorError`, `readTeamMemorySourceRecords`
+  - Type exports: `TeamMemoryConnectorErrorCode`, `TeamMemorySourceRecordOptions`
 - `./host-conformance/0.1.0` — Host conformance checks.
 - `./reference-host/0.1.0` — Reference host implementation.
 - `./stores/sqlite/0.1.0` — SQLite cognition-store adapter.
