@@ -439,18 +439,26 @@ test("public API reference names every supported package surface", async () => {
   const compatibilityBaseline = JSON.parse(
     readFileSync(compatibilityBaselineUrl, "utf8"),
   ) as Record<string, unknown>;
+  const compatibilityPackage = compatibilityBaseline.package as {
+    metadata: {
+      bin: Record<string, unknown>;
+      exports: Record<string, unknown>;
+    };
+    runtimeExports: string[];
+    typeExports: string[];
+  };
 
   assert.equal(
     compatibilityBaseline.appliesToPackageVersion,
     packageMetadata.version,
   );
-  assert.deepEqual(packageMetadata.exports, compatibilityBaseline.package.metadata.exports);
-  assert.deepEqual(packageMetadata.bin, compatibilityBaseline.package.metadata.bin);
+  assert.deepEqual(packageMetadata.exports, compatibilityPackage.metadata.exports);
+  assert.deepEqual(packageMetadata.bin, compatibilityPackage.metadata.bin);
 
   const builtRootApi = await import("../dist/index.js");
   assert.deepEqual(
     Object.keys(builtRootApi).sort(),
-    compatibilityBaseline.package.runtimeExports,
+    compatibilityPackage.runtimeExports,
   );
 
   const publicApiReference = readText(publicApiReferenceUrl);
@@ -482,18 +490,10 @@ test("public API reference names every supported package surface", async () => {
   assert.match(publicApiReference, /Host Integration/);
 
   const packageSymbolTokens = [
-    ...((compatibilityBaseline.package as Record<string, unknown>)
-      .runtimeExports as string[]),
-    ...((compatibilityBaseline.package as Record<string, unknown>)
-      .typeExports as string[]),
-    ...Object.keys(compatibilityBaseline.package.metadata.exports as Record<
-      string,
-      unknown
-    >),
-    ...Object.keys(compatibilityBaseline.package.metadata.bin as Record<
-      string,
-      unknown
-    >),
+    ...compatibilityPackage.runtimeExports,
+    ...compatibilityPackage.typeExports,
+    ...Object.keys(compatibilityPackage.metadata.exports),
+    ...Object.keys(compatibilityPackage.metadata.bin),
   ];
   const sectionSymbolTokens = Object.values(compatibilityBaseline)
     .flatMap((section) => {
