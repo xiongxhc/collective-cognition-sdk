@@ -72,6 +72,16 @@ interface StoredWorkflowRow {
   readonly event_id: unknown;
 }
 
+interface ValidatedStoredObject {
+  readonly record: PortableCognitiveObjectRecord;
+  readonly canonical: string;
+}
+
+interface ValidatedStoredEvent {
+  readonly record: PortableCognitionEventRecord;
+  readonly canonical: string;
+}
+
 const preparedWorkflowFields = new Set([
   "workflowId",
   "requestDigest",
@@ -88,6 +98,74 @@ function invalidWorkflowCommit(): never {
 
 function invalidStoredWorkflow(): never {
   throw new TypeError("Stored durable workflow is invalid.");
+}
+
+function objectStorageKey(record: PortableCognitiveObjectRecord): string {
+  return `${record.payload.id}\u0000${record.payload.version}`;
+}
+
+function validateWorkflowRecords(
+  initialHypothesis: PortableCognitiveObjectRecord,
+  evidence: PortableCognitiveObjectRecord,
+  reviewedHypothesis: PortableCognitiveObjectRecord,
+  event: PortableCognitionEventRecord,
+  invalid: () => never,
+): void {
+  if (
+    new Set([
+      objectStorageKey(initialHypothesis),
+      objectStorageKey(evidence),
+      objectStorageKey(reviewedHypothesis),
+    ]).size !== 3 ||
+    initialHypothesis.payload.type !== "hypothesis" ||
+    initialHypothesis.payload.state !== "proposed" ||
+    evidence.payload.type !== "evidence" ||
+    reviewedHypothesis.payload.type !== "hypothesis" ||
+    reviewedHypothesis.payload.state !== "under_review" ||
+    reviewedHypothesis.payload.id !== initialHypothesis.payload.id ||
+    event.payload.objectId !== reviewedHypothesis.payload.id ||
+    event.payload.objectVersion !== reviewedHypothesis.payload.version ||
+    event.payload.objectType !== reviewedHypothesis.payload.type
+  ) {
+    invalid();
+  }
+  const {
+    version: initialVersion,
+    state: initialState,
+    updatedAt: initialUpdatedAt,
+    attribution: initialAttribution,
+    ...initialStableFields
+  } = initialHypothesis.payload;
+  const {
+    version: reviewedVersion,
+    state: reviewedState,
+    updatedAt: reviewedUpdatedAt,
+    attribution: reviewedAttribution,
+    ...reviewedStableFields
+  } = reviewedHypothesis.payload;
+  if (
+    initialVersion !== 1 ||
+    initialState !== "proposed" ||
+    reviewedVersion !== 2 ||
+    reviewedState !== "under_review" ||
+    canonicalizeJson(initialStableFields as unknown as JsonValue) !==
+      canonicalizeJson(reviewedStableFields as unknown as JsonValue) ||
+    evidence.payload.contextId !== initialHypothesis.payload.contextId ||
+    !evidence.payload.relationships.some((relationship) =>
+      relationship.type === "relates-to-hypothesis" &&
+      relationship.targetId === initialHypothesis.payload.id
+    ) ||
+    event.payload.previousState !== initialHypothesis.payload.state ||
+    event.payload.contextId !== initialHypothesis.payload.contextId ||
+    reviewedAttribution.initiatorId !== event.payload.initiator.id ||
+    reviewedAttribution.executorId !== event.payload.executor.id ||
+    reviewedAttribution.accountableId !== event.payload.accountableParty.id ||
+    evidence.payload.attribution.initiatorId !== event.payload.initiator.id ||
+    evidence.payload.attribution.executorId !== event.payload.executor.id ||
+    evidence.payload.attribution.accountableId !== event.payload.accountableParty.id
+  ) {
+    invalid();
+  }
 }
 
 function snapshotPreparedWorkflow(
@@ -156,55 +234,13 @@ function snapshotPreparedWorkflow(
     return invalidWorkflowCommit();
   }
 
-  if (
-    initialHypothesis.payload.type !== "hypothesis" ||
-    initialHypothesis.payload.state !== "proposed" ||
-    evidence.payload.type !== "evidence" ||
-    reviewedHypothesis.payload.type !== "hypothesis" ||
-    reviewedHypothesis.payload.state !== "under_review" ||
-    reviewedHypothesis.payload.id !== initialHypothesis.payload.id ||
-    event.payload.objectId !== initialHypothesis.payload.id
-  ) {
-    return invalidWorkflowCommit();
-  }
-  const {
-    version: initialVersion,
-    state: initialState,
-    updatedAt: initialUpdatedAt,
-    attribution: initialAttribution,
-    ...initialStableFields
-  } = initialHypothesis.payload;
-  const {
-    version: reviewedVersion,
-    state: reviewedState,
-    updatedAt: reviewedUpdatedAt,
-    attribution: reviewedAttribution,
-    ...reviewedStableFields
-  } = reviewedHypothesis.payload;
-  if (
-    initialVersion !== 1 ||
-    initialState !== "proposed" ||
-    reviewedVersion !== 2 ||
-    reviewedState !== "under_review" ||
-    canonicalizeJson(initialStableFields as unknown as JsonValue) !==
-      canonicalizeJson(reviewedStableFields as unknown as JsonValue) ||
-    evidence.payload.contextId !== initialHypothesis.payload.contextId ||
-    !evidence.payload.relationships.some((relationship) =>
-      relationship.type === "relates-to-hypothesis" &&
-      relationship.targetId === initialHypothesis.payload.id
-    ) ||
-    event.payload.previousState !== initialHypothesis.payload.state ||
-    event.payload.contextId !== initialHypothesis.payload.contextId ||
-    reviewedAttribution.initiatorId !== event.payload.initiator.id ||
-    reviewedAttribution.executorId !== event.payload.executor.id ||
-    reviewedAttribution.accountableId !== event.payload.accountableParty.id ||
-    evidence.payload.attribution.initiatorId !== event.payload.initiator.id ||
-    evidence.payload.attribution.executorId !== event.payload.executor.id ||
-    evidence.payload.attribution.accountableId !==
-      event.payload.accountableParty.id
-  ) {
-    return invalidWorkflowCommit();
-  }
+  validateWorkflowRecords(
+    initialHypothesis,
+    evidence,
+    reviewedHypothesis,
+    event,
+    invalidWorkflowCommit,
+  );
 
   return Object.freeze({
     workflowId: fields.workflowId,
@@ -225,7 +261,7 @@ function snapshotPreparedWorkflow(
   });
 }
 
-function readStoredObject(row: StoredObjectRow): string {
+function readStoredObject(row: StoredObjectRow): ValidatedStoredObject {
   if (
     typeof row.object_id !== "string" ||
     typeof row.object_version !== "number" ||
@@ -244,10 +280,13 @@ function readStoredObject(row: StoredObjectRow): string {
   ) {
     return invalidStoredWorkflow();
   }
-  return canonicalizeJson(record as unknown as JsonValue);
+  return Object.freeze({
+    record,
+    canonical: canonicalizeJson(record as unknown as JsonValue),
+  });
 }
 
-function readStoredEvent(row: StoredEventRow): string {
+function readStoredEvent(row: StoredEventRow): ValidatedStoredEvent {
   if (
     typeof row.event_id !== "string" ||
     typeof row.object_id !== "string" ||
@@ -266,15 +305,18 @@ function readStoredEvent(row: StoredEventRow): string {
   ) {
     return invalidStoredWorkflow();
   }
-  return canonicalizeJson(record as unknown as JsonValue);
+  return Object.freeze({
+    record,
+    canonical: canonicalizeJson(record as unknown as JsonValue),
+  });
 }
 
 function readStoredReceipt(
   row: StoredWorkflowRow,
-  request: PreparedSqliteWorkflowCommit,
+  workflowId: string,
 ): void {
   if (
-    row.workflow_id !== request.workflowId ||
+    row.workflow_id !== workflowId ||
     typeof row.request_digest !== "string" ||
     !/^[0-9a-f]{64}$/.test(row.request_digest) ||
     typeof row.initial_hypothesis_id !== "string" ||
@@ -287,6 +329,76 @@ function readStoredReceipt(
   ) {
     invalidStoredWorkflow();
   }
+}
+
+function readRequiredStoredObject(
+  database: DatabaseSync,
+  objectId: string,
+  objectVersion: number,
+): ValidatedStoredObject {
+  const row = database.prepare(`
+    SELECT object_id, object_version, object_type, record_json
+    FROM cognition_objects
+    WHERE object_id = ? AND object_version = ?
+  `).get(objectId, objectVersion) as StoredObjectRow | undefined;
+  return row === undefined ? invalidStoredWorkflow() : readStoredObject(row);
+}
+
+function readRequiredStoredEvent(
+  database: DatabaseSync,
+  eventId: string,
+): ValidatedStoredEvent {
+  const row = database.prepare(`
+    SELECT event_id, object_id, object_version, record_json
+    FROM cognition_events
+    WHERE event_id = ?
+  `).get(eventId) as StoredEventRow | undefined;
+  return row === undefined ? invalidStoredWorkflow() : readStoredEvent(row);
+}
+
+function readReceiptWorkflow(
+  database: DatabaseSync,
+  receipt: StoredWorkflowRow,
+  workflowId: string,
+): {
+  readonly initialCanonical: string;
+  readonly evidenceCanonical: string;
+  readonly reviewedCanonical: string;
+  readonly eventCanonical: string;
+} {
+  readStoredReceipt(receipt, workflowId);
+  const initial = readRequiredStoredObject(
+    database,
+    receipt.initial_hypothesis_id as string,
+    1,
+  );
+  const evidence = readRequiredStoredObject(
+    database,
+    receipt.evidence_id as string,
+    1,
+  );
+  const reviewed = readRequiredStoredObject(
+    database,
+    receipt.initial_hypothesis_id as string,
+    receipt.reviewed_hypothesis_version as number,
+  );
+  const event = readRequiredStoredEvent(
+    database,
+    receipt.event_id as string,
+  );
+  validateWorkflowRecords(
+    initial.record,
+    evidence.record,
+    reviewed.record,
+    event.record,
+    invalidStoredWorkflow,
+  );
+  return Object.freeze({
+    initialCanonical: initial.canonical,
+    evidenceCanonical: evidence.canonical,
+    reviewedCanonical: reviewed.canonical,
+    eventCanonical: event.canonical,
+  });
 }
 
 function readWorkflowRecords(
@@ -308,7 +420,7 @@ function readWorkflowRecords(
       FROM cognition_objects
       WHERE object_id = ? AND object_version = ?
     `).get(record.payload.id, record.payload.version) as StoredObjectRow | undefined;
-    return row === undefined ? undefined : readStoredObject(row);
+    return row === undefined ? undefined : readStoredObject(row).canonical;
   });
   const eventRow = database.prepare(`
     SELECT event_id, object_id, object_version, record_json
@@ -339,10 +451,12 @@ function readWorkflowRecords(
   }
   return {
     objects,
-    event: eventRow === undefined ? undefined : readStoredEvent(eventRow),
+    event: eventRow === undefined
+      ? undefined
+      : readStoredEvent(eventRow).canonical,
     occupiedEvent: occupiedEventRow === undefined
       ? undefined
-      : readStoredEvent(occupiedEventRow),
+      : readStoredEvent(occupiedEventRow).canonical,
     latestHypothesisVersion,
   };
 }
@@ -388,9 +502,12 @@ export class SqliteCognitionWorkflowStore
         FROM cognition_workflows
         WHERE workflow_id = ?
       `).get(prepared.workflowId) as StoredWorkflowRow | undefined;
-      const records = readWorkflowRecords(database, prepared);
       if (receipt !== undefined) {
-        readStoredReceipt(receipt, prepared);
+        const stored = readReceiptWorkflow(
+          database,
+          receipt,
+          prepared.workflowId,
+        );
         if (receipt.request_digest !== prepared.requestDigest) {
           return conflict(prepared, "workflow_id_collision");
         }
@@ -398,16 +515,17 @@ export class SqliteCognitionWorkflowStore
           receipt.initial_hypothesis_id !== prepared.initialHypothesis.payload.id ||
           receipt.evidence_id !== prepared.evidence.payload.id ||
           receipt.event_id !== prepared.event.payload.id ||
-          records.objects[0] !== prepared.initialCanonical ||
-          records.objects[1] !== prepared.evidenceCanonical ||
-          records.objects[2] !== prepared.reviewedCanonical ||
-          records.event !== prepared.eventCanonical ||
-          records.occupiedEvent !== prepared.eventCanonical
+          stored.initialCanonical !== prepared.initialCanonical ||
+          stored.evidenceCanonical !== prepared.evidenceCanonical ||
+          stored.reviewedCanonical !== prepared.reviewedCanonical ||
+          stored.eventCanonical !== prepared.eventCanonical
         ) {
           invalidStoredWorkflow();
         }
         return Object.freeze({ status: "already_committed" });
       }
+
+      const records = readWorkflowRecords(database, prepared);
 
       if (
         records.objects[0] === prepared.initialCanonical &&

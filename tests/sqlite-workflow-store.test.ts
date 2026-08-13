@@ -175,6 +175,41 @@ function workflowRowCounts(databasePath: string): {
   }
 }
 
+function workflowRows(databasePath: string): {
+  readonly objects: readonly Record<string, unknown>[];
+  readonly events: readonly Record<string, unknown>[];
+  readonly receipts: readonly Record<string, unknown>[];
+} {
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    return {
+      objects: database.prepare(`
+        SELECT object_id, object_version, object_type, record_json
+        FROM cognition_objects
+        ORDER BY object_id, object_version
+      `).all(),
+      events: database.prepare(`
+        SELECT event_id, object_id, object_version, record_json
+        FROM cognition_events
+        ORDER BY event_id
+      `).all(),
+      receipts: database.prepare(`
+        SELECT
+          workflow_id,
+          request_digest,
+          initial_hypothesis_id,
+          evidence_id,
+          reviewed_hypothesis_version,
+          event_id
+        FROM cognition_workflows
+        ORDER BY workflow_id
+      `).all(),
+    };
+  } finally {
+    database.close();
+  }
+}
+
 function updateDatabase(
   databasePath: string,
   sql: string,
@@ -484,6 +519,95 @@ sqliteTest("rejects forged cross-record workflow correlations before a transacti
   }
 });
 
+sqliteTest("rejects duplicate or incoherent prepared storage keys before transaction access", async () => {
+  const prepared = preparedWorkflow();
+  const duplicateKeyCases: readonly PreparedDurableCognitionCommit[] = [
+    {
+      ...prepared,
+      evidence: createPortableCognitionRecord({
+        ...structuredClone(prepared.evidence),
+        payload: {
+          ...structuredClone(prepared.evidence.payload),
+          id: prepared.initialHypothesis.payload.id,
+        },
+      }),
+    } as PreparedDurableCognitionCommit,
+    {
+      ...prepared,
+      evidence: createPortableCognitionRecord({
+        ...structuredClone(prepared.evidence),
+        payload: {
+          ...structuredClone(prepared.evidence.payload),
+          id: prepared.reviewedHypothesis.payload.id,
+          version: prepared.reviewedHypothesis.payload.version,
+        },
+      }),
+    } as PreparedDurableCognitionCommit,
+    {
+      ...prepared,
+      reviewedHypothesis: createPortableCognitionRecord({
+        ...structuredClone(prepared.reviewedHypothesis),
+        payload: {
+          ...structuredClone(prepared.reviewedHypothesis.payload),
+          version: prepared.initialHypothesis.payload.version,
+        },
+      }),
+    } as PreparedDurableCognitionCommit,
+    {
+      ...prepared,
+      event: createPortableCognitionRecord({
+        ...structuredClone(prepared.event),
+        payload: {
+          ...structuredClone(prepared.event.payload),
+          objectId: "hypothesis:sqlite-workflow:other",
+        },
+      }),
+    } as PreparedDurableCognitionCommit,
+    {
+      ...prepared,
+      event: createPortableCognitionRecord({
+        ...structuredClone(prepared.event),
+        payload: {
+          ...structuredClone(prepared.event.payload),
+          objectVersion: prepared.reviewedHypothesis.payload.version + 1,
+        },
+      }),
+    } as PreparedDurableCognitionCommit,
+  ];
+
+  for (const duplicateKey of duplicateKeyCases) {
+    const databasePath = temporaryWorkflowDatabase();
+    const store = new SqliteCognitionWorkflowStore({
+      databasePath,
+      createIfMissing: true,
+    });
+    const originalExec = DatabaseSync.prototype.exec;
+    let immediateTransactions = 0;
+    DatabaseSync.prototype.exec = function (sql) {
+      if (sql.trim() === "BEGIN IMMEDIATE") immediateTransactions += 1;
+      return originalExec.call(this, sql);
+    };
+    try {
+      await assert.rejects(
+        () => store.commitWorkflow(duplicateKey),
+        {
+          name: "TypeError",
+          message: "Durable workflow commit is invalid.",
+        },
+      );
+    } finally {
+      DatabaseSync.prototype.exec = originalExec;
+      store.close();
+    }
+    assert.equal(immediateTransactions, 0);
+    assert.deepEqual(workflowRowCounts(databasePath), {
+      objects: 0,
+      events: 0,
+      receipts: 0,
+    });
+  }
+});
+
 sqliteTest("compares stored Portable Cognition records canonically", async () => {
   const databasePath = temporaryWorkflowDatabase();
   const prepared = preparedWorkflow();
@@ -587,4 +711,133 @@ sqliteTest("rejects a stored receipt whose identities differ from its records", 
     reopened.close();
   }
   assert.deepEqual(workflowRowCounts(databasePath), before);
+});
+
+sqliteTest("validates a complete stored receipt before digest classification", async () => {
+  const alternateDigest = "f".repeat(64);
+  const corruptionCases = [
+    {
+      name: "dangling evidence reference",
+      corrupt(databasePath: string, prepared: PreparedDurableCognitionCommit) {
+        updateDatabase(
+          databasePath,
+          `
+            UPDATE cognition_workflows
+            SET request_digest = ?, evidence_id = ?
+            WHERE workflow_id = ?
+          `,
+          alternateDigest,
+          "evidence:missing",
+          prepared.workflowId,
+        );
+      },
+    },
+    {
+      name: "wrong object references",
+      corrupt(databasePath: string, prepared: PreparedDurableCognitionCommit) {
+        updateDatabase(
+          databasePath,
+          `
+            UPDATE cognition_workflows
+            SET
+              request_digest = ?,
+              initial_hypothesis_id = ?,
+              evidence_id = ?
+            WHERE workflow_id = ?
+          `,
+          alternateDigest,
+          prepared.evidence.payload.id,
+          prepared.initialHypothesis.payload.id,
+          prepared.workflowId,
+        );
+      },
+    },
+    {
+      name: "missing event",
+      corrupt(databasePath: string, prepared: PreparedDurableCognitionCommit) {
+        updateDatabase(
+          databasePath,
+          `
+            UPDATE cognition_workflows
+            SET request_digest = ?
+            WHERE workflow_id = ?
+          `,
+          alternateDigest,
+          prepared.workflowId,
+        );
+        updateDatabase(
+          databasePath,
+          "DELETE FROM cognition_events WHERE event_id = ?",
+          prepared.event.payload.id,
+        );
+      },
+    },
+    {
+      name: "mismatched stored canonical record",
+      corrupt(databasePath: string, prepared: PreparedDurableCognitionCommit) {
+        const changedReviewed = createPortableCognitionRecord({
+          ...structuredClone(prepared.reviewedHypothesis),
+          payload: {
+            ...structuredClone(prepared.reviewedHypothesis.payload),
+            title: "Corrupted reviewed hypothesis",
+          },
+        });
+        updateDatabase(
+          databasePath,
+          `
+            UPDATE cognition_workflows
+            SET request_digest = ?
+            WHERE workflow_id = ?
+          `,
+          alternateDigest,
+          prepared.workflowId,
+        );
+        updateDatabase(
+          databasePath,
+          `
+            UPDATE cognition_objects
+            SET record_json = ?
+            WHERE object_id = ? AND object_version = ?
+          `,
+          serializePortableCognitionRecord(changedReviewed),
+          prepared.reviewedHypothesis.payload.id,
+          prepared.reviewedHypothesis.payload.version,
+        );
+      },
+    },
+  ] as const;
+
+  for (const corruptionCase of corruptionCases) {
+    const databasePath = temporaryWorkflowDatabase();
+    const prepared = preparedWorkflow();
+    const store = new SqliteCognitionWorkflowStore({
+      databasePath,
+      createIfMissing: true,
+    });
+    assert.deepEqual(await store.commitWorkflow(prepared), {
+      status: "committed",
+    });
+    store.close();
+    corruptionCase.corrupt(databasePath, prepared);
+    const before = workflowRows(databasePath);
+
+    const reopened = new SqliteCognitionWorkflowStore({ databasePath });
+    try {
+      await assert.rejects(
+        () => reopened.commitWorkflow(prepared),
+        {
+          name: "TypeError",
+          message: "Stored durable workflow is invalid.",
+        },
+        corruptionCase.name,
+      );
+    } finally {
+      reopened.close();
+    }
+    assert.deepEqual(
+      workflowRows(databasePath),
+      before,
+      corruptionCase.name,
+    );
+  }
 });

@@ -76,3 +76,51 @@ The built runtime inventories remain `SqliteCognitionStore` for `stores/sqlite` 
 - The full Node `24.19.0` source run reported `485` passed, `9` skipped, and `3` failed. The exact base commit reproduces the same three failures: one public-API documentation/package-export mismatch and two durable team-memory permission-model acceptance failures. They are outside Task 4 and were not changed.
 - The Task 2 conformance contract requires an occupied reviewed-Hypothesis revision to classify as `object_revision_collision` before event collision. The SQLite implementation follows that reusable contract while retaining the brief's remaining fixed precedence.
 - No private ledger path was accessed, no subagent was used, and no package, compatibility, documentation, CLI, or unrelated runtime behavior was changed.
+
+## Important-Finding Identity Validation Fix
+
+### RED Evidence
+
+Node `24.19.0` regression command:
+
+```bash
+/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node --disable-warning=ExperimentalWarning --test --test-name-pattern='duplicate prepared storage keys|complete stored receipt' tests/sqlite-workflow-store.test.ts
+```
+
+Result: `0` passed and `2` failed. Evidence reusing the initial Hypothesis storage key escaped preparation and raised a raw `UNIQUE constraint failed` SQLite error. A same-workflow receipt with an alternate valid digest and dangling Evidence reference returned a conflict instead of rejecting the corrupt stored workflow.
+
+### GREEN Evidence
+
+Node `24.19.0` focused SQLite, reusable conformance, and existing-store command:
+
+```bash
+/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node --disable-warning=ExperimentalWarning --test tests/sqlite-workflow-store.test.ts tests/durable-workflow-conformance.test.ts tests/sqlite-workflow-schema.test.ts tests/sqlite-store.test.ts
+```
+
+Result: `68` passed, `0` failed, `0` skipped. This includes duplicate object-key and incoherent event-occupancy rejection before `BEGIN IMMEDIATE`, all five forced rollback boundaries, identical and conflicting concurrency, and four receipt-corruption cases with unchanged row snapshots.
+
+Node `24.9.0` capability command:
+
+```bash
+/opt/homebrew/Cellar/node/24.9.0_1/bin/node --disable-warning=ExperimentalWarning --test tests/sqlite-workflow-store.test.ts tests/durable-workflow-conformance.test.ts tests/sqlite-workflow-schema.test.ts tests/sqlite-store.test.ts
+```
+
+Result: `14` passed, `0` failed, `55` skipped by the existing runtime capability gate; no shim was used.
+
+Also passed:
+
+```bash
+/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node node_modules/typescript/bin/tsc --noEmit
+PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run build
+git diff --check
+```
+
+Built export inventories remain exactly `SqliteCognitionStore` from `stores/sqlite` and `SqliteCognitionWorkflowStore` from `stores/sqlite-workflow`; `src/stores/sqlite.ts` and `package.json` are unchanged.
+
+### Fix Scope
+
+- `src/stores/sqlite-workflow.ts`: validates distinct prepared object storage keys and event occupancy before transaction entry; validates the receipt row and its complete referenced canonical workflow before digest classification.
+- `tests/sqlite-workflow-store.test.ts`: adds adversarial prepared-key/event values and fail-closed, no-mutation receipt corruption coverage.
+- `.superpowers/sdd/2026-08-13-durable-cognition-workflow/task-4-report.md`: appends this RED/GREEN evidence and final counts.
+
+No Task 5 work, public hook/export, production constructor widening, private ledger access, subagent use, or unrelated change was introduced.
