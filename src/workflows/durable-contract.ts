@@ -81,19 +81,46 @@ export type DurableCognitionProjectionStatus =
   | "unchanged"
   | "failed";
 
-export interface DurableCognitionWorkflowCompletion {
-  readonly status:
-    | "committed"
-    | "committed_but_unpublished"
-    | "committed_but_unprojected"
-    | "committed_but_unpublished_and_unprojected";
+type DurableCognitionWorkflowBase = {
   readonly persistence: CognitionPersistenceStatus;
-  readonly publication: DurableCognitionPublicationStatus;
-  readonly projection: DurableCognitionProjectionStatus;
   readonly workflowId: string;
   readonly requestDigest: string;
   readonly records: readonly MarkdownCognitionRecord[];
+};
+
+export interface DurableCognitionWorkflowCommitted
+  extends DurableCognitionWorkflowBase {
+  readonly status: "committed";
+  readonly publication: Exclude<DurableCognitionPublicationStatus, "failed">;
+  readonly projection: Exclude<DurableCognitionProjectionStatus, "failed">;
 }
+
+export interface DurableCognitionWorkflowUnpublished
+  extends DurableCognitionWorkflowBase {
+  readonly status: "committed_but_unpublished";
+  readonly publication: "failed";
+  readonly projection: Exclude<DurableCognitionProjectionStatus, "failed">;
+}
+
+export interface DurableCognitionWorkflowUnprojected
+  extends DurableCognitionWorkflowBase {
+  readonly status: "committed_but_unprojected";
+  readonly publication: Exclude<DurableCognitionPublicationStatus, "failed">;
+  readonly projection: "failed";
+}
+
+export interface DurableCognitionWorkflowUnpublishedAndUnprojected
+  extends DurableCognitionWorkflowBase {
+  readonly status: "committed_but_unpublished_and_unprojected";
+  readonly publication: "failed";
+  readonly projection: "failed";
+}
+
+export type DurableCognitionWorkflowCompletion =
+  | DurableCognitionWorkflowCommitted
+  | DurableCognitionWorkflowUnpublished
+  | DurableCognitionWorkflowUnprojected
+  | DurableCognitionWorkflowUnpublishedAndUnprojected;
 
 export interface DurableCognitionWorkflowConflict {
   readonly status: "conflict";
@@ -126,6 +153,22 @@ export interface DurableWorkflowConformanceReport {
   readonly contractVersion: "0.1.0";
   readonly passed: boolean;
   readonly cases: readonly DurableWorkflowConformanceCaseResult[];
+}
+
+export type DurableWorkflowStoreFactory =
+  () => Promise<CognitionWorkflowStore> | CognitionWorkflowStore;
+
+export interface DurableWorkflowStoreConformanceScenario {
+  readonly kind: "version-conflict" | "rollback";
+  readonly workflow: PreparedDurableCognitionCommit;
+}
+
+export interface DurableWorkflowStoreConformanceFactory {
+  readonly createStore: DurableWorkflowStoreFactory;
+  readonly configureStore?: (
+    store: CognitionWorkflowStore,
+    scenario: DurableWorkflowStoreConformanceScenario,
+  ) => Promise<void> | void;
 }
 
 export const durableWorkflowRequestFields = new Set([

@@ -20,7 +20,20 @@ import type {
   DurableCognitionProjector,
   DurableCognitionWorkflowHost,
   DurableCognitionWorkflowRequest,
+  DurableCognitionWorkflowResult,
 } from "../src/workflows/durable.ts";
+
+const impossibleCompletedWorkflow: DurableCognitionWorkflowResult = {
+  status: "committed",
+  persistence: "committed",
+  // @ts-expect-error A completed workflow cannot report failed publication.
+  publication: "failed",
+  projection: "projected",
+  workflowId: "workflow:impossible",
+  requestDigest: "0".repeat(64),
+  records: [],
+};
+void impossibleCompletedWorkflow;
 
 function validRequest(): DurableCognitionWorkflowRequest {
   const hypothesis = createObject({
@@ -252,4 +265,156 @@ test("fails closed on malformed commit results before downstream stages", async 
   assert.equal(JSON.stringify(result).includes(secret), false);
   assert.equal(host.published.length, 0);
   assert.equal(host.projected.length, 0);
+});
+
+test("rejects preparation before accessing the workflow host", async () => {
+  const host = recordingHost({});
+  const request = { ...validRequest(), records: [] };
+
+  const result = await runDurableCognitionWorkflow(host, request);
+
+  assert.equal(result.status, "failed");
+  assert.equal(host.store.commits.length, 0);
+  assert.equal(host.published.length, 0);
+  assert.equal(host.projected.length, 0);
+});
+
+test("retries requested downstream stages after an already committed replay", async () => {
+  const host = recordingHost({
+    result: { status: "already_committed" },
+    publication: "already_published",
+    projection: "unchanged",
+  });
+
+  const result = await runDurableCognitionWorkflow(host, validRequest());
+
+  assert.equal(result.status, "committed");
+  assert.equal(result.persistence, "already_committed");
+  assert.equal(result.publication, "already_published");
+  assert.equal(result.projection, "unchanged");
+  assert.equal(host.published.length, 1);
+  assert.equal(host.projected.length, 1);
+});
+
+test("does not invoke downstream stages for every valid conflict code", async () => {
+  for (const code of [
+    "workflow_id_collision",
+    "object_revision_collision",
+    "event_id_collision",
+    "version_conflict",
+    "incomplete_workflow",
+  ] as const) {
+    const host = recordingHost({
+      result: {
+        status: "conflict",
+        conflict: { code, workflowId: "workflow:durable-run:1" },
+      },
+    });
+
+    const result = await runDurableCognitionWorkflow(host, validRequest());
+
+    assert.equal(result.status, "conflict", code);
+    assert.equal(result.conflict.code, code);
+    assert.equal(host.published.length, 0, code);
+    assert.equal(host.projected.length, 0, code);
+  }
+});
+
+test("fails closed on malformed conflict results before downstream stages", async () => {
+  const malformed = [
+    {
+      status: "conflict",
+      conflict: {
+        code: "workflow_id_collision",
+        workflowId: "workflow:another",
+      },
+    },
+    {
+      status: "conflict",
+      conflict: {
+        code: "unknown_conflict",
+        workflowId: "workflow:durable-run:1",
+      },
+    },
+    {
+      status: "conflict",
+      conflict: {
+        code: "workflow_id_collision",
+        workflowId: "workflow:durable-run:1",
+        secret: "malformed conflict",
+      },
+    },
+  ];
+  for (const result of malformed) {
+    const host = recordingHost({ result });
+
+    const outcome = await runDurableCognitionWorkflow(host, validRequest());
+
+    assert.equal(outcome.status, "failed");
+    assert.equal(host.published.length, 0);
+    assert.equal(host.projected.length, 0);
+  }
+});
+
+test("classifies each publication and projection outcome independently", async () => {
+  const cases = [
+    {
+      publication: "unexpected-publication",
+      projection: "projected",
+      status: "committed_but_unpublished",
+      expectedPublication: "failed",
+      expectedProjection: "projected",
+    },
+    {
+      publication: "published",
+      projection: "unexpected-projection",
+      status: "committed_but_unprojected",
+      expectedPublication: "published",
+      expectedProjection: "failed",
+    },
+    {
+      publication: "already_published",
+      projection: "unchanged",
+      status: "committed",
+      expectedPublication: "already_published",
+      expectedProjection: "unchanged",
+    },
+  ] as const;
+  for (const expected of cases) {
+    const host = recordingHost(expected);
+
+    const result = await runDurableCognitionWorkflow(host, validRequest());
+
+    assert.equal(result.status, expected.status);
+    assert.equal(result.publication, expected.expectedPublication);
+    assert.equal(result.projection, expected.expectedProjection);
+    assert.equal(host.published.length, 1);
+    assert.equal(host.projected.length, 1);
+  }
+});
+
+test("classifies individual publisher and projector exceptions", async () => {
+  const publisherFailure = recordingHost({});
+  publisherFailure.publisher.publish = async () => {
+    throw new Error("publisher failure");
+  };
+  const unpublished = await runDurableCognitionWorkflow(
+    publisherFailure,
+    validRequest(),
+  );
+  assert.equal(unpublished.status, "committed_but_unpublished");
+  assert.equal(unpublished.publication, "failed");
+  assert.equal(unpublished.projection, "projected");
+
+  const projectorFailure = recordingHost({});
+  projectorFailure.projector.project = async () => {
+    throw new Error("projector failure");
+  };
+  const unprojected = await runDurableCognitionWorkflow(
+    projectorFailure,
+    validRequest(),
+  );
+  assert.equal(unprojected.status, "committed_but_unprojected");
+  assert.equal(unprojected.publication, "published");
+  assert.equal(unprojected.projection, "failed");
 });

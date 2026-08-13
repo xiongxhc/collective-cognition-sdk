@@ -15,6 +15,7 @@ import type {
 import type {
   CognitionWorkflowStore,
   DurableCognitionCommitResult,
+  DurableWorkflowStoreConformanceFactory,
   PreparedDurableCognitionCommit,
 } from "../src/workflows/durable.ts";
 
@@ -46,6 +47,18 @@ class MemoryWorkflowStore implements CognitionWorkflowStore {
   readonly #events = new Map<string, PortableCognitionEventRecord>();
   readonly #latest = new Map<string, number>();
   readonly #workflows = new Map<string, string>();
+  #failAfterInitialWrite = false;
+
+  configureConformanceStore(
+    scenario: "version-conflict" | "rollback",
+    workflow: PreparedDurableCognitionCommit,
+  ): void {
+    if (scenario === "version-conflict") {
+      this.#latest.set(workflow.initialHypothesis.payload.id, 2);
+      return;
+    }
+    this.#failAfterInitialWrite = true;
+  }
 
   async commitWorkflow(
     request: PreparedDurableCognitionCommit,
@@ -87,10 +100,13 @@ class MemoryWorkflowStore implements CognitionWorkflowStore {
         conflict: { code: "object_revision_collision", workflowId: request.workflowId },
       };
     }
-    if (
-      stored[2] !== undefined ||
-      storedEvent !== undefined
-    ) {
+    if (stored[2] !== undefined) {
+      return {
+        status: "conflict",
+        conflict: { code: "object_revision_collision", workflowId: request.workflowId },
+      };
+    }
+    if (storedEvent !== undefined) {
       return {
         status: "conflict",
         conflict: { code: "event_id_collision", workflowId: request.workflowId },
@@ -104,16 +120,36 @@ class MemoryWorkflowStore implements CognitionWorkflowStore {
       };
     }
 
-    for (const record of objects) {
-      this.#objects.set(objectKey(record), copyObject(record));
+    const objectsBeforeWrite = new Map(this.#objects);
+    const eventsBeforeWrite = new Map(this.#events);
+    const latestBeforeWrite = new Map(this.#latest);
+    const workflowsBeforeWrite = new Map(this.#workflows);
+    try {
+      this.#objects.set(objectKey(request.initialHypothesis), copyObject(request.initialHypothesis));
+      if (this.#failAfterInitialWrite) {
+        this.#failAfterInitialWrite = false;
+        throw new Error("Forced post-write failure.");
+      }
+      this.#objects.set(objectKey(request.evidence), copyObject(request.evidence));
+      this.#objects.set(objectKey(request.reviewedHypothesis), copyObject(request.reviewedHypothesis));
+      this.#events.set(request.event.payload.id, copyEvent(request.event));
+      this.#latest.set(
+        request.reviewedHypothesis.payload.id,
+        request.reviewedHypothesis.payload.version,
+      );
+      this.#latest.set(request.evidence.payload.id, request.evidence.payload.version);
+      this.#workflows.set(request.workflowId, request.requestDigest);
+    } catch (error) {
+      this.#objects.clear();
+      this.#events.clear();
+      this.#latest.clear();
+      this.#workflows.clear();
+      for (const [key, record] of objectsBeforeWrite) this.#objects.set(key, record);
+      for (const [key, event] of eventsBeforeWrite) this.#events.set(key, event);
+      for (const [key, version] of latestBeforeWrite) this.#latest.set(key, version);
+      for (const [key, digest] of workflowsBeforeWrite) this.#workflows.set(key, digest);
+      throw error;
     }
-    this.#events.set(request.event.payload.id, copyEvent(request.event));
-    this.#latest.set(
-      request.reviewedHypothesis.payload.id,
-      request.reviewedHypothesis.payload.version,
-    );
-    this.#latest.set(request.evidence.payload.id, request.evidence.payload.version);
-    this.#workflows.set(request.workflowId, request.requestDigest);
     return { status: "committed" };
   }
 
@@ -197,12 +233,23 @@ class MemoryWorkflowStore implements CognitionWorkflowStore {
   }
 }
 
-test("the in-memory workflow store passes every durable conformance case", async () => {
-  const report = await runDurableWorkflowStoreConformance(
-    () => new MemoryWorkflowStore(),
-  );
+function conformanceFactory(): DurableWorkflowStoreConformanceFactory {
+  return {
+    createStore() {
+      return new MemoryWorkflowStore();
+    },
+    configureStore(store, scenario) {
+      (store as MemoryWorkflowStore).configureConformanceStore(
+        scenario.kind,
+        scenario.workflow,
+      );
+    },
+  };
+}
 
-  assert.equal(report.passed, true);
+test("the in-memory workflow store passes every durable conformance case", async () => {
+  const report = await runDurableWorkflowStoreConformance(conformanceFactory());
+
   assert.deepEqual(
     report.cases.map(({ id, status }) => ({ id, status })),
     [
@@ -218,6 +265,7 @@ test("the in-memory workflow store passes every durable conformance case", async
       { id: "factory-isolation", status: "passed" },
     ],
   );
+  assert.equal(report.passed, true);
 });
 
 test("reports every conformance case when a factory cannot provide isolated stores", async () => {
@@ -230,4 +278,18 @@ test("reports every conformance case when a factory cannot provide isolated stor
     report.cases.find(({ id }) => id === "factory-isolation")?.status,
     "failed",
   );
+});
+
+test("requires explicit fixtures for stored-version conflicts and post-write rollback", async () => {
+  const noFixtureFactory: DurableWorkflowStoreConformanceFactory = {
+    createStore() {
+      return new MemoryWorkflowStore();
+    },
+  };
+
+  const report = await runDurableWorkflowStoreConformance(noFixtureFactory);
+
+  assert.equal(report.passed, false);
+  assert.equal(report.cases.find(({ id }) => id === "version-conflict")?.status, "failed");
+  assert.equal(report.cases.find(({ id }) => id === "rollback")?.status, "failed");
 });

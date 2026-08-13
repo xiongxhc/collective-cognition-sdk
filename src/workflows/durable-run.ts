@@ -4,11 +4,15 @@ import type {
   DurableCognitionProjectionStatus,
   DurableCognitionPublicationStatus,
   DurableCognitionWorkflowCompletion,
+  DurableCognitionWorkflowCommitted,
   DurableCognitionWorkflowConflict,
   DurableCognitionWorkflowFailure,
   DurableCognitionWorkflowHost,
   DurableCognitionWorkflowRequest,
   DurableCognitionWorkflowResult,
+  DurableCognitionWorkflowUnprojected,
+  DurableCognitionWorkflowUnpublished,
+  DurableCognitionWorkflowUnpublishedAndUnprojected,
   DurableWorkflowConflictCode,
   PreparedDurableCognitionCommit,
 } from "./durable-contract.ts";
@@ -109,22 +113,49 @@ function completion(
   projection: DurableCognitionProjectionStatus,
   records: readonly MarkdownCognitionRecord[],
 ): DurableCognitionWorkflowCompletion {
-  const status = publication === "failed"
-    ? projection === "failed"
-      ? "committed_but_unpublished_and_unprojected"
-      : "committed_but_unpublished"
-    : projection === "failed"
-      ? "committed_but_unprojected"
-      : "committed";
-  return Object.freeze({
-    status,
+  const base = {
     persistence,
-    publication,
-    projection,
     workflowId: prepared.workflowId,
     requestDigest: prepared.requestDigest,
     records,
-  });
+  };
+  if (publication === "failed" && projection === "failed") {
+    const result: DurableCognitionWorkflowUnpublishedAndUnprojected = {
+      ...base,
+      status: "committed_but_unpublished_and_unprojected",
+      publication,
+      projection,
+    };
+    return Object.freeze(result);
+  }
+  if (publication === "failed") {
+    const result: DurableCognitionWorkflowUnpublished = {
+      ...base,
+      status: "committed_but_unpublished",
+      publication,
+      projection: projection as Exclude<
+        DurableCognitionProjectionStatus,
+        "failed"
+      >,
+    };
+    return Object.freeze(result);
+  }
+  if (projection === "failed") {
+    const result: DurableCognitionWorkflowUnprojected = {
+      ...base,
+      status: "committed_but_unprojected",
+      publication,
+      projection,
+    };
+    return Object.freeze(result);
+  }
+  const result: DurableCognitionWorkflowCommitted = {
+    ...base,
+    status: "committed",
+    publication,
+    projection,
+  };
+  return Object.freeze(result);
 }
 
 async function publicationStatus(
