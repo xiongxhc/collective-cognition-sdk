@@ -329,6 +329,24 @@ class CrossWiredReadStore extends MemoryWorkflowStore {
   }
 }
 
+class SharedRevisionReadStore extends MemoryWorkflowStore {
+  readonly #reviewedGraphs: PortableCognitiveObjectRecord[] = [];
+  #reviewedReadCount = 0;
+
+  override async getObjectVersion(
+    objectId: string,
+    version: number,
+  ): Promise<PortableCognitiveObjectRecord | undefined> {
+    const record = await super.getObjectVersion(objectId, version);
+    if (record === undefined || version !== 2) return record;
+    const pass = Math.floor(this.#reviewedReadCount++ / 2);
+    const shared = this.#reviewedGraphs[pass];
+    if (shared !== undefined) return shared;
+    this.#reviewedGraphs.push(record);
+    return record;
+  }
+}
+
 class ReceiptLeakingConflictStore extends MemoryWorkflowStore {
   readonly #leakedReceipts = new Set<string>();
 
@@ -463,6 +481,18 @@ test("requires recursive detachment when only nested payload data aliases prepar
 test("requires graph-wide detachment across equal-valued caller paths", async () => {
   const report = await runDurableWorkflowStoreConformance(
     conformanceFactory([], () => new CrossWiredReadStore()),
+  );
+
+  assert.equal(report.passed, false);
+  assert.equal(
+    report.cases.find(({ id }) => id === "detached-reads")?.status,
+    "failed",
+  );
+});
+
+test("requires every separately returned graph to be identity-disjoint", async () => {
+  const report = await runDurableWorkflowStoreConformance(
+    conformanceFactory([], () => new SharedRevisionReadStore()),
   );
 
   assert.equal(report.passed, false);

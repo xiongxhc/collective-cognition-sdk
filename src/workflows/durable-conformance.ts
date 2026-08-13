@@ -170,6 +170,12 @@ function assertGraphDetached(
   }
 }
 
+function assertGraphsPairwiseDetached(values: readonly unknown[]): void {
+  for (let index = 0; index < values.length; index += 1) {
+    assertGraphDetached(values.slice(index + 1), collectObjectGraph([values[index]]));
+  }
+}
+
 function assertConflict(
   result: DurableCognitionCommitResult,
   code: DurableWorkflowConflictCode,
@@ -508,6 +514,8 @@ const conformanceCases: readonly ConformanceCase[] = [
       for (const read of [...firstReads, ...repeatedReads]) {
         assertGraphDetached([read], callerObjects);
       }
+      assertGraphsPairwiseDetached(firstReads);
+      assertGraphsPairwiseDetached(repeatedReads);
       assertGraphDetached(repeatedReads, collectObjectGraph(firstReads));
       assertConformance(
         isDeepFrozen(object) && isDeepFrozen(initial) && isDeepFrozen(evidence) &&
