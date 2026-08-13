@@ -108,7 +108,7 @@ function validRequest(
   };
 }
 
-test("prepares one exact frozen durable workflow before host access", () => {
+test("prepares one exact frozen durable workflow", () => {
   const prepared = prepareDurableCognitionWorkflow(validRequest());
 
   assert.equal(prepared.workflowId, "workflow:delivery-review:1");
@@ -350,6 +350,49 @@ test("rejects stateful proxy input before policy invocation", () => {
   });
 
   assertInvalidRequest(validRequest({ ...request, promotion }));
+  assert.equal(policyCalls, 0);
+});
+
+test("rejects nested proxies that mutate an earlier promotion field", () => {
+  let policyCalls = 0;
+  const promotion = structuredClone(validRequest().promotion) as {
+    hypothesisId: string;
+    contextId: string;
+    rationale: string;
+    promotedAt: string;
+    attribution: {
+      initiatorId: string;
+      executorId: string;
+      accountableId: string;
+    };
+  };
+  promotion.attribution = new Proxy(promotion.attribution, {
+    getOwnPropertyDescriptor(value, property) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(value, property);
+      if (property === "accountableId") {
+        promotion.contextId = "context:changed-after-capture";
+      }
+      return descriptor;
+    },
+  });
+  const request = validRequest({
+    promotion,
+    policy: {
+      id: "test-policy",
+      version: "1",
+      map() {
+        policyCalls += 1;
+        return {
+          title: "Evidence",
+          statement: "Statement",
+          evidenceKind: "activity",
+          polarity: "neutral",
+        };
+      },
+    },
+  });
+
+  assertInvalidRequest(request);
   assert.equal(policyCalls, 0);
 });
 

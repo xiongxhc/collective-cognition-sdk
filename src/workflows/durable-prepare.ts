@@ -30,6 +30,57 @@ const maximumSnapshotDepth = 256;
 
 class UnsafeWorkflowStructure extends Error {}
 
+interface DescriptorSnapshot {
+  readonly input: object;
+  readonly keys: readonly PropertyKey[];
+  readonly descriptors: ReadonlyMap<PropertyKey, PropertyDescriptor>;
+}
+
+class SnapshotStabilityCheck {
+  readonly snapshots: DescriptorSnapshot[] = [];
+
+  capture(input: object): DescriptorSnapshot {
+    const keys = Reflect.ownKeys(input);
+    const descriptors = new Map<PropertyKey, PropertyDescriptor>();
+    for (const key of keys) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(input, key);
+      if (descriptor === undefined) {
+        throw new UnsafeWorkflowStructure();
+      }
+      descriptors.set(key, descriptor);
+    }
+    const snapshot = { input, keys, descriptors };
+    this.snapshots.push(snapshot);
+    return snapshot;
+  }
+
+  assertStable(): void {
+    for (const snapshot of this.snapshots) {
+      const currentKeys = Reflect.ownKeys(snapshot.input);
+      if (
+        currentKeys.length !== snapshot.keys.length ||
+        currentKeys.some((key, index) => !Object.is(key, snapshot.keys[index]))
+      ) {
+        throw new UnsafeWorkflowStructure();
+      }
+      for (const key of snapshot.keys) {
+        const original = snapshot.descriptors.get(key);
+        const current = Reflect.getOwnPropertyDescriptor(snapshot.input, key);
+        if (
+          original === undefined ||
+          current === undefined ||
+          original.enumerable !== current.enumerable ||
+          !("value" in original) ||
+          !("value" in current) ||
+          !Object.is(original.value, current.value)
+        ) {
+          throw new UnsafeWorkflowStructure();
+        }
+      }
+    }
+  }
+}
+
 function invalidRequest(): never {
   throw new DomainError(
     DomainErrorCode.INVALID_DURABLE_WORKFLOW_REQUEST,
@@ -108,8 +159,18 @@ function captureClosedObject(
 
 function snapshotJson(
   value: unknown,
+): JsonValue {
+  const stability = new SnapshotStabilityCheck();
+  const snapshot = snapshotJsonValue(value, new Set<object>(), 0, stability);
+  stability.assertStable();
+  return snapshot;
+}
+
+function snapshotJsonValue(
+  value: unknown,
   ancestors = new Set<object>(),
   depth = 0,
+  stability: SnapshotStabilityCheck,
 ): JsonValue {
   if (depth > maximumSnapshotDepth) {
     throw new UnsafeWorkflowStructure();
@@ -131,8 +192,9 @@ function snapshotJson(
       if (Object.getPrototypeOf(value) !== Array.prototype) {
         throw new UnsafeWorkflowStructure();
       }
-      const length = Reflect.getOwnPropertyDescriptor(value, "length");
-      const keys = Reflect.ownKeys(value);
+      const structure = stability.capture(value);
+      const length = structure.descriptors.get("length");
+      const keys = structure.keys;
       if (
         length === undefined ||
         length.enumerable ||
@@ -146,7 +208,7 @@ function snapshotJson(
       }
       const captured: JsonValue[] = [];
       for (let index = 0; index < length.value; index += 1) {
-        const descriptor = Reflect.getOwnPropertyDescriptor(value, String(index));
+        const descriptor = structure.descriptors.get(String(index));
         if (
           descriptor === undefined ||
           !descriptor.enumerable ||
@@ -154,50 +216,40 @@ function snapshotJson(
         ) {
           throw new UnsafeWorkflowStructure();
         }
-        captured.push(snapshotJson(descriptor.value, ancestors, depth + 1));
-        const current = Reflect.getOwnPropertyDescriptor(value, String(index));
-        if (
-          current === undefined ||
-          current.enumerable !== descriptor.enumerable ||
-          !("value" in current) ||
-          !Object.is(current.value, descriptor.value)
-        ) {
-          throw new UnsafeWorkflowStructure();
-        }
+        captured.push(
+          snapshotJsonValue(descriptor.value, ancestors, depth + 1, stability),
+        );
       }
       return captured;
     }
     if (!isPlainObject(value)) {
       throw new UnsafeWorkflowStructure();
     }
-      const captured: Record<string, JsonValue> = {};
-      for (const key of Reflect.ownKeys(value)) {
+    const structure = stability.capture(value);
+    const captured: Record<string, JsonValue> = {};
+    for (const key of structure.keys) {
       if (typeof key !== "string" || !isUnicodeScalarString(key)) {
         throw new UnsafeWorkflowStructure();
       }
-      const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+      const descriptor = structure.descriptors.get(key);
       if (
         descriptor === undefined ||
         !descriptor.enumerable ||
-        !("value" in descriptor)
+          !("value" in descriptor)
       ) {
         throw new UnsafeWorkflowStructure();
       }
-        Object.defineProperty(captured, key, {
-        value: snapshotJson(descriptor.value, ancestors, depth + 1),
+      Object.defineProperty(captured, key, {
+        value: snapshotJsonValue(
+          descriptor.value,
+          ancestors,
+          depth + 1,
+          stability,
+        ),
         enumerable: true,
         configurable: true,
-          writable: true,
-        });
-        const current = Reflect.getOwnPropertyDescriptor(value, key);
-        if (
-          current === undefined ||
-          current.enumerable !== descriptor.enumerable ||
-          !("value" in current) ||
-          !Object.is(current.value, descriptor.value)
-        ) {
-          throw new UnsafeWorkflowStructure();
-        }
+        writable: true,
+      });
     }
     return captured;
   } finally {
