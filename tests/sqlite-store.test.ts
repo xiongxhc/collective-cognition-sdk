@@ -960,7 +960,7 @@ sqliteTest("SQLite target rejects an unrelated database without mutation", (t) =
 
 sqliteTest("SQLite schema rejects an unknown cognition version without mutation", (t) => {
   const databasePath = temporaryDatabasePath(t);
-  createMarkedCognitionDatabase(databasePath, 2);
+  createMarkedCognitionDatabase(databasePath, 3);
 
   assertRejectedWithoutMutation(databasePath, snapshotFile(databasePath));
 });

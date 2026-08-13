@@ -59,7 +59,6 @@ interface StoredObjectRow {
 }
 
 const adapterId = "collective-cognition-sdk:sqlite-store";
-const schemaVersion = 1;
 const defaultBusyTimeoutMs = 5_000;
 const maximumBusyTimeoutMs = 60_000;
 const cognitionSchemaTableSql = `
@@ -93,13 +92,31 @@ const cognitionEventsTableSql = `
   ) STRICT;
 `;
 
-const schemaSql = [
+const cognitionWorkflowsTableSql = `
+  CREATE TABLE cognition_workflows (
+    workflow_id TEXT PRIMARY KEY,
+    request_digest TEXT NOT NULL CHECK (length(request_digest) = 64),
+    initial_hypothesis_id TEXT NOT NULL,
+    evidence_id TEXT NOT NULL,
+    reviewed_hypothesis_version INTEGER NOT NULL CHECK (reviewed_hypothesis_version = 2),
+    event_id TEXT NOT NULL UNIQUE
+  ) STRICT;
+`;
+
+const schemaVersionOneSql = [
   cognitionSchemaTableSql,
   cognitionObjectsTableSql,
   cognitionEventsTableSql,
 ].join("\n");
 
-const expectedColumns = {
+const schemaVersionTwoSql = [
+  cognitionSchemaTableSql,
+  cognitionObjectsTableSql,
+  cognitionEventsTableSql,
+  cognitionWorkflowsTableSql,
+].join("\n");
+
+const expectedVersionOneColumns = {
   cognition_events: [
     [0, "event_id", "TEXT", 1, null, 1, 0],
     [1, "object_id", "TEXT", 1, null, 0, 0],
@@ -120,7 +137,7 @@ const expectedColumns = {
   ],
 } as const;
 
-const expectedIndexes = {
+const expectedVersionOneIndexes = {
   cognition_events: [
     ["pk", 1, 0, ["event_id"]],
     ["u", 1, 0, ["object_id", "object_version"]],
@@ -131,7 +148,7 @@ const expectedIndexes = {
   cognition_schema: [],
 } as const;
 
-const expectedForeignKeys = {
+const expectedVersionOneForeignKeys = {
   cognition_events: [
     [
       0,
@@ -158,7 +175,41 @@ const expectedForeignKeys = {
   cognition_schema: [],
 } as const;
 
-type CognitionTableName = keyof typeof expectedColumns;
+const expectedVersionTwoColumns = {
+  ...expectedVersionOneColumns,
+  cognition_workflows: [
+    [0, "workflow_id", "TEXT", 1, null, 1, 0],
+    [1, "request_digest", "TEXT", 1, null, 0, 0],
+    [2, "initial_hypothesis_id", "TEXT", 1, null, 0, 0],
+    [3, "evidence_id", "TEXT", 1, null, 0, 0],
+    [4, "reviewed_hypothesis_version", "INTEGER", 1, null, 0, 0],
+    [5, "event_id", "TEXT", 1, null, 0, 0],
+  ],
+} as const;
+
+const expectedVersionTwoIndexes = {
+  ...expectedVersionOneIndexes,
+  cognition_workflows: [
+    ["pk", 1, 0, ["workflow_id"]],
+    ["u", 1, 0, ["event_id"]],
+  ],
+} as const;
+
+const expectedVersionTwoForeignKeys = {
+  ...expectedVersionOneForeignKeys,
+  cognition_workflows: [],
+} as const;
+
+interface SchemaProfile {
+  readonly version: 1 | 2;
+  readonly sql: string;
+  readonly schemaObjects: readonly (readonly unknown[])[];
+  readonly expectedColumns: Record<string, readonly (readonly unknown[])[]>;
+  readonly expectedIndexes: Record<string, readonly (readonly unknown[])[]>;
+  readonly expectedForeignKeys: Record<string, readonly (readonly unknown[])[]>;
+}
+
+type SchemaSelection = 2;
 
 function invalidOptions(): never {
   throw new TypeError("SQLite cognition store options are invalid.");
@@ -370,20 +421,52 @@ function normalizeSchemaSql(sql: string): string {
     .toLowerCase();
 }
 
-const expectedSchemaObjects = [
-  ["table", "cognition_events", cognitionEventsTableSql],
-  ["table", "cognition_objects", cognitionObjectsTableSql],
-  ["table", "cognition_schema", cognitionSchemaTableSql],
-].map(([type, name, sql]) => [
-  type,
-  name,
-  name,
-  normalizeSchemaSql(sql!),
+function createExpectedSchemaObjects(
+  tableSql: readonly (readonly [string, string, string])[],
+): readonly (readonly unknown[])[] {
+  return tableSql.map(([type, name, sql]) => [
+    type,
+    name,
+    name,
+    normalizeSchemaSql(sql),
+  ]);
+}
+
+const schemaVersionOne: SchemaProfile = Object.freeze({
+  version: 1,
+  sql: schemaVersionOneSql,
+  schemaObjects: createExpectedSchemaObjects([
+    ["table", "cognition_events", cognitionEventsTableSql],
+    ["table", "cognition_objects", cognitionObjectsTableSql],
+    ["table", "cognition_schema", cognitionSchemaTableSql],
+  ]),
+  expectedColumns: expectedVersionOneColumns,
+  expectedIndexes: expectedVersionOneIndexes,
+  expectedForeignKeys: expectedVersionOneForeignKeys,
+});
+
+const schemaVersionTwo: SchemaProfile = Object.freeze({
+  version: 2,
+  sql: schemaVersionTwoSql,
+  schemaObjects: createExpectedSchemaObjects([
+    ["table", "cognition_events", cognitionEventsTableSql],
+    ["table", "cognition_objects", cognitionObjectsTableSql],
+    ["table", "cognition_schema", cognitionSchemaTableSql],
+    ["table", "cognition_workflows", cognitionWorkflowsTableSql],
+  ]),
+  expectedColumns: expectedVersionTwoColumns,
+  expectedIndexes: expectedVersionTwoIndexes,
+  expectedForeignKeys: expectedVersionTwoForeignKeys,
+});
+
+const schemaProfiles = new Map<number, SchemaProfile>([
+  [schemaVersionOne.version, schemaVersionOne],
+  [schemaVersionTwo.version, schemaVersionTwo],
 ]);
 
 function readColumns(
   database: DatabaseSync,
-  table: CognitionTableName,
+  table: string,
 ): unknown[][] {
   return database
     .prepare(
@@ -410,7 +493,7 @@ function readColumns(
 
 function readIndexes(
   database: DatabaseSync,
-  table: CognitionTableName,
+  table: string,
 ): unknown[][] {
   return database
     .prepare(
@@ -449,7 +532,7 @@ function readIndexes(
 
 function readForeignKeys(
   database: DatabaseSync,
-  table: CognitionTableName,
+  table: string,
 ): unknown[][] {
   return database
     .prepare(
@@ -483,8 +566,33 @@ function readForeignKeys(
     });
 }
 
-function assertSchemaIdentity(database: DatabaseSync): void {
+function assertSchemaIdentity(
+  database: DatabaseSync,
+  allowedVersions: ReadonlySet<number>,
+): void {
   try {
+    const markers = database
+      .prepare(
+        `
+          SELECT singleton, adapter_id, schema_version
+          FROM cognition_schema
+        `,
+      )
+      .all() as unknown as SchemaMarker[];
+    const marker = markers[0];
+    const profile = marker === undefined
+      ? undefined
+      : schemaProfiles.get(marker.schema_version);
+    if (
+      markers.length !== 1 ||
+      marker?.singleton !== 1 ||
+      marker.adapter_id !== adapterId ||
+      profile === undefined ||
+      !allowedVersions.has(profile.version)
+    ) {
+      return invalidTarget();
+    }
+
     const schemaObjects = database
       .prepare(
         `
@@ -506,46 +614,27 @@ function assertSchemaIdentity(database: DatabaseSync): void {
             : schemaObject.sql,
         ];
       });
-    if (!isDeepStrictEqual(schemaObjects, expectedSchemaObjects)) {
+    if (!isDeepStrictEqual(schemaObjects, profile.schemaObjects)) {
       return invalidTarget();
     }
 
-    for (const table of Object.keys(
-      expectedColumns,
-    ) as CognitionTableName[]) {
+    for (const table of Object.keys(profile.expectedColumns)) {
       if (
         !isDeepStrictEqual(
           readColumns(database, table),
-          expectedColumns[table],
+          profile.expectedColumns[table],
         ) ||
         !isDeepStrictEqual(
           readIndexes(database, table),
-          expectedIndexes[table],
+          profile.expectedIndexes[table],
         ) ||
         !isDeepStrictEqual(
           readForeignKeys(database, table),
-          expectedForeignKeys[table],
+          profile.expectedForeignKeys[table],
         )
       ) {
         return invalidTarget();
       }
-    }
-
-    const markers = database
-      .prepare(
-        `
-          SELECT singleton, adapter_id, schema_version
-          FROM cognition_schema
-        `,
-      )
-      .all() as unknown as SchemaMarker[];
-    if (
-      markers.length !== 1 ||
-      markers[0]?.singleton !== 1 ||
-      markers[0].adapter_id !== adapterId ||
-      markers[0].schema_version !== schemaVersion
-    ) {
-      return invalidTarget();
     }
   } catch {
     return invalidTarget();
@@ -555,11 +644,12 @@ function assertSchemaIdentity(database: DatabaseSync): void {
 function inspectExistingTarget(
   databasePath: string,
   busyTimeoutMs: number,
+  allowedVersions: ReadonlySet<number>,
 ): void {
   let database: DatabaseSync | undefined;
   try {
     database = openDatabase(databasePath, busyTimeoutMs, true);
-    assertSchemaIdentity(database);
+    assertSchemaIdentity(database, allowedVersions);
   } catch {
     return invalidTarget();
   } finally {
@@ -572,6 +662,8 @@ function inspectExistingTarget(
 function createTarget(
   databasePath: string,
   busyTimeoutMs: number,
+  schemaProfile: SchemaProfile,
+  allowedVersions: ReadonlySet<number>,
 ): DatabaseSync {
   const temporaryDirectory = mkdtempSync(
     join(dirname(databasePath), `.${basename(databasePath)}.create-`),
@@ -588,7 +680,7 @@ function createTarget(
       false,
     );
     database.exec("BEGIN IMMEDIATE");
-    database.exec(schemaSql);
+    database.exec(schemaProfile.sql);
     database
       .prepare(
         `
@@ -600,7 +692,7 @@ function createTarget(
           ) VALUES (?, ?, ?, ?)
         `,
       )
-      .run(1, adapterId, schemaVersion, new Date().toISOString());
+      .run(1, adapterId, schemaProfile.version, new Date().toISOString());
     database.exec("COMMIT");
     database.close();
     database = undefined;
@@ -623,10 +715,51 @@ function createTarget(
 
   const published = openDatabase(databasePath, busyTimeoutMs, false);
   try {
-    assertSchemaIdentity(published);
+    assertSchemaIdentity(published, allowedVersions);
     return published;
   } catch (error) {
     published.close();
+    throw error;
+  }
+}
+
+function openCompatibleCognitionTarget(
+  snapshot: SqliteCognitionStoreOptionsSnapshot,
+  allowedVersions: ReadonlySet<number>,
+  schemaProfile: SchemaProfile,
+): DatabaseSync {
+  if (!allowedVersions.has(schemaProfile.version)) {
+    return invalidTarget();
+  }
+
+  const targetExists = existsSync(snapshot.databasePath);
+  if (!targetExists) {
+    if (!snapshot.createIfMissing) {
+      return invalidTarget();
+    }
+    return createTarget(
+      snapshot.databasePath,
+      snapshot.busyTimeoutMs,
+      schemaProfile,
+      allowedVersions,
+    );
+  }
+
+  inspectExistingTarget(
+    snapshot.databasePath,
+    snapshot.busyTimeoutMs,
+    allowedVersions,
+  );
+  const database = openDatabase(
+    snapshot.databasePath,
+    snapshot.busyTimeoutMs,
+    false,
+  );
+  try {
+    assertSchemaIdentity(database, allowedVersions);
+    return database;
+  } catch (error) {
+    database.close();
     throw error;
   }
 }
@@ -709,34 +842,23 @@ function assertConsistentObjectHistory(
 export class SqliteCognitionStore implements CognitionStore {
   readonly #database: DatabaseSync;
 
-  constructor(options: SqliteCognitionStoreOptions) {
+  constructor(options: SqliteCognitionStoreOptions);
+  constructor(
+    options: SqliteCognitionStoreOptions,
+    schemaSelection: SchemaSelection,
+  );
+  constructor(
+    options: SqliteCognitionStoreOptions,
+    schemaSelection?: SchemaSelection,
+  ) {
     assertDefensiveRuntime();
     const snapshot = snapshotOptions(options);
-    const targetExists = existsSync(snapshot.databasePath);
-    if (!targetExists && !snapshot.createIfMissing) {
-      invalidTarget();
-    }
-
-    if (!targetExists) {
-      this.#database = createTarget(
-        snapshot.databasePath,
-        snapshot.busyTimeoutMs,
-      );
-      return;
-    }
-
-    inspectExistingTarget(snapshot.databasePath, snapshot.busyTimeoutMs);
-    this.#database = openDatabase(
-      snapshot.databasePath,
-      snapshot.busyTimeoutMs,
-      false,
+    const workflowTarget = schemaSelection === 2;
+    this.#database = openCompatibleCognitionTarget(
+      snapshot,
+      workflowTarget ? new Set([2]) : new Set([1, 2]),
+      workflowTarget ? schemaVersionTwo : schemaVersionOne,
     );
-    try {
-      assertSchemaIdentity(this.#database);
-    } catch (error) {
-      this.#database.close();
-      throw error;
-    }
   }
 
   close(): void {
