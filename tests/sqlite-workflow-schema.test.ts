@@ -215,7 +215,7 @@ test("the workflow store remains outside the existing SQLite module export", asy
     workflow.SqliteCognitionWorkflowStore,
     SqliteCognitionWorkflowStore,
   );
-  assert.equal("commitWorkflow" in SqliteCognitionWorkflowStore.prototype, false);
+  assert.equal("commitWorkflow" in SqliteCognitionWorkflowStore.prototype, true);
 });
 
 test("the package keeps SQLite internals unexported", () => {

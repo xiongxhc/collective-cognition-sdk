@@ -1,11 +1,19 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  DatabaseSync,
+  StatementSync,
+} from "node:sqlite";
+import test, { after } from "node:test";
 
 import {
   createPortableCognitionRecord,
   serializePortableCognitionRecord,
 } from "../src/index.ts";
 import { runDurableWorkflowStoreConformance } from "../src/workflows/durable.ts";
+import { SqliteCognitionWorkflowStore } from "../src/stores/sqlite-workflow.ts";
 import type {
   CognitionStoreCommitResult,
   PortableCognitionEventRecord,
@@ -19,9 +27,44 @@ import type {
   DurableWorkflowStoreFactory,
   PreparedDurableCognitionCommit,
 } from "../src/workflows/durable.ts";
+import type { StatementResultingChanges } from "node:sqlite";
 
 // @ts-expect-error Legacy object factory must not be part of the durable subpath.
 import type { DurableWorkflowStoreConformanceFactory } from "../src/workflows/durable.ts";
+
+function defensiveModeIsEnforced(): boolean {
+  let database: DatabaseSync | undefined;
+  try {
+    database = new DatabaseSync(":memory:", {
+      allowExtension: false,
+      defensive: true,
+      enableDoubleQuotedStringLiterals: false,
+      enableForeignKeyConstraints: true,
+    });
+    database.enableDefensive(true);
+    database.exec("PRAGMA writable_schema = ON");
+    const result = database
+      .prepare("PRAGMA writable_schema")
+      .get() as { readonly writable_schema?: unknown };
+    return result.writable_schema === 0;
+  } catch {
+    return false;
+  } finally {
+    if (database?.isOpen) database.close();
+  }
+}
+
+const supportsDefensiveMode =
+  typeof DatabaseSync.prototype.enableDefensive === "function" &&
+  defensiveModeIsEnforced();
+const sqliteTest = supportsDefensiveMode ? test : test.skip;
+const sqliteTemporaryDirectories = new Set<string>();
+
+after(() => {
+  for (const directory of sqliteTemporaryDirectories) {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 function copyObject(record: PortableCognitiveObjectRecord): PortableCognitiveObjectRecord {
   return createPortableCognitionRecord(
@@ -524,4 +567,113 @@ test("rejects stores that retain a receipt after rollback failure", async () => 
     report.cases.find(({ id }) => id === "rollback")?.status,
     "failed",
   );
+});
+
+function temporarySqliteWorkflowPath(): string {
+  const directory = mkdtempSync(
+    join(tmpdir(), "collective-cognition-workflow-conformance-"),
+  );
+  sqliteTemporaryDirectories.add(directory);
+  return join(directory, "cognition.db");
+}
+
+function installOneShotWorkflowInsertFailure(): () => void {
+  const statementPrototype = StatementSync.prototype as unknown as {
+    readonly sourceSQL: string;
+    run: (...parameters: unknown[]) => StatementResultingChanges;
+  };
+  const originalRun = statementPrototype.run;
+  let active = true;
+  const restore = () => {
+    if (active) {
+      active = false;
+      statementPrototype.run = originalRun;
+    }
+  };
+  statementPrototype.run = function (
+    ...parameters: unknown[]
+  ): StatementResultingChanges {
+    const result = Reflect.apply(originalRun, this, parameters);
+    if (/^\s*INSERT INTO cognition_objects/i.test(this.sourceSQL)) {
+      restore();
+      throw new Error("Forced post-insert workflow failure.");
+    }
+    return result;
+  };
+  return restore;
+}
+
+function insertVersionConflictFixture(
+  databasePath: string,
+  workflow: PreparedDurableCognitionCommit,
+): void {
+  const latest = createPortableCognitionRecord({
+    ...structuredClone(workflow.reviewedHypothesis),
+    payload: {
+      ...structuredClone(workflow.reviewedHypothesis.payload),
+      version: 3,
+    },
+  }) as PortableCognitiveObjectRecord;
+  const database = new DatabaseSync(databasePath);
+  try {
+    database.prepare(`
+      INSERT INTO cognition_objects (
+        object_id,
+        object_version,
+        object_type,
+        record_json
+      ) VALUES (?, ?, ?, ?)
+    `).run(
+      latest.payload.id,
+      latest.payload.version,
+      latest.payload.type,
+      serializePortableCognitionRecord(latest),
+    );
+  } finally {
+    database.close();
+  }
+}
+
+sqliteTest("the SQLite workflow store passes every durable conformance case", async () => {
+  const stores: SqliteCognitionWorkflowStore[] = [];
+  const restoreHooks: Array<() => void> = [];
+  const factory: DurableWorkflowStoreFactory = (scenario) => {
+    const databasePath = temporarySqliteWorkflowPath();
+    let store = new SqliteCognitionWorkflowStore({
+      databasePath,
+      createIfMissing: true,
+    });
+    if (scenario?.kind === "version-conflict") {
+      store.close();
+      insertVersionConflictFixture(databasePath, scenario.workflow);
+      store = new SqliteCognitionWorkflowStore({ databasePath });
+    } else if (scenario?.kind === "rollback") {
+      restoreHooks.push(installOneShotWorkflowInsertFailure());
+    }
+    stores.push(store);
+    return store;
+  };
+
+  try {
+    const report = await runDurableWorkflowStoreConformance(factory);
+    assert.deepEqual(
+      report.cases.map(({ id, status }) => ({ id, status })),
+      [
+        { id: "atomic-commit", status: "passed" },
+        { id: "exact-replay", status: "passed" },
+        { id: "workflow-id-collision", status: "passed" },
+        { id: "object-collision", status: "passed" },
+        { id: "event-collision", status: "passed" },
+        { id: "version-conflict", status: "passed" },
+        { id: "incomplete-workflow", status: "passed" },
+        { id: "rollback", status: "passed" },
+        { id: "detached-reads", status: "passed" },
+        { id: "factory-isolation", status: "passed" },
+      ],
+    );
+    assert.equal(report.passed, true);
+  } finally {
+    for (const restore of restoreHooks) restore();
+    for (const store of stores) store.close();
+  }
 });

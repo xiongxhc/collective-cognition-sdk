@@ -868,6 +868,7 @@ export class SqliteCognitionStoreBase implements CognitionStore {
       new Set(schemaTarget.allowedVersions),
       schemaTarget.creationSchemaProfile,
     );
+    sqliteStoreDatabases.set(this, this.#database);
   }
 
   close(): void {
@@ -1235,4 +1236,17 @@ export class SqliteCognitionStoreBase implements CognitionStore {
       closedStore();
     }
   }
+}
+
+const sqliteStoreDatabases = new WeakMap<object, DatabaseSync>();
+
+export function runSqliteCognitionStoreImmediateTransaction<Result>(
+  store: SqliteCognitionStoreBase,
+  operation: (database: DatabaseSync) => Result,
+): Result {
+  const database = sqliteStoreDatabases.get(store);
+  if (database === undefined || !database.isOpen) {
+    return closedStore();
+  }
+  return runImmediateTransaction(database, () => operation(database));
 }
