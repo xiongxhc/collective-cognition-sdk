@@ -1,9 +1,13 @@
 import type { TransitionContext } from "../authorization.ts";
 import type {
+  CognitionEventPublisher,
+  CognitionPersistenceStatus,
+  CognitionStore,
   PortableCognitionEventRecord,
   PortableCognitiveObjectRecord,
 } from "../host-integration.ts";
 import type { IngestionOptions } from "../ingestion.ts";
+import type { MarkdownCognitionRecord } from "../markdown-cognition.ts";
 import type { EvidencePromotionContext, EvidencePromotionPolicy } from "../promotion.ts";
 import type { SourceRecord } from "../source-records.ts";
 import type { CognitiveObject } from "../types.ts";
@@ -28,6 +32,100 @@ export interface PreparedDurableCognitionCommit {
   readonly expectedHypothesisVersion: 1;
   readonly reviewedHypothesis: PortableCognitiveObjectRecord;
   readonly event: PortableCognitionEventRecord;
+}
+
+export type DurableWorkflowConflictCode =
+  | "workflow_id_collision"
+  | "object_revision_collision"
+  | "event_id_collision"
+  | "version_conflict"
+  | "incomplete_workflow";
+
+export type DurableCognitionCommitResult =
+  | { readonly status: "committed" | "already_committed" }
+  | {
+      readonly status: "conflict";
+      readonly conflict: {
+        readonly code: DurableWorkflowConflictCode;
+        readonly workflowId: string;
+      };
+    };
+
+export interface CognitionWorkflowStore extends CognitionStore {
+  commitWorkflow(
+    request: PreparedDurableCognitionCommit,
+  ): Promise<DurableCognitionCommitResult>;
+}
+
+export interface DurableCognitionProjector {
+  project(
+    records: readonly MarkdownCognitionRecord[],
+  ): Promise<"projected" | "unchanged">;
+}
+
+export interface DurableCognitionWorkflowHost {
+  readonly store: CognitionWorkflowStore;
+  readonly publisher?: CognitionEventPublisher;
+  readonly projector?: DurableCognitionProjector;
+}
+
+export type DurableCognitionPublicationStatus =
+  | "not_requested"
+  | "published"
+  | "already_published"
+  | "failed";
+
+export type DurableCognitionProjectionStatus =
+  | "not_requested"
+  | "projected"
+  | "unchanged"
+  | "failed";
+
+export interface DurableCognitionWorkflowCompletion {
+  readonly status:
+    | "committed"
+    | "committed_but_unpublished"
+    | "committed_but_unprojected"
+    | "committed_but_unpublished_and_unprojected";
+  readonly persistence: CognitionPersistenceStatus;
+  readonly publication: DurableCognitionPublicationStatus;
+  readonly projection: DurableCognitionProjectionStatus;
+  readonly workflowId: string;
+  readonly requestDigest: string;
+  readonly records: readonly MarkdownCognitionRecord[];
+}
+
+export interface DurableCognitionWorkflowConflict {
+  readonly status: "conflict";
+  readonly conflict: {
+    readonly code: DurableWorkflowConflictCode;
+    readonly workflowId: string;
+  };
+}
+
+export interface DurableCognitionWorkflowFailure {
+  readonly status: "failed";
+  readonly error: {
+    readonly code: "DURABLE_WORKFLOW_FAILED";
+    readonly message: "Durable workflow failed.";
+  };
+}
+
+export type DurableCognitionWorkflowResult =
+  | DurableCognitionWorkflowCompletion
+  | DurableCognitionWorkflowConflict
+  | DurableCognitionWorkflowFailure;
+
+export interface DurableWorkflowConformanceCaseResult {
+  readonly id: string;
+  readonly status: "passed" | "failed";
+  readonly message?: "Durable workflow conformance case failed.";
+}
+
+export interface DurableWorkflowConformanceReport {
+  readonly contractVersion: "0.1.0";
+  readonly passed: boolean;
+  readonly cases: readonly DurableWorkflowConformanceCaseResult[];
 }
 
 export const durableWorkflowRequestFields = new Set([
