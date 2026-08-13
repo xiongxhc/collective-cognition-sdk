@@ -25,6 +25,10 @@
       "types": "./dist/markdown-cognition.d.ts",
       "import": "./dist/markdown-cognition.js"
     },
+    "./workflows/durable/0.1.0": {
+      "types": "./dist/workflows/durable.d.ts",
+      "import": "./dist/workflows/durable.js"
+    },
     "./connector-conformance/0.1.0": {
       "types": "./dist/connector-conformance.d.ts",
       "import": "./dist/connector-conformance.js"
