@@ -83,7 +83,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** In progress. The compatibility, Portable Cognition, and Host Integration slices are final-review verified; the Runtime and Security slice is implemented, full local-gate verified, and independently reviewed. The checked public-API and distribution-readiness documentation slice for private package `0.8.0` is complete, while its final whole-branch gate and broader Phase 3 work remain open. The experimental `v0.6.0` GitHub prerelease is observed and verified, while npm publication remains blocked and production readiness is not claimed.
+**Status:** In progress. The compatibility, Portable Cognition, and Host Integration slices are final-review verified; the Runtime and Security slice is implemented, full local-gate verified, and independently reviewed. The checked public-API and distribution-readiness documentation slice for private package `0.8.0` completed its whole-branch verification, was fast-forwarded to `main`, and passed the full GitHub Actions matrix. Broader Phase 3 language-neutral semantics, schemas, publication, and production-readiness work remain open. The experimental `v0.6.0` GitHub prerelease is observed and verified, while npm publication remains blocked and production readiness is not claimed.
 
 **Phase 3 slice progress**
 
@@ -96,6 +96,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Runtime and Security Profile `0.1.0` design approved.
 - [x] Implement the normative policy, machine-readable control inventory, RFC, package subpath, compatibility baseline, and conformance evidence described in [`2026-08-10-runtime-security-policy-design.md`](superpowers/specs/2026-08-10-runtime-security-policy-design.md).
 - [x] Reconcile the checked [public API reference](public-api.md), [Distribution Readiness Profile `0.1.0`](../spec/distribution-readiness.md), [machine-readable profile](../spec/distribution-readiness/0.1.0/profile.json), [RFC 0009](../rfcs/0009-public-api-and-distribution-readiness.md), private package `0.8.0` compatibility narrative, and public indexes without enabling publication or claiming production readiness.
+- [x] Complete the private package `0.8.0` whole-branch gate, fast-forward it to `main` at `1f65c1809f03ffde244529ba41c73bec6e14392a`, and verify [GitHub Actions run `31696629195`](https://github.com/xiongxhc/collective-cognition-sdk/actions/runs/31696629195) across Node `24.9.0` and `24.14.0` on Linux, macOS, Windows, and the distribution job.
 
 **Delivered in the SourceRecord normative-conformance slice**
 
@@ -282,7 +283,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 4: Adapter Ecosystem Foundations
 
-**Status:** Active. The SQLite database persistence adapter, maintained source-connector slice, and [Markdown cognition adapter](markdown-cognition-adapter-guide.md) are implemented and final-review verified. The Markdown slice includes the private, npm-unpublished package `0.6.0` export, executable, compatibility baseline, exact package allowlist, clean-consumer workflow, and temporary-vault acceptance. The experimental `v0.6.0` GitHub prerelease is observed and verified as recorded in Phase 3.
+**Status:** Active. The SQLite database persistence adapter, maintained source-connector slice, and [Markdown cognition adapter](markdown-cognition-adapter-guide.md) are implemented and final-review verified. The Markdown slice includes the private, npm-unpublished package `0.6.0` export, executable, compatibility baseline, exact package allowlist, clean-consumer workflow, and temporary-vault acceptance. The source-neutral [Durable Cognition Workflow `0.1.0` design](superpowers/specs/2026-08-13-durable-cognition-workflow-design.md) is the next selected implementation slice and awaits user review; no workflow package, executable, or package `0.9.0` implementation is claimed yet. The experimental `v0.6.0` GitHub prerelease is observed and verified as recorded in Phase 3.
 
 **Entry criteria**
 
@@ -300,6 +301,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] The reviewed [Markdown cognition adapter](superpowers/specs/2026-07-30-markdown-cognition-adapter-design.md), operating only on an explicitly initialized managed directory.
 - [x] A connector author guide and RFC explaining independent repositories and packages, SourceRecord neutrality, connector-owned concerns, and conformance limits.
 - [x] Deterministic object-to-Markdown and Markdown-to-object fixtures with stable IDs, versions, relationships, and provenance.
+- [ ] A source-neutral durable workflow that atomically persists an explicit Hypothesis, promoted neutral Evidence, transitioned Hypothesis, and event, then reports publication and optional Markdown projection as separate recoverable downstream stages.
 
 **Acceptance checks**
 
@@ -361,7 +363,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 5: Cross-Connector Interoperability
 
-**Status:** Next SDK development slice. Execution remains pending its entry criteria.
+**Status:** Next SDK development slice. Execution remains queued after the active Phase 4 Durable Cognition Workflow `0.1.0` slice and pending its own entry criteria.
 
 **Entry criteria**
 
