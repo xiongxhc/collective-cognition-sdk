@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-13
 
-**Status:** Approved in concept for specification by the user's selection of the durable cognition workflow as the next SDK milestone. Detailed design awaits user review before implementation planning.
+**Status:** Approved for implementation planning by the user on 2026-08-13. No implementation or package `0.9.0` behavior is claimed by this design approval.
 
 ## Problem
 

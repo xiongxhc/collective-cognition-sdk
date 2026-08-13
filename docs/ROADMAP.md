@@ -283,7 +283,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 4: Adapter Ecosystem Foundations
 
-**Status:** Active. The SQLite database persistence adapter, maintained source-connector slice, and [Markdown cognition adapter](markdown-cognition-adapter-guide.md) are implemented and final-review verified. The Markdown slice includes the private, npm-unpublished package `0.6.0` export, executable, compatibility baseline, exact package allowlist, clean-consumer workflow, and temporary-vault acceptance. The source-neutral [Durable Cognition Workflow `0.1.0` design](superpowers/specs/2026-08-13-durable-cognition-workflow-design.md) is the next selected implementation slice and awaits user review; no workflow package, executable, or package `0.9.0` implementation is claimed yet. The experimental `v0.6.0` GitHub prerelease is observed and verified as recorded in Phase 3.
+**Status:** Active. The SQLite database persistence adapter, maintained source-connector slice, and [Markdown cognition adapter](markdown-cognition-adapter-guide.md) are implemented and final-review verified. The Markdown slice includes the private, npm-unpublished package `0.6.0` export, executable, compatibility baseline, exact package allowlist, clean-consumer workflow, and temporary-vault acceptance. The source-neutral [Durable Cognition Workflow `0.1.0` design](superpowers/specs/2026-08-13-durable-cognition-workflow-design.md) is approved for implementation planning; no workflow package, executable, or package `0.9.0` implementation is claimed yet. The experimental `v0.6.0` GitHub prerelease is observed and verified as recorded in Phase 3.
 
 **Entry criteria**
 
