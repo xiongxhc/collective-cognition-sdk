@@ -298,6 +298,37 @@ class NestedAliasedReadStore extends MemoryWorkflowStore {
   }
 }
 
+class CrossWiredReadStore extends MemoryWorkflowStore {
+  #event: PortableCognitionEventRecord | undefined;
+  #eventReadCount = 0;
+
+  override async commitWorkflow(
+    request: PreparedDurableCognitionCommit,
+  ): Promise<DurableCognitionCommitResult> {
+    const result = await super.commitWorkflow(request);
+    if (result.status === "committed") {
+      this.#event = request.event;
+    }
+    return result;
+  }
+
+  override async listObjectEvents(
+    objectId: string,
+  ): Promise<readonly PortableCognitionEventRecord[]> {
+    const events = await super.listObjectEvents(objectId);
+    if (this.#event === undefined || this.#eventReadCount++ !== 0 || events.length !== 1) {
+      return events;
+    }
+    return Object.freeze([Object.freeze({
+      ...events[0],
+      payload: Object.freeze({
+        ...events[0].payload,
+        executor: this.#event.payload.initiator,
+      }),
+    }) as PortableCognitionEventRecord]);
+  }
+}
+
 class ReceiptLeakingConflictStore extends MemoryWorkflowStore {
   readonly #leakedReceipts = new Set<string>();
 
@@ -420,6 +451,18 @@ test("requires detached record and array identities across repeated reads", asyn
 test("requires recursive detachment when only nested payload data aliases prepared input", async () => {
   const report = await runDurableWorkflowStoreConformance(
     conformanceFactory([], () => new NestedAliasedReadStore()),
+  );
+
+  assert.equal(report.passed, false);
+  assert.equal(
+    report.cases.find(({ id }) => id === "detached-reads")?.status,
+    "failed",
+  );
+});
+
+test("requires graph-wide detachment across equal-valued caller paths", async () => {
+  const report = await runDurableWorkflowStoreConformance(
+    conformanceFactory([], () => new CrossWiredReadStore()),
   );
 
   assert.equal(report.passed, false);

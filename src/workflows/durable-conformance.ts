@@ -134,42 +134,39 @@ function isDeepFrozen(value: unknown): boolean {
   );
 }
 
-function assertDetachedRecursively(
-  callerValue: unknown,
-  readValue: unknown,
-  seen = new WeakMap<object, WeakSet<object>>(),
+function visitObjectGraph(
+  value: unknown,
+  seen: WeakSet<object>,
+  visit: (object: object) => void,
 ): void {
-  const callerIsObject = typeof callerValue === "object" && callerValue !== null;
-  const readIsObject = typeof readValue === "object" && readValue !== null;
-  assertConformance(callerIsObject === readIsObject);
-  if (!callerIsObject || !readIsObject) return;
-
-  assertConformance(callerValue !== readValue);
-  let pairedReads = seen.get(callerValue);
-  if (pairedReads?.has(readValue)) return;
-  if (pairedReads === undefined) {
-    pairedReads = new WeakSet<object>();
-    seen.set(callerValue, pairedReads);
+  if (typeof value !== "object" || value === null || seen.has(value)) return;
+  seen.add(value);
+  visit(value);
+  for (const key of Reflect.ownKeys(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor !== undefined && "value" in descriptor) {
+      visitObjectGraph(descriptor.value, seen, visit);
+    }
   }
-  pairedReads.add(readValue);
+}
 
-  const callerKeys = Reflect.ownKeys(callerValue).filter(
-    (key) => Object.getOwnPropertyDescriptor(callerValue, key)?.enumerable,
-  );
-  const readKeys = Reflect.ownKeys(readValue).filter(
-    (key) => Object.getOwnPropertyDescriptor(readValue, key)?.enumerable,
-  );
-  assertConformance(callerKeys.length === readKeys.length);
-  for (const key of callerKeys) {
-    const callerDescriptor = Object.getOwnPropertyDescriptor(callerValue, key);
-    const readDescriptor = Object.getOwnPropertyDescriptor(readValue, key);
-    assertConformance(
-      callerDescriptor !== undefined &&
-        readDescriptor !== undefined &&
-        "value" in callerDescriptor &&
-        "value" in readDescriptor,
-    );
-    assertDetachedRecursively(callerDescriptor.value, readDescriptor.value, seen);
+function collectObjectGraph(values: readonly unknown[]): WeakSet<object> {
+  const objects = new WeakSet<object>();
+  for (const value of values) {
+    visitObjectGraph(value, objects, () => {});
+  }
+  return objects;
+}
+
+function assertGraphDetached(
+  values: readonly unknown[],
+  forbiddenObjects: WeakSet<object>,
+): void {
+  const seen = new WeakSet<object>();
+  for (const value of values) {
+    visitObjectGraph(value, seen, (object) => {
+      assertConformance(!forbiddenObjects.has(object));
+    });
   }
 }
 
@@ -489,40 +486,35 @@ const conformanceCases: readonly ConformanceCase[] = [
           repeatedInitial !== undefined && repeatedEvidence !== undefined &&
           repeatedReviewed !== undefined && repeatedEvents.length === 1,
       );
-      const preparedEvents = Object.freeze([workflow.event]);
-      assertDetachedRecursively(object, workflow.reviewedHypothesis);
-      assertDetachedRecursively(initial, workflow.initialHypothesis);
-      assertDetachedRecursively(evidence, workflow.evidence);
-      assertDetachedRecursively(reviewed, workflow.reviewedHypothesis);
-      assertDetachedRecursively(events, preparedEvents);
-      assertDetachedRecursively(object, repeatedObject);
-      assertDetachedRecursively(initial, repeatedInitial);
-      assertDetachedRecursively(evidence, repeatedEvidence);
-      assertDetachedRecursively(reviewed, repeatedReviewed);
-      assertDetachedRecursively(events, repeatedEvents);
+      assertConformance(matches(object, workflow.reviewedHypothesis));
+      assertConformance(matches(initial, workflow.initialHypothesis));
+      assertConformance(matches(evidence, workflow.evidence));
+      assertConformance(matches(reviewed, workflow.reviewedHypothesis));
+      assertConformance(matches(events[0], workflow.event));
+      assertConformance(matches(repeatedObject, workflow.reviewedHypothesis));
+      assertConformance(matches(repeatedInitial, workflow.initialHypothesis));
+      assertConformance(matches(repeatedEvidence, workflow.evidence));
+      assertConformance(matches(repeatedReviewed, workflow.reviewedHypothesis));
+      assertConformance(matches(repeatedEvents[0], workflow.event));
+      const firstReads = [object, initial, evidence, reviewed, events];
+      const repeatedReads = [
+        repeatedObject,
+        repeatedInitial,
+        repeatedEvidence,
+        repeatedReviewed,
+        repeatedEvents,
+      ];
+      const callerObjects = collectObjectGraph([workflow]);
+      for (const read of [...firstReads, ...repeatedReads]) {
+        assertGraphDetached([read], callerObjects);
+      }
+      assertGraphDetached(repeatedReads, collectObjectGraph(firstReads));
       assertConformance(
         isDeepFrozen(object) && isDeepFrozen(initial) && isDeepFrozen(evidence) &&
           isDeepFrozen(reviewed) && isDeepFrozen(events) &&
           isDeepFrozen(repeatedObject) && isDeepFrozen(repeatedInitial) &&
           isDeepFrozen(repeatedEvidence) && isDeepFrozen(repeatedReviewed) &&
           isDeepFrozen(repeatedEvents),
-      );
-      assertConformance(
-        object !== workflow.reviewedHypothesis &&
-          object.payload !== workflow.reviewedHypothesis.payload &&
-          initial !== workflow.initialHypothesis &&
-          initial.payload !== workflow.initialHypothesis.payload &&
-          evidence !== workflow.evidence &&
-          evidence.payload !== workflow.evidence.payload &&
-          reviewed !== workflow.reviewedHypothesis &&
-          reviewed.payload !== workflow.reviewedHypothesis.payload &&
-          events[0] !== workflow.event &&
-          events[0].payload !== workflow.event.payload,
-      );
-      assertConformance(
-        object !== repeatedObject && initial !== repeatedInitial &&
-          evidence !== repeatedEvidence && reviewed !== repeatedReviewed &&
-          events !== repeatedEvents && events[0] !== repeatedEvents[0],
       );
       try {
         (object.payload as { title: string }).title = "Caller mutation";
