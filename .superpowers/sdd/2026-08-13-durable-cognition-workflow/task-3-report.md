@@ -91,3 +91,34 @@ Results:
 - `src/stores/sqlite-workflow.ts` directly uses the internal base with the exact v2 target.
 - The test-local defensive-mode monkeypatch is deleted. All SQLite checks now run on Node `24.19.0` with real `DatabaseSync.prototype.enableDefensive` support.
 - `package.json` was not changed; a package-export test confirms `./stores/sqlite-internal` remains unavailable.
+
+## CI Runtime Gate Fix
+
+### RED Evidence
+
+Node `24.9.0` does not expose `DatabaseSync.prototype.enableDefensive`. Without the capability gate, the schema-boundary tests attempted to run and failed before exercising their intended runtime contract.
+
+### GREEN Evidence
+
+Commands:
+
+```bash
+NODE_24_9=/opt/homebrew/Cellar/node/24.9.0_1/bin/node
+"$NODE_24_9" --disable-warning=ExperimentalWarning --test tests/sqlite-workflow-schema.test.ts tests/sqlite-store.test.ts
+
+NODE_24_19=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node
+"$NODE_24_19" --disable-warning=ExperimentalWarning --test tests/sqlite-workflow-schema.test.ts tests/sqlite-store.test.ts
+"$NODE_24_19" node_modules/typescript/bin/tsc --noEmit
+git diff --check
+```
+
+Results:
+
+- Node `24.9.0`: `5` passed, `0` failed, `39` skipped by the real defensive-mode capability gate. Runtime-independent API and package-export tests remain active.
+- Node `24.19.0`: `43` passed, `0` failed, `0` skipped.
+- Typecheck and diff check: exited `0`.
+
+### Delivered Fix
+
+- `tests/sqlite-workflow-schema.test.ts` now uses the same real `DatabaseSync.prototype.enableDefensive` probe as `tests/sqlite-store.test.ts` and applies `test.skip` only to tests that require SQLite defensive mode.
+- No defensive behavior is monkeypatched, simulated, or shimmed. The CI matrix and package exports are unchanged.

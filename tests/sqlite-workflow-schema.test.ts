@@ -75,6 +75,50 @@ interface FileSnapshot {
   readonly modifiedAtNanoseconds: bigint;
 }
 
+interface SqliteRuntimeCapabilityProbe {
+  readonly nodeVersion: string;
+  readonly enableDefensive: unknown;
+  readonly defensiveModeIsEnforced: () => boolean;
+}
+
+function supportsSqliteStoreRuntime(
+  probe: SqliteRuntimeCapabilityProbe,
+): boolean {
+  return (
+    typeof probe.enableDefensive === "function" &&
+    probe.defensiveModeIsEnforced()
+  );
+}
+
+function defensiveModeIsEnforced(): boolean {
+  let database: DatabaseSync | undefined;
+  try {
+    database = new DatabaseSync(":memory:", {
+      allowExtension: false,
+      defensive: true,
+      enableDoubleQuotedStringLiterals: false,
+      enableForeignKeyConstraints: true,
+    });
+    database.enableDefensive(true);
+    database.exec("PRAGMA writable_schema = ON");
+    const result = database
+      .prepare("PRAGMA writable_schema")
+      .get() as { readonly writable_schema?: unknown };
+    return result.writable_schema === 0;
+  } catch {
+    return false;
+  } finally {
+    if (database?.isOpen) {
+      database.close();
+    }
+  }
+}
+
+const supportsDefensiveMode = supportsSqliteStoreRuntime({
+  nodeVersion: process.versions.node,
+  enableDefensive: DatabaseSync.prototype.enableDefensive,
+  defensiveModeIsEnforced,
+});
 const temporaryDirectories = new Set<string>();
 
 after(() => {
@@ -83,7 +127,7 @@ after(() => {
   }
 });
 
-const sqliteTest = test;
+const sqliteTest = supportsDefensiveMode ? test : test.skip;
 
 function temporaryDatabasePath(): string {
   const directory = mkdtempSync(
