@@ -134,6 +134,45 @@ function isDeepFrozen(value: unknown): boolean {
   );
 }
 
+function assertDetachedRecursively(
+  callerValue: unknown,
+  readValue: unknown,
+  seen = new WeakMap<object, WeakSet<object>>(),
+): void {
+  const callerIsObject = typeof callerValue === "object" && callerValue !== null;
+  const readIsObject = typeof readValue === "object" && readValue !== null;
+  assertConformance(callerIsObject === readIsObject);
+  if (!callerIsObject || !readIsObject) return;
+
+  assertConformance(callerValue !== readValue);
+  let pairedReads = seen.get(callerValue);
+  if (pairedReads?.has(readValue)) return;
+  if (pairedReads === undefined) {
+    pairedReads = new WeakSet<object>();
+    seen.set(callerValue, pairedReads);
+  }
+  pairedReads.add(readValue);
+
+  const callerKeys = Reflect.ownKeys(callerValue).filter(
+    (key) => Object.getOwnPropertyDescriptor(callerValue, key)?.enumerable,
+  );
+  const readKeys = Reflect.ownKeys(readValue).filter(
+    (key) => Object.getOwnPropertyDescriptor(readValue, key)?.enumerable,
+  );
+  assertConformance(callerKeys.length === readKeys.length);
+  for (const key of callerKeys) {
+    const callerDescriptor = Object.getOwnPropertyDescriptor(callerValue, key);
+    const readDescriptor = Object.getOwnPropertyDescriptor(readValue, key);
+    assertConformance(
+      callerDescriptor !== undefined &&
+        readDescriptor !== undefined &&
+        "value" in callerDescriptor &&
+        "value" in readDescriptor,
+    );
+    assertDetachedRecursively(callerDescriptor.value, readDescriptor.value, seen);
+  }
+}
+
 function assertConflict(
   result: DurableCognitionCommitResult,
   code: DurableWorkflowConflictCode,
@@ -212,10 +251,21 @@ async function assertConflictWithoutMutation(
   request: PreparedDurableCognitionCommit,
   code: DurableWorkflowConflictCode,
   workflows: readonly PreparedDurableCognitionCommit[],
+  receiptOwners: readonly PreparedDurableCognitionCommit[] = [],
 ): Promise<void> {
   const snapshots = await Promise.all(
     workflows.map((workflow) => snapshotWorkflow(store, workflow)),
   );
+  assertConflict(await store.commitWorkflow(request), code);
+  await Promise.all(
+    workflows.map((workflow, index) =>
+      assertUnchangedWorkflow(store, workflow, snapshots[index])
+    ),
+  );
+  for (const workflow of receiptOwners) {
+    assertConformance((await store.commitWorkflow(workflow)).status === "already_committed");
+    await assertWorkflowIntact(store, workflow);
+  }
   assertConflict(await store.commitWorkflow(request), code);
   await Promise.all(
     workflows.map((workflow, index) =>
@@ -231,6 +281,10 @@ async function assertRejectedWithoutMutation(
   const before = await snapshotWorkflow(store, request);
   await assertRejected(() => store.commitWorkflow(request));
   await assertUnchangedWorkflow(store, request, before);
+  assertConformance((await store.commitWorkflow(request)).status === "committed");
+  await assertWorkflowIntact(store, request);
+  assertConformance((await store.commitWorkflow(request)).status === "already_committed");
+  await assertWorkflowIntact(store, request);
 }
 
 async function assertWorkflowIntact(
@@ -292,6 +346,7 @@ const conformanceCases: readonly ConformanceCase[] = [
         collision,
         "workflow_id_collision",
         [first, collision],
+        [first],
       );
     },
   },
@@ -312,6 +367,7 @@ const conformanceCases: readonly ConformanceCase[] = [
         collision,
         "object_revision_collision",
         [first, collision],
+        [first],
       );
       const reviewedCollision = prepared({
         workflowId: "workflow:conformance:reviewed-collision",
@@ -323,6 +379,7 @@ const conformanceCases: readonly ConformanceCase[] = [
         reviewedCollision,
         "object_revision_collision",
         [first, reviewedCollision],
+        [first],
       );
       const overlappingCollision = prepared({
         workflowId: "workflow:conformance:overlapping-collision",
@@ -335,6 +392,7 @@ const conformanceCases: readonly ConformanceCase[] = [
         overlappingCollision,
         "object_revision_collision",
         [first, overlappingCollision],
+        [first],
       );
       await assertWorkflowIntact(store, first);
     },
@@ -359,6 +417,7 @@ const conformanceCases: readonly ConformanceCase[] = [
         collision,
         "event_id_collision",
         [first, collision],
+        [first],
       );
     },
   },
@@ -430,6 +489,17 @@ const conformanceCases: readonly ConformanceCase[] = [
           repeatedInitial !== undefined && repeatedEvidence !== undefined &&
           repeatedReviewed !== undefined && repeatedEvents.length === 1,
       );
+      const preparedEvents = Object.freeze([workflow.event]);
+      assertDetachedRecursively(object, workflow.reviewedHypothesis);
+      assertDetachedRecursively(initial, workflow.initialHypothesis);
+      assertDetachedRecursively(evidence, workflow.evidence);
+      assertDetachedRecursively(reviewed, workflow.reviewedHypothesis);
+      assertDetachedRecursively(events, preparedEvents);
+      assertDetachedRecursively(object, repeatedObject);
+      assertDetachedRecursively(initial, repeatedInitial);
+      assertDetachedRecursively(evidence, repeatedEvidence);
+      assertDetachedRecursively(reviewed, repeatedReviewed);
+      assertDetachedRecursively(events, repeatedEvents);
       assertConformance(
         isDeepFrozen(object) && isDeepFrozen(initial) && isDeepFrozen(evidence) &&
           isDeepFrozen(reviewed) && isDeepFrozen(events) &&

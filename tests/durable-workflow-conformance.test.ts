@@ -262,6 +262,77 @@ class AliasedReadStore extends MemoryWorkflowStore {
   }
 }
 
+class NestedAliasedReadStore extends MemoryWorkflowStore {
+  #reviewedHypothesis: PortableCognitiveObjectRecord | undefined;
+
+  override async commitWorkflow(
+    request: PreparedDurableCognitionCommit,
+  ): Promise<DurableCognitionCommitResult> {
+    const result = await super.commitWorkflow(request);
+    if (result.status === "committed") {
+      this.#reviewedHypothesis = request.reviewedHypothesis;
+    }
+    return result;
+  }
+
+  override async getObjectVersion(
+    objectId: string,
+    version: number,
+  ): Promise<PortableCognitiveObjectRecord | undefined> {
+    const record = await super.getObjectVersion(objectId, version);
+    if (
+      record === undefined ||
+      this.#reviewedHypothesis === undefined ||
+      objectId !== this.#reviewedHypothesis.payload.id ||
+      version !== this.#reviewedHypothesis.payload.version
+    ) {
+      return record;
+    }
+    return Object.freeze({
+      ...record,
+      payload: Object.freeze({
+        ...record.payload,
+        data: this.#reviewedHypothesis.payload.data,
+      }),
+    }) as PortableCognitiveObjectRecord;
+  }
+}
+
+class ReceiptLeakingConflictStore extends MemoryWorkflowStore {
+  readonly #leakedReceipts = new Set<string>();
+
+  override async commitWorkflow(
+    request: PreparedDurableCognitionCommit,
+  ): Promise<DurableCognitionCommitResult> {
+    if (this.#leakedReceipts.has(request.workflowId)) {
+      return { status: "already_committed" };
+    }
+    const result = await super.commitWorkflow(request);
+    if (result.status === "conflict") {
+      this.#leakedReceipts.add(request.workflowId);
+    }
+    return result;
+  }
+}
+
+class ReceiptLeakingRollbackStore extends MemoryWorkflowStore {
+  readonly #leakedReceipts = new Set<string>();
+
+  override async commitWorkflow(
+    request: PreparedDurableCognitionCommit,
+  ): Promise<DurableCognitionCommitResult> {
+    if (this.#leakedReceipts.has(request.workflowId)) {
+      return { status: "already_committed" };
+    }
+    try {
+      return await super.commitWorkflow(request);
+    } catch (error) {
+      this.#leakedReceipts.add(request.workflowId);
+      throw error;
+    }
+  }
+}
+
 function conformanceFactory(
   calls: Array<DurableWorkflowStoreConformanceScenario | undefined> = [],
   createStore: () => MemoryWorkflowStore = () => new MemoryWorkflowStore(),
@@ -342,6 +413,42 @@ test("requires detached record and array identities across repeated reads", asyn
   assert.equal(report.passed, false);
   assert.equal(
     report.cases.find(({ id }) => id === "detached-reads")?.status,
+    "failed",
+  );
+});
+
+test("requires recursive detachment when only nested payload data aliases prepared input", async () => {
+  const report = await runDurableWorkflowStoreConformance(
+    conformanceFactory([], () => new NestedAliasedReadStore()),
+  );
+
+  assert.equal(report.passed, false);
+  assert.equal(
+    report.cases.find(({ id }) => id === "detached-reads")?.status,
+    "failed",
+  );
+});
+
+test("rejects stores that insert a receipt while reporting a conflict", async () => {
+  const report = await runDurableWorkflowStoreConformance(
+    conformanceFactory([], () => new ReceiptLeakingConflictStore()),
+  );
+
+  assert.equal(report.passed, false);
+  assert.equal(
+    report.cases.find(({ id }) => id === "workflow-id-collision")?.status,
+    "failed",
+  );
+});
+
+test("rejects stores that retain a receipt after rollback failure", async () => {
+  const report = await runDurableWorkflowStoreConformance(
+    conformanceFactory([], () => new ReceiptLeakingRollbackStore()),
+  );
+
+  assert.equal(report.passed, false);
+  assert.equal(
+    report.cases.find(({ id }) => id === "rollback")?.status,
     "failed",
   );
 });
