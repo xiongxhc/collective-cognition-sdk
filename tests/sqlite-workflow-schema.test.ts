@@ -12,7 +12,12 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 
-import { SqliteCognitionStore } from "../src/stores/sqlite.ts";
+import {
+  SqliteCognitionStore,
+} from "../src/stores/sqlite.ts";
+import type {
+  SqliteCognitionStoreOptions,
+} from "../src/stores/sqlite.ts";
 import {
   SqliteCognitionWorkflowStore,
 } from "../src/stores/sqlite-workflow.ts";
@@ -70,33 +75,6 @@ interface FileSnapshot {
   readonly modifiedAtNanoseconds: bigint;
 }
 
-const supportsDefensiveMode = (() => {
-  let database: DatabaseSync | undefined;
-  try {
-    if (typeof DatabaseSync.prototype.enableDefensive !== "function") {
-      return false;
-    }
-    database = new DatabaseSync(":memory:", {
-      allowExtension: false,
-      defensive: true,
-      enableDoubleQuotedStringLiterals: false,
-      enableForeignKeyConstraints: true,
-    });
-    database.enableDefensive(true);
-    database.exec("PRAGMA writable_schema = ON");
-    const result = database
-      .prepare("PRAGMA writable_schema")
-      .get() as { readonly writable_schema?: unknown };
-    return result.writable_schema === 0;
-  } catch {
-    return false;
-  } finally {
-    if (database?.isOpen) {
-      database.close();
-    }
-  }
-})();
-
 const temporaryDirectories = new Set<string>();
 
 after(() => {
@@ -105,31 +83,7 @@ after(() => {
   }
 });
 
-function sqliteTest(name: string, callback: () => void): void {
-  if (supportsDefensiveMode) {
-    test(name, callback);
-    return;
-  }
-
-  test(name, () => {
-    const prototype = DatabaseSync.prototype;
-    const originalEnableDefensive = prototype.enableDefensive;
-    const originalExec = prototype.exec;
-    prototype.enableDefensive = function (_active: boolean): void {};
-    prototype.exec = function (sql: string): void {
-      if (sql.trim() === "PRAGMA writable_schema = ON") {
-        return;
-      }
-      return originalExec.call(this, sql);
-    };
-    try {
-      callback();
-    } finally {
-      prototype.enableDefensive = originalEnableDefensive;
-      prototype.exec = originalExec;
-    }
-  });
-}
+const sqliteTest = test;
 
 function temporaryDatabasePath(): string {
   const directory = mkdtempSync(
@@ -211,6 +165,7 @@ test("the workflow store remains outside the existing SQLite module export", asy
   const sqlite = await import("../src/stores/sqlite.ts");
   const workflow = await import("../src/stores/sqlite-workflow.ts");
 
+  assert.deepEqual(Object.keys(sqlite), ["SqliteCognitionStore"]);
   assert.equal("SqliteCognitionWorkflowStore" in sqlite, false);
   assert.equal(
     workflow.SqliteCognitionWorkflowStore,
@@ -218,6 +173,26 @@ test("the workflow store remains outside the existing SQLite module export", asy
   );
   assert.equal("commitWorkflow" in SqliteCognitionWorkflowStore.prototype, false);
 });
+
+test("the package keeps SQLite internals unexported", () => {
+  const packageJson = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ) as { readonly exports?: Record<string, unknown> };
+
+  assert.equal(
+    Object.hasOwn(packageJson.exports ?? {}, "./stores/sqlite-internal"),
+    false,
+  );
+});
+
+const sqliteStoreOptions: SqliteCognitionStoreOptions = {
+  databasePath: "/tmp/cognition.db",
+};
+
+if (false) {
+  // @ts-expect-error SQLite schema selection is not a public constructor argument.
+  new SqliteCognitionStore(sqliteStoreOptions, 2);
+}
 
 sqliteTest("the existing SQLite store opens reviewed schema versions one and two", () => {
   const versionOne = createVersionOneTarget();

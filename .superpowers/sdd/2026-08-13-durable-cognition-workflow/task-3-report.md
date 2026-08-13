@@ -53,5 +53,41 @@ Results:
 
 ## Risks / Deviations
 
-- The prescribed Node `24.9.0` runtime does not expose `DatabaseSync.prototype.enableDefensive`, so its pre-existing SQLite tests skip `34` runtime-gated cases. The new schema tests use a test-local defensive-runtime shim only to execute the database boundary assertions; production code still fail-closes without the real defensive API.
 - `commitWorkflow` and atomic receipt persistence remain deferred to Task 4.
+
+## Controller Ruling Fixes
+
+### RED Evidence
+
+Command:
+
+```bash
+/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node node_modules/typescript/bin/tsc --noEmit
+```
+
+Observed expected failure before extraction: `Unused '@ts-expect-error' directive.` The public `SqliteCognitionStore` constructor accepted a second schema-selection argument.
+
+### GREEN Evidence
+
+Commands:
+
+```bash
+RUNTIME=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node
+"$RUNTIME" --disable-warning=ExperimentalWarning --test tests/sqlite-workflow-schema.test.ts tests/sqlite-store.test.ts
+"$RUNTIME" node_modules/typescript/bin/tsc --noEmit
+git diff --check
+```
+
+Results:
+
+- SQLite schema and existing-store tests: `43` passed, `0` failed, `0` skipped.
+- Typecheck: exited `0`; the compile-time second-argument rejection is now consumed by the expected error.
+- Diff check: exited `0`.
+
+### Delivered Fixes
+
+- `src/stores/sqlite-internal.ts` now holds the non-public store base, schema profiles, and exact schema targets.
+- `src/stores/sqlite.ts` exports only `SqliteCognitionStoreOptions` and `SqliteCognitionStore`; its constructor takes only the original options and selects the v1 creation/v1-or-v2 opening boundary internally.
+- `src/stores/sqlite-workflow.ts` directly uses the internal base with the exact v2 target.
+- The test-local defensive-mode monkeypatch is deleted. All SQLite checks now run on Node `24.19.0` with real `DatabaseSync.prototype.enableDefensive` support.
+- `package.json` was not changed; a package-export test confirms `./stores/sqlite-internal` remains unavailable.

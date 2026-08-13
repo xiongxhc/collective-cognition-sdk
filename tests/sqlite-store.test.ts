@@ -127,7 +127,6 @@ const supportsDefensiveMode = supportsSqliteStoreRuntime({
   defensiveModeIsEnforced,
 });
 const sqliteTest = supportsDefensiveMode ? test : test.skip;
-const unsupportedRuntimeTest = supportsDefensiveMode ? test.skip : test;
 const sqliteStoreUrl = new URL("../src/stores/sqlite.ts", import.meta.url);
 const temporaryDirectories = new Set<string>();
 
@@ -722,9 +721,8 @@ test(
   },
 );
 
-unsupportedRuntimeTest(
-  "SQLite runtime fails before creating a target without defensive support",
-  (t) => {
+if (!supportsDefensiveMode) {
+  test("SQLite runtime fails before creating a target without defensive support", (t) => {
     const databasePath = temporaryDatabasePath(t);
     const result = probeStore(process.execPath, databasePath);
 
@@ -734,8 +732,8 @@ unsupportedRuntimeTest(
       /node:sqlite with enforced defensive mode/,
     );
     assert.equal(existsSync(databasePath), false);
-  },
-);
+  });
+}
 
 sqliteTest(
   "SQLite runtime fails closed when defensive mode is not enforced",

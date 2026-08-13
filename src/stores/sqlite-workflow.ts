@@ -1,4 +1,7 @@
-import { SqliteCognitionStore } from "./sqlite.ts";
+import {
+  SqliteCognitionStoreBase,
+  sqliteCognitionWorkflowSchemaTarget,
+} from "./sqlite-internal.ts";
 
 export interface SqliteCognitionWorkflowStoreOptions {
   readonly databasePath: string;
@@ -6,8 +9,8 @@ export interface SqliteCognitionWorkflowStoreOptions {
   readonly busyTimeoutMs?: number;
 }
 
-export class SqliteCognitionWorkflowStore extends SqliteCognitionStore {
+export class SqliteCognitionWorkflowStore extends SqliteCognitionStoreBase {
   constructor(options: SqliteCognitionWorkflowStoreOptions) {
-    super(options, 2);
+    super(options, sqliteCognitionWorkflowSchemaTarget);
   }
 }
