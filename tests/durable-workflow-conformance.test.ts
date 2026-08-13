@@ -15,9 +15,13 @@ import type {
 import type {
   CognitionWorkflowStore,
   DurableCognitionCommitResult,
-  DurableWorkflowStoreConformanceFactory,
+  DurableWorkflowStoreConformanceScenario,
+  DurableWorkflowStoreFactory,
   PreparedDurableCognitionCommit,
 } from "../src/workflows/durable.ts";
+
+// @ts-expect-error Legacy object factory must not be part of the durable subpath.
+import type { DurableWorkflowStoreConformanceFactory } from "../src/workflows/durable.ts";
 
 function copyObject(record: PortableCognitiveObjectRecord): PortableCognitiveObjectRecord {
   return createPortableCognitionRecord(
@@ -233,22 +237,48 @@ class MemoryWorkflowStore implements CognitionWorkflowStore {
   }
 }
 
-function conformanceFactory(): DurableWorkflowStoreConformanceFactory {
-  return {
-    createStore() {
-      return new MemoryWorkflowStore();
-    },
-    configureStore(store, scenario) {
-      (store as MemoryWorkflowStore).configureConformanceStore(
-        scenario.kind,
-        scenario.workflow,
-      );
-    },
+class AliasedReadStore extends MemoryWorkflowStore {
+  readonly #objects = new Map<string, PortableCognitiveObjectRecord>();
+  #events: readonly PortableCognitionEventRecord[] | undefined;
+
+  override async getObjectVersion(
+    objectId: string,
+    version: number,
+  ): Promise<PortableCognitiveObjectRecord | undefined> {
+    const key = `${objectId}\u0000${version}`;
+    const existing = this.#objects.get(key);
+    if (existing !== undefined) return existing;
+    const record = await super.getObjectVersion(objectId, version);
+    if (record !== undefined) this.#objects.set(key, record);
+    return record;
+  }
+
+  override async listObjectEvents(
+    objectId: string,
+  ): Promise<readonly PortableCognitionEventRecord[]> {
+    if (this.#events !== undefined) return this.#events;
+    this.#events = await super.listObjectEvents(objectId);
+    return this.#events;
+  }
+}
+
+function conformanceFactory(
+  calls: Array<DurableWorkflowStoreConformanceScenario | undefined> = [],
+  createStore: () => MemoryWorkflowStore = () => new MemoryWorkflowStore(),
+): DurableWorkflowStoreFactory {
+  return (scenario) => {
+    calls.push(scenario);
+    const store = createStore();
+    if (scenario !== undefined) {
+      store.configureConformanceStore(scenario.kind, scenario.workflow);
+    }
+    return store;
   };
 }
 
 test("the in-memory workflow store passes every durable conformance case", async () => {
-  const report = await runDurableWorkflowStoreConformance(conformanceFactory());
+  const calls: Array<DurableWorkflowStoreConformanceScenario | undefined> = [];
+  const report = await runDurableWorkflowStoreConformance(conformanceFactory(calls));
 
   assert.deepEqual(
     report.cases.map(({ id, status }) => ({ id, status })),
@@ -266,6 +296,20 @@ test("the in-memory workflow store passes every durable conformance case", async
     ],
   );
   assert.equal(report.passed, true);
+  assert.deepEqual(calls.map((scenario) => scenario?.kind), [
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    "version-conflict",
+    undefined,
+    "rollback",
+    undefined,
+    undefined,
+  ]);
+  assert.equal(calls[5]?.workflow.workflowId, "workflow:conformance:version");
+  assert.equal(calls[7]?.workflow.workflowId, "workflow:conformance:rollback");
 });
 
 test("reports every conformance case when a factory cannot provide isolated stores", async () => {
@@ -281,15 +325,23 @@ test("reports every conformance case when a factory cannot provide isolated stor
 });
 
 test("requires explicit fixtures for stored-version conflicts and post-write rollback", async () => {
-  const noFixtureFactory: DurableWorkflowStoreConformanceFactory = {
-    createStore() {
-      return new MemoryWorkflowStore();
-    },
-  };
+  const noFixtureFactory: DurableWorkflowStoreFactory = () => new MemoryWorkflowStore();
 
   const report = await runDurableWorkflowStoreConformance(noFixtureFactory);
 
   assert.equal(report.passed, false);
   assert.equal(report.cases.find(({ id }) => id === "version-conflict")?.status, "failed");
   assert.equal(report.cases.find(({ id }) => id === "rollback")?.status, "failed");
+});
+
+test("requires detached record and array identities across repeated reads", async () => {
+  const report = await runDurableWorkflowStoreConformance(
+    conformanceFactory([], () => new AliasedReadStore()),
+  );
+
+  assert.equal(report.passed, false);
+  assert.equal(
+    report.cases.find(({ id }) => id === "detached-reads")?.status,
+    "failed",
+  );
 });

@@ -23,7 +23,6 @@ export type {
   DurableWorkflowConformanceCaseResult,
   DurableWorkflowConformanceReport,
   DurableWorkflowConflictCode,
-  DurableWorkflowStoreConformanceFactory,
   DurableWorkflowStoreConformanceScenario,
   DurableWorkflowStoreFactory,
   PreparedDurableCognitionCommit,

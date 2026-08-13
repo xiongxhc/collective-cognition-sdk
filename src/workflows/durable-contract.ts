@@ -155,21 +155,14 @@ export interface DurableWorkflowConformanceReport {
   readonly cases: readonly DurableWorkflowConformanceCaseResult[];
 }
 
-export type DurableWorkflowStoreFactory =
-  () => Promise<CognitionWorkflowStore> | CognitionWorkflowStore;
-
 export interface DurableWorkflowStoreConformanceScenario {
   readonly kind: "version-conflict" | "rollback";
   readonly workflow: PreparedDurableCognitionCommit;
 }
 
-export interface DurableWorkflowStoreConformanceFactory {
-  readonly createStore: DurableWorkflowStoreFactory;
-  readonly configureStore?: (
-    store: CognitionWorkflowStore,
-    scenario: DurableWorkflowStoreConformanceScenario,
-  ) => Promise<void> | void;
-}
+export type DurableWorkflowStoreFactory = (
+  scenario?: DurableWorkflowStoreConformanceScenario,
+) => Promise<CognitionWorkflowStore> | CognitionWorkflowStore;
 
 export const durableWorkflowRequestFields = new Set([
   "workflowVersion",

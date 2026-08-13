@@ -9,16 +9,12 @@ import type {
   DurableWorkflowConformanceCaseResult,
   DurableWorkflowConformanceReport,
   DurableWorkflowConflictCode,
-  DurableWorkflowStoreConformanceFactory,
   DurableWorkflowStoreConformanceScenario,
   DurableWorkflowStoreFactory,
   PreparedDurableCognitionCommit,
 } from "./durable-contract.ts";
 import type { TransitionCognitionCommit } from "../host-integration.ts";
 
-type StoreFactory =
-  | DurableWorkflowStoreFactory
-  | DurableWorkflowStoreConformanceFactory;
 type FreshStore = (
   scenario?: DurableWorkflowStoreConformanceScenario,
 ) => Promise<CognitionWorkflowStore>;
@@ -155,6 +151,88 @@ async function assertRejected(action: () => Promise<unknown>): Promise<void> {
   assertConformance(rejected);
 }
 
+interface WorkflowReadSnapshot {
+  readonly initialHypothesis: string | undefined;
+  readonly evidence: string | undefined;
+  readonly reviewedHypothesis: string | undefined;
+  readonly latestHypothesis: string | undefined;
+  readonly events: readonly string[];
+}
+
+function snapshotRecord(
+  record: Parameters<typeof serializePortableCognitionRecord>[0] | undefined,
+): string | undefined {
+  return record === undefined
+    ? undefined
+    : serializePortableCognitionRecord(record);
+}
+
+async function snapshotWorkflow(
+  store: CognitionWorkflowStore,
+  workflow: PreparedDurableCognitionCommit,
+): Promise<WorkflowReadSnapshot> {
+  return Object.freeze({
+    initialHypothesis: snapshotRecord(
+      await store.getObjectVersion(workflow.initialHypothesis.payload.id, 1),
+    ),
+    evidence: snapshotRecord(
+      await store.getObjectVersion(workflow.evidence.payload.id, 1),
+    ),
+    reviewedHypothesis: snapshotRecord(
+      await store.getObjectVersion(workflow.reviewedHypothesis.payload.id, 2),
+    ),
+    latestHypothesis: snapshotRecord(
+      await store.getLatestObject(workflow.reviewedHypothesis.payload.id),
+    ),
+    events: Object.freeze(
+      (await store.listObjectEvents(workflow.reviewedHypothesis.payload.id))
+        .map(serializePortableCognitionRecord),
+    ),
+  });
+}
+
+async function assertUnchangedWorkflow(
+  store: CognitionWorkflowStore,
+  workflow: PreparedDurableCognitionCommit,
+  before: WorkflowReadSnapshot,
+): Promise<void> {
+  const after = await snapshotWorkflow(store, workflow);
+  assertConformance(
+    after.initialHypothesis === before.initialHypothesis &&
+      after.evidence === before.evidence &&
+      after.reviewedHypothesis === before.reviewedHypothesis &&
+      after.latestHypothesis === before.latestHypothesis &&
+      after.events.length === before.events.length &&
+      after.events.every((event, index) => event === before.events[index]),
+  );
+}
+
+async function assertConflictWithoutMutation(
+  store: CognitionWorkflowStore,
+  request: PreparedDurableCognitionCommit,
+  code: DurableWorkflowConflictCode,
+  workflows: readonly PreparedDurableCognitionCommit[],
+): Promise<void> {
+  const snapshots = await Promise.all(
+    workflows.map((workflow) => snapshotWorkflow(store, workflow)),
+  );
+  assertConflict(await store.commitWorkflow(request), code);
+  await Promise.all(
+    workflows.map((workflow, index) =>
+      assertUnchangedWorkflow(store, workflow, snapshots[index])
+    ),
+  );
+}
+
+async function assertRejectedWithoutMutation(
+  store: CognitionWorkflowStore,
+  request: PreparedDurableCognitionCommit,
+): Promise<void> {
+  const before = await snapshotWorkflow(store, request);
+  await assertRejected(() => store.commitWorkflow(request));
+  await assertUnchangedWorkflow(store, request, before);
+}
+
 async function assertWorkflowIntact(
   store: CognitionWorkflowStore,
   workflow: PreparedDurableCognitionCommit,
@@ -209,11 +287,12 @@ const conformanceCases: readonly ConformanceCase[] = [
         sourceSummary: "Changed workflow content.",
       });
       assertConformance((await store.commitWorkflow(first)).status === "committed");
-      assertConflict(await store.commitWorkflow(collision), "workflow_id_collision");
-      assertConformance(matches(
-        (await store.getLatestObject(first.reviewedHypothesis.payload.id))!,
-        first.reviewedHypothesis,
-      ));
+      await assertConflictWithoutMutation(
+        store,
+        collision,
+        "workflow_id_collision",
+        [first, collision],
+      );
     },
   },
   {
@@ -228,15 +307,22 @@ const conformanceCases: readonly ConformanceCase[] = [
         sourceId: "conformance:object-collision",
       });
       assertConformance((await store.commitWorkflow(first)).status === "committed");
-      assertConflict(await store.commitWorkflow(collision), "object_revision_collision");
+      await assertConflictWithoutMutation(
+        store,
+        collision,
+        "object_revision_collision",
+        [first, collision],
+      );
       const reviewedCollision = prepared({
         workflowId: "workflow:conformance:reviewed-collision",
         eventId: "event:conformance:reviewed-collision",
         sourceId: first.workflowId,
       });
-      assertConflict(
-        await store.commitWorkflow(reviewedCollision),
+      await assertConflictWithoutMutation(
+        store,
+        reviewedCollision,
         "object_revision_collision",
+        [first, reviewedCollision],
       );
       const overlappingCollision = prepared({
         workflowId: "workflow:conformance:overlapping-collision",
@@ -244,15 +330,11 @@ const conformanceCases: readonly ConformanceCase[] = [
         eventId: first.event.payload.id,
         sourceId: "conformance:overlapping-collision",
       });
-      assertConflict(
-        await store.commitWorkflow(overlappingCollision),
+      await assertConflictWithoutMutation(
+        store,
+        overlappingCollision,
         "object_revision_collision",
-      );
-      assertConformance(
-        await store.getObjectVersion(collision.evidence.payload.id, 1) === undefined,
-      );
-      assertConformance(
-        await store.getObjectVersion(overlappingCollision.evidence.payload.id, 1) === undefined,
+        [first, overlappingCollision],
       );
       await assertWorkflowIntact(store, first);
     },
@@ -272,9 +354,11 @@ const conformanceCases: readonly ConformanceCase[] = [
         sourceId: "conformance:event-collision",
       });
       assertConformance((await store.commitWorkflow(first)).status === "committed");
-      assertConflict(await store.commitWorkflow(collision), "event_id_collision");
-      assertConformance(
-        await store.getObjectVersion(collision.initialHypothesis.payload.id, 1) === undefined,
+      await assertConflictWithoutMutation(
+        store,
+        collision,
+        "event_id_collision",
+        [first, collision],
       );
     },
   },
@@ -283,11 +367,11 @@ const conformanceCases: readonly ConformanceCase[] = [
     async run(createStore) {
       const workflow = prepared({ workflowId: "workflow:conformance:version" });
       const store = await createStore({ kind: "version-conflict", workflow });
-      assertConflict(await store.commitWorkflow(workflow), "version_conflict");
-      assertConformance(
-        await store.getObjectVersion(workflow.initialHypothesis.payload.id, 1) === undefined &&
-          await store.getObjectVersion(workflow.evidence.payload.id, 1) === undefined &&
-          await store.getObjectVersion(workflow.reviewedHypothesis.payload.id, 2) === undefined,
+      await assertConflictWithoutMutation(
+        store,
+        workflow,
+        "version_conflict",
+        [workflow],
       );
     },
   },
@@ -308,7 +392,12 @@ const conformanceCases: readonly ConformanceCase[] = [
         event: workflow.event,
       };
       assertConformance((await store.commitTransition(transition)).status === "committed");
-      assertConflict(await store.commitWorkflow(workflow), "incomplete_workflow");
+      await assertConflictWithoutMutation(
+        store,
+        workflow,
+        "incomplete_workflow",
+        [workflow],
+      );
     },
   },
   {
@@ -316,13 +405,7 @@ const conformanceCases: readonly ConformanceCase[] = [
     async run(createStore) {
       const workflow = prepared({ workflowId: "workflow:conformance:rollback" });
       const store = await createStore({ kind: "rollback", workflow });
-      await assertRejected(() => store.commitWorkflow(workflow));
-      assertConformance(
-        await store.getObjectVersion(workflow.initialHypothesis.payload.id, 1) === undefined &&
-          await store.getObjectVersion(workflow.evidence.payload.id, 1) === undefined &&
-          await store.getObjectVersion(workflow.reviewedHypothesis.payload.id, 2) === undefined &&
-          (await store.listObjectEvents(workflow.reviewedHypothesis.payload.id)).length === 0,
-      );
+      await assertRejectedWithoutMutation(store, workflow);
     },
   },
   {
@@ -336,13 +419,40 @@ const conformanceCases: readonly ConformanceCase[] = [
       const evidence = await store.getObjectVersion(workflow.evidence.payload.id, 1);
       const reviewed = await store.getObjectVersion(workflow.reviewedHypothesis.payload.id, 2);
       const events = await store.listObjectEvents(workflow.reviewedHypothesis.payload.id);
+      const repeatedObject = await store.getLatestObject(workflow.reviewedHypothesis.payload.id);
+      const repeatedInitial = await store.getObjectVersion(workflow.initialHypothesis.payload.id, 1);
+      const repeatedEvidence = await store.getObjectVersion(workflow.evidence.payload.id, 1);
+      const repeatedReviewed = await store.getObjectVersion(workflow.reviewedHypothesis.payload.id, 2);
+      const repeatedEvents = await store.listObjectEvents(workflow.reviewedHypothesis.payload.id);
       assertConformance(
         object !== undefined && initial !== undefined && evidence !== undefined &&
-          reviewed !== undefined && events.length === 1,
+          reviewed !== undefined && events.length === 1 && repeatedObject !== undefined &&
+          repeatedInitial !== undefined && repeatedEvidence !== undefined &&
+          repeatedReviewed !== undefined && repeatedEvents.length === 1,
       );
       assertConformance(
         isDeepFrozen(object) && isDeepFrozen(initial) && isDeepFrozen(evidence) &&
-          isDeepFrozen(reviewed) && isDeepFrozen(events),
+          isDeepFrozen(reviewed) && isDeepFrozen(events) &&
+          isDeepFrozen(repeatedObject) && isDeepFrozen(repeatedInitial) &&
+          isDeepFrozen(repeatedEvidence) && isDeepFrozen(repeatedReviewed) &&
+          isDeepFrozen(repeatedEvents),
+      );
+      assertConformance(
+        object !== workflow.reviewedHypothesis &&
+          object.payload !== workflow.reviewedHypothesis.payload &&
+          initial !== workflow.initialHypothesis &&
+          initial.payload !== workflow.initialHypothesis.payload &&
+          evidence !== workflow.evidence &&
+          evidence.payload !== workflow.evidence.payload &&
+          reviewed !== workflow.reviewedHypothesis &&
+          reviewed.payload !== workflow.reviewedHypothesis.payload &&
+          events[0] !== workflow.event &&
+          events[0].payload !== workflow.event.payload,
+      );
+      assertConformance(
+        object !== repeatedObject && initial !== repeatedInitial &&
+          evidence !== repeatedEvidence && reviewed !== repeatedReviewed &&
+          events !== repeatedEvents && events[0] !== repeatedEvents[0],
       );
       try {
         (object.payload as { title: string }).title = "Caller mutation";
@@ -395,27 +505,15 @@ const conformanceCases: readonly ConformanceCase[] = [
 ];
 
 export async function runDurableWorkflowStoreConformance(
-  factory: StoreFactory,
+  factory: DurableWorkflowStoreFactory,
 ): Promise<DurableWorkflowConformanceReport> {
   const seen = new Set<object>();
-  const createFactory = typeof factory === "function"
-    ? factory
-    : factory.createStore;
-  const configureStore = typeof factory === "function"
-    ? undefined
-    : factory.configureStore;
   const createStore: FreshStore = async (scenario) => {
-    const store = await createFactory();
+    const store = await factory(scenario);
     if (typeof store !== "object" || store === null || seen.has(store)) {
       throw new Error("Durable workflow store factory is invalid.");
     }
     seen.add(store);
-    if (scenario !== undefined) {
-      if (configureStore === undefined) {
-        throw new Error("Durable workflow conformance fixture is unavailable.");
-      }
-      await configureStore(store, scenario);
-    }
     return store;
   };
   const results: DurableWorkflowConformanceCaseResult[] = [];
