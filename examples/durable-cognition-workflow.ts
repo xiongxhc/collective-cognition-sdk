@@ -9,17 +9,24 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { pathToFileURL } from "node:url";
 
 import {
   createObject,
   createSourceRecord,
+  neutralEvidencePolicyV1,
+  serializePortableCognitionRecord,
 } from "../src/index.ts";
 import {
   initializeMarkdownCognitionTarget,
   verifyMarkdownCognitionTarget,
 } from "../src/markdown-cognition.ts";
 import type { MarkdownCognitionRecord } from "../src/markdown-cognition.ts";
-import { SqliteCognitionWorkflowStore } from "../src/stores/sqlite-workflow.ts";
+import { prepareDurableCognitionWorkflow } from "../src/workflows/durable.ts";
+import type {
+  DurableCognitionWorkflowRequest,
+  PreparedDurableCognitionCommit,
+} from "../src/workflows/durable.ts";
 
 const cliPath = new URL("../src/workflow-cli.ts", import.meta.url);
 
@@ -32,7 +39,17 @@ interface WorkflowResult {
   readonly records: readonly MarkdownCognitionRecord[];
 }
 
-function sourceNeutralRequest(): Record<string, unknown> {
+interface SourceNeutralFixture {
+  readonly request: DurableCognitionWorkflowRequest;
+  readonly serializedRequest: Record<string, unknown>;
+}
+
+export interface DurableCognitionWorkflowExampleOptions {
+  readonly temporaryParent?: string;
+  readonly afterTemporaryRootCreated?: (temporaryRoot: string) => void;
+}
+
+function sourceNeutralFixture(): SourceNeutralFixture {
   const hypothesis = createObject({
     id: "hypothesis:durable-workflow-example",
     type: "hypothesis",
@@ -60,9 +77,19 @@ function sourceNeutralRequest(): Record<string, unknown> {
       targetId: "goal:durable-workflow-example",
     }],
   });
-  return {
+  const record = createSourceRecord({
+    id: "source-record:durable-workflow-example:1",
+    source: { system: "source-neutral-example" },
+    sourceId: "example:record:1",
+    revisionId: "1",
+    capturedAt: "2026-08-13T09:00:00.000Z",
+    mediaType: "application/json",
+    content: { summary: "The explicit evidence is available for review." },
+  });
+  const request: DurableCognitionWorkflowRequest = {
     workflowVersion: "0.1.0",
     workflowId: "workflow:durable-workflow-example:1",
+    records: [record],
     hypothesis,
     promotion: {
       hypothesisId: hypothesis.id,
@@ -85,20 +112,19 @@ function sourceNeutralRequest(): Record<string, unknown> {
       consequenceLevel: "routine",
       rationale: "Review the hypothesis with the explicit evidence.",
     },
-    policyId: "neutral-evidence-v1",
+    policy: neutralEvidencePolicyV1,
   };
-}
-
-function sourceNeutralRecord(): Record<string, unknown> {
-  return createSourceRecord({
-    id: "source-record:durable-workflow-example:1",
-    source: { system: "source-neutral-example" },
-    sourceId: "example:record:1",
-    revisionId: "1",
-    capturedAt: "2026-08-13T09:00:00.000Z",
-    mediaType: "application/json",
-    content: { summary: "The explicit evidence is available for review." },
-  }) as unknown as Record<string, unknown>;
+  return {
+    request,
+    serializedRequest: {
+      workflowVersion: request.workflowVersion,
+      workflowId: request.workflowId,
+      hypothesis: request.hypothesis,
+      promotion: request.promotion,
+      reviewTransition: request.reviewTransition,
+      policyId: "neutral-evidence-v1",
+    },
+  };
 }
 
 function runCli(arguments_: readonly string[]): WorkflowResult {
@@ -140,102 +166,156 @@ function databaseSummary(databasePath: string): {
   }
 }
 
-async function verifyReopenedRecords(
+function expectedObjectRows(
+  prepared: PreparedDurableCognitionCommit,
+): readonly Record<string, unknown>[] {
+  return [
+    prepared.initialHypothesis,
+    prepared.evidence,
+    prepared.reviewedHypothesis,
+  ].map((record) => ({
+    object_id: record.payload.id,
+    object_version: record.payload.version,
+    object_type: record.payload.type,
+    record_json: serializePortableCognitionRecord(record),
+  })).sort((left, right) =>
+    String(left.object_id).localeCompare(String(right.object_id)) ||
+    Number(left.object_version) - Number(right.object_version)
+  );
+}
+
+function verifyReopenedRecords(
   databasePath: string,
-  records: readonly MarkdownCognitionRecord[],
-): Promise<void> {
-  const [initialHypothesis, evidence, reviewedHypothesis, event] = records;
-  assert.ok(initialHypothesis?.recordType === "cognitive-object");
-  assert.ok(evidence?.recordType === "cognitive-object");
-  assert.ok(reviewedHypothesis?.recordType === "cognitive-object");
-  assert.ok(event?.recordType === "cognition-event");
-  const reopened = new SqliteCognitionWorkflowStore({ databasePath });
+  prepared: PreparedDurableCognitionCommit,
+): void {
+  const reopened = new DatabaseSync(databasePath, { readOnly: true });
   try {
-    assert.deepEqual(
-      await reopened.getObjectVersion(initialHypothesis.payload.id, 1),
-      initialHypothesis,
-    );
-    assert.deepEqual(
-      await reopened.getObjectVersion(evidence.payload.id, 1),
-      evidence,
-    );
-    assert.deepEqual(
-      await reopened.getObjectVersion(reviewedHypothesis.payload.id, 2),
-      reviewedHypothesis,
-    );
-    assert.deepEqual(
-      await reopened.listObjectEvents(reviewedHypothesis.payload.id),
-      [event],
-    );
+    assert.deepEqual(reopened.prepare(`
+      SELECT object_id, object_version, object_type, record_json
+      FROM cognition_objects
+      ORDER BY object_id, object_version
+    `).all().map((row) => ({ ...row })), expectedObjectRows(prepared));
+    assert.deepEqual(reopened.prepare(`
+      SELECT event_id, object_id, object_version, record_json
+      FROM cognition_events
+      ORDER BY event_id
+    `).all().map((row) => ({ ...row })), [{
+      event_id: prepared.event.payload.id,
+      object_id: prepared.event.payload.objectId,
+      object_version: prepared.event.payload.objectVersion,
+      record_json: serializePortableCognitionRecord(prepared.event),
+    }]);
+    assert.deepEqual(reopened.prepare(`
+      SELECT
+        workflow_id,
+        request_digest,
+        initial_hypothesis_id,
+        evidence_id,
+        reviewed_hypothesis_version,
+        event_id
+      FROM cognition_workflows
+      ORDER BY workflow_id
+    `).all().map((row) => ({ ...row })), [{
+      workflow_id: prepared.workflowId,
+      request_digest: prepared.requestDigest,
+      initial_hypothesis_id: prepared.initialHypothesis.payload.id,
+      evidence_id: prepared.evidence.payload.id,
+      reviewed_hypothesis_version: prepared.reviewedHypothesis.payload.version,
+      event_id: prepared.event.payload.id,
+    }]);
   } finally {
     reopened.close();
   }
 }
 
-const temporaryRoot = mkdtempSync(
-  join(tmpdir(), "ccsdk-durable-workflow-example-"),
-);
+export async function runDurableCognitionWorkflowExample(
+  options: DurableCognitionWorkflowExampleOptions = {},
+): Promise<void> {
+  const temporaryRoot = mkdtempSync(join(
+    options.temporaryParent ?? tmpdir(),
+    "ccsdk-durable-workflow-example-",
+  ));
+  try {
+    options.afterTemporaryRootCreated?.(temporaryRoot);
+    const root = realpathSync(temporaryRoot);
+    const requestPath = join(root, "request.json");
+    const inputPath = join(root, "records.jsonl");
+    const databasePath = join(root, "cognition.db");
+    const markdownTarget = join(root, "markdown");
+    const fixture = sourceNeutralFixture();
+    const expected = prepareDurableCognitionWorkflow(fixture.request);
+    const expectedRecords = [
+      expected.initialHypothesis,
+      expected.evidence,
+      expected.reviewedHypothesis,
+      expected.event,
+    ];
+    writeFileSync(requestPath, JSON.stringify(fixture.serializedRequest));
+    writeFileSync(
+      inputPath,
+      `${fixture.request.records.map((record) => JSON.stringify(record)).join("\n")}\n`,
+    );
+    await initializeMarkdownCognitionTarget({ targetDirectory: markdownTarget });
 
-try {
-  const root = realpathSync(temporaryRoot);
-  const requestPath = join(root, "request.json");
-  const inputPath = join(root, "records.jsonl");
-  const databasePath = join(root, "cognition.db");
-  const markdownTarget = join(root, "markdown");
-  writeFileSync(requestPath, JSON.stringify(sourceNeutralRequest()));
-  writeFileSync(inputPath, `${JSON.stringify(sourceNeutralRecord())}\n`);
-  await initializeMarkdownCognitionTarget({ targetDirectory: markdownTarget });
+    const baseArguments = [
+      "run",
+      "--request", requestPath,
+      "--input", inputPath,
+      "--format", "jsonl",
+      "--cognition-db", databasePath,
+      "--markdown-target", markdownTarget,
+    ];
+    const first = runCli([...baseArguments, "--create-cognition-db"]);
+    assert.equal(first.status, "committed");
+    assert.equal(first.persistence, "committed");
+    assert.equal(first.publication, "not_requested");
+    assert.equal(first.projection, "projected");
+    assert.deepEqual(first.records, expectedRecords);
 
-  const baseArguments = [
-    "run",
-    "--request", requestPath,
-    "--input", inputPath,
-    "--format", "jsonl",
-    "--cognition-db", databasePath,
-    "--markdown-target", markdownTarget,
-  ];
-  const first = runCli([...baseArguments, "--create-cognition-db"]);
-  assert.equal(first.status, "committed");
-  assert.equal(first.persistence, "committed");
-  assert.equal(first.publication, "not_requested");
-  assert.equal(first.projection, "projected");
-  assert.equal(first.records.length, 4);
+    verifyReopenedRecords(databasePath, expected);
+    const persisted = databaseSummary(databasePath);
+    assert.deepEqual(persisted, {
+      schemaVersion: 2,
+      objects: 3,
+      events: 1,
+      receipts: 1,
+    });
 
-  await verifyReopenedRecords(databasePath, first.records);
-  const persisted = databaseSummary(databasePath);
-  assert.deepEqual(persisted, {
-    schemaVersion: 2,
-    objects: 3,
-    events: 1,
-    receipts: 1,
-  });
+    const replay = runCli(baseArguments);
+    assert.equal(replay.status, "committed");
+    assert.equal(replay.persistence, "already_committed");
+    assert.equal(replay.publication, "not_requested");
+    assert.equal(replay.projection, "unchanged");
+    assert.deepEqual(replay.records, expectedRecords);
+    assert.deepEqual(databaseSummary(databasePath), persisted);
+    verifyReopenedRecords(databasePath, expected);
 
-  const replay = runCli(baseArguments);
-  assert.equal(replay.status, "committed");
-  assert.equal(replay.persistence, "already_committed");
-  assert.equal(replay.publication, "not_requested");
-  assert.equal(replay.projection, "unchanged");
-  assert.deepEqual(replay.records, first.records);
-  assert.deepEqual(databaseSummary(databasePath), persisted);
+    const verification = await verifyMarkdownCognitionTarget({
+      targetDirectory: markdownTarget,
+    });
+    assert.equal(verification.status, "passed");
 
-  const verification = await verifyMarkdownCognitionTarget({
-    targetDirectory: markdownTarget,
-  });
-  assert.equal(verification.status, "passed");
+    process.stdout.write(`${JSON.stringify({
+      workflowId: first.workflowId,
+      schemaVersion: persisted.schemaVersion,
+      firstPersistence: first.persistence,
+      replayPersistence: replay.persistence,
+      publication: replay.publication,
+      firstProjection: first.projection,
+      replayProjection: replay.projection,
+      objects: persisted.objects,
+      events: persisted.events,
+      receipts: persisted.receipts,
+      markdownVerification: verification.status,
+    })}\n`);
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+}
 
-  console.log(JSON.stringify({
-    workflowId: first.workflowId,
-    schemaVersion: persisted.schemaVersion,
-    firstPersistence: first.persistence,
-    replayPersistence: replay.persistence,
-    publication: replay.publication,
-    firstProjection: first.projection,
-    replayProjection: replay.projection,
-    objects: persisted.objects,
-    events: persisted.events,
-    receipts: persisted.receipts,
-    markdownVerification: verification.status,
-  }));
-} finally {
-  rmSync(temporaryRoot, { recursive: true, force: true });
+if (
+  process.argv[1] !== undefined &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  await runDurableCognitionWorkflowExample();
 }

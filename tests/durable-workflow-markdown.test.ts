@@ -18,6 +18,8 @@ import test from "node:test";
 import {
   createObject,
   createSourceRecord,
+  neutralEvidencePolicyV1,
+  serializePortableCognitionRecord,
 } from "../src/index.ts";
 import {
   MARKDOWN_COGNITION_MARKER_FILE,
@@ -25,7 +27,11 @@ import {
   verifyMarkdownCognitionTarget,
 } from "../src/markdown-cognition.ts";
 import type { MarkdownCognitionRecord } from "../src/markdown-cognition.ts";
-import { SqliteCognitionWorkflowStore } from "../src/stores/sqlite-workflow.ts";
+import { prepareDurableCognitionWorkflow } from "../src/workflows/durable.ts";
+import type {
+  DurableCognitionWorkflowRequest,
+  PreparedDurableCognitionCommit,
+} from "../src/workflows/durable.ts";
 
 const cliPath = new URL("../src/workflow-cli.ts", import.meta.url);
 
@@ -35,7 +41,13 @@ interface WorkflowResult {
   readonly publication: string;
   readonly projection: string;
   readonly workflowId: string;
+  readonly requestDigest: string;
   readonly records: readonly MarkdownCognitionRecord[];
+}
+
+interface SourceNeutralFixture {
+  readonly request: DurableCognitionWorkflowRequest;
+  readonly serializedRequest: Record<string, unknown>;
 }
 
 function defensiveModeIsEnforced(): boolean {
@@ -63,7 +75,7 @@ function defensiveModeIsEnforced(): boolean {
 
 const sqliteTest = defensiveModeIsEnforced() ? test : test.skip;
 
-function sourceNeutralRequest(): Record<string, unknown> {
+function sourceNeutralFixture(): SourceNeutralFixture {
   const hypothesis = createObject({
     id: "hypothesis:durable-workflow-example",
     type: "hypothesis",
@@ -91,9 +103,19 @@ function sourceNeutralRequest(): Record<string, unknown> {
       targetId: "goal:durable-workflow-example",
     }],
   });
-  return {
+  const record = createSourceRecord({
+    id: "source-record:durable-workflow-example:1",
+    source: { system: "source-neutral-example" },
+    sourceId: "example:record:1",
+    revisionId: "1",
+    capturedAt: "2026-08-13T09:00:00.000Z",
+    mediaType: "application/json",
+    content: { summary: "The explicit evidence is available for review." },
+  });
+  const request: DurableCognitionWorkflowRequest = {
     workflowVersion: "0.1.0",
     workflowId: "workflow:durable-workflow-example:1",
+    records: [record],
     hypothesis,
     promotion: {
       hypothesisId: hypothesis.id,
@@ -116,20 +138,19 @@ function sourceNeutralRequest(): Record<string, unknown> {
       consequenceLevel: "routine",
       rationale: "Review the hypothesis with the explicit evidence.",
     },
-    policyId: "neutral-evidence-v1",
+    policy: neutralEvidencePolicyV1,
   };
-}
-
-function sourceNeutralRecord(): Record<string, unknown> {
-  return createSourceRecord({
-    id: "source-record:durable-workflow-example:1",
-    source: { system: "source-neutral-example" },
-    sourceId: "example:record:1",
-    revisionId: "1",
-    capturedAt: "2026-08-13T09:00:00.000Z",
-    mediaType: "application/json",
-    content: { summary: "The explicit evidence is available for review." },
-  }) as unknown as Record<string, unknown>;
+  return {
+    request,
+    serializedRequest: {
+      workflowVersion: request.workflowVersion,
+      workflowId: request.workflowId,
+      hypothesis: request.hypothesis,
+      promotion: request.promotion,
+      reviewTransition: request.reviewTransition,
+      policyId: "neutral-evidence-v1",
+    },
+  };
 }
 
 function runCli(arguments_: readonly string[]): WorkflowResult {
@@ -171,6 +192,72 @@ function workflowDatabaseSummary(databasePath: string): {
   }
 }
 
+function expectedObjectRows(
+  prepared: PreparedDurableCognitionCommit,
+): readonly Record<string, unknown>[] {
+  return [
+    prepared.initialHypothesis,
+    prepared.evidence,
+    prepared.reviewedHypothesis,
+  ].map((record) => ({
+    object_id: record.payload.id,
+    object_version: record.payload.version,
+    object_type: record.payload.type,
+    record_json: serializePortableCognitionRecord(record),
+  })).sort((left, right) =>
+    String(left.object_id).localeCompare(String(right.object_id)) ||
+    Number(left.object_version) - Number(right.object_version)
+  );
+}
+
+function assertExactPersistedWorkflow(
+  databasePath: string,
+  prepared: PreparedDurableCognitionCommit,
+): void {
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    const objects = database.prepare(`
+      SELECT object_id, object_version, object_type, record_json
+      FROM cognition_objects
+      ORDER BY object_id, object_version
+    `).all().map((row) => ({ ...row }));
+    const events = database.prepare(`
+      SELECT event_id, object_id, object_version, record_json
+      FROM cognition_events
+      ORDER BY event_id
+    `).all().map((row) => ({ ...row }));
+    const receipts = database.prepare(`
+      SELECT
+        workflow_id,
+        request_digest,
+        initial_hypothesis_id,
+        evidence_id,
+        reviewed_hypothesis_version,
+        event_id
+      FROM cognition_workflows
+      ORDER BY workflow_id
+    `).all().map((row) => ({ ...row }));
+
+    assert.deepEqual(objects, expectedObjectRows(prepared));
+    assert.deepEqual(events, [{
+      event_id: prepared.event.payload.id,
+      object_id: prepared.event.payload.objectId,
+      object_version: prepared.event.payload.objectVersion,
+      record_json: serializePortableCognitionRecord(prepared.event),
+    }]);
+    assert.deepEqual(receipts, [{
+      workflow_id: prepared.workflowId,
+      request_digest: prepared.requestDigest,
+      initial_hypothesis_id: prepared.initialHypothesis.payload.id,
+      evidence_id: prepared.evidence.payload.id,
+      reviewed_hypothesis_version: prepared.reviewedHypothesis.payload.version,
+      event_id: prepared.event.payload.id,
+    }]);
+  } finally {
+    database.close();
+  }
+}
+
 function filesBelow(root: string): string[] {
   return readdirSync(root, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile())
@@ -198,8 +285,19 @@ sqliteTest(
       const inputPath = join(root, "records.jsonl");
       const databasePath = join(root, "cognition.db");
       const markdownTarget = join(root, "markdown");
-      writeFileSync(requestPath, JSON.stringify(sourceNeutralRequest()));
-      writeFileSync(inputPath, `${JSON.stringify(sourceNeutralRecord())}\n`);
+      const fixture = sourceNeutralFixture();
+      const expected = prepareDurableCognitionWorkflow(fixture.request);
+      const expectedRecords = [
+        expected.initialHypothesis,
+        expected.evidence,
+        expected.reviewedHypothesis,
+        expected.event,
+      ];
+      writeFileSync(requestPath, JSON.stringify(fixture.serializedRequest));
+      writeFileSync(
+        inputPath,
+        `${fixture.request.records.map((record) => JSON.stringify(record)).join("\n")}\n`,
+      );
       await initializeMarkdownCognitionTarget({ targetDirectory: markdownTarget });
       const markerPath = join(markdownTarget, MARKDOWN_COGNITION_MARKER_FILE);
       const marker = JSON.parse(readFileSync(markerPath, "utf8")) as {
@@ -233,6 +331,9 @@ sqliteTest(
       assert.equal(first.persistence, "committed");
       assert.equal(first.publication, "not_requested");
       assert.equal(first.projection, "failed");
+      assert.equal(first.workflowId, expected.workflowId);
+      assert.equal(first.requestDigest, expected.requestDigest);
+      assert.deepEqual(first.records, expectedRecords);
       assert.deepEqual(
         filesBelow(markdownTarget).map((relativePath) => ({
           relativePath,
@@ -246,33 +347,7 @@ sqliteTest(
         events: 1,
         receipts: 1,
       });
-
-      const [initialHypothesis, evidence, reviewedHypothesis, event] = first.records;
-      assert.ok(initialHypothesis?.recordType === "cognitive-object");
-      assert.ok(evidence?.recordType === "cognitive-object");
-      assert.ok(reviewedHypothesis?.recordType === "cognitive-object");
-      assert.ok(event?.recordType === "cognition-event");
-      const reopened = new SqliteCognitionWorkflowStore({ databasePath });
-      try {
-        assert.deepEqual(
-          await reopened.getObjectVersion(initialHypothesis.payload.id, 1),
-          initialHypothesis,
-        );
-        assert.deepEqual(
-          await reopened.getObjectVersion(evidence.payload.id, 1),
-          evidence,
-        );
-        assert.deepEqual(
-          await reopened.getObjectVersion(reviewedHypothesis.payload.id, 2),
-          reviewedHypothesis,
-        );
-        assert.deepEqual(
-          await reopened.listObjectEvents(reviewedHypothesis.payload.id),
-          [event],
-        );
-      } finally {
-        reopened.close();
-      }
+      assertExactPersistedWorkflow(databasePath, expected);
 
       rmSync(markdownTarget, { recursive: true, force: true });
       await initializeMarkdownCognitionTarget({ targetDirectory: markdownTarget });
@@ -281,13 +356,15 @@ sqliteTest(
       assert.equal(recovered.persistence, "already_committed");
       assert.equal(recovered.publication, "not_requested");
       assert.equal(recovered.projection, "projected");
-      assert.deepEqual(recovered.records, first.records);
+      assert.equal(recovered.requestDigest, expected.requestDigest);
+      assert.deepEqual(recovered.records, expectedRecords);
       assert.deepEqual(workflowDatabaseSummary(databasePath), {
         schemaVersion: 2,
         objects: 3,
         events: 1,
         receipts: 1,
       });
+      assertExactPersistedWorkflow(databasePath, expected);
       assert.equal(
         (await verifyMarkdownCognitionTarget({ targetDirectory: markdownTarget })).status,
         "passed",
@@ -303,7 +380,8 @@ sqliteTest(
       assert.equal(unchanged.persistence, "already_committed");
       assert.equal(unchanged.publication, "not_requested");
       assert.equal(unchanged.projection, "unchanged");
-      assert.deepEqual(unchanged.records, first.records);
+      assert.equal(unchanged.requestDigest, expected.requestDigest);
+      assert.deepEqual(unchanged.records, expectedRecords);
       assert.deepEqual(stableFileMetadata(markdownTarget), beforeReplay);
       assert.deepEqual(workflowDatabaseSummary(databasePath), {
         schemaVersion: 2,
@@ -311,6 +389,7 @@ sqliteTest(
         events: 1,
         receipts: 1,
       });
+      assertExactPersistedWorkflow(databasePath, expected);
       assert.equal(
         (await verifyMarkdownCognitionTarget({ targetDirectory: markdownTarget })).status,
         "passed",
