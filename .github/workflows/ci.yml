@@ -118,6 +118,7 @@ jobs:
           npm run example:markdown
           npm run example:portable
           npm run example:host
+          npm run example:workflow
           npm run example:teammem -- "$ledger"
           npm run example:teammem:durable -- --ledger "$ledger" --cognition-db "$cognition" --project ci-synthetic --from 2026-08-02T00:00:00.000Z --limit 1 --create
           npm run pack:check
