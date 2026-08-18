@@ -32,7 +32,10 @@ import * as sqliteApi from "../dist/stores/sqlite.js";
 import * as connectorConformanceApi from "../dist/connector-conformance.js";
 import * as teamMemoryConnectorApi from "../dist/connectors/team-memory.js";
 import * as markdownCognitionApi from "../dist/markdown-cognition.js";
+import * as durableWorkflowApi from "../dist/workflows/durable.js";
+import * as sqliteWorkflowApi from "../dist/stores/sqlite-workflow.js";
 import { CLI_CONTRACT } from "../dist/cli-contract.js";
+import { WORKFLOW_CLI_CONTRACT } from "../dist/workflow-cli-contract.js";
 
 const repositoryRoot = new URL("../", import.meta.url);
 const historicalBaselineUrl = new URL(
@@ -68,7 +71,19 @@ const previousCurrentChangeCasesUrl = new URL(
   import.meta.url,
 );
 const currentBaselineUrl = new URL(
+  "../spec/compatibility/0.9.0/baseline.json",
+  import.meta.url,
+);
+const currentChangeCasesUrl = new URL(
+  "../spec/compatibility/0.9.0/change-cases.jsonl",
+  import.meta.url,
+);
+const previousPackageBaselineUrl = new URL(
   "../spec/compatibility/0.8.0/baseline.json",
+  import.meta.url,
+);
+const previousPackageChangeCasesUrl = new URL(
+  "../spec/compatibility/0.8.0/change-cases.jsonl",
   import.meta.url,
 );
 const latestReleaseBaselineUrl = new URL(
@@ -124,15 +139,19 @@ const expectedLatestReleaseBaselineSha256 =
 const expectedLatestReleaseChangeCasesSha256 =
   "23d6577eb6aa927ab37f33278363f00a38cb2e0e67adfbc50a9dc2075b1b9e9e";
 const expectedPublicApiReferenceSha256 =
-  "49b0febc7bad7cffa95cb78d29f079df18157a8739774509d4aa7cf83e10ca80";
+  "a0939abf51c0af647d7743075a2b8a8bdb4ed363c40ced68250356468d99e625";
 const expectedDistributionReadinessRfcSha256 =
   "967b0cc1b6584902c4d606bbdc7cf47f9801283a3f67d7a802152994dabc6da3";
 const expectedDistributionReadinessProseSha256 =
   "72d583c3e83b3a8c909c421bb1aa65ece2fa7bbda9a5eaca665d5998c429e936";
 const expectedDistributionReadinessProfileSha256 =
   "5d1d236c946820be65d04648b66ca215073810a908ad8d44da8f04f800909af9";
-const expectedCurrentChangeCasesSha256 =
+const expectedPreviousPackageChangeCasesSha256 =
   "9cb7bd259d2b84e7fb1f8839263bfae0d54eb2ba8aaa07de9f15957660244572";
+const expectedPreviousPackageBaselineSha256 =
+  "29479b4119519724a29d02ba4e4c5ce6d3276a34f515c0c2f018859d22ca3c0e";
+const expectedCurrentChangeCasesSha256 =
+  "22ba5a27a3c60520ac3e45f2246941d8efe0145c282dcbe689575e1bb54dedc3";
 const expectedHistoricalChangeCaseDigests = Object.freeze({
   "spec/compatibility/0.1.0/change-cases.jsonl":
     expectedHistoricalChangeCasesSha256,
@@ -148,6 +167,8 @@ const expectedHistoricalChangeCaseDigests = Object.freeze({
     expectedPreviousReleaseChangeCasesSha256,
   "spec/compatibility/0.7.0/change-cases.jsonl":
     expectedLatestReleaseChangeCasesSha256,
+  "spec/compatibility/0.8.0/change-cases.jsonl":
+    expectedPreviousPackageChangeCasesSha256,
 });
 const productionDependencyFieldNames = Object.freeze([
   "dependencies",
@@ -508,11 +529,48 @@ test("historical compatibility 0.7.0 artifacts remain immutable", () => {
   );
 });
 
-test("current baseline describes the additive package 0.8.0 release", () => {
+test("historical compatibility 0.8.0 artifacts remain immutable", () => {
+  assert.equal(
+    sha256(readFileSync(previousPackageBaselineUrl)),
+    expectedPreviousPackageBaselineSha256,
+  );
+  assert.equal(
+    sha256(readFileSync(previousPackageChangeCasesUrl)),
+    expectedPreviousPackageChangeCasesSha256,
+  );
+});
+
+test("package 0.9.0 baseline records the additive durable workflow surface", () => {
+  const baseline = readJson(currentBaselineUrl);
+  const cases = readJsonLines(currentChangeCasesUrl);
+
+  assert.equal(baseline.baselineVersion, "0.9.0");
+  assert.equal(baseline.appliesToPackageVersion, "0.9.0");
+  assert.deepEqual(baseline.packageChange, {
+    classification: "additive",
+    packageVersionEffect: "minor",
+  });
+  assert.deepEqual(baseline.historicalBaselines["0.8.0"], {
+    path: "spec/compatibility/0.8.0/baseline.json",
+    sha256: expectedPreviousPackageBaselineSha256,
+  });
+  assert.deepEqual(baseline.durableWorkflow.packageSubpath, "./workflows/durable/0.1.0");
+  assert.deepEqual(
+    baseline.sqliteWorkflow.packageSubpath,
+    "./stores/sqlite-workflow/0.1.0",
+  );
+  assert.equal(baseline.workflowCli.binaryName, "collective-cognition-workflow");
+  assert.deepEqual(cases.map(({ classification, packageVersionEffect }) => ({
+    classification,
+    packageVersionEffect,
+  })), [{ classification: "additive", packageVersionEffect: "minor" }]);
+});
+
+test("current baseline describes the additive package 0.9.0 release", () => {
   const baseline = readJson(currentBaselineUrl);
 
-  assert.equal(baseline.baselineVersion, "0.8.0");
-  assert.equal(baseline.appliesToPackageVersion, "0.8.0");
+  assert.equal(baseline.baselineVersion, "0.9.0");
+  assert.equal(baseline.appliesToPackageVersion, "0.9.0");
   assert.deepEqual(baseline.packageChange, {
     classification: "additive",
     packageVersionEffect: "minor",
@@ -548,6 +606,10 @@ test("current baseline describes the additive package 0.8.0 release", () => {
     "0.7.0": {
       path: "spec/compatibility/0.7.0/baseline.json",
       sha256: expectedLatestReleaseBaselineSha256,
+    },
+    "0.8.0": {
+      path: "spec/compatibility/0.8.0/baseline.json",
+      sha256: expectedPreviousPackageBaselineSha256,
     },
   });
   assert.deepEqual(baseline.deprecations, []);
@@ -586,8 +648,10 @@ test("normative machine artifacts match exact digests", () => {
   assert.deepEqual(
     Object.keys(baseline.normative.artifacts).sort(),
     [
+      "docs/durable-cognition-workflow-guide.md",
       "docs/public-api.md",
       "rfcs/0009-public-api-and-distribution-readiness.md",
+      "rfcs/0010-durable-cognition-workflow.md",
       "spec/compatibility/0.1.0/change-cases.jsonl",
       "spec/compatibility/0.2.0/change-cases.jsonl",
       "spec/compatibility/0.3.0/change-cases.jsonl",
@@ -596,6 +660,7 @@ test("normative machine artifacts match exact digests", () => {
       "spec/compatibility/0.6.0/change-cases.jsonl",
       "spec/compatibility/0.7.0/change-cases.jsonl",
       "spec/compatibility/0.8.0/change-cases.jsonl",
+      "spec/compatibility/0.9.0/change-cases.jsonl",
       "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
       "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
       "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
@@ -640,6 +705,10 @@ test("normative machine artifacts match exact digests", () => {
   );
   assert.equal(
     baseline.normative.artifacts["spec/compatibility/0.8.0/change-cases.jsonl"],
+    expectedPreviousPackageChangeCasesSha256,
+  );
+  assert.equal(
+    baseline.normative.artifacts["spec/compatibility/0.9.0/change-cases.jsonl"],
     expectedCurrentChangeCasesSha256,
   );
   assert.equal(
@@ -681,11 +750,11 @@ test("normative machine artifacts match exact digests", () => {
   assert.equal(
     sha256(
       readFileSync(
-        new URL("spec/compatibility/0.8.0/change-cases.jsonl", repositoryRoot),
+        new URL("spec/compatibility/0.9.0/change-cases.jsonl", repositoryRoot),
       ),
     ),
     expectedCurrentChangeCasesSha256,
-    "spec/compatibility/0.8.0/change-cases.jsonl",
+    "spec/compatibility/0.9.0/change-cases.jsonl",
   );
   Object.entries(baseline.normative.artifacts).forEach(
     ([path, expectedDigest]) => {
@@ -1212,9 +1281,87 @@ test("Markdown adapter subpath contract matches its exact additive inventory", (
   );
 });
 
+test("durable workflow subpaths and CLI match exact additive inventories", () => {
+  const baseline = readJson(currentBaselineUrl);
+
+  assert.deepEqual(baseline.durableWorkflow, {
+    version: "0.1.0",
+    packageSubpath: "./workflows/durable/0.1.0",
+    runtimeExports: [
+      "DURABLE_COGNITION_WORKFLOW_VERSION",
+      "prepareDurableCognitionWorkflow",
+      "runDurableCognitionWorkflow",
+      "runDurableWorkflowStoreConformance",
+    ],
+    typeExports: [
+      "CognitionWorkflowStore",
+      "DurableCognitionCommitResult",
+      "DurableCognitionProjectionStatus",
+      "DurableCognitionProjector",
+      "DurableCognitionPublicationStatus",
+      "DurableCognitionWorkflowCommitted",
+      "DurableCognitionWorkflowCompletion",
+      "DurableCognitionWorkflowConflict",
+      "DurableCognitionWorkflowFailure",
+      "DurableCognitionWorkflowHost",
+      "DurableCognitionWorkflowRequest",
+      "DurableCognitionWorkflowResult",
+      "DurableCognitionWorkflowUnprojected",
+      "DurableCognitionWorkflowUnpublished",
+      "DurableCognitionWorkflowUnpublishedAndUnprojected",
+      "DurableWorkflowConflictCode",
+      "DurableWorkflowConformanceCaseResult",
+      "DurableWorkflowConformanceReport",
+      "DurableWorkflowStoreConformanceScenario",
+      "DurableWorkflowStoreFactory",
+      "PreparedDurableCognitionCommit",
+    ],
+  });
+  assert.deepEqual(
+    Object.keys(durableWorkflowApi).sort(),
+    baseline.durableWorkflow.runtimeExports,
+  );
+  assert.deepEqual(
+    directDeclarationTypeExports("dist/workflows/durable.d.ts"),
+    baseline.durableWorkflow.typeExports,
+  );
+
+  assert.deepEqual(baseline.sqliteWorkflow, {
+    version: "0.1.0",
+    packageSubpath: "./stores/sqlite-workflow/0.1.0",
+    runtimeExports: ["SqliteCognitionWorkflowStore"],
+    typeExports: ["SqliteCognitionWorkflowStoreOptions"],
+  });
+  assert.deepEqual(
+    Object.keys(sqliteWorkflowApi).sort(),
+    baseline.sqliteWorkflow.runtimeExports,
+  );
+  assert.deepEqual(
+    directDeclarationTypeExports("dist/stores/sqlite-workflow.d.ts"),
+    baseline.sqliteWorkflow.typeExports,
+  );
+  assert.deepEqual(baseline.workflowCli, {
+    version: "0.1.0",
+    binaryName: "collective-cognition-workflow",
+    commandNames: ["run"],
+    formats: ["json", "jsonl"],
+    policyIds: ["neutral-evidence-v1"],
+    defaults: {
+      maxInputBytes: 10_485_760,
+      maxRecords: 10_000,
+      maxRecordBytes: 1_048_576,
+      maxRequestBytes: 1_048_576,
+    },
+    publisherSupported: false,
+  });
+  assert.deepEqual([...WORKFLOW_CLI_CONTRACT.commands], baseline.workflowCli.commandNames);
+  assert.deepEqual([...WORKFLOW_CLI_CONTRACT.formats], baseline.workflowCli.formats);
+  assert.deepEqual([...WORKFLOW_CLI_CONTRACT.policyIds], baseline.workflowCli.policyIds);
+  assert.deepEqual(WORKFLOW_CLI_CONTRACT.defaults, baseline.workflowCli.defaults);
+});
+
 test("public declaration entrypoint closures match exact independent digests", () => {
   const baseline = readJson(currentBaselineUrl);
-  const previousCurrentBaseline = readJson(latestReleaseBaselineUrl);
   const entrypoints = {
     root: {
       packageSubpath: ".",
@@ -1244,15 +1391,19 @@ test("public declaration entrypoint closures match exact independent digests", (
       packageSubpath: "./adapters/markdown/0.1.0",
       declarationEntrypoint: "dist/markdown-cognition.d.ts",
     },
+    durableWorkflow: {
+      packageSubpath: "./workflows/durable/0.1.0",
+      declarationEntrypoint: "dist/workflows/durable.d.ts",
+    },
+    sqliteWorkflow: {
+      packageSubpath: "./stores/sqlite-workflow/0.1.0",
+      declarationEntrypoint: "dist/stores/sqlite-workflow.d.ts",
+    },
   };
 
   assert.deepEqual(
     Object.keys(baseline.package.declarations),
     Object.keys(entrypoints),
-  );
-  assert.deepEqual(
-    baseline.package.declarations,
-    previousCurrentBaseline.package.declarations,
   );
   Object.entries(entrypoints).forEach(([name, expected]) => {
     const declaration = baseline.package.declarations[name];
@@ -1394,7 +1545,10 @@ test("CLI registry matches the exact baseline", () => {
   );
   assert.deepEqual(
     baseline.package.metadata.bin,
-    previousCurrentBaseline.package.metadata.bin,
+    {
+      ...previousCurrentBaseline.package.metadata.bin,
+      "collective-cognition-workflow": "./dist/workflow-cli.js",
+    },
   );
 });
 
@@ -1426,12 +1580,7 @@ test("CLI and SDK promotion policy identities remain linked", () => {
 });
 
 test("change cases exercise the additive package process", () => {
-  const cases = readJsonLines(
-    new URL(
-      "../spec/compatibility/0.8.0/change-cases.jsonl",
-      import.meta.url,
-    ),
-  );
+  const cases = readJsonLines(currentChangeCasesUrl);
   const stabilityLevels = new Set(
     readJson(currentBaselineUrl).stabilityLevels.map((level) => level.id),
   );
@@ -1440,17 +1589,25 @@ test("change cases exercise the additive package process", () => {
 
   assert.deepEqual(cases, [
     {
-      id: "additive-distribution-readiness-profile",
+      id: "additive-durable-cognition-workflow",
       description:
-        "Add Distribution Readiness Profile 0.1.0 as normative prose, a checked public API reference, an RFC, and a versioned machine-readable package subpath while preserving every existing runtime, type, CLI, connector, adapter, host contract, and runtime-security surface.",
-      surface: "normative-stable",
+        "Add Durable Cognition Workflow 0.1.0, its SQLite workflow-store implementation, installed workflow executable, RFC, guide, and exact package artifacts while preserving root export names and every historical package entrypoint and artifact.",
+      surface: "supported-experimental",
       classification: "additive",
       packageVersionEffect: "minor",
       requiresRfc: true,
       requiresMigrationNotes: false,
       requiresDeprecation: false,
+      addedPackageSubpaths: [
+        "./compatibility/0.9.0",
+        "./stores/sqlite-workflow/0.1.0",
+        "./workflows/durable/0.1.0",
+      ],
+      addedExecutables: ["collective-cognition-workflow"],
+      rootRuntimeExportsChanged: false,
+      rootTypeExportsChanged: false,
       rationale:
-        "Existing imports and behavior remain unchanged; the new JSON subpath, prose, API reference, and RFC describe private distribution status without enabling npm publication, production claims, or new production dependencies.",
+        "Existing imports and executables remain available; the new source-neutral workflow surface requires an explicit SQLite v2 database, leaves publication host-owned, keeps Markdown non-authoritative, and does not authorize npm publication or claim production use.",
     },
   ]);
   cases.forEach((changeCase) => {

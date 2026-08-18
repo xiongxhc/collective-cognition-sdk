@@ -4,8 +4,10 @@ All notable changes to this experimental SDK are documented here. Versioning and
 
 ## Unreleased
 
-- Adds the checked public API reference, normative Distribution Readiness Profile `0.1.0`, read-only `collective-cognition-sdk/distribution-readiness/0.1.0` JSON subpath, RFC 0009, and additive private package `0.8.0` compatibility baseline.
-- Reports npm publication as blocked and production use as not claimed; package `0.8.0` remains private and unpublished.
+- Adds source-neutral Durable Cognition Workflow `0.1.0`, atomic SQLite workflow schema version `2`, the `collective-cognition-sdk/workflows/durable/0.1.0` and `collective-cognition-sdk/stores/sqlite-workflow/0.1.0` subpaths, the `collective-cognition-workflow` executable, RFC 0010, an operator guide, and additive private package `0.9.0` compatibility baseline.
+- Preserves every historical root export, subpath, executable, and compatibility artifact while keeping the internal SQLite module inaccessible through package exports.
+- Reports npm publication as blocked and production use as not claimed; package `0.9.0` remains private and unpublished. The CLI has no publisher, Markdown remains non-authoritative, and the slice supplies no scheduler, automatic cognition, Obsidian discovery, authentication, encryption, durable outbox, or production certification.
+- Records historical private package `0.8.0` as the additive checked public API and Distribution Readiness Profile `0.1.0` delivery, including its read-only `collective-cognition-sdk/distribution-readiness/0.1.0` JSON subpath and RFC 0009.
 - Records historical private package `0.7.0` as the additive Runtime and Security Profile `0.1.0` delivery, including its `collective-cognition-sdk/runtime-security/0.1.0` JSON subpath.
 - Clarifies the public runtime/security boundary: the profile tells hosts what remains unimplemented, importing it does not enforce host-required controls, and conformance is not certification.
 - Clarifies that the source-neutral core consumes portable contracts while optional connectors and adapters operate only on explicit sources or managed targets.

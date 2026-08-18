@@ -167,7 +167,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Normative [Runtime and Security Profile `0.1.0`](../spec/runtime-security.md), synchronized JSON inventory at `collective-cognition-sdk/runtime-security/0.1.0`, and [RFC 0008](../rfcs/0008-runtime-security-profile.md).
 - [x] Four explicit enforcement classes: `sdk-enforced`, `conformance-verified`, `host-required`, and `out-of-scope`.
 - [x] Closed control coverage for authentication, encryption, tenant or workspace isolation, durable publication recovery, and related host-owned boundaries without adding a runtime policy engine.
-- [x] At the Runtime and Security slice boundary, the current private, unpublished package `0.7.0` added its compatibility baseline without changing root exports, existing CLIs, or historical `v0.6.0` records; current package `0.8.0` supersedes that private baseline additively.
+- [x] At the Runtime and Security slice boundary, private, unpublished package `0.7.0` added its compatibility baseline without changing root exports, existing CLIs, or historical `v0.6.0` records; package `0.8.0` superseded that private baseline additively, and current package `0.9.0` preserves both historical artifacts.
 - [x] Public documentation reconciliation that explains host-owned responsibilities and states that conformance is not certification.
 
 **Runtime and Security Profile final verification evidence**
@@ -283,7 +283,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 4: Adapter Ecosystem Foundations
 
-**Status:** Active. The SQLite database persistence adapter, maintained source-connector slice, and [Markdown cognition adapter](markdown-cognition-adapter-guide.md) are implemented and final-review verified. The Markdown slice includes the private, npm-unpublished package `0.6.0` export, executable, compatibility baseline, exact package allowlist, clean-consumer workflow, and temporary-vault acceptance. The source-neutral [Durable Cognition Workflow `0.1.0` design](superpowers/specs/2026-08-13-durable-cognition-workflow-design.md) is approved for implementation planning; no workflow package, executable, or package `0.9.0` implementation is claimed yet. The experimental `v0.6.0` GitHub prerelease is observed and verified as recorded in Phase 3.
+**Status:** Complete for the implemented adapter-foundation deliverables. The SQLite database persistence adapter, maintained source-connector slice, [Markdown cognition adapter](markdown-cognition-adapter-guide.md), and source-neutral [Durable Cognition Workflow `0.1.0`](durable-cognition-workflow-guide.md) are implemented. Private, unpublished package `0.9.0` adds the exact workflow and SQLite workflow-store subpaths, installed workflow executable, compatibility baseline, RFC 0010, guide, exact package allowlist, and clean-consumer verification without claiming npm publication or production use. The experimental `v0.6.0` GitHub prerelease remains the only observed public package artifact recorded in Phase 3.
 
 **Entry criteria**
 
@@ -301,13 +301,13 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] The reviewed [Markdown cognition adapter](superpowers/specs/2026-07-30-markdown-cognition-adapter-design.md), operating only on an explicitly initialized managed directory.
 - [x] A connector author guide and RFC explaining independent repositories and packages, SourceRecord neutrality, connector-owned concerns, and conformance limits.
 - [x] Deterministic object-to-Markdown and Markdown-to-object fixtures with stable IDs, versions, relationships, and provenance.
-- [ ] A source-neutral durable workflow that atomically persists an explicit Hypothesis, promoted neutral Evidence, transitioned Hypothesis, and event, then reports publication and optional Markdown projection as separate recoverable downstream stages.
+- [x] A source-neutral durable workflow that atomically persists an explicit Hypothesis, promoted neutral Evidence, transitioned Hypothesis, and event, then reports publication and optional Markdown projection as separate recoverable downstream stages.
 
 **Acceptance checks**
 
 - [x] Generic and maintained connectors pass the same SourceRecord conformance boundary.
 - [x] Maintained connector tests prove explicit read-only source selection, deterministic output, identity isolation, default raw omission, explicit privacy opt-in, and no source mutation.
-- [x] Package tests cover the versioned conformance and connector imports, exact package contents, and both installed CLIs.
+- [x] Package tests cover every historical entrypoint plus the versioned workflow and SQLite workflow-store imports, exact package contents, and all four installed CLIs.
 - [x] Persistence adapter tests prove that durable cognitive objects and audit events survive round trips without depending on a source store's private schema.
 - [x] Manual real-ledger acceptance for the maintained connector: `12,807` records validated without raw content, repeated export SHA-256 `698ffd2d77dfdb588d85676582a37ee39fd8b9eff05708dc06fb580248453b17`, and source byte size plus nanosecond modification time unchanged.
 - [x] Independent final verification for the preceding connector and SQLite
@@ -321,6 +321,14 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
   clean-consumer checks cover the Markdown adapter.
 - [x] Final whole-branch review reconciles the Markdown adapter with the
   package baseline and all project checks.
+- [x] Durable workflow tests cover preparation before host invocation, atomic
+  SQLite commit, exact replay, conflict precedence, rollback, concurrency,
+  close/reopen, downstream partial success, managed Markdown recovery, and the
+  closed installed CLI.
+- [x] Private package `0.9.0` records exact runtime/type inventories,
+  declaration closures and digests, executable modes, clean-consumer imports,
+  packed CLI execution, and a tarball allowlist that excludes sources, tests,
+  examples, and plans.
 
 **Current Markdown verification evidence**
 
@@ -360,10 +368,14 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
   backend yet. The runtime-dependency-free core requires that untrusted
   same-privilege processes do not concurrently mutate the managed target;
   optional `openat`/`renameat`/`unlinkat` hardening remains future work.
+- No migration from SQLite schema version `1`; workflow operators select a new
+  explicit schema-version-`2` cognition database.
+- No publisher in `collective-cognition-workflow`; Markdown is not
+  authoritative storage.
 
 ## Phase 5: Cross-Connector Interoperability
 
-**Status:** Next SDK development slice. Execution remains queued after the active Phase 4 Durable Cognition Workflow `0.1.0` slice and pending its own entry criteria.
+**Status:** Next SDK development slice. Phase 4 is complete, but Phase 5 remains pending the two-connector criteria: at least two independently useful connectors must pass their own contract tests, and a real cross-connector exchange workflow must have a named owner.
 
 **Entry criteria**
 

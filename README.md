@@ -6,11 +6,11 @@
 
 Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript reference implementation for attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, source system, or organizational beliefs.
 
-This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.8.0` remains private and unpublished on npm; its source, emitted ESM build, declarations, and CLIs are runnable, but production readiness is not claimed. The [checked public API reference](docs/public-api.md) and [Distribution Readiness Profile](spec/distribution-readiness.md) describe the supported surface and current channels without authorizing publication. The experimental [`v0.6.0` GitHub prerelease](https://github.com/xiongxhc/collective-cognition-sdk/releases/tag/v0.6.0) remains the first and only observed public package artifact.
+This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.9.0` remains private and unpublished on npm; its source, emitted ESM build, declarations, and CLIs are runnable, but production use is not claimed. The [checked public API reference](docs/public-api.md) describes the supported surface. Distribution Readiness Profile `0.1.0` remains the immutable package-`0.8.0` assessment and does not authorize publication of `0.9.0`. The experimental [`v0.6.0` GitHub prerelease](https://github.com/xiongxhc/collective-cognition-sdk/releases/tag/v0.6.0) remains the first and only observed public package artifact.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 is in progress: the package build contract, Normative Stable SourceRecord `0.1.0` contract, Normative Stable Portable Cognition Contract `0.1.0`, Host Integration `0.1.0`, Runtime and Security Profile `0.1.0`, Distribution Readiness Profile `0.1.0`, and compatibility baselines `0.1.0` through `0.8.0` are implemented. The checked public-API and distribution-readiness documentation slice is complete; broader language-neutral semantics, schemas, publication, and production-readiness work remain open.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 package and specification work remains open beyond its completed contract slices. Phase 4's Durable Cognition Workflow `0.1.0` deliverable is implemented with an atomic SQLite workflow store, closed CLI, guide, RFC, and compatibility baseline `0.9.0`. Phase 5 remains pending until at least two independently useful connectors pass their own contract tests and a real exchange workflow has a named owner. Publication and production-readiness work remain open.
 
-Markdown adapter verification used bundled Node.js `24.14.0`: the full matrix
+Historical Markdown adapter verification used bundled Node.js `24.14.0`: the full matrix
 passed `444` tests with `1` expected skip (`406` source passes and `1` source
 skip, `10` schema, `19` compatibility, and `9` package), the focused version
 boundary passed `41/41`, and two fresh temporary team-vault acceptance runs
@@ -45,6 +45,8 @@ Runnable now:
 - the dedicated `collective-cognition-teammem` export CLI, with generic validation and promotion left to the root CLI or APIs;
 - an internal structured team-memory activity policy that produces neutral Evidence without inferring a Decision or Principle;
 - an optional durable SQLite `CognitionStore` reference adapter, available only at `collective-cognition-sdk/stores/sqlite/0.1.0` and requiring an explicit separate cognition-database path;
+- source-neutral Durable Cognition Workflow `0.1.0` at `collective-cognition-sdk/workflows/durable/0.1.0`, with preparation before host invocation, one atomic workflow commit, exact replay, and separate publication and projection outcomes;
+- the SQLite workflow store at `collective-cognition-sdk/stores/sqlite-workflow/0.1.0`, requiring a new explicit schema-version-`2` cognition database, plus the installed `collective-cognition-workflow` executable;
 - schema, SDK, and CLI tests over the complete canonical valid and invalid corpus, plus package and clean-consumer smoke tests for shipped fixtures, schema discovery, and the installed CLI;
 - a read-only maintained team-memory-compatible SQLite connector that emits SourceRecord JSONL;
 - a small Git commit fixture connector used to prove a second source-specific module satisfies the same SourceRecord contract.
@@ -65,17 +67,18 @@ Not implemented yet:
 - automated vault synchronization, Git automation, or an Obsidian-specific
   integration;
 - automatic cognition from conversations.
+- workflow scheduling, automatic connector execution, authentication, encryption, or a durable publication outbox.
 - a second independently useful connector with its own contract tests, or a named owner for a real cross-connector exchange workflow.
 
 `SourceRecord` is the universal boundary. Team-memory is one maintained compatible connector, not SDK root behavior. External connectors may live in separate repositories and packages, importing only the root SDK and optional source-neutral conformance subpath. Read the [connector author guide](docs/connector-author-guide.md) and [RFC 0006: Maintained Source Connectors](rfcs/0006-maintained-source-connectors.md).
 
 ## Compatibility Status
 
-- SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, Runtime and Security Profile `0.1.0`, Distribution Readiness Profile `0.1.0`, and compatibility baselines `0.1.0` through `0.8.0` are **Normative Stable** contracts.
+- SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, Runtime and Security Profile `0.1.0`, Distribution Readiness Profile `0.1.0`, and compatibility baselines `0.1.0` through `0.9.0` are **Normative Stable** contracts.
 - Before `1.0.0`, the package root, installed CLIs, and declared non-normative package subpaths are **Supported Experimental**.
 - Unexported connector modules and repository-only examples remain **Internal** and create no public compatibility promise.
 - The baseline locks runtime and type exports, selected package metadata, independent declaration closures and literal digests for public TypeScript entrypoints, CLI behavior, domain error codes, policy identities, and normative artifact hashes.
-- Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0` through `collective-cognition-sdk/compatibility/0.8.0`.
+- Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0` through `collective-cognition-sdk/compatibility/0.9.0`.
 - Compatibility tests detect exact baseline drift and declared process consequences; they do not automatically determine semantic compatibility.
 - Package `0.3.0` is classified as a `minor-before-1.0` breaking correction: the Host Integration additions are optional, while `PortableDomainError.code` is narrowed from package `0.2.0`'s package-wide `DomainErrorCode` to the immutable Portable Cognition `0.1.0` allowlist under `COMP-012`.
 - Package `0.4.0` is an additive minor release before `1.0`: it adds the optional SQLite subpath and its compatibility baseline without changing root exports or the generic CLI contract.
@@ -85,7 +88,8 @@ Not implemented yet:
   `collective-cognition-markdown` executable without changing root exports,
   existing CLIs, or prior Normative Stable contracts.
 - Historical private package `0.7.0` is an additive minor release before `1.0`: it adds the Normative Stable `collective-cognition-sdk/runtime-security/0.1.0` JSON profile without changing root exports, existing CLIs, historical `v0.6.0` records, or prior Normative Stable contracts.
-- Current private package `0.8.0` is additive before `1.0`: it adds the Normative Stable `collective-cognition-sdk/distribution-readiness/0.1.0` JSON profile, checked public API documentation, RFC 0009, and baseline `0.8.0` without changing root runtime or type exports, executable behavior, or historical artifacts.
+- Historical private package `0.8.0` is additive before `1.0`: it adds the Normative Stable `collective-cognition-sdk/distribution-readiness/0.1.0` JSON profile, checked public API documentation, RFC 0009, and baseline `0.8.0` without changing root runtime or type exports, executable behavior, or historical artifacts.
+- Current private package `0.9.0` is additive before `1.0`: it adds the Supported Experimental durable workflow and SQLite workflow-store subpaths, installed workflow executable, RFC 0010, guide, and baseline `0.9.0` while preserving root runtime and type export names and all historical package entrypoints.
 
 Read the [public API reference](docs/public-api.md), [compatibility policy](spec/compatibility.md), [Distribution Readiness Profile](spec/distribution-readiness.md), [RFC 0002](rfcs/0002-compatibility-versioning-and-deprecation.md), and [RFC 0009](rfcs/0009-public-api-and-distribution-readiness.md). npm publication, registry confirmation, a runtime policy engine, broader schemas, and production readiness remain open. The manifest retains `"private": true`, and the package is unpublished.
 
@@ -111,7 +115,7 @@ See the [normative Runtime and Security Profile `0.1.0`](spec/runtime-security.m
 
 ## Public API and Distribution Readiness
 
-Use the [checked public API reference](docs/public-api.md) rather than repository source paths to identify supported imports and executables. The [normative Distribution Readiness Profile `0.1.0`](spec/distribution-readiness.md) and its [machine-readable JSON](spec/distribution-readiness/0.1.0/profile.json) report the current private package `0.8.0` with overall status `blocked`:
+Use the [checked public API reference](docs/public-api.md) rather than repository source paths to identify supported imports and executables. The [normative Distribution Readiness Profile `0.1.0`](spec/distribution-readiness.md) and its [machine-readable JSON](spec/distribution-readiness/0.1.0/profile.json) report the historical private package `0.8.0` with overall status `blocked`. Package `0.9.0` does not upgrade any channel:
 
 - public source is `available`;
 - the GitHub prerelease channel is `available` only for immutable historical `v0.6.0`;
@@ -162,6 +166,37 @@ A deployed host normally has two logically distinct stores:
 These stores may use separate databases, separate schemas in one database, files, or another host-selected persistence model. Keeping them logically separate is important: source material may be replayed or regenerated, while approved decisions, rationale, authority, and history are durable organizational records. A host can begin with a dedicated SQLite database and later move to PostgreSQL or another backend without changing the core model.
 
 The SDK supplies the host-port contract, an in-memory reference implementation, and an optional Node-specific SQLite `CognitionStore` reference adapter. A host chooses and owns its `CognitionStore` and `CognitionEventPublisher`; a publication failure is observable as `committed_but_unpublished` and retryable with the exact same transition request. The example's identical retry succeeds, but the contract does not guarantee that every retry will succeed. Hosted services and durable publication remain planned ecosystem work.
+
+### Durable Cognition Workflow
+
+Private package `0.9.0` adds a source-neutral, explicit durable workflow:
+
+```text
+connector or canonical JSONL
+  -> explicit durable workflow request
+  -> atomic cognition database
+  -> optional event publisher
+  -> optional managed Markdown projection
+```
+
+Import the workflow from
+`collective-cognition-sdk/workflows/durable/0.1.0`. The Node-specific
+`SqliteCognitionWorkflowStore` is separate at
+`collective-cognition-sdk/stores/sqlite-workflow/0.1.0` and requires a new,
+explicitly selected SQLite schema-version-`2` cognition database. It never
+upgrades an existing version-`1` database.
+
+The installed `collective-cognition-workflow` CLI has one closed `run` command,
+supports canonical JSON or JSONL and the built-in `neutral-evidence-v1`
+policy, and has no publisher. It may project into an already initialized
+managed Markdown target after persistence. Markdown is not authoritative
+storage.
+
+Read the [Durable Cognition Workflow Guide](docs/durable-cognition-workflow-guide.md)
+and [RFC 0010](rfcs/0010-durable-cognition-workflow.md). This slice supplies no
+scheduler, automatic cognition, Obsidian discovery, authentication,
+encryption, durable outbox, npm publication, or production certification.
+Production use is not claimed.
 
 ### Markdown Cognition Projection
 
@@ -404,7 +439,7 @@ import sourceRecordSchema from "collective-cognition-sdk/schemas/source-record/0
 Consumers can resolve the versioned compatibility baseline through:
 
 ```js
-import compatibilityBaseline from "collective-cognition-sdk/compatibility/0.5.0"
+import compatibilityBaseline from "collective-cognition-sdk/compatibility/0.9.0"
   with { type: "json" };
 ```
 
@@ -425,6 +460,13 @@ Run [`examples/portable-cognition.ts`](examples/portable-cognition.ts) for one c
 Host applications import the coordinators from the package root and the in-memory reference host from `collective-cognition-sdk/reference-host/0.1.0`. Run [`examples/host-integration.ts`](examples/host-integration.ts) to create an object, persist a transition, observe its first publication fail, and show the identical retry succeed without generating a new event ID.
 
 The optional SQLite reference adapter is not exported from the root. Import it from `collective-cognition-sdk/stores/sqlite/0.1.0` and provide an absolute cognition-database path. It creates a missing target only when `createIfMissing: true`, rejects unmarked or source-ledger databases without mutation, stores canonical Portable Cognition records and audit events atomically, and provides no durable event-publication outbox.
+
+The durable workflow is also excluded from the root. Import workflow contracts
+from `collective-cognition-sdk/workflows/durable/0.1.0` and the SQLite workflow
+store from `collective-cognition-sdk/stores/sqlite-workflow/0.1.0`. Clean
+consumers can typecheck both versioned entrypoints and execute the packed
+`collective-cognition-workflow` binary. The generated
+`dist/stores/sqlite-internal.js` module is not an exported package subpath.
 
 ### SQLite Verification
 
@@ -463,6 +505,13 @@ npm run example
 npm run example:portable
 npm run example:markdown
 npm run example:host
+npm run example:workflow
+collective-cognition-workflow run \
+  --request /absolute/path/to/workflow-request.json \
+  --input /absolute/path/to/source-records.jsonl \
+  --format jsonl \
+  --cognition-db /absolute/path/to/new-cognition-v2.db \
+  --create-cognition-db
 collective-cognition-teammem export \
   --db /absolute/path/to/compatible-ledger.db \
   --source-instance public-demo \
@@ -493,6 +542,11 @@ verifies the target, prints one JSON summary, and removes the temporary root.
 It does not access a live vault, ledger, or cognition database.
 
 `npm run example:host` prints one JSON outcome showing an initial commit, `committed_but_unpublished` after the first publication attempt, and this example's identical retry returning `committed`, with object version `2`, one stored event, and one published event. The contract makes publication failure retryable but does not guarantee that every retry succeeds.
+
+`npm run example:workflow` creates only temporary SourceRecord, request,
+SQLite-v2, and managed Markdown targets. It commits, replays, closes, reopens,
+verifies exact records, and confirms unchanged projection without accessing a
+live ledger or vault.
 
 `collective-cognition-teammem export` writes canonical SourceRecord JSONL and
 supports `--from`, `--to`, `--person`, `--project`, `--limit`, and
@@ -561,7 +615,7 @@ Production callers must inject a policy backed by authenticated identity and tru
 
 ## Semantic Limits
 
-SourceRecord `0.1.0` and Portable Cognition `0.1.0` have normative language-neutral schemas and fixtures. Portable Cognition provides an exchange record only: it neither persists nor publishes a record, and it does not authenticate a confirmation or execute authorization policy. Host Integration `0.1.0` defines the separate host-owned persistence and publication boundary without selecting a mandatory database or delivery system. The optional SQLite adapter is one Node-specific reference implementation of that store port; it does not make SQLite normative or alter the source-neutral root API. Its domain-error shape has no dedicated stack, cause, exception-name, or path fields, and runtime boundary failures do not automatically project caught exceptions; `message` and `details` are caller supplied, so hosts must filter secrets, paths, and operational details before creating records. Type-specific cognitive-object `data` payloads remain permissive JSON-compatible structures; stricter per-type semantics, additional adapters, a runtime policy engine, and host implementation of required security controls remain deferred.
+SourceRecord `0.1.0` and Portable Cognition `0.1.0` have normative language-neutral schemas and fixtures. Portable Cognition provides an exchange record only: it neither persists nor publishes a record, and it does not authenticate a confirmation or execute authorization policy. Host Integration `0.1.0` defines the separate host-owned persistence and publication boundary without selecting a mandatory database or delivery system. The optional SQLite adapters are Node-specific reference implementations; they do not make SQLite normative or alter the source-neutral root API. Durable workflow SQLite schema version `2` requires a new explicit database in this slice and provides no migration from version `1`. The workflow CLI has no publisher, and Markdown is non-authoritative. No scheduler, automatic cognition, Obsidian discovery, authentication, encryption, durable outbox, or production certification is supplied. Domain-error shapes have no dedicated stack, cause, exception-name, or path fields, and runtime boundary failures do not automatically project caught exceptions; `message` and `details` are caller supplied, so hosts must filter secrets, paths, and operational details before creating records. Type-specific cognitive-object `data` payloads remain permissive JSON-compatible structures; stricter per-type semantics, additional adapters, a runtime policy engine, and host implementation of required security controls remain deferred.
 
 The project does not claim universal compatibility, production readiness, or broad adoption. Connector conformance is not certification, does not imply endorsement, and is not an LTS commitment. Stronger claims require a published stable package, independently implemented connectors, final verification, and real-team evidence.
 
@@ -572,8 +626,8 @@ The tracked [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/
 1. the completed runnable core;
 2. the completed universal neutral-first ingestion foundation;
 3. in-progress specification and package stabilization, with the checked public-API and distribution-readiness documentation slice complete while broader semantic, schema, publication, and production gates remain open;
-4. adapter ecosystem foundations;
-5. cross-connector interoperability;
+4. completed adapter ecosystem foundations, including Durable Cognition Workflow `0.1.0`;
+5. pending cross-connector interoperability, blocked on two independently useful connectors and a named real exchange owner;
 6. operational governance and retirement tooling;
 7. real-team validation.
 
