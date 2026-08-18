@@ -760,6 +760,7 @@ test("public documentation defines the durable workflow without upgrading readin
   const publicApi = readFileSync(new URL("../docs/public-api.md", import.meta.url), "utf8");
   const guide = readFileSync(durableWorkflowGuideUrl, "utf8");
   const rfc = readFileSync(durableWorkflowRfcUrl, "utf8");
+  const specificationIndex = readFileSync(specificationIndexUrl, "utf8");
   const documents = [readme, roadmap, publicApi, guide, rfc];
   const combined = documents.join("\n");
 
@@ -800,6 +801,11 @@ test("public documentation defines the durable workflow without upgrading readin
   assert.match(publicApi, /tarball[^\n]*no[^\n]*sqlite-internal|no[^\n]*sqlite-internal[^\n]*tarball/i);
   assert.match(rfc, /package contains no\s+`sqlite-internal` JavaScript or declaration file/i);
   assert.match(rfc, /SQLite workflow store[^\n]*self-contained|self-contained[^\n]*SQLite workflow store/i);
+  assert.match(
+    specificationIndex,
+    /SQLite stores are self-contained[^\n]*no shared `sqlite-internal` source, JavaScript, or declaration module is built or packaged/i,
+  );
+  assert.doesNotMatch(specificationIndex, /SQLite internal module remain/i);
   const rfcIndex = readFileSync(rfcIndexUrl, "utf8");
   assert.doesNotMatch(rfcIndex, /current package[^\n]*0\.8\.0/i);
   assert.doesNotMatch(roadmap, /current private, unpublished package `0\.8\.0`/i);
