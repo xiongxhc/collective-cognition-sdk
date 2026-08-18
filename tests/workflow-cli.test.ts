@@ -209,6 +209,30 @@ function runCli(
   };
 }
 
+function runCliWithRegularStdin(
+  args: readonly string[],
+  inputPath: string,
+): CliResult {
+  const descriptor = openSync(inputPath, "r");
+  try {
+    const result = spawnSync(
+      process.execPath,
+      ["--disable-warning=ExperimentalWarning", cliPath.pathname, ...args],
+      {
+        encoding: "utf8",
+        stdio: [descriptor, "pipe", "pipe"],
+      },
+    );
+    return {
+      status: result.status,
+      stdout: result.stdout,
+      stderr: result.stderr,
+    };
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
 function diagnostic(result: CliResult): Record<string, unknown> {
   assert.equal(result.stdout, "");
   assert.match(result.stderr, /^\{[^\n]+\}\n$/);
@@ -469,6 +493,90 @@ test("rejects lexical, realpath, symlink, hardlink, sidecar, and Markdown metada
   }
 });
 
+test("rejects regular stdin aliases before database or Markdown mutation", async () => {
+  const cases: Array<{
+    readonly name: string;
+    readonly configure: (current: WorkflowFixture, target: string) => string;
+  }> = [
+    {
+      name: "request",
+      configure: (current) => current.requestPath,
+    },
+    {
+      name: "cognition database",
+      configure: (current) => {
+        writeFileSync(current.databasePath, "database sentinel\n");
+        return current.databasePath;
+      },
+    },
+    ...["-journal", "-wal", "-shm"].map((suffix) => ({
+      name: `cognition ${suffix.slice(1)} sidecar`,
+      configure: (current: WorkflowFixture) => {
+        const sidecar = `${current.databasePath}${suffix}`;
+        writeFileSync(sidecar, "sidecar sentinel\n");
+        return sidecar;
+      },
+    })),
+    {
+      name: "Markdown marker",
+      configure: (_current, target) =>
+        join(target, MARKDOWN_COGNITION_MARKER_FILE),
+    },
+    {
+      name: "Markdown manifest",
+      configure: (_current, target) =>
+        join(target, MARKDOWN_COGNITION_MANIFEST_FILE),
+    },
+  ];
+
+  for (const currentCase of cases) {
+    const current = fixture();
+    const target = join(current.root, "markdown");
+    await initializeMarkdownCognitionTarget({ targetDirectory: target });
+    const stdinPath = currentCase.configure(current, target);
+    const protectedPaths = [
+      current.requestPath,
+      current.databasePath,
+      ...["-journal", "-wal", "-shm"].map((suffix) =>
+        `${current.databasePath}${suffix}`
+      ),
+      join(target, MARKDOWN_COGNITION_MARKER_FILE),
+      join(target, MARKDOWN_COGNITION_MANIFEST_FILE),
+    ];
+    const before = protectedPaths.map((path) => ({
+      path,
+      exists: existsSync(path),
+      content: existsSync(path) ? readFileSync(path) : undefined,
+    }));
+    const args = [
+      ...withArguments(current, { "--input": "-" }),
+      "--create-cognition-db",
+      "--markdown-target",
+      target,
+    ];
+
+    assertFailure(
+      runCliWithRegularStdin(args, stdinPath),
+      "input",
+      "WORKFLOW_PATH_CONFLICT",
+    );
+    for (const protectedPath of before) {
+      assert.equal(
+        existsSync(protectedPath.path),
+        protectedPath.exists,
+        currentCase.name,
+      );
+      if (protectedPath.content !== undefined) {
+        assert.deepEqual(
+          readFileSync(protectedPath.path),
+          protectedPath.content,
+          currentCase.name,
+        );
+      }
+    }
+  }
+});
+
 test("sanitizes read failures without paths, contents, exceptions, or stacks", () => {
   const current = fixture();
   const secretPath = join(current.root, "PRIVATE-REQUEST-NAME.json");
@@ -528,6 +636,21 @@ sqliteCliTest("supports bounded stdin, explicit creation, replay, and reopen", (
     "WORKFLOW_PERSISTENCE_FAILED",
   );
   assert.equal(existsSync(missing.databasePath), false);
+});
+
+sqliteCliTest("allows bounded pipe stdin after regular-file identity preflight", () => {
+  const current = fixture();
+  const result = runCli([
+    ...withArguments(current, { "--input": "-" }),
+    "--create-cognition-db",
+  ], { input: readFileSync(current.inputPath, "utf8") });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, "");
+  assert.equal(
+    (JSON.parse(result.stdout) as { persistence: string }).persistence,
+    "committed",
+  );
 });
 
 sqliteCliTest("projects only after persistence and never configures a publisher", () => {

@@ -88,6 +88,7 @@ interface PathCandidate {
 }
 
 interface PathPreflight {
+  readonly candidates: readonly PathCandidate[];
   readonly requestIdentity: FileIdentity | undefined;
   readonly inputIdentity: FileIdentity | undefined;
 }
@@ -345,6 +346,23 @@ function sameIdentity(left: FileIdentity, right: FileIdentity): boolean {
   return left.device === right.device && left.inode === right.inode;
 }
 
+function rejectCandidateConflicts(candidates: readonly PathCandidate[]): void {
+  for (const [index, left] of candidates.entries()) {
+    for (const right of candidates.slice(index + 1)) {
+      if (
+        left.path === right.path ||
+        (
+          left.identity !== undefined &&
+          right.identity !== undefined &&
+          sameIdentity(left.identity, right.identity)
+        )
+      ) {
+        pathConflict();
+      }
+    }
+  }
+}
+
 function preflightPaths(options: WorkflowCliOptions): PathPreflight {
   const candidates: PathCandidate[] = [
     inspectCandidate("request", options.requestPath),
@@ -372,25 +390,30 @@ function preflightPaths(options: WorkflowCliOptions): PathPreflight {
         ]),
   ];
 
-  for (const [index, left] of candidates.entries()) {
-    for (const right of candidates.slice(index + 1)) {
-      if (
-        left.path === right.path ||
-        (
-          left.identity !== undefined &&
-          right.identity !== undefined &&
-          sameIdentity(left.identity, right.identity)
-        )
-      ) {
-        pathConflict();
-      }
-    }
-  }
+  rejectCandidateConflicts(candidates);
 
   return {
+    candidates,
     requestIdentity: candidates.find((candidate) => candidate.name === "request")?.identity,
     inputIdentity: candidates.find((candidate) => candidate.name === "input")?.identity,
   };
+}
+
+function preflightRegularStdin(paths: PathPreflight): void {
+  const descriptor = fstatSync(0, { bigint: true });
+  if (!descriptor.isFile()) return;
+  const stdinIdentity: FileIdentity = {
+    device: descriptor.dev,
+    inode: descriptor.ino,
+  };
+  if (
+    paths.candidates.some((candidate) =>
+      candidate.identity !== undefined &&
+      sameIdentity(stdinIdentity, candidate.identity)
+    )
+  ) {
+    pathConflict();
+  }
 }
 
 function matchingRegularFile(
@@ -581,7 +604,10 @@ function diagnosticFor(
   stage: WorkflowCliStage,
   error: unknown,
 ): WorkflowDiagnostic {
-  if (stage === "preparation" && error instanceof WorkflowPathConflict) {
+  if (
+    (stage === "preparation" || stage === "input") &&
+    error instanceof WorkflowPathConflict
+  ) {
     return {
       code: "WORKFLOW_PATH_CONFLICT",
       message: "Durable workflow paths conflict.",
@@ -656,6 +682,11 @@ async function main(): Promise<void> {
     const options = parseArguments(process.argv.slice(2));
     stage = "preparation";
     const paths = preflightPaths(options);
+
+    if (options.input === "-") {
+      stage = "input";
+      preflightRegularStdin(paths);
+    }
 
     stage = "request";
     const serialized = parseRequest(readBoundedFile(
