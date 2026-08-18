@@ -5,7 +5,7 @@ All notable changes to this experimental SDK are documented here. Versioning and
 ## Unreleased
 
 - Adds source-neutral Durable Cognition Workflow `0.1.0`, atomic SQLite workflow schema version `2`, the `collective-cognition-sdk/workflows/durable/0.1.0` and `collective-cognition-sdk/stores/sqlite-workflow/0.1.0` subpaths, the `collective-cognition-workflow` executable, RFC 0010, an operator guide, and additive private package `0.9.0` compatibility baseline.
-- Preserves every historical root export, subpath, executable, and compatibility artifact while keeping the internal SQLite module inaccessible through package exports.
+- Preserves every historical root export, domain-error inventory, subpath, executable, SQLite declaration closure, and compatibility artifact; the package contains no shared `sqlite-internal` module.
 - Reports npm publication as blocked and production use as not claimed; package `0.9.0` remains private and unpublished. The CLI has no publisher, Markdown remains non-authoritative, and the slice supplies no scheduler, automatic cognition, Obsidian discovery, authentication, encryption, durable outbox, or production certification.
 - Records historical private package `0.8.0` as the additive checked public API and Distribution Readiness Profile `0.1.0` delivery, including its read-only `collective-cognition-sdk/distribution-readiness/0.1.0` JSON subpath and RFC 0009.
 - Records historical private package `0.7.0` as the additive Runtime and Security Profile `0.1.0` delivery, including its `collective-cognition-sdk/runtime-security/0.1.0` JSON subpath.

@@ -218,13 +218,17 @@ test("the workflow store remains outside the existing SQLite module export", asy
   assert.equal("commitWorkflow" in SqliteCognitionWorkflowStore.prototype, true);
 });
 
-test("the package keeps SQLite internals unexported", () => {
+test("the package contains no shared SQLite internal module", () => {
   const packageJson = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
   ) as { readonly exports?: Record<string, unknown> };
 
   assert.equal(
     Object.hasOwn(packageJson.exports ?? {}, "./stores/sqlite-internal"),
+    false,
+  );
+  assert.equal(
+    existsSync(new URL("../src/stores/sqlite-internal.ts", import.meta.url)),
     false,
   );
 });

@@ -160,10 +160,10 @@
       ]
     },
     "artifacts": {
-      "docs/durable-cognition-workflow-guide.md": "57f49ff9a3509883c69b84aa4fd61f056f79ce880fc98e3f46324d6b41c2b3ec",
-      "docs/public-api.md": "a0939abf51c0af647d7743075a2b8a8bdb4ed363c40ced68250356468d99e625",
+      "docs/durable-cognition-workflow-guide.md": "99a03706528b5ba5f4e2810825afff4d45c1464e82e7bbf81c5946ecbfa3e476",
+      "docs/public-api.md": "02d6732330cf2ffaeed5ae02fd809c2b7dbdee5ce77704dc81e4d21f0bc5596d",
       "rfcs/0009-public-api-and-distribution-readiness.md": "967b0cc1b6584902c4d606bbdc7cf47f9801283a3f67d7a802152994dabc6da3",
-      "rfcs/0010-durable-cognition-workflow.md": "7f3102eae2d2debc7eb75c12644c4fb502645d2d1211608996f6c5dcf638d9f4",
+      "rfcs/0010-durable-cognition-workflow.md": "b7b279aa7ed3375058773683afc65f0bb80577b59c3c95582b21d27e683a42eb",
       "spec/compatibility/0.1.0/change-cases.jsonl": "3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b",
       "spec/compatibility/0.2.0/change-cases.jsonl": "e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5",
       "spec/compatibility/0.3.0/change-cases.jsonl": "1f1ff3822de318806640357bb11804a0213d7084f05350035f8bb8d519dd95f2",
@@ -266,7 +266,7 @@
       },
       "publicApiReference": {
         "path": "docs/public-api.md",
-        "sha256": "a0939abf51c0af647d7743075a2b8a8bdb4ed363c40ced68250356468d99e625"
+        "sha256": "02d6732330cf2ffaeed5ae02fd809c2b7dbdee5ce77704dc81e4d21f0bc5596d"
       },
       "rfc": {
         "path": "rfcs/0009-public-api-and-distribution-readiness.md",
@@ -425,8 +425,6 @@
       "dist/reference-host.js",
       "dist/source-records.d.ts",
       "dist/source-records.js",
-      "dist/stores/sqlite-internal.d.ts",
-      "dist/stores/sqlite-internal.js",
       "dist/stores/sqlite-workflow.d.ts",
       "dist/stores/sqlite-workflow.js",
       "dist/stores/sqlite.d.ts",
@@ -501,8 +499,6 @@
       "dist/reference-host.js",
       "dist/source-records.d.ts",
       "dist/source-records.js",
-      "dist/stores/sqlite-internal.d.ts",
-      "dist/stores/sqlite-internal.js",
       "dist/stores/sqlite-workflow.d.ts",
       "dist/stores/sqlite-workflow.js",
       "dist/stores/sqlite.d.ts",
@@ -689,9 +685,7 @@
     "errorCodes": [
       "AUTHORIZATION_DENIED",
       "CONFIRMATION_REQUIRED",
-      "DURABLE_WORKFLOW_FAILED",
       "INGESTION_LIMIT_EXCEEDED",
-      "INVALID_DURABLE_WORKFLOW_REQUEST",
       "INVALID_HOST_INTEGRATION_REQUEST",
       "INVALID_OBJECT",
       "INVALID_PORTABLE_COGNITION_RECORD",
@@ -732,7 +726,7 @@
           "dist/transitions.d.ts",
           "dist/types.d.ts"
         ],
-        "sha256": "1f615c27ccf1adf5f2baeeb8314f54de9874a9b9df433682413b19224ee7a42f"
+        "sha256": "7f9e352c9adf8a48d433d280c8040ddad57240726276a15d690133b3dfcf7333"
       },
       "hostConformance": {
         "packageSubpath": "./host-conformance/0.1.0",
@@ -768,11 +762,10 @@
           "dist/events.d.ts",
           "dist/host-integration.d.ts",
           "dist/portable-cognition.d.ts",
-          "dist/stores/sqlite-internal.d.ts",
           "dist/stores/sqlite.d.ts",
           "dist/types.d.ts"
         ],
-        "sha256": "c2ecf8970a3a84e95f90ad80004f4cc98d5c997ace41a75a38807a85fbe1bee7"
+        "sha256": "4b957a8d4a7cf5fe400f6197440da8b60ae92ba3b300807d8f4e21818feb3b0f"
       },
       "connectorConformance": {
         "packageSubpath": "./connector-conformance/0.1.0",
@@ -832,7 +825,7 @@
           "dist/workflows/durable-run.d.ts",
           "dist/workflows/durable.d.ts"
         ],
-        "sha256": "7693a049e762fa3f92f94dca5965e372973c1886b41cdd709d143f256ef1ff4b"
+        "sha256": "145d4493a5b39bb305e3b8b8e2ca3fc863b298f867dc21711e5d14fced6d5498"
       },
       "sqliteWorkflow": {
         "packageSubpath": "./stores/sqlite-workflow/0.1.0",
@@ -850,7 +843,6 @@
           "dist/portable-cognition.d.ts",
           "dist/promotion.d.ts",
           "dist/source-records.d.ts",
-          "dist/stores/sqlite-internal.d.ts",
           "dist/stores/sqlite-workflow.d.ts",
           "dist/types.d.ts",
           "dist/workflows/durable-conformance.d.ts",
@@ -859,8 +851,14 @@
           "dist/workflows/durable-run.d.ts",
           "dist/workflows/durable.d.ts"
         ],
-        "sha256": "7367bfb268e71ea0560628438bd6069dce1bc7a3c18a63fc800c92baeae021d5"
+        "sha256": "3eff49d7a1c705cd20a05e85dd57b4cc474d3f1d2d0b23baa312fe518782483e"
       }
+    },
+    "executableModes": {
+      "dist/cli.js": 493,
+      "dist/markdown-cognition-cli.js": 493,
+      "dist/team-memory-cli.js": 493,
+      "dist/workflow-cli.js": 493
     }
   },
   "cli": {

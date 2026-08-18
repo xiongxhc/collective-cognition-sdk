@@ -45,7 +45,9 @@ The Node-specific SQLite implementation is exported only from
 version `2`, creates a missing database only when explicitly requested, uses
 one immediate transaction, and does not upgrade a version-`1` database. This
 slice therefore requires a new, explicitly selected SQLite v2 cognition
-database.
+database. The SQLite workflow store is self-contained. It does not alter the
+historical SQLite store declaration closure, and the package contains no
+`sqlite-internal` JavaScript or declaration file.
 
 The installed `collective-cognition-workflow` executable has one `run`
 command. It accepts one absolute request path, canonical JSON or JSONL input,
@@ -110,7 +112,7 @@ retry worker, or a delivery guarantee.
 - SQLite tests cover atomic commit, exact replay, conflicts, rollback,
   concurrency, close, and reopen on a runtime with enforced defensive mode.
 - Tarball tests lock executable modes and exclude source, tests, examples,
-  plans, and unexported internal package paths.
+  plans, and any shared `sqlite-internal` module.
 - Documentation checks keep package publication blocked and production use
   not claimed.
 

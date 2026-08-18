@@ -465,8 +465,8 @@ The durable workflow is also excluded from the root. Import workflow contracts
 from `collective-cognition-sdk/workflows/durable/0.1.0` and the SQLite workflow
 store from `collective-cognition-sdk/stores/sqlite-workflow/0.1.0`. Clean
 consumers can typecheck both versioned entrypoints and execute the packed
-`collective-cognition-workflow` binary. The generated
-`dist/stores/sqlite-internal.js` module is not an exported package subpath.
+`collective-cognition-workflow` binary. Both SQLite modules are self-contained;
+the tarball contains no `sqlite-internal` JavaScript or declaration file.
 
 ### SQLite Verification
 

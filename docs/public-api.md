@@ -133,4 +133,4 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
 - `docs/superpowers/plans/` files are planning artifacts, not package API.
 - generated `dist/` file paths are build outputs, not source-of-truth import contracts.
 - any source path absent from `exports` is internal, including unexported adapter and connector implementation paths under `src/`.
-- `src/stores/sqlite-internal.ts` and generated `dist/stores/sqlite-internal.js` are internal implementation paths and are not importable package subpaths.
+- The package tarball contains no `sqlite-internal` JavaScript or declaration file. The historical SQLite store and the SQLite workflow store are self-contained modules with independent declaration closures.

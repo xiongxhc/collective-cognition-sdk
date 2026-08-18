@@ -139,7 +139,7 @@ const expectedLatestReleaseBaselineSha256 =
 const expectedLatestReleaseChangeCasesSha256 =
   "23d6577eb6aa927ab37f33278363f00a38cb2e0e67adfbc50a9dc2075b1b9e9e";
 const expectedPublicApiReferenceSha256 =
-  "a0939abf51c0af647d7743075a2b8a8bdb4ed363c40ced68250356468d99e625";
+  "02d6732330cf2ffaeed5ae02fd809c2b7dbdee5ce77704dc81e4d21f0bc5596d";
 const expectedDistributionReadinessRfcSha256 =
   "967b0cc1b6584902c4d606bbdc7cf47f9801283a3f67d7a802152994dabc6da3";
 const expectedDistributionReadinessProseSha256 =
@@ -578,6 +578,12 @@ test("current baseline describes the additive package 0.9.0 release", () => {
   assert.deepEqual(baseline.package.metadata.engines, {
     node: ">=24",
   });
+  assert.deepEqual(baseline.package.executableModes, {
+    "dist/cli.js": 0o755,
+    "dist/markdown-cognition-cli.js": 0o755,
+    "dist/team-memory-cli.js": 0o755,
+    "dist/workflow-cli.js": 0o755,
+  });
   assert.deepEqual(baseline.historicalBaselines, {
     "0.1.0": {
       path: "spec/compatibility/0.1.0/baseline.json",
@@ -935,7 +941,7 @@ test("normative prose matches its hash and stable rule identifiers", () => {
 
 test("root runtime and domain error inventories match exactly", () => {
   const baseline = readJson(currentBaselineUrl);
-  const previousCurrentBaseline = readJson(latestReleaseBaselineUrl);
+  const previousCurrentBaseline = readJson(previousPackageBaselineUrl);
 
   assert.deepEqual(
     Object.keys(publicApi).sort(),
@@ -944,6 +950,11 @@ test("root runtime and domain error inventories match exactly", () => {
   assert.deepEqual(
     Object.values(publicApi.DomainErrorCode).sort(),
     baseline.package.errorCodes,
+  );
+  assert.deepEqual(
+    baseline.package.errorCodes,
+    previousCurrentBaseline.package.errorCodes,
+    "package 0.9 must preserve the exhaustive package 0.8 DomainErrorCode inventory",
   );
   assert.deepEqual(
     baseline.package.normativeStableErrorCodes,
@@ -1362,6 +1373,7 @@ test("durable workflow subpaths and CLI match exact additive inventories", () =>
 
 test("public declaration entrypoint closures match exact independent digests", () => {
   const baseline = readJson(currentBaselineUrl);
+  const previousCurrentBaseline = readJson(previousPackageBaselineUrl);
   const entrypoints = {
     root: {
       packageSubpath: ".",
@@ -1404,6 +1416,16 @@ test("public declaration entrypoint closures match exact independent digests", (
   assert.deepEqual(
     Object.keys(baseline.package.declarations),
     Object.keys(entrypoints),
+  );
+  assert.deepEqual(
+    baseline.package.declarations.root,
+    previousCurrentBaseline.package.declarations.root,
+    "package 0.9 root declaration closure must remain byte-compatible with 0.8",
+  );
+  assert.deepEqual(
+    baseline.package.declarations.sqlite,
+    previousCurrentBaseline.package.declarations.sqlite,
+    "the historical SQLite subpath declaration closure must remain byte-compatible with 0.8",
   );
   Object.entries(entrypoints).forEach(([name, expected]) => {
     const declaration = baseline.package.declarations[name];

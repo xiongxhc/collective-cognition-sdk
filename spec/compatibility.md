@@ -194,8 +194,9 @@ Baseline `0.9.0` adds the Supported Experimental
 `collective-cognition-sdk/workflows/durable/0.1.0` and
 `collective-cognition-sdk/stores/sqlite-workflow/0.1.0` subpaths plus the
 `collective-cognition-workflow` executable. The addition is source-neutral and
-does not change root export names or any historical package entrypoint. The
-internal SQLite module remains outside the export map. The SQLite workflow
+does not change root export names, root domain-error values, or any historical
+package entrypoint and keeps the historical SQLite declaration closure exact.
+The package contains no shared `sqlite-internal` module. The SQLite workflow
 store requires a new explicitly selected schema-version-`2` database; the CLI
 has no publisher; Markdown is non-authoritative. No scheduler, automatic
 cognition, Obsidian discovery, authentication, encryption, durable outbox,

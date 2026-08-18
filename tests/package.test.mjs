@@ -16,6 +16,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
@@ -220,8 +221,6 @@ const expectedEmittedFiles060 = Object.freeze(
   [...expectedEmittedFiles050, ...expectedMarkdownEmittedFiles060].sort(),
 );
 const expectedDurableWorkflowEmittedFiles090 = Object.freeze([
-  "dist/stores/sqlite-internal.d.ts",
-  "dist/stores/sqlite-internal.js",
   "dist/stores/sqlite-workflow.d.ts",
   "dist/stores/sqlite-workflow.js",
   "dist/workflow-cli-contract.d.ts",
@@ -381,6 +380,8 @@ test("package 0.9.0 exposes the exact durable workflow subpaths and executable",
     import("collective-cognition-sdk/stores/sqlite-internal"),
     { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" },
   );
+  assert.equal(existsSync(new URL("../dist/stores/sqlite-internal.js", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../dist/stores/sqlite-internal.d.ts", import.meta.url)), false);
 });
 
 test("emitted modules contain no relative TypeScript import specifiers", () => {
@@ -796,7 +797,12 @@ test("public documentation defines the durable workflow without upgrading readin
   assert.match(publicApi, /\.\/workflows\/durable\/0\.1\.0/);
   assert.match(publicApi, /\.\/stores\/sqlite-workflow\/0\.1\.0/);
   assert.match(publicApi, /collective-cognition-workflow/);
-  assert.match(publicApi, /sqlite-internal\.js[^\n]*not importable package subpaths/);
+  assert.match(publicApi, /tarball[^\n]*no[^\n]*sqlite-internal|no[^\n]*sqlite-internal[^\n]*tarball/i);
+  assert.match(rfc, /package contains no\s+`sqlite-internal` JavaScript or declaration file/i);
+  assert.match(rfc, /SQLite workflow store[^\n]*self-contained|self-contained[^\n]*SQLite workflow store/i);
+  const rfcIndex = readFileSync(rfcIndexUrl, "utf8");
+  assert.doesNotMatch(rfcIndex, /current package[^\n]*0\.8\.0/i);
+  assert.doesNotMatch(roadmap, /current private, unpublished package `0\.8\.0`/i);
   assertMarkdownLinksResolve(guide, durableWorkflowGuideUrl);
   assertMarkdownLinksResolve(rfc, durableWorkflowRfcUrl);
 });
@@ -1021,6 +1027,12 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "collective-cognition-markdown": "./dist/markdown-cognition-cli.js",
     "collective-cognition-workflow": "./dist/workflow-cli.js",
   });
+  assert.deepEqual(baseline.package.executableModes, {
+    "dist/cli.js": 0o755,
+    "dist/markdown-cognition-cli.js": 0o755,
+    "dist/team-memory-cli.js": 0o755,
+    "dist/workflow-cli.js": 0o755,
+  });
   const actualEmittedFiles = emittedFiles(distRoot)
     .map((path) => relative(repositoryRoot, path).replaceAll("\\", "/"))
     .sort();
@@ -1170,38 +1182,14 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     ),
     "package must exclude databases, logs, environments, and credentials",
   );
-  const packedTeamMemoryCli = packResults[0].files.find(
-    (file) => file.path === "dist/team-memory-cli.js",
-  );
-  assert.ok(packedTeamMemoryCli, "packed team-memory CLI is missing");
   if (process.platform !== "win32") {
-    assert.notEqual(
-      packedTeamMemoryCli.mode & 0o111,
-      0,
-      "packed team-memory CLI must retain an executable mode",
-    );
-  }
-  const packedMarkdownCli = packResults[0].files.find(
-    (file) => file.path === "dist/markdown-cognition-cli.js",
-  );
-  assert.ok(packedMarkdownCli, "packed Markdown cognition CLI is missing");
-  if (process.platform !== "win32") {
-    assert.notEqual(
-      packedMarkdownCli.mode & 0o111,
-      0,
-      "packed Markdown cognition CLI must retain an executable mode",
-    );
-  }
-  const packedWorkflowCli = packResults[0].files.find(
-    (file) => file.path === "dist/workflow-cli.js",
-  );
-  assert.ok(packedWorkflowCli, "packed durable workflow CLI is missing");
-  if (process.platform !== "win32") {
-    assert.notEqual(
-      packedWorkflowCli.mode & 0o111,
-      0,
-      "packed durable workflow CLI must retain an executable mode",
-    );
+    for (const [path, expectedMode] of Object.entries(
+      baseline.package.executableModes,
+    )) {
+      const packedCli = packResults[0].files.find((file) => file.path === path);
+      assert.ok(packedCli, `packed CLI is missing: ${path}`);
+      assert.equal(packedCli.mode, expectedMode, `${path} must be exactly 0755`);
+    }
   }
   assert.equal(statSync(distRoot).isDirectory(), true);
 });
@@ -1387,6 +1375,21 @@ function roundTrip(record: PortableCognitionRecord) {
 }
 
 declare const packageWideCode: DomainErrorCodeType;
+const exhaustivePackage080Codes: Record<DomainErrorCodeType, true> = {
+  AUTHORIZATION_DENIED: true,
+  CONFIRMATION_REQUIRED: true,
+  INGESTION_LIMIT_EXCEEDED: true,
+  INVALID_HOST_INTEGRATION_REQUEST: true,
+  INVALID_OBJECT: true,
+  INVALID_PORTABLE_COGNITION_RECORD: true,
+  INVALID_RELATIONSHIP: true,
+  INVALID_SOURCE_RECORD: true,
+  INVALID_TRANSITION: true,
+  PROMOTION_FAILED: true,
+  SERIALIZATION_ERROR: true,
+  SOURCE_REVISION_COLLISION: true,
+};
+void exhaustivePackage080Codes;
 type PortableDomainError020 = {
   readonly code: DomainErrorCodeType;
   readonly message: string;
@@ -2097,6 +2100,18 @@ console.log(JSON.stringify({
       true,
       "installed collective-cognition executable is missing",
     );
+    const assertInstalledMode = (path, name) => {
+      if (process.platform === "win32") {
+        return;
+      }
+      const target = realpathSync(path);
+      assert.equal(
+        statSync(target).mode & 0o777,
+        0o755,
+        `installed ${name} target must be exactly 0755`,
+      );
+    };
+    assertInstalledMode(executable, "collective-cognition");
     const teamMemoryExecutableName =
       process.platform === "win32"
         ? "collective-cognition-teammem.cmd"
@@ -2108,13 +2123,7 @@ console.log(JSON.stringify({
       true,
       "installed collective-cognition-teammem executable is missing",
     );
-    if (process.platform !== "win32") {
-      assert.notEqual(
-        statSync(teamMemoryExecutable).mode & 0o111,
-        0,
-        "installed collective-cognition-teammem must be executable",
-      );
-    }
+    assertInstalledMode(teamMemoryExecutable, "collective-cognition-teammem");
     const teamMemoryExecuted = spawnSync(
       teamMemoryExecutable,
       [
@@ -2195,13 +2204,7 @@ console.log(JSON.stringify({
       "utf8",
     );
     assert.equal(existsSync(markdownExecutable), true);
-    if (process.platform !== "win32") {
-      assert.notEqual(
-        statSync(markdownExecutable).mode & 0o111,
-        0,
-        "installed collective-cognition-markdown must be executable",
-      );
-    }
+    assertInstalledMode(markdownExecutable, "collective-cognition-markdown");
     const markdownHelp = spawnSync(markdownExecutable, ["--help"], {
       cwd: consumerRoot,
       encoding: "utf8",
@@ -2239,13 +2242,7 @@ console.log(JSON.stringify({
       workflowExecutableName,
     );
     assert.equal(existsSync(workflowExecutable), true);
-    if (process.platform !== "win32") {
-      assert.notEqual(
-        statSync(workflowExecutable).mode & 0o111,
-        0,
-        "installed collective-cognition-workflow must be executable",
-      );
-    }
+    assertInstalledMode(workflowExecutable, "collective-cognition-workflow");
     const workflowRequestPath = join(consumerRoot, "workflow-request.json");
     const workflowInputPath = join(consumerRoot, "workflow-input.jsonl");
     const workflowDatabasePath = join(consumerRoot, "workflow-cognition.db");
@@ -2311,30 +2308,34 @@ console.log(JSON.stringify({
       mediaType: "application/json",
       content: { summary: "Packed workflow evidence." },
     })}\n`);
-    const workflowExecuted = spawnSync(workflowExecutable, [
-      "run",
-      "--request",
-      workflowRequestPath,
-      "--input",
-      workflowInputPath,
-      "--format",
-      "jsonl",
-      "--cognition-db",
-      workflowDatabasePath,
-      "--create-cognition-db",
-    ], {
-      cwd: consumerRoot,
-      encoding: "utf8",
-      env: { ...process.env, NODE_NO_WARNINGS: "1" },
-      shell: process.platform === "win32",
-    });
-    assert.equal(
-      workflowExecuted.status,
-      0,
-      workflowExecuted.stderr || workflowExecuted.stdout,
-    );
-    assert.equal(workflowExecuted.stderr, "");
-    assert.equal(JSON.parse(workflowExecuted.stdout).status, "committed");
+    if (typeof DatabaseSync.prototype.enableDefensive === "function") {
+      const workflowExecuted = spawnSync(workflowExecutable, [
+        "run",
+        "--request",
+        workflowRequestPath,
+        "--input",
+        workflowInputPath,
+        "--format",
+        "jsonl",
+        "--cognition-db",
+        workflowDatabasePath,
+        "--create-cognition-db",
+      ], {
+        cwd: consumerRoot,
+        encoding: "utf8",
+        env: { ...process.env, NODE_NO_WARNINGS: "1" },
+        shell: process.platform === "win32",
+      });
+      assert.equal(
+        workflowExecuted.status,
+        0,
+        workflowExecuted.stderr || workflowExecuted.stdout,
+      );
+      assert.equal(workflowExecuted.stderr, "");
+      assert.equal(JSON.parse(workflowExecuted.stdout).status, "committed");
+    } else {
+      assert.equal(existsSync(workflowDatabasePath), false);
+    }
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
   }

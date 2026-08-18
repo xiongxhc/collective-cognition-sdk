@@ -150,7 +150,9 @@ test("rejects a promotion for another hypothesis before policy invocation", () =
   assert.throws(
     () => prepareDurableCognitionWorkflow(request),
     (error: unknown) =>
-      error instanceof DomainError &&
+      error instanceof Error &&
+      !(error instanceof DomainError) &&
+      "code" in error &&
       error.code === "INVALID_DURABLE_WORKFLOW_REQUEST",
   );
   assert.equal(policyCalls, 0);
@@ -162,7 +164,9 @@ function assertInvalidRequest(
   assert.throws(
     () => prepareDurableCognitionWorkflow(request),
     (error: unknown) =>
-      error instanceof DomainError &&
+      error instanceof Error &&
+      !(error instanceof DomainError) &&
+      "code" in error &&
       error.code === "INVALID_DURABLE_WORKFLOW_REQUEST",
   );
 }

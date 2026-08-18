@@ -29,6 +29,10 @@ version-`1` cognition database, so use a new explicit database for this slice.
 Creation occurs only when `createIfMissing: true` in the SDK or
 `--create-cognition-db` in the CLI is present.
 
+The workflow store and historical SQLite store are self-contained package
+modules. The tarball contains no shared `sqlite-internal` JavaScript or
+declaration file, and the historical SQLite declaration closure remains exact.
+
 ## SDK Usage
 
 Import the source-neutral workflow and the Node-specific store separately:

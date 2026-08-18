@@ -28,6 +28,24 @@ import type {
 
 const maximumSnapshotDepth = 256;
 
+const DurableWorkflowPreparationErrorCode = {
+  INVALID_REQUEST: "INVALID_DURABLE_WORKFLOW_REQUEST",
+  PREPARATION_FAILED: "DURABLE_WORKFLOW_FAILED",
+} as const;
+
+type DurableWorkflowPreparationErrorCode =
+  (typeof DurableWorkflowPreparationErrorCode)[keyof typeof DurableWorkflowPreparationErrorCode];
+
+class DurableWorkflowPreparationError extends Error {
+  readonly code: DurableWorkflowPreparationErrorCode;
+
+  constructor(code: DurableWorkflowPreparationErrorCode, message: string) {
+    super(message);
+    this.name = "DurableWorkflowPreparationError";
+    this.code = code;
+  }
+}
+
 class UnsafeWorkflowStructure extends Error {}
 
 interface DescriptorSnapshot {
@@ -82,15 +100,15 @@ class SnapshotStabilityCheck {
 }
 
 function invalidRequest(): never {
-  throw new DomainError(
-    DomainErrorCode.INVALID_DURABLE_WORKFLOW_REQUEST,
+  throw new DurableWorkflowPreparationError(
+    DurableWorkflowPreparationErrorCode.INVALID_REQUEST,
     "Durable workflow request is invalid.",
   );
 }
 
 function durableWorkflowFailed(): never {
-  throw new DomainError(
-    DomainErrorCode.DURABLE_WORKFLOW_FAILED,
+  throw new DurableWorkflowPreparationError(
+    DurableWorkflowPreparationErrorCode.PREPARATION_FAILED,
     "Durable workflow preparation failed.",
   );
 }
@@ -414,11 +432,10 @@ export function prepareDurableCognitionWorkflow(
     });
   } catch (error) {
     if (
-      error instanceof DomainError &&
-      (error.code === DomainErrorCode.INGESTION_LIMIT_EXCEEDED ||
-        error.code === DomainErrorCode.SOURCE_REVISION_COLLISION ||
-        error.code === DomainErrorCode.INVALID_DURABLE_WORKFLOW_REQUEST ||
-        error.code === DomainErrorCode.DURABLE_WORKFLOW_FAILED)
+      (error instanceof DomainError &&
+        (error.code === DomainErrorCode.INGESTION_LIMIT_EXCEEDED ||
+          error.code === DomainErrorCode.SOURCE_REVISION_COLLISION)) ||
+      error instanceof DurableWorkflowPreparationError
     ) {
       throw error;
     }
