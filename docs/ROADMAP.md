@@ -329,6 +329,11 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
   declaration closures and digests, executable modes, clean-consumer imports,
   packed CLI execution, and a tarball allowlist that excludes sources, tests,
   examples, and plans.
+- [x] [Read-only durable-workflow acceptance](acceptance/durable-cognition-workflow-0.1.0.md)
+  records `12` bounded canonical SourceRecords, exact commit/replay and Markdown
+  statuses, schema-version-`2` row semantics, zero inferred Decisions or
+  Principles, and equal source identity and SHA-256 values without live-vault
+  access.
 
 **Current Markdown verification evidence**
 
@@ -349,7 +354,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 - The durable fixture-ledger workflow proves source-ledger byte size and modification time are unchanged while a separate cognition database persists a Hypothesis, neutral Evidence, one transitioned Hypothesis revision, and one audit event across close/reopen.
 - The SQLite `0.4.0` slice and maintained connector package `0.5.0` slice were final-review verified on the supported bundled Node.js runtime. Publication readiness remains an explicit unfinished gate below.
-- The recorded manual real-ledger acceptance persists a version-`2` `under_review` Hypothesis, neutral Evidence from `12` source records, and one event in a separate cognition database; it infers `0` Decisions, reopens successfully, and leaves the source ledger's byte size and nanosecond modification time unchanged. Independent final review and the exceptional re-review found no unresolved Critical or Important issue, and the branch was declared **READY TO MERGE**.
+- The [recorded read-only acceptance evidence](acceptance/durable-cognition-workflow-0.1.0.md) persists a version-`2` `under_review` Hypothesis, neutral Evidence with `12` provenance records, and one event in a separate temporary cognition database; it records `0` Decisions, `0` Principles, successful close/reopen replay and Markdown verification, and equal source size, modification time, change time, inode, and SHA-256 values. This acceptance-evidence change does not perform Task 8 final independent review or upgrade the private, unpublished, not-production status.
 
 **Explicit deferrals**
 

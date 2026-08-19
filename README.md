@@ -474,13 +474,15 @@ The SQLite `0.4.0` slice and maintained connector package `0.5.0` slice were
 final-review verified on the supported bundled Node.js runtime. Publication
 readiness remains a separate unfinished gate.
 
-The recorded manual real-ledger acceptance used an explicitly supplied
-team-memory ledger and a separate temporary cognition database. It persisted a
-Hypothesis at version `2` in state `under_review`, one neutral Evidence from
-`12` source records, and one event; it inferred `0` Decisions and completed
-close/reopen verification. The source ledger's byte size and nanosecond
-modification time remained unchanged. The SQLite slice is implemented and
-final-review verified; this evidence is not a production-readiness claim.
+The [recorded read-only acceptance evidence](docs/acceptance/durable-cognition-workflow-0.1.0.md)
+used an explicitly supplied compatible team-memory ledger and temporary writable
+targets only. It persisted a Hypothesis at version `2` in state `under_review`,
+one neutral Evidence from `12` source records, and one event; it inferred `0`
+Decisions and `0` Principles, completed close/reopen replay, and passed Markdown
+verification. Source size, modification time, change time, inode, and SHA-256
+were equal before and after. No live vault was accessed. The SQLite slice is
+implemented and final-review verified; this acceptance evidence is not a
+production-readiness claim.
 
 The package manifest intentionally retains `"private": true` as an npm publication guard. The package is unpublished. Removing the guard still requires registry-name confirmation, completion of every mandatory distribution gate, final verification, and explicit accountable-human publication approval.
 
