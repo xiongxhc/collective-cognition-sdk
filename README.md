@@ -8,7 +8,13 @@ Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript 
 
 This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.9.0` remains private and unpublished on npm; its source, emitted ESM build, declarations, and CLIs are runnable, but production use is not claimed. The [checked public API reference](docs/public-api.md) describes the supported surface. Distribution Readiness Profile `0.1.0` remains the immutable package-`0.8.0` assessment and does not authorize publication of `0.9.0`. The experimental [`v0.6.0` GitHub prerelease](https://github.com/xiongxhc/collective-cognition-sdk/releases/tag/v0.6.0) remains the first and only observed public package artifact.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 package and specification work remains open beyond its completed contract slices. Phase 4's Durable Cognition Workflow `0.1.0` deliverable is implemented with an atomic SQLite workflow store, closed CLI, guide, RFC, and compatibility baseline `0.9.0`. Phase 5 remains pending until at least two independently useful connectors pass their own contract tests and a real exchange workflow has a named owner. Publication and production-readiness work remain open.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 package and specification work remains open beyond its completed contract slices. Phase 4's Durable Cognition Workflow `0.1.0` implementation and acceptance are complete, but final review is pending; the slice includes an atomic SQLite workflow store, closed CLI, guide, RFC, and compatibility baseline `0.9.0`. Phase 5 remains pending until at least two independently useful connectors pass their own contract tests and a real exchange workflow has a named owner. Publication and production-readiness work remain open.
+
+Supported Experimental workflow execution requires Node.js `>=24.14.0` and
+`DatabaseSync.prototype.enableDefensive`. Node.js `24.9.0` remains a
+package/core compatibility lane with honest workflow and SQLite capability
+skips; it is not a full workflow runtime. The root package engine remains
+Node.js `>=24`.
 
 Historical Markdown adapter verification used bundled Node.js `24.14.0`: the full matrix
 passed `444` tests with `1` expected skip (`406` source passes and `1` source
@@ -480,9 +486,10 @@ targets only. It persisted a Hypothesis at version `2` in state `under_review`,
 one neutral Evidence from `12` source records, and one event; it inferred `0`
 Decisions and `0` Principles, completed close/reopen replay, and passed Markdown
 verification. Source size, modification time, change time, inode, and SHA-256
-were equal before and after. No live vault was accessed. The SQLite slice is
-implemented and final-review verified; this acceptance evidence is not a
-production-readiness claim.
+were equal before and after. No live vault was accessed. The historical SQLite
+store slice is implemented and final-review verified. Durable workflow
+implementation and acceptance are complete, but Task 8 final review remains
+pending; this acceptance evidence is not a production-readiness claim.
 
 The package manifest intentionally retains `"private": true` as an npm publication guard. The package is unpublished. Removing the guard still requires registry-name confirmation, completion of every mandatory distribution gate, final verification, and explicit accountable-human publication approval.
 
@@ -548,7 +555,10 @@ It does not access a live vault, ledger, or cognition database.
 `npm run example:workflow` creates only temporary SourceRecord, request,
 SQLite-v2, and managed Markdown targets. It commits, replays, closes, reopens,
 verifies exact records, and confirms unchanged projection without accessing a
-live ledger or vault.
+live ledger or vault. On a Node.js runtime lacking
+`DatabaseSync.prototype.enableDefensive`, it exits `0`, creates no temporary
+files, and prints exactly
+`{"status":"skipped","reason":"unsupported_runtime"}`.
 
 `collective-cognition-teammem export` writes canonical SourceRecord JSONL and
 supports `--from`, `--to`, `--person`, `--project`, `--limit`, and

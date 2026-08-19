@@ -160,10 +160,10 @@
       ]
     },
     "artifacts": {
-      "docs/durable-cognition-workflow-guide.md": "99a03706528b5ba5f4e2810825afff4d45c1464e82e7bbf81c5946ecbfa3e476",
-      "docs/public-api.md": "02d6732330cf2ffaeed5ae02fd809c2b7dbdee5ce77704dc81e4d21f0bc5596d",
+      "docs/durable-cognition-workflow-guide.md": "2403b288b6201bb82eab5b93e37a56aa58140006cb75ca60f765798ab80024bb",
+      "docs/public-api.md": "5fc334d7a89cb44de8f2a467905e18658303bb516c63439ee267094b146f7772",
       "rfcs/0009-public-api-and-distribution-readiness.md": "967b0cc1b6584902c4d606bbdc7cf47f9801283a3f67d7a802152994dabc6da3",
-      "rfcs/0010-durable-cognition-workflow.md": "b7b279aa7ed3375058773683afc65f0bb80577b59c3c95582b21d27e683a42eb",
+      "rfcs/0010-durable-cognition-workflow.md": "2f8df9982684bd93e20c2c2f19500855a8151cb43271176cf731512f18cd28ad",
       "spec/compatibility/0.1.0/change-cases.jsonl": "3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b",
       "spec/compatibility/0.2.0/change-cases.jsonl": "e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5",
       "spec/compatibility/0.3.0/change-cases.jsonl": "1f1ff3822de318806640357bb11804a0213d7084f05350035f8bb8d519dd95f2",
@@ -1389,6 +1389,13 @@
       "maxRecords": 10000,
       "maxRecordBytes": 1048576,
       "maxRequestBytes": 1048576
+    },
+    "runtime": {
+      "stability": "supported-experimental",
+      "node": ">=24.14.0",
+      "requiredCapabilities": [
+        "DatabaseSync.prototype.enableDefensive"
+      ]
     },
     "publisherSupported": false
   }

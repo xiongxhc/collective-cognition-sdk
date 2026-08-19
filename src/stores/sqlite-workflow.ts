@@ -6,7 +6,7 @@ import {
 } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { isDeepStrictEqual } from "node:util";
+import { isDeepStrictEqual, types as utilTypes } from "node:util";
 
 import {
   prepareInitialCognitionCommit,
@@ -25,6 +25,7 @@ import type {
   PortableCognitiveObjectRecord,
   TransitionCognitionCommit,
 } from "../host-integration.ts";
+import { isUnicodeScalarString } from "../types.ts";
 import type { JsonValue } from "../types.ts";
 import type {
   CognitionWorkflowStore,
@@ -67,6 +68,7 @@ interface StoredObjectRow {
 const adapterId = "collective-cognition-sdk:sqlite-store";
 const defaultBusyTimeoutMs = 5_000;
 const maximumBusyTimeoutMs = 60_000;
+const maximumPreparedWorkflowDepth = 256;
 const cognitionSchemaTableSql = `
   CREATE TABLE cognition_schema (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
@@ -250,6 +252,13 @@ function invalidStoredHistory(): never {
   throw new TypeError("Stored cognition history is inconsistent.");
 }
 
+function isProxy(value: unknown): boolean {
+  return (
+    (typeof value === "object" && value !== null) ||
+    typeof value === "function"
+  ) && utilTypes.isProxy(value);
+}
+
 function deserializeStoredObject(
   row: StoredObjectRow,
 ): PortableCognitiveObjectRecord {
@@ -343,7 +352,11 @@ function snapshotOptions(
   const fields: Record<string, unknown> = Object.create(null);
 
   try {
-    if (typeof value !== "object" || value === null) {
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      isProxy(value)
+    ) {
       return invalidOptions();
     }
     const prototype = Object.getPrototypeOf(value);
@@ -1313,6 +1326,94 @@ function invalidStoredWorkflow(): never {
   throw new TypeError("Stored durable workflow is invalid.");
 }
 
+function preflightPreparedWorkflowJson(
+  value: unknown,
+  ancestors = new Set<object>(),
+  depth = 0,
+): void {
+  if (isProxy(value)) {
+    return invalidWorkflowCommit();
+  }
+  if (
+    value === null ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value)) ||
+    (typeof value === "string" && isUnicodeScalarString(value))
+  ) {
+    return;
+  }
+  if (
+    typeof value !== "object" ||
+    depth > maximumPreparedWorkflowDepth ||
+    ancestors.has(value)
+  ) {
+    return invalidWorkflowCommit();
+  }
+
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) {
+      if (Object.getPrototypeOf(value) !== Array.prototype) {
+        return invalidWorkflowCommit();
+      }
+      const keys = Reflect.ownKeys(value);
+      const lengthDescriptor = Reflect.getOwnPropertyDescriptor(value, "length");
+      if (
+        lengthDescriptor === undefined ||
+        lengthDescriptor.enumerable ||
+        !("value" in lengthDescriptor) ||
+        !Number.isSafeInteger(lengthDescriptor.value) ||
+        lengthDescriptor.value < 0 ||
+        keys.length !== lengthDescriptor.value + 1 ||
+        !keys.includes("length")
+      ) {
+        return invalidWorkflowCommit();
+      }
+      for (let index = 0; index < lengthDescriptor.value; index += 1) {
+        const descriptor = Reflect.getOwnPropertyDescriptor(value, String(index));
+        if (
+          descriptor === undefined ||
+          !descriptor.enumerable ||
+          !("value" in descriptor)
+        ) {
+          return invalidWorkflowCommit();
+        }
+        preflightPreparedWorkflowJson(
+          descriptor.value,
+          ancestors,
+          depth + 1,
+        );
+      }
+      return;
+    }
+
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      return invalidWorkflowCommit();
+    }
+    for (const key of Reflect.ownKeys(value)) {
+      if (typeof key !== "string" || !isUnicodeScalarString(key)) {
+        return invalidWorkflowCommit();
+      }
+      const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+      if (
+        descriptor === undefined ||
+        !descriptor.enumerable ||
+        !("value" in descriptor)
+      ) {
+        return invalidWorkflowCommit();
+      }
+      preflightPreparedWorkflowJson(
+        descriptor.value,
+        ancestors,
+        depth + 1,
+      );
+    }
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
 function objectStorageKey(record: PortableCognitiveObjectRecord): string {
   return `${record.payload.id}\u0000${record.payload.version}`;
 }
@@ -1386,9 +1487,14 @@ function snapshotPreparedWorkflow(
 ): PreparedSqliteWorkflowCommit {
   const fields: Record<string, unknown> = Object.create(null);
   try {
-    if (typeof request !== "object" || request === null) {
+    if (
+      typeof request !== "object" ||
+      request === null ||
+      isProxy(request)
+    ) {
       return invalidWorkflowCommit();
     }
+    preflightPreparedWorkflowJson(request);
     const prototype = Object.getPrototypeOf(request);
     if (prototype !== Object.prototype && prototype !== null) {
       return invalidWorkflowCommit();

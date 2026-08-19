@@ -55,6 +55,44 @@ const supportsDefensiveMode =
 const sqliteTest = supportsDefensiveMode ? test : test.skip;
 const temporaryDirectories = new Set<string>();
 
+interface ProxyInspection {
+  count: number;
+}
+
+function mutatingInspectionProxy<T extends object>(
+  target: T,
+  mutate: () => void,
+  inspection: ProxyInspection,
+): T {
+  function inspected(): void {
+    inspection.count += 1;
+    mutate();
+  }
+
+  return new Proxy(target, {
+    get(current, property, receiver) {
+      inspected();
+      return Reflect.get(current, property, receiver);
+    },
+    getOwnPropertyDescriptor(current, property) {
+      inspected();
+      return Reflect.getOwnPropertyDescriptor(current, property);
+    },
+    getPrototypeOf(current) {
+      inspected();
+      return Reflect.getPrototypeOf(current);
+    },
+    has(current, property) {
+      inspected();
+      return Reflect.has(current, property);
+    },
+    ownKeys(current) {
+      inspected();
+      return Reflect.ownKeys(current);
+    },
+  });
+}
+
 after(() => {
   for (const directory of temporaryDirectories) {
     rmSync(directory, { recursive: true, force: true });
@@ -461,6 +499,105 @@ sqliteTest("validates a prepared workflow before beginning a transaction", async
     events: 0,
     receipts: 0,
   });
+});
+
+sqliteTest("preflights the complete prepared graph before proxy traps or transaction access", async () => {
+  const cases = [
+    {
+      name: "initial hypothesis proxy mutates evidence",
+      create() {
+        const request = { ...preparedWorkflow() } as {
+          -readonly [Key in keyof PreparedDurableCognitionCommit]: PreparedDurableCognitionCommit[Key];
+        };
+        const inspection = { count: 0 };
+        let mutated = false;
+        request.initialHypothesis = mutatingInspectionProxy(
+          structuredClone(request.initialHypothesis),
+          () => {
+            mutated = true;
+            request.evidence = structuredClone(request.initialHypothesis);
+          },
+          inspection,
+        );
+        return { request, inspection, wasMutated: () => mutated };
+      },
+    },
+    {
+      name: "evidence proxy mutates reviewed hypothesis and event",
+      create() {
+        const request = { ...preparedWorkflow() } as {
+          -readonly [Key in keyof PreparedDurableCognitionCommit]: PreparedDurableCognitionCommit[Key];
+        };
+        const inspection = { count: 0 };
+        let mutated = false;
+        request.evidence = mutatingInspectionProxy(
+          structuredClone(request.evidence),
+          () => {
+            mutated = true;
+            request.reviewedHypothesis = structuredClone(request.initialHypothesis);
+            request.event = structuredClone(request.event);
+          },
+          inspection,
+        );
+        return { request, inspection, wasMutated: () => mutated };
+      },
+    },
+    {
+      name: "event proxy mutates initial hypothesis",
+      create() {
+        const request = { ...preparedWorkflow() } as {
+          -readonly [Key in keyof PreparedDurableCognitionCommit]: PreparedDurableCognitionCommit[Key];
+        };
+        const inspection = { count: 0 };
+        let mutated = false;
+        request.event = mutatingInspectionProxy(
+          structuredClone(request.event),
+          () => {
+            mutated = true;
+            request.initialHypothesis = structuredClone(request.evidence);
+          },
+          inspection,
+        );
+        return { request, inspection, wasMutated: () => mutated };
+      },
+    },
+  ] as const;
+
+  for (const testCase of cases) {
+    const databasePath = temporaryWorkflowDatabase();
+    const store = new SqliteCognitionWorkflowStore({
+      databasePath,
+      createIfMissing: true,
+    });
+    const { request, inspection, wasMutated } = testCase.create();
+    const originalExec = DatabaseSync.prototype.exec;
+    let immediateTransactions = 0;
+    DatabaseSync.prototype.exec = function (sql) {
+      if (sql.trim() === "BEGIN IMMEDIATE") immediateTransactions += 1;
+      return originalExec.call(this, sql);
+    };
+    try {
+      await assert.rejects(
+        () => store.commitWorkflow(request),
+        {
+          name: "TypeError",
+          message: "Durable workflow commit is invalid.",
+        },
+        testCase.name,
+      );
+    } finally {
+      DatabaseSync.prototype.exec = originalExec;
+      store.close();
+    }
+    assert.equal(inspection.count, 0, testCase.name);
+    assert.equal(wasMutated(), false, testCase.name);
+    assert.equal(immediateTransactions, 0, testCase.name);
+    assert.deepEqual(
+      workflowRowCounts(databasePath),
+      { objects: 0, events: 0, receipts: 0 },
+      testCase.name,
+    );
+  }
 });
 
 sqliteTest("rejects forged cross-record workflow correlations before a transaction", async () => {

@@ -283,7 +283,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 4: Adapter Ecosystem Foundations
 
-**Status:** Complete for the implemented adapter-foundation deliverables. The SQLite database persistence adapter, maintained source-connector slice, [Markdown cognition adapter](markdown-cognition-adapter-guide.md), and source-neutral [Durable Cognition Workflow `0.1.0`](durable-cognition-workflow-guide.md) are implemented. Private, unpublished package `0.9.0` adds the exact workflow and SQLite workflow-store subpaths, installed workflow executable, compatibility baseline, RFC 0010, guide, exact package allowlist, and clean-consumer verification without claiming npm publication or production use. The experimental `v0.6.0` GitHub prerelease remains the only observed public package artifact recorded in Phase 3.
+**Status:** Implementation and acceptance complete; final review pending. The SQLite database persistence adapter, maintained source-connector slice, [Markdown cognition adapter](markdown-cognition-adapter-guide.md), and source-neutral [Durable Cognition Workflow `0.1.0`](durable-cognition-workflow-guide.md) are implemented. Private, unpublished package `0.9.0` adds the exact workflow and SQLite workflow-store subpaths, installed workflow executable, compatibility baseline, RFC 0010, guide, exact package allowlist, and clean-consumer verification without claiming npm publication or production use. Task 8 acceptance is recorded, but final specification and code review are not yet complete. The experimental `v0.6.0` GitHub prerelease remains the only observed public package artifact recorded in Phase 3.
 
 **Entry criteria**
 
@@ -334,6 +334,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
   statuses, schema-version-`2` row semantics, zero inferred Decisions or
   Principles, and equal source identity and SHA-256 values without live-vault
   access.
+- [ ] Task 8 final independent specification and code review.
 
 **Current Markdown verification evidence**
 
@@ -380,7 +381,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 5: Cross-Connector Interoperability
 
-**Status:** Next SDK development slice. Phase 4 is complete, but Phase 5 remains pending the two-connector criteria: at least two independently useful connectors must pass their own contract tests, and a real cross-connector exchange workflow must have a named owner.
+**Status:** Next SDK development slice. Phase 4 implementation and acceptance are complete, but final review remains pending. Phase 5 remains pending the two-connector criteria: at least two independently useful connectors must pass their own contract tests, and a real cross-connector exchange workflow must have a named owner.
 
 **Entry criteria**
 

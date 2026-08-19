@@ -84,6 +84,13 @@ and type export, historical package subpath, historical executable, and
 immutable compatibility artifact. The change is additive with a minor
 pre-`1.0.0` package-version effect.
 
+Supported Experimental workflow execution requires Node.js `>=24.14.0` and
+`DatabaseSync.prototype.enableDefensive`. Node.js `24.9.0` remains a
+package/core compatibility lane with honest workflow and SQLite capability
+skips; it is not a full workflow runtime. The root package engine remains
+Node.js `>=24`, while `WORKFLOW_CLI_CONTRACT.runtime` and compatibility baseline
+`0.9.0` record the narrower workflow runtime boundary.
+
 Existing SQLite version-`1` databases remain valid for
 `collective-cognition-sdk/stores/sqlite/0.1.0`. They are not migrated or
 adopted by the workflow store. Operators must choose a new explicit database

@@ -15,12 +15,24 @@ test("keeps the durable workflow CLI contract closed", () => {
       maxRecordBytes: 1_048_576,
       maxRequestBytes: 1_048_576,
     },
+    runtime: {
+      stability: "supported-experimental",
+      node: ">=24.14.0",
+      requiredCapabilities: [
+        "DatabaseSync.prototype.enableDefensive",
+      ],
+    },
   });
   assert.equal(Object.isFrozen(WORKFLOW_CLI_CONTRACT), true);
   assert.equal(Object.isFrozen(WORKFLOW_CLI_CONTRACT.commands), true);
   assert.equal(Object.isFrozen(WORKFLOW_CLI_CONTRACT.formats), true);
   assert.equal(Object.isFrozen(WORKFLOW_CLI_CONTRACT.policyIds), true);
   assert.equal(Object.isFrozen(WORKFLOW_CLI_CONTRACT.defaults), true);
+  assert.equal(Object.isFrozen(WORKFLOW_CLI_CONTRACT.runtime), true);
+  assert.equal(
+    Object.isFrozen(WORKFLOW_CLI_CONTRACT.runtime.requiredCapabilities),
+    true,
+  );
 });
 
 test("adds only the requested durable workflow executable", () => {

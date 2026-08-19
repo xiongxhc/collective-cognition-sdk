@@ -15,6 +15,44 @@ import type {
 } from "../src/index.ts";
 import type { DurableCognitionWorkflowRequest } from "../src/workflows/durable.ts";
 
+interface ProxyInspection {
+  count: number;
+}
+
+function mutatingInspectionProxy<T extends object>(
+  target: T,
+  mutate: () => void,
+  inspection: ProxyInspection,
+): T {
+  function inspected(): void {
+    inspection.count += 1;
+    mutate();
+  }
+
+  return new Proxy(target, {
+    get(current, property, receiver) {
+      inspected();
+      return Reflect.get(current, property, receiver);
+    },
+    getOwnPropertyDescriptor(current, property) {
+      inspected();
+      return Reflect.getOwnPropertyDescriptor(current, property);
+    },
+    getPrototypeOf(current) {
+      inspected();
+      return Reflect.getPrototypeOf(current);
+    },
+    has(current, property) {
+      inspected();
+      return Reflect.has(current, property);
+    },
+    ownKeys(current) {
+      inspected();
+      return Reflect.ownKeys(current);
+    },
+  });
+}
+
 function sourceRecord(): SourceRecord {
   return createSourceRecord({
     id: "source-record:delivery-review:1",
@@ -169,6 +207,23 @@ function assertInvalidRequest(
       "code" in error &&
       error.code === "INVALID_DURABLE_WORKFLOW_REQUEST",
   );
+}
+
+function assertInvalidRequestWithoutOutput(
+  operation: () => ReturnType<typeof prepareDurableCognitionWorkflow>,
+): void {
+  let output: ReturnType<typeof prepareDurableCognitionWorkflow> | undefined;
+  assert.throws(
+    () => {
+      output = operation();
+    },
+    {
+      name: "DurableWorkflowPreparationError",
+      message: "Durable workflow request is invalid.",
+      code: "INVALID_DURABLE_WORKFLOW_REQUEST",
+    },
+  );
+  assert.equal(output, undefined);
 }
 
 test("produces the same prepared digest for reordered JSON keys", () => {
@@ -398,6 +453,199 @@ test("rejects nested proxies that mutate an earlier promotion field", () => {
 
   assertInvalidRequest(request);
   assert.equal(policyCalls, 0);
+});
+
+test("rejects mutating proxies across the complete preparation input before trap or policy access", () => {
+  const cases = [
+    {
+      name: "record proxy mutates hypothesis",
+      run() {
+        let policyCalls = 0;
+        const request = validRequest({
+          policy: {
+            ...policy(),
+            map() {
+              policyCalls += 1;
+              return policy().map([]);
+            },
+          },
+        });
+        const mutableRequest = request as unknown as {
+          hypothesis: DurableCognitionWorkflowRequest["hypothesis"];
+          records: DurableCognitionWorkflowRequest["records"];
+        };
+        const originalHypothesis = request.hypothesis;
+        const inspection = { count: 0 };
+        const record = mutatingInspectionProxy(
+          structuredClone(sourceRecord()),
+          () => {
+            mutableRequest.hypothesis = {
+              ...structuredClone(originalHypothesis),
+              title: "Mutated by record proxy",
+            };
+          },
+          inspection,
+        );
+        mutableRequest.records = [record];
+
+        assertInvalidRequestWithoutOutput(() =>
+          prepareDurableCognitionWorkflow(request)
+        );
+        assert.equal(inspection.count, 0);
+        assert.equal(policyCalls, 0);
+        assert.equal(request.hypothesis, originalHypothesis);
+      },
+    },
+    {
+      name: "hypothesis proxy mutates promotion and records",
+      run() {
+        let policyCalls = 0;
+        const request = validRequest({
+          policy: {
+            ...policy(),
+            map() {
+              policyCalls += 1;
+              return policy().map([]);
+            },
+          },
+        });
+        const mutableRequest = request as unknown as {
+          hypothesis: DurableCognitionWorkflowRequest["hypothesis"];
+          promotion: DurableCognitionWorkflowRequest["promotion"];
+          records: DurableCognitionWorkflowRequest["records"];
+        };
+        const originalPromotion = request.promotion;
+        const originalRecords = request.records;
+        const inspection = { count: 0 };
+        mutableRequest.hypothesis = mutatingInspectionProxy(
+          structuredClone(request.hypothesis),
+          () => {
+            mutableRequest.promotion = {
+              ...structuredClone(originalPromotion),
+              contextId: "context:mutated-by-hypothesis-proxy",
+            };
+            mutableRequest.records = [];
+          },
+          inspection,
+        );
+
+        assertInvalidRequestWithoutOutput(() =>
+          prepareDurableCognitionWorkflow(request)
+        );
+        assert.equal(inspection.count, 0);
+        assert.equal(policyCalls, 0);
+        assert.equal(request.promotion, originalPromotion);
+        assert.equal(request.records, originalRecords);
+      },
+    },
+    {
+      name: "policy proxy mutates hypothesis data",
+      run() {
+        let policyCalls = 0;
+        const mutableHypothesis = structuredClone(hypothesis());
+        const request = validRequest({
+          hypothesis: mutableHypothesis,
+        });
+        const mutableRequest = request as unknown as {
+          policy: DurableCognitionWorkflowRequest["policy"];
+        };
+        const inspection = { count: 0 };
+        const policyTarget: EvidencePromotionPolicy = {
+          ...policy(),
+          map() {
+            policyCalls += 1;
+            return policy().map([]);
+          },
+        };
+        mutableRequest.policy = mutatingInspectionProxy(
+          policyTarget,
+          () => {
+            (mutableHypothesis.data as { statement: string }).statement =
+              "Mutated by policy proxy";
+          },
+          inspection,
+        );
+
+        assertInvalidRequestWithoutOutput(() =>
+          prepareDurableCognitionWorkflow(request)
+        );
+        assert.equal(inspection.count, 0);
+        assert.equal(policyCalls, 0);
+        assert.deepEqual(mutableHypothesis.data, {
+          statement: "The delivery is ready for review.",
+        });
+      },
+    },
+    {
+      name: "options proxy mutates request",
+      run() {
+        let policyCalls = 0;
+        const request = validRequest({
+          policy: {
+            ...policy(),
+            map() {
+              policyCalls += 1;
+              return policy().map([]);
+            },
+          },
+        });
+        const mutableRequest = request as unknown as { workflowId: string };
+        const originalWorkflowId = request.workflowId;
+        const inspection = { count: 0 };
+        const options = mutatingInspectionProxy(
+          { maxRecords: 1 },
+          () => {
+            mutableRequest.workflowId = "workflow:mutated-by-options-proxy";
+          },
+          inspection,
+        );
+
+        assertInvalidRequestWithoutOutput(() =>
+          prepareDurableCognitionWorkflow(request, options)
+        );
+        assert.equal(inspection.count, 0);
+        assert.equal(policyCalls, 0);
+        assert.equal(request.workflowId, originalWorkflowId);
+      },
+    },
+    {
+      name: "existing records proxy mutates request",
+      run() {
+        let policyCalls = 0;
+        const request = validRequest({
+          policy: {
+            ...policy(),
+            map() {
+              policyCalls += 1;
+              return policy().map([]);
+            },
+          },
+        });
+        const mutableRequest = request as unknown as { workflowId: string };
+        const originalWorkflowId = request.workflowId;
+        const inspection = { count: 0 };
+        const existingRecords = mutatingInspectionProxy(
+          [structuredClone(sourceRecord())],
+          () => {
+            mutableRequest.workflowId =
+              "workflow:mutated-by-existing-records-proxy";
+          },
+          inspection,
+        );
+
+        assertInvalidRequestWithoutOutput(() =>
+          prepareDurableCognitionWorkflow(request, { existingRecords })
+        );
+        assert.equal(inspection.count, 0);
+        assert.equal(policyCalls, 0);
+        assert.equal(request.workflowId, originalWorkflowId);
+      },
+    },
+  ] as const;
+
+  for (const testCase of cases) {
+    assert.doesNotThrow(testCase.run, testCase.name);
+  }
 });
 
 test("captures policy identity before a mapper mutates its caller-owned object", () => {

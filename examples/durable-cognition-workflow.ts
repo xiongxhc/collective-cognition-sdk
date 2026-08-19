@@ -29,6 +29,8 @@ import type {
 } from "../src/workflows/durable.ts";
 
 const cliPath = new URL("../src/workflow-cli.ts", import.meta.url);
+const unsupportedRuntimeSummary =
+  '{"status":"skipped","reason":"unsupported_runtime"}\n';
 
 interface WorkflowResult {
   readonly status: string;
@@ -231,6 +233,10 @@ function verifyReopenedRecords(
 export async function runDurableCognitionWorkflowExample(
   options: DurableCognitionWorkflowExampleOptions = {},
 ): Promise<void> {
+  if (typeof DatabaseSync.prototype.enableDefensive !== "function") {
+    process.stdout.write(unsupportedRuntimeSummary);
+    return;
+  }
   const temporaryRoot = mkdtempSync(join(
     options.temporaryParent ?? tmpdir(),
     "ccsdk-durable-workflow-example-",

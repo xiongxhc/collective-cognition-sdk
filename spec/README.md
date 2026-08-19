@@ -127,7 +127,7 @@ The contract is storage and transport neutral: it does not require a database, q
 
 SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, Runtime and Security Profile `0.1.0`, Distribution Readiness Profile `0.1.0`, and compatibility baselines `0.1.0` through `0.9.0` are Normative Stable. Before `1.0.0`, the package root, installed CLIs, and declared non-normative subpaths are Supported Experimental. Unexported connector modules remain Internal. The SQLite stores are self-contained, and no shared `sqlite-internal` source, JavaScript, or declaration module is built or packaged. Compatibility checks detect exact baseline drift, independently hash each public declaration entrypoint closure, and exercise the package `0.2.0` generic error-code assignment plus the supported package `0.3.0` narrowing migration; they do not automatically determine semantic compatibility.
 
-Phase 3 remains in progress beyond its completed contract slices. Phase 4's Durable Cognition Workflow deliverable is implemented in current private, unpublished package `0.9.0`. Package publication and production use remain unclaimed. Phase 5 is still pending at least two independently useful connectors with contract tests and a named owner for a real exchange workflow.
+Phase 3 remains in progress beyond its completed contract slices. Phase 4's Durable Cognition Workflow implementation and acceptance are complete in current private, unpublished package `0.9.0`, but final review remains pending. Package publication and production use remain unclaimed. Phase 5 is still pending at least two independently useful connectors with contract tests and a named owner for a real exchange workflow.
 
 ## Planned Normative Content
 

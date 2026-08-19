@@ -13,6 +13,15 @@ authorize npm publication, certify a deployment, or claim production use.
 - Supported Experimental is not Normative Stable.
 - source paths absent from `exports` are internal.
 
+### Durable Workflow Runtime
+
+Supported Experimental workflow execution requires Node.js `>=24.14.0` and
+`DatabaseSync.prototype.enableDefensive`. Node.js `24.9.0` remains a
+package/core compatibility lane with honest workflow and SQLite capability
+skips; it is not a full workflow runtime. The root package engine remains
+Node.js `>=24`. `WORKFLOW_CLI_CONTRACT.runtime` records this workflow-specific
+minimum and capability in machine-readable form.
+
 ## Root API
 
 Import the root package from `collective-cognition-sdk`. The root export `.` is Supported Experimental, and each group below links the exported names to the contract that governs them.

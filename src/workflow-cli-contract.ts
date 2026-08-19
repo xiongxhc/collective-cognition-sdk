@@ -8,6 +8,13 @@ export const WORKFLOW_CLI_CONTRACT = Object.freeze({
     maxRecordBytes: 1_048_576,
     maxRequestBytes: 1_048_576,
   }),
+  runtime: Object.freeze({
+    stability: "supported-experimental",
+    node: ">=24.14.0",
+    requiredCapabilities: Object.freeze([
+      "DatabaseSync.prototype.enableDefensive",
+    ] as const),
+  }),
 } as const);
 
 export type WorkflowCliFormat =

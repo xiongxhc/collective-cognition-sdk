@@ -139,6 +139,8 @@ const expectedLatestReleaseBaselineSha256 =
 const expectedLatestReleaseChangeCasesSha256 =
   "23d6577eb6aa927ab37f33278363f00a38cb2e0e67adfbc50a9dc2075b1b9e9e";
 const expectedPublicApiReferenceSha256 =
+  "5fc334d7a89cb44de8f2a467905e18658303bb516c63439ee267094b146f7772";
+const expectedHistoricalPublicApiReferenceSha256 =
   "02d6732330cf2ffaeed5ae02fd809c2b7dbdee5ce77704dc81e4d21f0bc5596d";
 const expectedDistributionReadinessRfcSha256 =
   "967b0cc1b6584902c4d606bbdc7cf47f9801283a3f67d7a802152994dabc6da3";
@@ -888,7 +890,7 @@ test("normative prose matches its hash and stable rule identifiers", () => {
     },
     publicApiReference: {
       path: "docs/public-api.md",
-      sha256: expectedPublicApiReferenceSha256,
+      sha256: expectedHistoricalPublicApiReferenceSha256,
     },
     rfc: {
       path: "rfcs/0009-public-api-and-distribution-readiness.md",
@@ -1363,12 +1365,20 @@ test("durable workflow subpaths and CLI match exact additive inventories", () =>
       maxRecordBytes: 1_048_576,
       maxRequestBytes: 1_048_576,
     },
+    runtime: {
+      stability: "supported-experimental",
+      node: ">=24.14.0",
+      requiredCapabilities: [
+        "DatabaseSync.prototype.enableDefensive",
+      ],
+    },
     publisherSupported: false,
   });
   assert.deepEqual([...WORKFLOW_CLI_CONTRACT.commands], baseline.workflowCli.commandNames);
   assert.deepEqual([...WORKFLOW_CLI_CONTRACT.formats], baseline.workflowCli.formats);
   assert.deepEqual([...WORKFLOW_CLI_CONTRACT.policyIds], baseline.workflowCli.policyIds);
   assert.deepEqual(WORKFLOW_CLI_CONTRACT.defaults, baseline.workflowCli.defaults);
+  assert.deepEqual(WORKFLOW_CLI_CONTRACT.runtime, baseline.workflowCli.runtime);
 });
 
 test("public declaration entrypoint closures match exact independent digests", () => {

@@ -18,6 +18,8 @@ const examplePath = new URL(
   import.meta.url,
 );
 const expectedSummary = '{"workflowId":"workflow:durable-workflow-example:1","schemaVersion":2,"firstPersistence":"committed","replayPersistence":"already_committed","publication":"not_requested","firstProjection":"projected","replayProjection":"unchanged","objects":3,"events":1,"receipts":1,"markdownVerification":"passed"}\n';
+const expectedUnsupportedRuntimeSummary =
+  '{"status":"skipped","reason":"unsupported_runtime"}\n';
 
 function defensiveModeIsEnforced(): boolean {
   let database: DatabaseSync | undefined;
@@ -43,6 +45,39 @@ function defensiveModeIsEnforced(): boolean {
 }
 
 const sqliteTest = defensiveModeIsEnforced() ? test : test.skip;
+const unsupportedRuntimeTest =
+  typeof DatabaseSync.prototype.enableDefensive === "function"
+    ? test.skip
+    : test;
+
+unsupportedRuntimeTest("workflow example reports one fixed unsupported-runtime summary without temporary files", () => {
+  const temporaryParent = mkdtempSync(join(tmpdir(), "ccsdk-workflow-unsupported-test-"));
+  try {
+    const result = spawnSync(
+      "npm",
+      ["run", "--silent", "example:workflow"],
+      {
+        cwd: new URL("../", import.meta.url).pathname,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          NODE_DISABLE_COMPILE_CACHE: "1",
+          TMPDIR: temporaryParent,
+          TMP: temporaryParent,
+          TEMP: temporaryParent,
+        },
+        shell: process.platform === "win32",
+      },
+    );
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stderr, "");
+    assert.equal(result.stdout, expectedUnsupportedRuntimeSummary);
+    assert.deepEqual(readdirSync(temporaryParent), []);
+  } finally {
+    rmSync(temporaryParent, { recursive: true, force: true });
+  }
+});
 
 sqliteTest("workflow example prints one summary and removes its temporary root", () => {
   const temporaryParent = mkdtempSync(join(tmpdir(), "ccsdk-workflow-example-test-"));
@@ -71,7 +106,7 @@ sqliteTest("workflow example prints one summary and removes its temporary root",
   }
 });
 
-test("workflow example removes its temporary root when setup fails", () => {
+sqliteTest("workflow example removes its temporary root when setup fails", () => {
   const temporaryParent = mkdtempSync(join(tmpdir(), "ccsdk-workflow-failure-test-"));
   try {
     const sentinelPath = join(temporaryParent, "hook-called.txt");

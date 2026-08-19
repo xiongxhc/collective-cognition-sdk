@@ -18,6 +18,12 @@ connector or canonical JSONL
 Private package `0.9.0` is unpublished. The workflow is Supported
 Experimental, and production use is not claimed.
 
+Supported Experimental workflow execution requires Node.js `>=24.14.0` and
+`DatabaseSync.prototype.enableDefensive`. Node.js `24.9.0` remains a
+package/core compatibility lane with honest workflow and SQLite capability
+skips; it is not a full workflow runtime. The root package engine remains
+Node.js `>=24`.
+
 ## Choose Explicit Inputs and Targets
 
 The workflow never discovers a source ledger, vault, repository, database, or
@@ -66,7 +72,7 @@ const store = new SqliteCognitionWorkflowStore({
 try {
   const host: DurableCognitionWorkflowHost = { store };
   const prepared = prepareDurableCognitionWorkflow(request);
-  const result = await runDurableCognitionWorkflow(request, host);
+  const result = await runDurableCognitionWorkflow(host, request);
   console.log(prepared.requestDigest, result.status);
 } finally {
   store.close();

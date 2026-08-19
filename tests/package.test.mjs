@@ -790,7 +790,10 @@ test("public documentation defines the durable workflow without upgrading readin
       phrase,
     );
   }
-  assert.match(roadmap, /Phase 4[\s\S]*\*\*Status:\*\* Complete/);
+  assert.match(
+    roadmap,
+    /Phase 4[\s\S]*\*\*Status:\*\* Implementation and acceptance complete; final review pending\./,
+  );
   assert.match(roadmap, /\[x\] A source-neutral durable workflow/);
   assert.match(roadmap, /Phase 5 remains pending the two-connector criteria/);
   assert.match(roadmap, /at least two independently useful connectors/);
@@ -798,6 +801,14 @@ test("public documentation defines the durable workflow without upgrading readin
   assert.match(publicApi, /\.\/workflows\/durable\/0\.1\.0/);
   assert.match(publicApi, /\.\/stores\/sqlite-workflow\/0\.1\.0/);
   assert.match(publicApi, /collective-cognition-workflow/);
+  for (const document of [readme, publicApi, guide, rfc]) {
+    assert.match(document, /Node(?:\.js)? `?>=24\.14\.0`?/i);
+    assert.match(document, /DatabaseSync\.prototype\.enableDefensive/);
+    assert.match(
+      document,
+      /Node(?:\.js)? `?24\.9(?:\.0)?`?[\s\S]{0,240}(?:package|core)[\s\S]{0,120}compatibility[\s\S]{0,240}(?:not a full workflow runtime|not the full workflow runtime)/i,
+    );
+  }
   assert.match(publicApi, /tarball[^\n]*no[^\n]*sqlite-internal|no[^\n]*sqlite-internal[^\n]*tarball/i);
   assert.match(rfc, /package contains no\s+`sqlite-internal` JavaScript or declaration file/i);
   assert.match(rfc, /SQLite workflow store[^\n]*self-contained|self-contained[^\n]*SQLite workflow store/i);
@@ -1248,7 +1259,7 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
         types: ["node"],
         typeRoots: [join(repositoryRoot, "node_modules", "@types")],
       },
-      include: ["index.ts"],
+      include: ["index.ts", "guide-snippet.ts"],
     }),
     "utf8",
   );
@@ -1547,6 +1558,24 @@ void projectMarkdownCognition;
 void renderMarkdownCognitionIndex;
 void renderMarkdownCognitionRecord;
 void verifyMarkdownCognitionTarget;
+`,
+    "utf8",
+  );
+  const guide = readFileSync(durableWorkflowGuideUrl, "utf8");
+  const guideSnippet = guide.match(
+    /## SDK Usage[\s\S]*?```ts\n(?<snippet>[\s\S]*?)\n```/,
+  )?.groups?.snippet;
+  assert.equal(typeof guideSnippet, "string");
+  writeFileSync(
+    `${consumerRoot}/guide-snippet.ts`,
+    `declare const records: never;
+declare const hypothesis: never;
+declare const promotion: never;
+declare const reviewTransition: never;
+declare const policy: never;
+declare const databasePath: never;
+
+${guideSnippet}
 `,
     "utf8",
   );

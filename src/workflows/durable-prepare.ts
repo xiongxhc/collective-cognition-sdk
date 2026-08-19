@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { types as utilTypes } from "node:util";
 
 import { DomainError, DomainErrorCode } from "../errors.ts";
 import { ingestSourceRecords } from "../ingestion.ts";
@@ -48,6 +49,13 @@ class DurableWorkflowPreparationError extends Error {
 
 class UnsafeWorkflowStructure extends Error {}
 
+function isProxy(value: unknown): boolean {
+  return (
+    (typeof value === "object" && value !== null) ||
+    typeof value === "function"
+  ) && utilTypes.isProxy(value);
+}
+
 interface DescriptorSnapshot {
   readonly input: object;
   readonly keys: readonly PropertyKey[];
@@ -58,6 +66,9 @@ class SnapshotStabilityCheck {
   readonly snapshots: DescriptorSnapshot[] = [];
 
   capture(input: object): DescriptorSnapshot {
+    if (isProxy(input)) {
+      throw new UnsafeWorkflowStructure();
+    }
     const keys = Reflect.ownKeys(input);
     const descriptors = new Map<PropertyKey, PropertyDescriptor>();
     for (const key of keys) {
@@ -74,6 +85,9 @@ class SnapshotStabilityCheck {
 
   assertStable(): void {
     for (const snapshot of this.snapshots) {
+      if (isProxy(snapshot.input)) {
+        throw new UnsafeWorkflowStructure();
+      }
       const currentKeys = Reflect.ownKeys(snapshot.input);
       if (
         currentKeys.length !== snapshot.keys.length ||
@@ -114,7 +128,12 @@ function durableWorkflowFailed(): never {
 }
 
 function isPlainObject(value: unknown): value is object {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    isProxy(value) ||
+    Array.isArray(value)
+  ) {
     return false;
   }
   const prototype = Object.getPrototypeOf(value);
@@ -126,6 +145,9 @@ function captureClosedObject(
   fields: ReadonlySet<string>,
   required: boolean,
 ): Record<string, unknown> {
+  if (isProxy(value)) {
+    throw new UnsafeWorkflowStructure();
+  }
   if (!isPlainObject(value)) {
     throw new UnsafeWorkflowStructure();
   }
@@ -190,6 +212,9 @@ function snapshotJsonValue(
   depth = 0,
   stability: SnapshotStabilityCheck,
 ): JsonValue {
+  if (isProxy(value)) {
+    throw new UnsafeWorkflowStructure();
+  }
   if (depth > maximumSnapshotDepth) {
     throw new UnsafeWorkflowStructure();
   }
@@ -305,6 +330,7 @@ function snapshotPolicy(value: unknown): EvidencePromotionPolicy {
     captured.id.trim().length === 0 ||
     typeof captured.version !== "string" ||
     captured.version.trim().length === 0 ||
+    isProxy(captured.map) ||
     typeof captured.map !== "function"
   ) {
     throw new UnsafeWorkflowStructure();
