@@ -794,6 +794,10 @@ test("public documentation defines the durable workflow without upgrading readin
     roadmap,
     /Phase 4[\s\S]*\*\*Status:\*\* Implementation and acceptance complete; final review pending\./,
   );
+  assert.match(
+    readFileSync(join(repositoryRoot, "README.md"), "utf8"),
+    /adapter ecosystem foundations with Durable Cognition Workflow `0\.1\.0` implementation and acceptance complete, but final review pending/,
+  );
   assert.match(roadmap, /\[x\] A source-neutral durable workflow/);
   assert.match(roadmap, /Phase 5 remains pending the two-connector criteria/);
   assert.match(roadmap, /at least two independently useful connectors/);

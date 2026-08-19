@@ -638,7 +638,7 @@ The tracked [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/
 1. the completed runnable core;
 2. the completed universal neutral-first ingestion foundation;
 3. in-progress specification and package stabilization, with the checked public-API and distribution-readiness documentation slice complete while broader semantic, schema, publication, and production gates remain open;
-4. completed adapter ecosystem foundations, including Durable Cognition Workflow `0.1.0`;
+4. adapter ecosystem foundations with Durable Cognition Workflow `0.1.0` implementation and acceptance complete, but final review pending;
 5. pending cross-connector interoperability, blocked on two independently useful connectors and a named real exchange owner;
 6. operational governance and retirement tooling;
 7. real-team validation.
