@@ -6,7 +6,7 @@ it contains no source path, source row, private content, or source identity valu
 
 ## Scope
 
-- Tested implementation commit: `8d28846abfc54e9287adf66757433f6e63c96cdf`.
+- Tested implementation commit: `f007d9c`.
 - Workflow runtime: bundled Node.js `v24.19.0`.
 - Source classification: explicit compatible local Team Memory event ledger.
 - Source access: the existing dedicated Team Memory connector CLI opened the
@@ -60,9 +60,10 @@ root. No live or personal vault was discovered, read, or written.
 
 ## Source Immutability
 
-The source identity was captured before export, rechecked after every acceptance
-operation, and compared again after the complete acceptance sequence. Only the
-equality results are recorded here.
+The source identity was freshly captured immediately before export, rechecked
+after every acceptance operation, and compared again immediately after final
+verification. Only the equality results are recorded here. No stale baseline
+was used.
 
 | Before/after comparison | Equal |
 | --- | --- |
@@ -74,6 +75,12 @@ equality results are recorded here.
 | Complete captured identity values | `true` |
 
 The source ledger was not copied, vacuumed, migrated, or opened writable.
+
+## Independent Review
+
+- Whole-branch specification review completed on `f007d9c`.
+- Whole-branch code and security review completed on `f007d9c`.
+- No unresolved Critical, Important, or Minor findings remain.
 
 ## Local Verification
 
@@ -115,5 +122,3 @@ shimmed or monkeypatched; full SQLite workflow acceptance used bundled Node.js
 - The workflow supplies no scheduler, automatic cognition, authentication,
   encryption, durable publication outbox, or schema-version-`1` migration.
 - The timestamp filter follows the compatible ledger's stored timestamp text.
-- No Task 8 final independent specification or code review was performed as part
-  of this acceptance-evidence change.
