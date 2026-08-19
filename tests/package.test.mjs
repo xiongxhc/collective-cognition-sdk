@@ -799,6 +799,8 @@ test("public documentation defines the durable workflow without upgrading readin
     /completed adapter ecosystem foundations with Durable Cognition Workflow `0\.1\.0` final-review verified/,
   );
   assert.match(roadmap, /\[x\] A source-neutral durable workflow/);
+  assert.match(roadmap, /\[x\] Task 8 final independent specification and code review\./);
+  assert.doesNotMatch(roadmap, /does not perform Task 8 final independent review/);
   assert.match(roadmap, /Phase 5 remains pending the two-connector criteria/);
   assert.match(roadmap, /at least two independently useful connectors/);
   assert.match(roadmap, /real cross-connector exchange workflow must have a named owner/);

@@ -86,7 +86,8 @@ The source ledger was not copied, vacuumed, migrated, or opened writable.
 
 ### Bundled Node.js `v24.19.0`
 
-- Focused workflow matrix: `78` passed, `0` skipped, `0` failed.
+- Focused workflow matrix: `81` total, `80` passed, `1` expected
+  unsupported-runtime test skipped, `0` failed.
 - Build, TypeScript `--noEmit`, syntax checks, and `pack:check` passed.
 - `pack:check`: `10` schema, `25` compatibility, and `12` package tests;
   `47` passed, `0` skipped, `0` failed.
@@ -101,10 +102,10 @@ The source ledger was not copied, vacuumed, migrated, or opened writable.
 
 - `npm ci --ignore-scripts` completed from available dependency state and added
   `29` locked packages without changing dependencies.
-- Complete source suite: `522` total, `448` passed, `74` capability or
+- Complete source suite: `525` total, `449` passed, `76` capability or
   release-context skipped, `0` failed.
 - Schema: `10` passed; compatibility: `25` passed; package: `12` passed.
-- Focused workflow compatibility gate: `78` total, `49` passed, `29` honest
+- Focused workflow compatibility gate: `81` total, `50` passed, `31` honest
   defensive-SQLite capability skips, `0` failed.
 - Combined compatibility/package gate: `37` passed, `0` skipped, `0` failed.
 

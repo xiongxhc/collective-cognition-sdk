@@ -334,7 +334,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
   statuses, schema-version-`2` row semantics, zero inferred Decisions or
   Principles, and equal source identity and SHA-256 values without live-vault
   access.
-- [ ] Task 8 final independent specification and code review.
+- [x] Task 8 final independent specification and code review.
 
 **Current Markdown verification evidence**
 
@@ -355,7 +355,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 - The durable fixture-ledger workflow proves source-ledger byte size and modification time are unchanged while a separate cognition database persists a Hypothesis, neutral Evidence, one transitioned Hypothesis revision, and one audit event across close/reopen.
 - The SQLite `0.4.0` slice and maintained connector package `0.5.0` slice were final-review verified on the supported bundled Node.js runtime. Publication readiness remains an explicit unfinished gate below.
-- The [recorded read-only acceptance evidence](acceptance/durable-cognition-workflow-0.1.0.md) persists a version-`2` `under_review` Hypothesis, neutral Evidence with `12` provenance records, and one event in a separate temporary cognition database; it records `0` Decisions, `0` Principles, successful close/reopen replay and Markdown verification, and equal source size, modification time, change time, inode, and SHA-256 values. This acceptance-evidence change does not perform Task 8 final independent review or upgrade the private, unpublished, not-production status.
+- The [recorded read-only acceptance evidence](acceptance/durable-cognition-workflow-0.1.0.md) persists a version-`2` `under_review` Hypothesis, neutral Evidence with `12` provenance records, and one event in a separate temporary cognition database; it records `0` Decisions, `0` Principles, successful close/reopen replay and Markdown verification, and equal source size, modification time, change time, inode, and SHA-256 values. Task 8 independent specification and code/security reviews are complete with no unresolved findings; the package remains private, unpublished, and not production-certified.
 
 **Explicit deferrals**
 
