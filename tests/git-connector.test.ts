@@ -44,6 +44,11 @@ interface RepositorySnapshot {
   readonly worktreeEntries: readonly string[];
 }
 
+interface ControlledGitRead {
+  readonly result: Record<string, unknown>;
+  readonly elapsedMilliseconds: number;
+}
+
 const gitEnvironment = {
   ...process.env,
   GIT_AUTHOR_DATE: "2026-08-20T10:00:00+00:00",
@@ -219,6 +224,13 @@ function readInControlledGitEnvironment(
   fixture: GitFixture,
   path: string,
 ): Record<string, unknown> {
+  return controlledGitRead(fixture, path).result;
+}
+
+function controlledGitRead(
+  fixture: GitFixture,
+  path: string,
+): ControlledGitRead {
   const connectorUrl = pathToFileURL(resolve("src/connectors/git.ts")).href;
   const input = [
     `import { readGitCommitSourceRecords } from ${JSON.stringify(connectorUrl)};`,
@@ -235,14 +247,19 @@ function readInControlledGitEnvironment(
     "  }));",
     "}",
   ].join("\n");
-  const result = spawnSync(process.execPath, ["--input-type=module", "--eval", input], {
+  const startedAt = Date.now();
+  const processResult = spawnSync(process.execPath, ["--input-type=module", "--eval", input], {
     cwd: process.cwd(),
     encoding: "utf8",
     env: { ...process.env, PATH: path },
   });
-  assert.equal(result.error, undefined);
-  assert.equal(result.status, 0, result.stderr);
-  return JSON.parse(result.stdout) as Record<string, unknown>;
+  const elapsedMilliseconds = Date.now() - startedAt;
+  assert.equal(processResult.error, undefined);
+  assert.equal(processResult.status, 0, processResult.stderr);
+  return {
+    result: JSON.parse(processResult.stdout) as Record<string, unknown>,
+    elapsedMilliseconds,
+  };
 }
 
 function assertControlledError(
@@ -620,21 +637,40 @@ test("classifies unavailable, incompatible, missing, and malformed local objects
 });
 
 test("rejects partial and promisor repositories without changing their state", () => {
-  for (const [key, value] of [
-    ["extensions.partialClone", "origin"],
-    ["remote.origin.promisor", "true"],
-  ] as const) {
+  const configurations: readonly {
+    readonly key?: string;
+    readonly label: string;
+    readonly value?: string;
+  }[] = [
+    { key: "extensions.partialClone", label: "partial clone", value: "origin" },
+    { key: "remote.origin.promisor", label: "true", value: "true" },
+    { key: "remote.origin.promisor", label: "yes", value: "yes" },
+    { key: "remote.origin.promisor", label: "uppercase true", value: "TRUE" },
+    { key: "remote.origin.promisor", label: "on", value: "on" },
+    { key: "remote.origin.promisor", label: "one", value: "1" },
+    { label: "valueless" },
+    { key: "remote.dotted.name.promisor", label: "dotted remote", value: "true" },
+  ];
+  for (const configuration of configurations) {
     const fixture = createGitFixture();
     try {
-      runGit(fixture.repositoryPath, ["config", key, value]);
+      if (configuration.key === undefined) {
+        const configPath = join(fixture.repositoryPath, ".git", "config");
+        writeFileSync(
+          configPath,
+          `${readFileSync(configPath, "utf8")}\n[remote \"valueless\"]\n\tpromisor\n`,
+        );
+      } else {
+        runGit(fixture.repositoryPath, ["config", configuration.key, configuration.value ?? ""]);
+      }
       const before = snapshotRepository(fixture.repositoryPath);
       assertGitConnectorError(
         () => readGitCommitSourceRecords(connectorOptions(fixture)),
         "incompatible_repository",
         "open",
         {},
-      );
-      assert.deepEqual(snapshotRepository(fixture.repositoryPath), before);
+      ).message;
+      assert.deepEqual(snapshotRepository(fixture.repositoryPath), before, configuration.label);
     } finally {
       removeGitFixture(fixture.directory);
     }
@@ -665,9 +701,48 @@ test("preserves repository state after successful and failed collection", () => 
   }
 });
 
-test("sanitizes missing executable and bounded process failures", () => {
+test("classifies repository recognition without stderr content", () => {
   const fixture = createGitFixture();
-  const controlledDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-process-"));
+  const nonEnglishDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-non-english-"));
+  const overflowDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-recognition-overflow-"));
+  try {
+    const nonEnglishPath = writeGitExecutable(
+      nonEnglishDirectory,
+      [
+        "const [, , command] = process.argv.slice(2);",
+        "if (command === 'rev-parse') { process.stderr.write('kein Git-Repository\\n'); process.exit(1); }",
+        "process.exit(1);",
+      ].join("\n"),
+    );
+    assertControlledError(
+      readInControlledGitEnvironment(fixture, nonEnglishPath),
+      "incompatible_repository",
+      "open",
+    );
+
+    const overflowPath = writeGitExecutable(
+      overflowDirectory,
+      [
+        "const [, , command] = process.argv.slice(2);",
+        "if (command === 'rev-parse') require('node:fs').writeSync(2, 'not a git repository\\n' + 'x'.repeat(128 * 1024 + 1));",
+        "process.exit(1);",
+      ].join("\n"),
+    );
+    assertControlledError(
+      readInControlledGitEnvironment(fixture, overflowPath),
+      "read_failed",
+      "open",
+    );
+  } finally {
+    removeGitFixture(fixture.directory);
+    rmSync(nonEnglishDirectory, { force: true, recursive: true });
+    rmSync(overflowDirectory, { force: true, recursive: true });
+  }
+});
+
+test("bounds Git execution failures at the tip probe", () => {
+  const fixture = createGitFixture();
+  const failureDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-process-"));
   const timeoutDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-timeout-"));
   const overflowDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-overflow-"));
   try {
@@ -677,7 +752,15 @@ test("sanitizes missing executable and bounded process failures", () => {
       "open",
     );
 
-    const failurePath = writeGitExecutable(controlledDirectory, "process.exit(1);");
+    const failurePath = writeGitExecutable(
+      failureDirectory,
+      [
+        "const [, , command, ...rest] = process.argv.slice(2);",
+        "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
+        "else if (command === 'config') process.exit(1);",
+        "else process.exit(1);",
+      ].join("\n"),
+    );
     assertControlledError(
       readInControlledGitEnvironment(fixture, failurePath),
       "read_failed",
@@ -686,13 +769,23 @@ test("sanitizes missing executable and bounded process failures", () => {
 
     const timeoutPath = writeGitExecutable(
       timeoutDirectory,
-      "setTimeout(() => {}, 6_000);",
+      [
+        "const [, , command, ...rest] = process.argv.slice(2);",
+        "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
+        "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
+        "else if (command === 'config') process.stdout.write('');",
+        "else if (command === 'cat-file' && rest[0] === '-e') { process.on('SIGTERM', () => {}); setInterval(() => {}, 1_000); }",
+        "else process.exit(1);",
+      ].join("\n"),
     );
+    const timeout = controlledGitRead(fixture, timeoutPath);
     assertControlledError(
-      readInControlledGitEnvironment(fixture, timeoutPath),
+      timeout.result,
       "read_failed",
-      "open",
+      "history",
     );
+    assert.ok(timeout.elapsedMilliseconds >= 4_500);
+    assert.ok(timeout.elapsedMilliseconds < 5_750, `${timeout.elapsedMilliseconds}ms exceeded the wall-clock bound.`);
 
     const overflowPath = writeGitExecutable(
       overflowDirectory,
@@ -701,8 +794,7 @@ test("sanitizes missing executable and bounded process failures", () => {
         "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
         "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
         "else if (command === 'config') process.stdout.write('');",
-        "else if (command === 'cat-file') process.exit(0);",
-        "else if (command === 'rev-list') process.stdout.write('x'.repeat(128 * 1024 + 1));",
+        "else if (command === 'cat-file' && rest[0] === '-e') process.stderr.write('x'.repeat(128 * 1024 + 1));",
         "else process.exit(1);",
       ].join("\n"),
     );
@@ -713,9 +805,57 @@ test("sanitizes missing executable and bounded process failures", () => {
     );
   } finally {
     removeGitFixture(fixture.directory);
-    rmSync(controlledDirectory, { force: true, recursive: true });
+    rmSync(failureDirectory, { force: true, recursive: true });
     rmSync(timeoutDirectory, { force: true, recursive: true });
     rmSync(overflowDirectory, { force: true, recursive: true });
+  }
+});
+
+test("bounds aggregate Git objects and rejects oversized declared commits", () => {
+  const fixture = createGitFixture();
+  const aggregateDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-batch-overflow-"));
+  const declaredSizeDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-commit-overflow-"));
+  try {
+    const aggregatePath = writeGitExecutable(
+      aggregateDirectory,
+      [
+        "const [, , command, ...rest] = process.argv.slice(2);",
+        "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
+        "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
+        "else if (command === 'config' || (command === 'cat-file' && rest[0] === '-e')) process.exit(0);",
+        `else if (command === 'rev-list') process.stdout.write(${JSON.stringify(`${fixture.commits.merge}\n`)});`,
+        "else if (command === 'cat-file' && rest[0] === '--batch') process.stdout.write('x'.repeat(8 * 1024 * 1024 + 1));",
+        "else process.exit(1);",
+      ].join("\n"),
+    );
+    assertControlledError(
+      readInControlledGitEnvironment(fixture, aggregatePath),
+      "read_failed",
+      "history",
+    );
+
+    const declaredSizePath = writeGitExecutable(
+      declaredSizeDirectory,
+      [
+        "const [, , command, ...rest] = process.argv.slice(2);",
+        "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
+        "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
+        "else if (command === 'config' || (command === 'cat-file' && rest[0] === '-e')) process.exit(0);",
+        `else if (command === 'rev-list') process.stdout.write(${JSON.stringify(`${fixture.commits.merge}\n`)});`,
+        `else if (command === 'cat-file' && rest[0] === '--batch') process.stdout.write(${JSON.stringify(`${fixture.commits.merge} commit ${1024 * 1024 + 1}\n`)});`,
+        "else process.exit(1);",
+      ].join("\n"),
+    );
+    assertControlledError(
+      readInControlledGitEnvironment(fixture, declaredSizePath),
+      "invalid_commit",
+      "history",
+      { commitIndex: 0 },
+    );
+  } finally {
+    removeGitFixture(fixture.directory);
+    rmSync(aggregateDirectory, { force: true, recursive: true });
+    rmSync(declaredSizeDirectory, { force: true, recursive: true });
   }
 });
 

@@ -79,7 +79,6 @@ interface GitCommandFailure {
   readonly code: GitConnectorErrorCode;
   readonly stage: GitConnectorStage;
   readonly outputLimit: number;
-  readonly recognizeIncompatibleRepository?: boolean;
 }
 
 const allowedOptionFields = new Set([
@@ -241,23 +240,20 @@ function runGit(
     maxBuffer: failure.outputLimit,
     shell: false,
     timeout: GIT_PROCESS_TIMEOUT_MS,
+    killSignal: "SIGKILL",
   });
   const processError = result.error as NodeJS.ErrnoException | undefined;
   if (processError?.code === "ENOENT") {
     throw connectorError("target_unavailable", "open");
   }
-  if (result.error !== undefined || result.status !== 0 || result.signal !== null) {
-    if (
-      failure.recognizeIncompatibleRepository === true &&
-      Buffer.isBuffer(result.stderr) &&
-      /not a git repository/i.test(result.stderr.toString("utf8"))
-    ) {
-      throw connectorError("incompatible_repository", "open");
-    }
+  if (result.error !== undefined || result.signal !== null) {
+    throw connectorError("read_failed", failure.stage);
+  }
+  if (result.status !== 0) {
     throw connectorError(failure.code, failure.stage);
   }
   if (!Buffer.isBuffer(result.stdout)) {
-    throw connectorError(failure.code, failure.stage);
+    throw connectorError("read_failed", failure.stage);
   }
   return result.stdout;
 }
@@ -282,9 +278,11 @@ function partialOrPromisorRepository(config: Buffer): boolean {
   return entries.some((entry) => {
     const separatorIndex = entry.indexOf("\n");
     const key = (separatorIndex < 0 ? entry : entry.slice(0, separatorIndex)).toLowerCase();
-    const value = separatorIndex < 0 ? "" : entry.slice(separatorIndex + 1);
+    const value = (separatorIndex < 0 ? "" : entry.slice(separatorIndex + 1))
+      .toLowerCase();
     return key === "extensions.partialclone" ||
-      (/^remote\.[^.]+\.promisor$/.test(key) && value === "true");
+      (/^remote\..+\.promisor$/.test(key) &&
+        ["", "true", "yes", "on", "1"].includes(value));
   });
 }
 
@@ -468,10 +466,9 @@ export function readGitCommitSourceRecords(
     validatedOptions.repositoryPath,
     ["rev-parse", "--git-dir"],
     {
-      code: "read_failed",
+      code: "incompatible_repository",
       stage: "open",
       outputLimit: GIT_HISTORY_MAX_BYTES,
-      recognizeIncompatibleRepository: true,
     },
   );
   const localConfig = runGit(
