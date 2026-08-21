@@ -161,6 +161,7 @@
     "example:workflow": "node --disable-warning=ExperimentalWarning examples/durable-cognition-workflow.ts",
     "example:teammem": "node --disable-warning=ExperimentalWarning examples/team-memory-evidence.ts",
     "example:teammem:durable": "node --disable-warning=ExperimentalWarning examples/durable-team-memory-evidence.ts",
+    "example:interoperability": "node --disable-warning=ExperimentalWarning examples/cross-connector-interoperability.ts",
     "teammem:export": "node --disable-warning=ExperimentalWarning src/team-memory-cli.ts",
     "cc": "node --disable-warning=ExperimentalWarning src/cli.ts"
   },
