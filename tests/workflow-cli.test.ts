@@ -18,6 +18,7 @@ import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import test, { after } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   createObject,
@@ -29,7 +30,7 @@ import {
   initializeMarkdownCognitionTarget,
 } from "../src/markdown-cognition.ts";
 
-const cliPath = new URL("../src/workflow-cli.ts", import.meta.url);
+const cliPath = fileURLToPath(new URL("../src/workflow-cli.ts", import.meta.url));
 const temporaryDirectories = new Set<string>();
 
 after(() => {
@@ -194,7 +195,7 @@ function runCli(
 ): CliResult {
   const result = spawnSync(
     process.execPath,
-    ["--disable-warning=ExperimentalWarning", cliPath.pathname, ...args],
+    ["--disable-warning=ExperimentalWarning", cliPath, ...args],
     {
       cwd: options.cwd,
       encoding: "utf8",
@@ -217,7 +218,7 @@ function runCliWithRegularStdin(
   try {
     const result = spawnSync(
       process.execPath,
-      ["--disable-warning=ExperimentalWarning", cliPath.pathname, ...args],
+      ["--disable-warning=ExperimentalWarning", cliPath, ...args],
       {
         encoding: "utf8",
         stdio: [descriptor, "pipe", "pipe"],
@@ -721,7 +722,7 @@ sqliteCliTest("emits a fixed output diagnostic when stdout is not writable", () 
       process.execPath,
       [
         "--disable-warning=ExperimentalWarning",
-        cliPath.pathname,
+        cliPath,
         ...current.baseArguments,
         "--create-cognition-db",
       ],

@@ -12,11 +12,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const examplePath = new URL(
   "../examples/durable-cognition-workflow.ts",
   import.meta.url,
 );
+const exampleFilePath = fileURLToPath(examplePath);
 const expectedSummary = '{"workflowId":"workflow:durable-workflow-example:1","schemaVersion":2,"firstPersistence":"committed","replayPersistence":"already_committed","publication":"not_requested","firstProjection":"projected","replayProjection":"unchanged","objects":3,"events":1,"receipts":1,"markdownVerification":"passed"}\n';
 const expectedUnsupportedRuntimeSummary =
   '{"status":"skipped","reason":"unsupported_runtime"}\n';
@@ -57,7 +59,7 @@ unsupportedRuntimeTest("workflow example reports one fixed unsupported-runtime s
       "npm",
       ["run", "--silent", "example:workflow"],
       {
-        cwd: new URL("../", import.meta.url).pathname,
+        cwd: fileURLToPath(new URL("../", import.meta.url)),
         encoding: "utf8",
         env: {
           ...process.env,
@@ -84,7 +86,7 @@ sqliteTest("workflow example prints one summary and removes its temporary root",
   try {
     const result = spawnSync(
       process.execPath,
-      ["--disable-warning=ExperimentalWarning", examplePath.pathname],
+      ["--disable-warning=ExperimentalWarning", exampleFilePath],
       {
         cwd: temporaryParent,
         encoding: "utf8",
