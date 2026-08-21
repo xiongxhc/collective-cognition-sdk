@@ -634,6 +634,28 @@ test("package 0.10.0 baseline records the additive interoperability surface", ()
   }]);
 });
 
+test("compatibility policy classifies the interoperability profile and workflow executable", () => {
+  const policy = readFileSync(
+    new URL("spec/compatibility.md", repositoryRoot),
+    "utf8",
+  );
+  const normativeStableRow = policy
+    .split("\n")
+    .find((line) => line.startsWith("| Normative Stable |"));
+  const supportedExperimentalRow = policy
+    .split("\n")
+    .find((line) => line.startsWith("| Supported Experimental |"));
+
+  assert.match(
+    normativeStableRow ?? "",
+    /Cross-Connector Interoperability Profile `0\.1\.0`/,
+  );
+  assert.match(
+    supportedExperimentalRow ?? "",
+    /`collective-cognition-workflow`/,
+  );
+});
+
 test("current baseline describes the additive package 0.10.0 release", () => {
   const baseline = readJson(currentBaselineUrl);
 

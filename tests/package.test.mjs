@@ -992,6 +992,7 @@ test("public documentation records locally verified cross-connector interoperabi
   const roadmap = documents[2].content;
   const publicApi = documents[5].content;
   const specificationIndex = documents[6].content;
+  const compatibilityPolicy = documents[7].content;
   const rfcIndex = documents[8].content;
   const profile = JSON.parse(readFileSync(interoperabilityProfileUrl, "utf8"));
   const plan = readFileSync(interoperabilityPlanUrl, "utf8");
@@ -1036,6 +1037,21 @@ const sourceRecordsJsonl = readFileSync(
   for (const document of [readme, publicApi, documents[1].content, documents[7].content]) {
     assert.match(document, /no Git\s+CLI/i);
   }
+
+  const normativeStableRow = compatibilityPolicy
+    .split("\n")
+    .find((line) => line.startsWith("| Normative Stable |"));
+  const supportedExperimentalRow = compatibilityPolicy
+    .split("\n")
+    .find((line) => line.startsWith("| Supported Experimental |"));
+  assert.match(
+    normativeStableRow ?? "",
+    /Cross-Connector Interoperability Profile `0\.1\.0`/,
+  );
+  assert.match(
+    supportedExperimentalRow ?? "",
+    /`collective-cognition-workflow`/,
+  );
 
   for (const nonClaim of [
     /no connector registry/i,
