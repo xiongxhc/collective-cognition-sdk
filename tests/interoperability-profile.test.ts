@@ -203,6 +203,7 @@ test("defines a closed versioned interoperability profile", () => {
 });
 
 test("fixtures retain source-local ingestion meaning and canonical source round trips", () => {
+  const sharedCommitId = "0123456789abcdef0123456789abcdef01234567";
   const sourceText = readFileSync(sourceRecordsUrl, "utf8");
   const parsedRecords = readJsonLines(sourceRecordsUrl);
   assert.equal(parsedRecords.length, 5);
@@ -212,6 +213,7 @@ test("fixtures retain source-local ingestion meaning and canonical source round 
   );
   for (const record of normalizedRecords) {
     assertExactKeys(record, [
+      ...(record.source.system === "teammem-event-ledger" ? ["actorId"] : []),
       "capturedAt",
       "content",
       "id",
@@ -234,6 +236,22 @@ test("fixtures retain source-local ingestion meaning and canonical source round 
   const crossSourceIdentityRecord = normalizedRecords[4];
   assert.ok(acceptedTeamMemoryRecord);
   assert.ok(crossSourceIdentityRecord);
+  assert.equal(
+    acceptedTeamMemoryRecord.sourceId,
+    `commit:${sharedCommitId}`,
+  );
+  assert.equal(acceptedTeamMemoryRecord.revisionId, sharedCommitId);
+  assert.equal(acceptedTeamMemoryRecord.actorId, "person:commit");
+  assert.equal(
+    acceptedTeamMemoryRecord.id,
+    `source-record:teammem-event-ledger:fictional-ledger.example.invalid:commit:${sharedCommitId}:${sharedCommitId}`,
+  );
+  assert.deepEqual(acceptedTeamMemoryRecord.content, {
+    project: null,
+    kind: "note",
+    summary: "Fictional ledger event.",
+    refs: [],
+  });
   assert.equal(crossSourceIdentityRecord.source.system, "git-repository");
   assert.notEqual(
     crossSourceIdentityRecord.source.instance,
@@ -247,6 +265,30 @@ test("fixtures retain source-local ingestion meaning and canonical source round 
     crossSourceIdentityRecord.revisionId,
     acceptedTeamMemoryRecord.revisionId,
   );
+  assert.equal(crossSourceIdentityRecord.sourceId, `commit:${sharedCommitId}`);
+  assert.equal(crossSourceIdentityRecord.revisionId, sharedCommitId);
+
+  const gitRecords = normalizedRecords.filter(
+    (record) => record.source.system === "git-repository",
+  );
+  assert.equal(gitRecords.length, 2);
+  for (const record of gitRecords) {
+    assert.match(record.revisionId, /^[0-9a-f]{40}$/u);
+    assert.equal(record.sourceId, `commit:${record.revisionId}`);
+    assert.equal(
+      record.id,
+      `source-record:git-repository:fictional-repository.example.invalid:${record.revisionId}`,
+    );
+    assertExactKeys(record.content, [
+      "author",
+      "authoredAt",
+      "commitId",
+      "committedAt",
+      "parents",
+      "summary",
+    ]);
+    assert.equal(record.content.commitId, record.revisionId);
+  }
 
   const result = ingestSourceRecordText(sourceText, {
     format: "jsonl",
