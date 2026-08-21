@@ -382,13 +382,15 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 5: Cross-Connector Interoperability
 
-**Status:** Next SDK development slice. Phase 4 is complete. Phase 5 remains pending the two-connector criteria: at least two independently useful connectors must pass their own contract tests, and a real cross-connector exchange workflow must have a named owner.
+**Status:** In design. Phase 4 is complete. The approved [Cross-Connector Interoperability design](superpowers/specs/2026-08-21-cross-connector-interoperability-design.md) begins Phase 5 by adding and verifying the second maintained connector. Phase 5 completes only when at least two independently useful connectors pass their own contract tests and a real cross-connector exchange workflow has a named owner.
 
 **Entry criteria**
 
-- Phase 3 conformance artifacts are published.
-- At least two independently useful connectors pass their own contract tests.
-- A real exchange workflow has a named owner.
+- Phase 4 is complete.
+- SourceRecord and connector-conformance contracts are available as versioned
+  package surfaces.
+- Collective Cognition SDK maintainers accept ownership of the reference
+  exchange fixtures, report, and compatibility inventory.
 
 **Deliverables**
 
@@ -399,6 +401,10 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 **Acceptance checks**
 
 - Two connectors emit semantically valid source records consumed by the same generic ingestion path.
+- At least two independently useful maintained connectors pass their own
+  source-specific contract tests and the shared connector-conformance boundary.
+- The real reference exchange workflow has a named owner and remains isolated
+  from live repositories, ledgers, and vaults.
 - Objects exported through the exchange format remain semantically equivalent.
 - Unsupported extensions fail or degrade according to compatibility rules, never silently.
 
