@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
-import { devNull } from "node:os";
 import { isAbsolute } from "node:path";
 
 import { createSourceRecord } from "../source-records.ts";
@@ -122,7 +121,7 @@ const gitEnvironment: Readonly<NodeJS.ProcessEnv> = Object.freeze({
       return value === undefined ? [] : [[name, value]];
     }),
   ),
-  GIT_CONFIG_GLOBAL: devNull,
+  GIT_CONFIG_GLOBAL: "/dev/null",
   GIT_CONFIG_NOSYSTEM: "1",
   GIT_NO_LAZY_FETCH: "1",
   GIT_OPTIONAL_LOCKS: "0",

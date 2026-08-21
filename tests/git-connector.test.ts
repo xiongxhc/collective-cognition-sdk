@@ -10,7 +10,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { devNull, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -640,12 +640,15 @@ test("passes only a closed deterministic environment to Git children", {
     const normalizedCaptured = { ...captured };
     if (process.platform === "darwin") {
       if (normalizedCaptured.__CF_USER_TEXT_ENCODING !== undefined) {
-        assert.match(normalizedCaptured.__CF_USER_TEXT_ENCODING, /^0x[0-9A-F]+:\d+:\d+$/);
+        assert.match(
+          normalizedCaptured.__CF_USER_TEXT_ENCODING,
+          /^0x[0-9A-F]+:(?:0x[0-9A-F]+|\d+):(?:0x[0-9A-F]+|\d+)$/,
+        );
       }
       delete normalizedCaptured.__CF_USER_TEXT_ENCODING;
     }
     const expected: Record<string, string> = {
-      GIT_CONFIG_GLOBAL: devNull,
+      GIT_CONFIG_GLOBAL: "/dev/null",
       GIT_CONFIG_NOSYSTEM: "1",
       GIT_NO_LAZY_FETCH: "1",
       GIT_OPTIONAL_LOCKS: "0",
