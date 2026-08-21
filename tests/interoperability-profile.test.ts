@@ -250,7 +250,7 @@ test("fixtures retain source-local ingestion meaning and canonical source round 
     project: null,
     kind: "note",
     summary: "Fictional ledger event.",
-    refs: [],
+    refs: {},
   });
   assert.equal(crossSourceIdentityRecord.source.system, "git-repository");
   assert.notEqual(
