@@ -9,7 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   createObject,
@@ -28,7 +28,7 @@ import type {
   PreparedDurableCognitionCommit,
 } from "../src/workflows/durable.ts";
 
-const cliPath = new URL("../src/workflow-cli.ts", import.meta.url);
+const cliPath = fileURLToPath(new URL("../src/workflow-cli.ts", import.meta.url));
 const unsupportedRuntimeSummary =
   '{"status":"skipped","reason":"unsupported_runtime"}\n';
 
@@ -132,7 +132,7 @@ function sourceNeutralFixture(): SourceNeutralFixture {
 function runCli(arguments_: readonly string[]): WorkflowResult {
   const result = spawnSync(
     process.execPath,
-    ["--disable-warning=ExperimentalWarning", cliPath.pathname, ...arguments_],
+    ["--disable-warning=ExperimentalWarning", cliPath, ...arguments_],
     { encoding: "utf8" },
   );
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -243,7 +243,7 @@ export async function runDurableCognitionWorkflowExample(
   ));
   try {
     options.afterTemporaryRootCreated?.(temporaryRoot);
-    const root = realpathSync(temporaryRoot);
+    const root = realpathSync.native(temporaryRoot);
     const requestPath = join(root, "request.json");
     const inputPath = join(root, "records.jsonl");
     const databasePath = join(root, "cognition.db");

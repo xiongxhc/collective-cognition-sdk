@@ -81,7 +81,7 @@ interface CliResult {
 }
 
 function temporaryRoot(name = "ccsdk-workflow-cli-"): string {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), name)));
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), name)));
   temporaryDirectories.add(root);
   return root;
 }

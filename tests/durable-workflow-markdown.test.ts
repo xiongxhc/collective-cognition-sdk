@@ -280,7 +280,9 @@ function stableFileMetadata(root: string): readonly Record<string, unknown>[] {
 sqliteTest(
   "recovers an incompatible Markdown projection after exact SQLite reopen replay",
   async () => {
-    const root = realpathSync(mkdtempSync(join(tmpdir(), "ccsdk-workflow-markdown-")));
+    const root = realpathSync.native(
+      mkdtempSync(join(tmpdir(), "ccsdk-workflow-markdown-")),
+    );
     try {
       const requestPath = join(root, "request.json");
       const inputPath = join(root, "records.jsonl");
