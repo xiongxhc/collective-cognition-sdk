@@ -83,7 +83,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** In progress. The compatibility, Portable Cognition, and Host Integration slices are final-review verified; the Runtime and Security slice is implemented, full local-gate verified, and independently reviewed. The checked public-API and distribution-readiness documentation slice for private package `0.8.0` is complete, while its final whole-branch gate and broader Phase 3 work remain open. The experimental `v0.6.0` GitHub prerelease is observed and verified, while npm publication remains blocked and production readiness is not claimed.
+**Status:** In progress. The compatibility, Portable Cognition, and Host Integration slices are final-review verified; the Runtime and Security slice is implemented, full local-gate verified, and independently reviewed. The checked public-API and distribution-readiness documentation slice for private package `0.8.0` completed its whole-branch verification, was fast-forwarded to `main`, and passed the full GitHub Actions matrix. Broader Phase 3 language-neutral semantics, schemas, publication, and production-readiness work remain open. The experimental `v0.6.0` GitHub prerelease is observed and verified, while npm publication remains blocked and production readiness is not claimed.
 
 **Phase 3 slice progress**
 
@@ -96,6 +96,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Runtime and Security Profile `0.1.0` design approved.
 - [x] Implement the normative policy, machine-readable control inventory, RFC, package subpath, compatibility baseline, and conformance evidence described in [`2026-08-10-runtime-security-policy-design.md`](superpowers/specs/2026-08-10-runtime-security-policy-design.md).
 - [x] Reconcile the checked [public API reference](public-api.md), [Distribution Readiness Profile `0.1.0`](../spec/distribution-readiness.md), [machine-readable profile](../spec/distribution-readiness/0.1.0/profile.json), [RFC 0009](../rfcs/0009-public-api-and-distribution-readiness.md), private package `0.8.0` compatibility narrative, and public indexes without enabling publication or claiming production readiness.
+- [x] Complete the private package `0.8.0` whole-branch gate, fast-forward it to `main` at `1f65c1809f03ffde244529ba41c73bec6e14392a`, and verify [GitHub Actions run `31696629195`](https://github.com/xiongxhc/collective-cognition-sdk/actions/runs/31696629195) across Node `24.9.0` and `24.14.0` on Linux, macOS, Windows, and the distribution job.
 
 **Delivered in the SourceRecord normative-conformance slice**
 
@@ -133,7 +134,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 - Independent final review found no remaining Critical or Important issue after the correction wave.
 - The complete local matrix passes: `npm test` reports 194 source, 10 combined SourceRecord and Portable Cognition schema, 14 compatibility, and 6 package tests; TypeScript checking, syntax checking, both examples, `pack:check`, and `git diff --check` also exit successfully.
-- Package version `0.2.0` retained `"private": true` at the time of this slice. It was later superseded by the private `0.3.0` Host Integration slice, private `0.4.0` SQLite slice, private `0.5.0` connector slice, private `0.6.0` Markdown slice, private `0.7.0` Runtime and Security slice, and current private, unpublished package `0.8.0`; the maintained connector implementation, final verification, and real-ledger acceptance are complete.
+- Package version `0.2.0` retained `"private": true` at the time of this slice. It was later superseded by the private `0.3.0` Host Integration slice, private `0.4.0` SQLite slice, private `0.5.0` connector slice, private `0.6.0` Markdown slice, private `0.7.0` Runtime and Security slice, historical private package `0.8.0`, and current private, unpublished package `0.9.0`; the maintained connector implementation, final verification, and real-ledger acceptance are complete.
 - Compatibility hashes: baseline `0.1.0` `4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b`; change cases `0.1.0` `3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b`; baseline `0.2.0` `3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4`; change cases `0.2.0` `e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5`.
 - SourceRecord artifact hashes remain byte-identical: schema `56cf53c5da98dfbec19a021fbb90673beab8248c7a77df44989b535a0e155648`; valid fixtures `f52c212026b70bf2b339e1132b2895c91be509f250dde841319dbbb4edd3f74a`; invalid fixtures `4705f32eb5ea48ddd693759728294d2557b0a6f4a5cc666843b2e03bb03e99c0`.
 - Portable Cognition artifact hashes: prose `d73a6de049c7408715d7e717dd326e79830d99fe84ff85cb5936dfb8a757be89`; schema `6dec3f942ca88994fef588a2ffb93240d716e116dbec7ded46a1f362446f6bdd`; valid fixtures `cc3854706ace472b0d5335ecb9596c7ea3bf2b48c04fd9dd950f9683e8b203f4`; invalid fixtures `0f8e21f7379824223482e26ae26ec0b7b5031077ab63f6dac4558239b4908ba4`; cognitive-loop fixtures `1693d97e207cfeee63d370ba23d07ffd9023e8b087e5dbd3c0ad53e945184053`.
@@ -166,7 +167,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Normative [Runtime and Security Profile `0.1.0`](../spec/runtime-security.md), synchronized JSON inventory at `collective-cognition-sdk/runtime-security/0.1.0`, and [RFC 0008](../rfcs/0008-runtime-security-profile.md).
 - [x] Four explicit enforcement classes: `sdk-enforced`, `conformance-verified`, `host-required`, and `out-of-scope`.
 - [x] Closed control coverage for authentication, encryption, tenant or workspace isolation, durable publication recovery, and related host-owned boundaries without adding a runtime policy engine.
-- [x] At the Runtime and Security slice boundary, the current private, unpublished package `0.7.0` added its compatibility baseline without changing root exports, existing CLIs, or historical `v0.6.0` records; current package `0.8.0` supersedes that private baseline additively.
+- [x] At the Runtime and Security slice boundary, private, unpublished package `0.7.0` added its compatibility baseline without changing root exports, existing CLIs, or historical `v0.6.0` records; package `0.8.0` superseded that private baseline additively, and current package `0.9.0` preserves both historical artifacts.
 - [x] Public documentation reconciliation that explains host-owned responsibilities and states that conformance is not certification.
 
 **Runtime and Security Profile final verification evidence**
@@ -282,7 +283,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 4: Adapter Ecosystem Foundations
 
-**Status:** Active. The SQLite database persistence adapter, maintained source-connector slice, and [Markdown cognition adapter](markdown-cognition-adapter-guide.md) are implemented and final-review verified. The Markdown slice includes the private, npm-unpublished package `0.6.0` export, executable, compatibility baseline, exact package allowlist, clean-consumer workflow, and temporary-vault acceptance. The experimental `v0.6.0` GitHub prerelease is observed and verified as recorded in Phase 3.
+**Status:** Complete. All Phase 4 design acceptance gates pass. The SQLite database persistence adapter, maintained source-connector slice, [Markdown cognition adapter](markdown-cognition-adapter-guide.md), and source-neutral [Durable Cognition Workflow `0.1.0`](durable-cognition-workflow-guide.md) are implemented. Private, unpublished package `0.9.0` adds the exact workflow and SQLite workflow-store subpaths, installed workflow executable, compatibility baseline, RFC 0010, guide, exact package allowlist, and clean-consumer verification without claiming npm publication or production use. Task 8 read-only acceptance and final whole-branch specification, code, and security reviews are complete. The experimental `v0.6.0` GitHub prerelease remains the only observed public package artifact recorded in Phase 3.
 
 **Entry criteria**
 
@@ -300,12 +301,13 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] The reviewed [Markdown cognition adapter](superpowers/specs/2026-07-30-markdown-cognition-adapter-design.md), operating only on an explicitly initialized managed directory.
 - [x] A connector author guide and RFC explaining independent repositories and packages, SourceRecord neutrality, connector-owned concerns, and conformance limits.
 - [x] Deterministic object-to-Markdown and Markdown-to-object fixtures with stable IDs, versions, relationships, and provenance.
+- [x] A source-neutral durable workflow that atomically persists an explicit Hypothesis, promoted neutral Evidence, transitioned Hypothesis, and event, then reports publication and optional Markdown projection as separate recoverable downstream stages.
 
 **Acceptance checks**
 
 - [x] Generic and maintained connectors pass the same SourceRecord conformance boundary.
 - [x] Maintained connector tests prove explicit read-only source selection, deterministic output, identity isolation, default raw omission, explicit privacy opt-in, and no source mutation.
-- [x] Package tests cover the versioned conformance and connector imports, exact package contents, and both installed CLIs.
+- [x] Package tests cover every historical entrypoint plus the versioned workflow and SQLite workflow-store imports, exact package contents, and all four installed CLIs.
 - [x] Persistence adapter tests prove that durable cognitive objects and audit events survive round trips without depending on a source store's private schema.
 - [x] Manual real-ledger acceptance for the maintained connector: `12,807` records validated without raw content, repeated export SHA-256 `698ffd2d77dfdb588d85676582a37ee39fd8b9eff05708dc06fb580248453b17`, and source byte size plus nanosecond modification time unchanged.
 - [x] Independent final verification for the preceding connector and SQLite
@@ -319,6 +321,20 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
   clean-consumer checks cover the Markdown adapter.
 - [x] Final whole-branch review reconciles the Markdown adapter with the
   package baseline and all project checks.
+- [x] Durable workflow tests cover preparation before host invocation, atomic
+  SQLite commit, exact replay, conflict precedence, rollback, concurrency,
+  close/reopen, downstream partial success, managed Markdown recovery, and the
+  closed installed CLI.
+- [x] Private package `0.9.0` records exact runtime/type inventories,
+  declaration closures and digests, executable modes, clean-consumer imports,
+  packed CLI execution, and a tarball allowlist that excludes sources, tests,
+  examples, and plans.
+- [x] [Read-only durable-workflow acceptance](acceptance/durable-cognition-workflow-0.1.0.md)
+  records `12` bounded canonical SourceRecords, exact commit/replay and Markdown
+  statuses, schema-version-`2` row semantics, zero inferred Decisions or
+  Principles, and equal source identity and SHA-256 values without live-vault
+  access.
+- [x] Task 8 final independent specification and code review.
 
 **Current Markdown verification evidence**
 
@@ -339,7 +355,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 - The durable fixture-ledger workflow proves source-ledger byte size and modification time are unchanged while a separate cognition database persists a Hypothesis, neutral Evidence, one transitioned Hypothesis revision, and one audit event across close/reopen.
 - The SQLite `0.4.0` slice and maintained connector package `0.5.0` slice were final-review verified on the supported bundled Node.js runtime. Publication readiness remains an explicit unfinished gate below.
-- The recorded manual real-ledger acceptance persists a version-`2` `under_review` Hypothesis, neutral Evidence from `12` source records, and one event in a separate cognition database; it infers `0` Decisions, reopens successfully, and leaves the source ledger's byte size and nanosecond modification time unchanged. Independent final review and the exceptional re-review found no unresolved Critical or Important issue, and the branch was declared **READY TO MERGE**.
+- The [recorded read-only acceptance evidence](acceptance/durable-cognition-workflow-0.1.0.md) persists a version-`2` `under_review` Hypothesis, neutral Evidence with `12` provenance records, and one event in a separate temporary cognition database; it records `0` Decisions, `0` Principles, successful close/reopen replay and Markdown verification, and equal source size, modification time, change time, inode, and SHA-256 values. Task 8 independent specification and code/security reviews are complete with no unresolved findings; the package remains private, unpublished, and not production-certified.
 
 **Explicit deferrals**
 
@@ -358,10 +374,14 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
   backend yet. The runtime-dependency-free core requires that untrusted
   same-privilege processes do not concurrently mutate the managed target;
   optional `openat`/`renameat`/`unlinkat` hardening remains future work.
+- No migration from SQLite schema version `1`; workflow operators select a new
+  explicit schema-version-`2` cognition database.
+- No publisher in `collective-cognition-workflow`; Markdown is not
+  authoritative storage.
 
 ## Phase 5: Cross-Connector Interoperability
 
-**Status:** Next SDK development slice. Execution remains pending its entry criteria.
+**Status:** Next SDK development slice. Phase 4 is complete. Phase 5 remains pending the two-connector criteria: at least two independently useful connectors must pass their own contract tests, and a real cross-connector exchange workflow must have a named owner.
 
 **Entry criteria**
 

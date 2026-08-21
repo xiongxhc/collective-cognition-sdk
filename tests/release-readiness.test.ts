@@ -41,8 +41,8 @@ const expectedAssets = [
   "release-manifest.json",
 ];
 const expectedChecksumAssets = expectedAssets.slice(1);
-const expectedPackageScriptsSha256 = "0c8c0e7833c64456f3e8248efe7f46a5a3e5d07d4e307074676b7b8f131626ba";
-const expectedCiWorkflowSha256 = "4ffd26bf39c2f859aac567bcfda421d3ba834ae993e0ca2b0ff3e384794eba7a";
+const expectedPackageScriptsSha256 = "7a2d3e4caf6dda279b46cf4d33788b11ba57f18fea285abc176914b70400d268";
+const expectedCiWorkflowSha256 = "6d355031d6cb75abb56a884e179641a61ccc8798e39093ab993d4a79d2db1c85";
 const expectedGitHubPrereleaseWorkflowSha256 = "b628e8e07829bd115a01133595d4f3424e0634e7479f9f00c35bc4e5c9a8508f";
 const expectedTarballSha256 = "3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe";
 const expectedReleaseCommit = "76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e";
@@ -1001,13 +1001,23 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
   );
 
   const examples = assertUnconditional(job, "Run examples and package checks");
+  const currentExamples = assertUnconditional(
+    ciDistributionJob,
+    "Run examples and package checks",
+  );
   assert.ok(steps.indexOf(fullVerification) < steps.indexOf(examples));
+  assert.match(currentExamples.run ?? "", /^\s*npm run example:workflow$/m);
+  assert.doesNotMatch(
+    examples.run ?? "",
+    /^\s*npm run example:workflow$/m,
+    "the immutable v0.6.0 prerelease workflow must not acquire later examples",
+  );
   assert.equal(
     normalizedVerificationBody(examples),
-    normalizedVerificationBody(assertUnconditional(
-      ciDistributionJob,
-      "Run examples and package checks",
-    )),
+    normalizedVerificationBody(currentExamples)
+      .split("\n")
+      .filter((line) => line.trim() !== "npm run example:workflow")
+      .join("\n"),
   );
   assert.match(examples.run ?? "", /\$\{\{ runner\.temp \}\}\/release-examples/);
 
@@ -1850,9 +1860,16 @@ test("reviewed release text uses repository-enforced LF normalization", () => {
     ".github/workflows/github-prerelease.yml",
     "package.json",
     "README.md",
+    "docs/durable-cognition-workflow-guide.md",
     "docs/github-prerelease.md",
+    "docs/public-api.md",
+    "docs/ROADMAP.md",
     "rfcs/README.md",
+    "rfcs/0010-durable-cognition-workflow.md",
     "spec/README.md",
+    "spec/compatibility.md",
+    "spec/compatibility/0.9.0/baseline.json",
+    "spec/compatibility/0.9.0/change-cases.jsonl",
     "scripts/build-github-prerelease.mjs",
     "src/index.ts",
     "tests/release-readiness.test.ts",

@@ -16,6 +16,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
@@ -36,11 +37,15 @@ const distMarkdownCognitionCliUrl = new URL(
   "../dist/markdown-cognition-cli.js",
   import.meta.url,
 );
+const distWorkflowCliUrl = new URL(
+  "../dist/workflow-cli.js",
+  import.meta.url,
+);
 const packageJsonUrl = new URL("../package.json", import.meta.url);
 const packageLockUrl = new URL("../package-lock.json", import.meta.url);
 const gitAttributesUrl = new URL("../.gitattributes", import.meta.url);
 const compatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.8.0/baseline.json",
+  "../spec/compatibility/0.9.0/baseline.json",
   import.meta.url,
 );
 const historicalCompatibilityBaselineUrl = new URL(
@@ -48,7 +53,7 @@ const historicalCompatibilityBaselineUrl = new URL(
   import.meta.url,
 );
 const previousCompatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.7.0/baseline.json",
+  "../spec/compatibility/0.8.0/baseline.json",
   import.meta.url,
 );
 const licenseUrl = new URL("../LICENSE", import.meta.url);
@@ -59,6 +64,10 @@ const connectorAuthorGuideUrl = new URL(
   "../docs/connector-author-guide.md",
   import.meta.url,
 );
+const durableWorkflowGuideUrl = new URL(
+  "../docs/durable-cognition-workflow-guide.md",
+  import.meta.url,
+);
 const roadmapUrl = new URL("../docs/ROADMAP.md", import.meta.url);
 const connectorRfcUrl = new URL(
   "../rfcs/0006-maintained-source-connectors.md",
@@ -66,6 +75,10 @@ const connectorRfcUrl = new URL(
 );
 const runtimeSecurityRfcUrl = new URL(
   "../rfcs/0008-runtime-security-profile.md",
+  import.meta.url,
+);
+const durableWorkflowRfcUrl = new URL(
+  "../rfcs/0010-durable-cognition-workflow.md",
   import.meta.url,
 );
 const rfcIndexUrl = new URL("../rfcs/README.md", import.meta.url);
@@ -125,6 +138,12 @@ const expectedRuntimeExports = [
   "transitionObject",
   "validatePortableCognitionRecord",
   "validateSourceRecord",
+].sort();
+const expectedDurableWorkflowRuntimeExports = [
+  "DURABLE_COGNITION_WORKFLOW_VERSION",
+  "prepareDurableCognitionWorkflow",
+  "runDurableCognitionWorkflow",
+  "runDurableWorkflowStoreConformance",
 ].sort();
 const expectedHistoricalEmittedFiles030 = Object.freeze([
   "dist/authorization.d.ts",
@@ -200,6 +219,27 @@ const expectedMarkdownEmittedFiles060 = Object.freeze([
 ]);
 const expectedEmittedFiles060 = Object.freeze(
   [...expectedEmittedFiles050, ...expectedMarkdownEmittedFiles060].sort(),
+);
+const expectedDurableWorkflowEmittedFiles090 = Object.freeze([
+  "dist/stores/sqlite-workflow.d.ts",
+  "dist/stores/sqlite-workflow.js",
+  "dist/workflow-cli-contract.d.ts",
+  "dist/workflow-cli-contract.js",
+  "dist/workflow-cli.d.ts",
+  "dist/workflow-cli.js",
+  "dist/workflows/durable-conformance.d.ts",
+  "dist/workflows/durable-conformance.js",
+  "dist/workflows/durable-contract.d.ts",
+  "dist/workflows/durable-contract.js",
+  "dist/workflows/durable-prepare.d.ts",
+  "dist/workflows/durable-prepare.js",
+  "dist/workflows/durable-run.d.ts",
+  "dist/workflows/durable-run.js",
+  "dist/workflows/durable.d.ts",
+  "dist/workflows/durable.js",
+]);
+const expectedEmittedFiles090 = Object.freeze(
+  [...expectedEmittedFiles060, ...expectedDurableWorkflowEmittedFiles090].sort(),
 );
 const productionDependencyFields = Object.freeze([
   "dependencies",
@@ -310,6 +350,38 @@ test("built package exposes only the source-neutral runtime API", async () => {
 
   const builtApi = await import(distIndexUrl.href);
   assert.deepEqual(Object.keys(builtApi).sort(), expectedRuntimeExports);
+});
+
+test("package 0.9.0 exposes the exact durable workflow subpaths and executable", async () => {
+  const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
+
+  assert.equal(packageJson.version, "0.9.0");
+  assert.deepEqual(packageJson.exports["./workflows/durable/0.1.0"], {
+    types: "./dist/workflows/durable.d.ts",
+    import: "./dist/workflows/durable.js",
+  });
+  assert.deepEqual(packageJson.exports["./stores/sqlite-workflow/0.1.0"], {
+    types: "./dist/stores/sqlite-workflow.d.ts",
+    import: "./dist/stores/sqlite-workflow.js",
+  });
+  assert.equal(
+    packageJson.bin["collective-cognition-workflow"],
+    "./dist/workflow-cli.js",
+  );
+  assert.deepEqual(
+    Object.keys(await import("collective-cognition-sdk/workflows/durable/0.1.0")).sort(),
+    expectedDurableWorkflowRuntimeExports,
+  );
+  assert.deepEqual(
+    Object.keys(await import("collective-cognition-sdk/stores/sqlite-workflow/0.1.0")).sort(),
+    ["SqliteCognitionWorkflowStore"],
+  );
+  await assert.rejects(
+    import("collective-cognition-sdk/stores/sqlite-internal"),
+    { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" },
+  );
+  assert.equal(existsSync(new URL("../dist/stores/sqlite-internal.js", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../dist/stores/sqlite-internal.d.ts", import.meta.url)), false);
 });
 
 test("emitted modules contain no relative TypeScript import specifiers", () => {
@@ -562,7 +634,7 @@ test("public documentation explains the source-neutral connector model", () => {
   );
   assert.match(
     rfcIndex,
-    /current package is private, unpublished `0\.7\.0`/,
+    /current package is private, unpublished `0\.9\.0`/,
   );
   assert.doesNotMatch(
     rfcIndex,
@@ -631,7 +703,7 @@ test("public documentation explains the source-neutral connector model", () => {
   assert.match(roadmap, /delivered|verified/i);
   assert.match(
     roadmap,
-    /current private, unpublished package `0\.7\.0`/,
+    /current package `0\.9\.0` preserves both historical artifacts/,
   );
   assert.doesNotMatch(
     roadmap,
@@ -681,6 +753,83 @@ test("public documentation explains the source-neutral connector model", () => {
   }
 });
 
+test("public documentation defines the durable workflow without upgrading readiness claims", () => {
+  const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
+  const readme = readFileSync(readmeUrl, "utf8");
+  const roadmap = readFileSync(roadmapUrl, "utf8");
+  const publicApi = readFileSync(new URL("../docs/public-api.md", import.meta.url), "utf8");
+  const guide = readFileSync(durableWorkflowGuideUrl, "utf8");
+  const rfc = readFileSync(durableWorkflowRfcUrl, "utf8");
+  const specificationIndex = readFileSync(specificationIndexUrl, "utf8");
+  const documents = [readme, roadmap, publicApi, guide, rfc];
+  const combined = documents.join("\n");
+
+  assert.equal(packageJson.version, "0.9.0");
+  assert.equal(packageJson.private, true);
+  assert.match(readme, /connector or canonical JSONL[\s\S]*explicit durable workflow request[\s\S]*atomic cognition database[\s\S]*optional event publisher[\s\S]*optional managed Markdown projection/);
+  for (const document of documents) {
+    assert.match(document, /0\.9\.0/);
+  }
+  assert.match(combined, /private(?:,| and)? unpublished|private package `0\.9\.0` is unpublished/i);
+  assert.match(combined, /production (?:use|readiness|certification)[^\n]*(?:not claimed|no|does not|not authorize)|no production certification/i);
+  for (const phrase of [
+    "new explicit database",
+    "CLI has no publisher",
+    "Markdown is non-authoritative",
+    "no scheduler",
+    "automatic cognition",
+    "Obsidian discovery",
+    "authentication",
+    "encryption",
+    "durable outbox",
+    "production certification",
+  ]) {
+    assert.equal(
+      documents.some((document) => document.toLowerCase().includes(phrase.toLowerCase())),
+      true,
+      phrase,
+    );
+  }
+  assert.match(
+    roadmap,
+    /Phase 4[\s\S]*\*\*Status:\*\* Complete\. All Phase 4 design acceptance gates pass\./,
+  );
+  assert.match(
+    readFileSync(join(repositoryRoot, "README.md"), "utf8"),
+    /completed adapter ecosystem foundations with Durable Cognition Workflow `0\.1\.0` final-review verified/,
+  );
+  assert.match(roadmap, /\[x\] A source-neutral durable workflow/);
+  assert.match(roadmap, /\[x\] Task 8 final independent specification and code review\./);
+  assert.doesNotMatch(roadmap, /does not perform Task 8 final independent review/);
+  assert.match(roadmap, /Phase 5 remains pending the two-connector criteria/);
+  assert.match(roadmap, /at least two independently useful connectors/);
+  assert.match(roadmap, /real cross-connector exchange workflow must have a named owner/);
+  assert.match(publicApi, /\.\/workflows\/durable\/0\.1\.0/);
+  assert.match(publicApi, /\.\/stores\/sqlite-workflow\/0\.1\.0/);
+  assert.match(publicApi, /collective-cognition-workflow/);
+  for (const document of [readme, publicApi, guide, rfc]) {
+    assert.match(document, /Node(?:\.js)? `?>=24\.14\.0`?/i);
+    assert.match(document, /DatabaseSync\.prototype\.enableDefensive/);
+    assert.match(
+      document,
+      /Node(?:\.js)? `?24\.9(?:\.0)?`?[\s\S]{0,240}(?:package|core)[\s\S]{0,120}compatibility[\s\S]{0,240}(?:not a full workflow runtime|not the full workflow runtime)/i,
+    );
+  }
+  assert.match(publicApi, /tarball[^\n]*no[^\n]*sqlite-internal|no[^\n]*sqlite-internal[^\n]*tarball/i);
+  assert.match(rfc, /package contains no\s+`sqlite-internal` JavaScript or declaration file/i);
+  assert.match(rfc, /SQLite workflow store[^\n]*self-contained|self-contained[^\n]*SQLite workflow store/i);
+  assert.match(
+    specificationIndex,
+    /SQLite stores are self-contained[^\n]*no shared `sqlite-internal` source, JavaScript, or declaration module is built or packaged/i,
+  );
+  assert.doesNotMatch(specificationIndex, /SQLite internal module remain/i);
+  const rfcIndex = readFileSync(rfcIndexUrl, "utf8");
+  assert.doesNotMatch(rfcIndex, /current package[^\n]*0\.8\.0/i);
+  assert.doesNotMatch(roadmap, /current private, unpublished package `0\.8\.0`/i);
+  assertMarkdownLinksResolve(guide, durableWorkflowGuideUrl);
+  assertMarkdownLinksResolve(rfc, durableWorkflowRfcUrl);
+});
+
 test("development dependency security floors remain pinned", () => {
   const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
   const packageLock = JSON.parse(readFileSync(packageLockUrl, "utf8"));
@@ -710,16 +859,16 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.deepEqual(
     baseline.package.runtimeExports,
     previousBaseline.package.runtimeExports,
-    "package 0.8 root runtime exports must remain identical to 0.7",
+    "package 0.9 root runtime exports must remain identical to 0.8",
   );
   assert.deepEqual(
     baseline.package.typeExports,
     previousBaseline.package.typeExports,
-    "package 0.8 root type exports must remain identical to 0.7",
+    "package 0.9 root type exports must remain identical to 0.8",
   );
-  assert.equal(packageJson.version, "0.8.0");
-  assert.equal(packageLock.version, "0.8.0");
-  assert.equal(packageLock.packages[""].version, "0.8.0");
+  assert.equal(packageJson.version, "0.9.0");
+  assert.equal(packageLock.version, "0.9.0");
+  assert.equal(packageLock.packages[""].version, "0.9.0");
   assert.equal(
     packageJson.exports["./distribution-readiness/0.1.0"],
     "./spec/distribution-readiness/0.1.0/profile.json",
@@ -787,9 +936,15 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       "./spec/compatibility/0.7.0/baseline.json",
     "./compatibility/0.8.0":
       "./spec/compatibility/0.8.0/baseline.json",
+    "./compatibility/0.9.0":
+      "./spec/compatibility/0.9.0/baseline.json",
     "./adapters/markdown/0.1.0": {
       types: "./dist/markdown-cognition.d.ts",
       import: "./dist/markdown-cognition.js",
+    },
+    "./workflows/durable/0.1.0": {
+      types: "./dist/workflows/durable.d.ts",
+      import: "./dist/workflows/durable.js",
     },
     "./connector-conformance/0.1.0": {
       types: "./dist/connector-conformance.d.ts",
@@ -812,6 +967,10 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "./stores/sqlite/0.1.0": {
       types: "./dist/stores/sqlite.d.ts",
       import: "./dist/stores/sqlite.js",
+    },
+    "./stores/sqlite-workflow/0.1.0": {
+      types: "./dist/stores/sqlite-workflow.d.ts",
+      import: "./dist/stores/sqlite-workflow.js",
     },
     "./schemas/source-record/0.1.0":
       "./spec/schemas/0.1.0/source-record.schema.json",
@@ -836,6 +995,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "NOTICE",
     "README.md",
     "docs/connector-author-guide.md",
+    "docs/durable-cognition-workflow-guide.md",
     "docs/markdown-cognition-adapter-guide.md",
     "docs/public-api.md",
     "rfcs/README.md",
@@ -848,6 +1008,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0007-markdown-cognition-adapter.md",
     "rfcs/0008-runtime-security-profile.md",
     "rfcs/0009-public-api-and-distribution-readiness.md",
+    "rfcs/0010-durable-cognition-workflow.md",
     "spec/README.md",
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
@@ -866,6 +1027,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.7.0/change-cases.jsonl",
     "spec/compatibility/0.8.0/baseline.json",
     "spec/compatibility/0.8.0/change-cases.jsonl",
+    "spec/compatibility/0.9.0/baseline.json",
+    "spec/compatibility/0.9.0/change-cases.jsonl",
     "spec/distribution-readiness.md",
     "spec/distribution-readiness/0.1.0/profile.json",
     "spec/host-integration.md",
@@ -885,6 +1048,13 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "collective-cognition": "./dist/cli.js",
     "collective-cognition-teammem": "./dist/team-memory-cli.js",
     "collective-cognition-markdown": "./dist/markdown-cognition-cli.js",
+    "collective-cognition-workflow": "./dist/workflow-cli.js",
+  });
+  assert.deepEqual(baseline.package.executableModes, {
+    "dist/cli.js": 0o755,
+    "dist/markdown-cognition-cli.js": 0o755,
+    "dist/team-memory-cli.js": 0o755,
+    "dist/workflow-cli.js": 0o755,
   });
   const actualEmittedFiles = emittedFiles(distRoot)
     .map((path) => relative(repositoryRoot, path).replaceAll("\\", "/"))
@@ -896,20 +1066,24 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   );
   assert.deepEqual(
     baseline.package.emittedFiles,
-    expectedEmittedFiles060,
-    "package 0.8 emitted inventory must match its literal allowlist",
+    expectedEmittedFiles090,
+    "package 0.9 emitted inventory must match its literal allowlist",
   );
   assert.deepEqual(
     baseline.package.emittedFiles.filter(
       (path) => !expectedEmittedFiles040.includes(path),
     ),
-    [...expectedConnectorEmittedFiles050, ...expectedMarkdownEmittedFiles060].sort(),
-    "package 0.8 emitted additions must be exactly the approved files",
+    [
+      ...expectedConnectorEmittedFiles050,
+      ...expectedMarkdownEmittedFiles060,
+      ...expectedDurableWorkflowEmittedFiles090,
+    ].sort(),
+    "package 0.9 emitted additions must be exactly the approved files",
   );
   assert.deepEqual(
     actualEmittedFiles,
-    expectedEmittedFiles060,
-    "dist/ contents must match the independent package 0.6 allowlist",
+    expectedEmittedFiles090,
+    "dist/ contents must match the independent package 0.9 allowlist",
   );
 
   const npmCache = mkdtempSync(join(tmpdir(), "ccsdk-npm-cache-"));
@@ -938,7 +1112,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "LICENSE",
     "NOTICE",
     "README.md",
-    ...expectedEmittedFiles060,
+    ...expectedEmittedFiles090,
     "package.json",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
@@ -949,6 +1123,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0007-markdown-cognition-adapter.md",
     "rfcs/0008-runtime-security-profile.md",
     "rfcs/0009-public-api-and-distribution-readiness.md",
+    "rfcs/0010-durable-cognition-workflow.md",
     "rfcs/README.md",
     "spec/README.md",
     "spec/compatibility.md",
@@ -968,6 +1143,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.7.0/change-cases.jsonl",
     "spec/compatibility/0.8.0/baseline.json",
     "spec/compatibility/0.8.0/change-cases.jsonl",
+    "spec/compatibility/0.9.0/baseline.json",
+    "spec/compatibility/0.9.0/change-cases.jsonl",
     "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
     "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
@@ -986,6 +1163,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   const expectedPaths = [
     ...expectedBaselinePaths,
     "docs/connector-author-guide.md",
+    "docs/durable-cognition-workflow-guide.md",
     "docs/markdown-cognition-adapter-guide.md",
     "docs/public-api.md",
   ].sort();
@@ -993,7 +1171,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.deepEqual(
     baseline.package.packageFiles,
     expectedPaths,
-    "package 0.8 compatibility inventory must match its literal allowlist",
+    "package 0.9 compatibility inventory must match its literal allowlist",
   );
   assert.deepEqual(paths, expectedPaths, "package contents must match allowlist");
   assert.equal(
@@ -1008,6 +1186,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
         (
           !/^docs\//.test(path) ||
           path === "docs/connector-author-guide.md" ||
+          path === "docs/durable-cognition-workflow-guide.md" ||
           path === "docs/markdown-cognition-adapter-guide.md" ||
           path === "docs/public-api.md"
         ) &&
@@ -1026,27 +1205,14 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     ),
     "package must exclude databases, logs, environments, and credentials",
   );
-  const packedTeamMemoryCli = packResults[0].files.find(
-    (file) => file.path === "dist/team-memory-cli.js",
-  );
-  assert.ok(packedTeamMemoryCli, "packed team-memory CLI is missing");
   if (process.platform !== "win32") {
-    assert.notEqual(
-      packedTeamMemoryCli.mode & 0o111,
-      0,
-      "packed team-memory CLI must retain an executable mode",
-    );
-  }
-  const packedMarkdownCli = packResults[0].files.find(
-    (file) => file.path === "dist/markdown-cognition-cli.js",
-  );
-  assert.ok(packedMarkdownCli, "packed Markdown cognition CLI is missing");
-  if (process.platform !== "win32") {
-    assert.notEqual(
-      packedMarkdownCli.mode & 0o111,
-      0,
-      "packed Markdown cognition CLI must retain an executable mode",
-    );
+    for (const [path, expectedMode] of Object.entries(
+      baseline.package.executableModes,
+    )) {
+      const packedCli = packResults[0].files.find((file) => file.path === path);
+      assert.ok(packedCli, `packed CLI is missing: ${path}`);
+      assert.equal(packedCli.mode, expectedMode, `${path} must be exactly 0755`);
+    }
   }
   assert.equal(statSync(distRoot).isDirectory(), true);
 });
@@ -1076,7 +1242,7 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
   const temporaryRoot = mkdtempSync(join(tmpdir(), "ccsdk-consumer-"));
   const npmCache = `${temporaryRoot}/npm-cache`;
   const packageOutput = `${temporaryRoot}/package`;
-  const consumerRoot = realpathSync(
+  const consumerRoot = realpathSync.native(
     mkdtempSync(join(temporaryRoot, "consumer-")),
   );
   mkdirSync(packageOutput);
@@ -1096,8 +1262,10 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
         strict: true,
         skipLibCheck: false,
         noEmit: true,
+        types: ["node"],
+        typeRoots: [join(repositoryRoot, "node_modules", "@types")],
       },
-      include: ["index.ts"],
+      include: ["index.ts", "guide-snippet.ts"],
     }),
     "utf8",
   );
@@ -1145,6 +1313,37 @@ import {
   SqliteCognitionStore,
   type SqliteCognitionStoreOptions,
 } from ${JSON.stringify(`${packageJson.name}/stores/sqlite/0.1.0`)};
+import {
+  DURABLE_COGNITION_WORKFLOW_VERSION,
+  prepareDurableCognitionWorkflow,
+  runDurableCognitionWorkflow,
+  runDurableWorkflowStoreConformance,
+  type CognitionWorkflowStore,
+  type DurableCognitionCommitResult,
+  type DurableCognitionProjectionStatus,
+  type DurableCognitionProjector,
+  type DurableCognitionPublicationStatus,
+  type DurableCognitionWorkflowCommitted,
+  type DurableCognitionWorkflowCompletion,
+  type DurableCognitionWorkflowConflict,
+  type DurableCognitionWorkflowFailure,
+  type DurableCognitionWorkflowHost,
+  type DurableCognitionWorkflowRequest,
+  type DurableCognitionWorkflowResult,
+  type DurableCognitionWorkflowUnprojected,
+  type DurableCognitionWorkflowUnpublished,
+  type DurableCognitionWorkflowUnpublishedAndUnprojected,
+  type DurableWorkflowConflictCode,
+  type DurableWorkflowConformanceCaseResult,
+  type DurableWorkflowConformanceReport,
+  type DurableWorkflowStoreConformanceScenario,
+  type DurableWorkflowStoreFactory,
+  type PreparedDurableCognitionCommit,
+} from ${JSON.stringify(`${packageJson.name}/workflows/durable/0.1.0`)};
+import {
+  SqliteCognitionWorkflowStore,
+  type SqliteCognitionWorkflowStoreOptions,
+} from ${JSON.stringify(`${packageJson.name}/stores/sqlite-workflow/0.1.0`)};
 import {
   runSourceConnectorConformance,
   type SourceConnectorConformanceCase,
@@ -1199,6 +1398,21 @@ function roundTrip(record: PortableCognitionRecord) {
 }
 
 declare const packageWideCode: DomainErrorCodeType;
+const exhaustivePackage080Codes: Record<DomainErrorCodeType, true> = {
+  AUTHORIZATION_DENIED: true,
+  CONFIRMATION_REQUIRED: true,
+  INGESTION_LIMIT_EXCEEDED: true,
+  INVALID_HOST_INTEGRATION_REQUEST: true,
+  INVALID_OBJECT: true,
+  INVALID_PORTABLE_COGNITION_RECORD: true,
+  INVALID_RELATIONSHIP: true,
+  INVALID_SOURCE_RECORD: true,
+  INVALID_TRANSITION: true,
+  PROMOTION_FAILED: true,
+  SERIALIZATION_ERROR: true,
+  SOURCE_REVISION_COLLISION: true,
+};
+void exhaustivePackage080Codes;
 type PortableDomainError020 = {
   readonly code: DomainErrorCodeType;
   readonly message: string;
@@ -1282,6 +1496,29 @@ type MarkdownTypes =
   | MarkdownCognitionTargetOptions
   | MarkdownCognitionVerificationDiagnostic
   | MarkdownCognitionVerificationReport;
+type DurableWorkflowTypes =
+  | CognitionWorkflowStore
+  | DurableCognitionCommitResult
+  | DurableCognitionProjectionStatus
+  | DurableCognitionProjector
+  | DurableCognitionPublicationStatus
+  | DurableCognitionWorkflowCommitted
+  | DurableCognitionWorkflowCompletion
+  | DurableCognitionWorkflowConflict
+  | DurableCognitionWorkflowFailure
+  | DurableCognitionWorkflowHost
+  | DurableCognitionWorkflowRequest
+  | DurableCognitionWorkflowResult
+  | DurableCognitionWorkflowUnprojected
+  | DurableCognitionWorkflowUnpublished
+  | DurableCognitionWorkflowUnpublishedAndUnprojected
+  | DurableWorkflowConflictCode
+  | DurableWorkflowConformanceCaseResult
+  | DurableWorkflowConformanceReport
+  | DurableWorkflowStoreConformanceScenario
+  | DurableWorkflowStoreFactory
+  | PreparedDurableCognitionCommit
+  | SqliteCognitionWorkflowStoreOptions;
 
 void roundTrip;
 void package020GenericAssignment;
@@ -1289,6 +1526,7 @@ void oldGenericAssignment;
 void (undefined as unknown as HostTypes);
 void (undefined as unknown as ConnectorTypes);
 void (undefined as unknown as MarkdownTypes);
+void (undefined as unknown as DurableWorkflowTypes);
 void HOST_INTEGRATION_CONTRACT_VERSION;
 void HostFailureCode;
 void commitCognitionTransition;
@@ -1297,6 +1535,11 @@ void InMemoryCognitionEventPublisher;
 void InMemoryCognitionStore;
 void runCognitionHostConformance;
 void SqliteCognitionStore;
+void DURABLE_COGNITION_WORKFLOW_VERSION;
+void prepareDurableCognitionWorkflow;
+void runDurableCognitionWorkflow;
+void runDurableWorkflowStoreConformance;
+void SqliteCognitionWorkflowStore;
 void runSourceConnectorConformance;
 void TEAM_MEMORY_LEDGER_FORMAT;
 void TeamMemoryConnectorError;
@@ -1324,6 +1567,24 @@ void verifyMarkdownCognitionTarget;
 `,
     "utf8",
   );
+  const guide = readFileSync(durableWorkflowGuideUrl, "utf8");
+  const guideSnippet = guide.match(
+    /## SDK Usage[\s\S]*?```ts\n(?<snippet>[\s\S]*?)\n```/,
+  )?.groups?.snippet;
+  assert.equal(typeof guideSnippet, "string");
+  writeFileSync(
+    `${consumerRoot}/guide-snippet.ts`,
+    `declare const records: never;
+declare const hypothesis: never;
+declare const promotion: never;
+declare const reviewTransition: never;
+declare const policy: never;
+declare const databasePath: never;
+
+${guideSnippet}
+`,
+    "utf8",
+  );
   writeFileSync(
     `${consumerRoot}/consumer.mjs`,
     `import {
@@ -1345,6 +1606,15 @@ import {
 import {
   SqliteCognitionStore,
 } from ${JSON.stringify(`${packageJson.name}/stores/sqlite/0.1.0`)};
+import {
+  DURABLE_COGNITION_WORKFLOW_VERSION,
+  prepareDurableCognitionWorkflow,
+  runDurableCognitionWorkflow,
+  runDurableWorkflowStoreConformance,
+} from ${JSON.stringify(`${packageJson.name}/workflows/durable/0.1.0`)};
+import {
+  SqliteCognitionWorkflowStore,
+} from ${JSON.stringify(`${packageJson.name}/stores/sqlite-workflow/0.1.0`)};
 import {
   runSourceConnectorConformance,
 } from ${JSON.stringify(`${packageJson.name}/connector-conformance/0.1.0`)};
@@ -1540,7 +1810,12 @@ console.log(JSON.stringify({
     typeof runSourceConnectorConformance,
     typeof TeamMemoryConnectorError,
     typeof readTeamMemorySourceRecords,
+    typeof prepareDurableCognitionWorkflow,
+    typeof runDurableCognitionWorkflow,
+    typeof runDurableWorkflowStoreConformance,
+    typeof SqliteCognitionWorkflowStore,
   ],
+  durableWorkflowVersion: DURABLE_COGNITION_WORKFLOW_VERSION,
   sqliteReopened: reopened,
   sqliteRejectedWithoutMutation: rejectedWithoutMutation,
   connectorLedgerFormat: TEAM_MEMORY_LEDGER_FORMAT,
@@ -1716,7 +1991,12 @@ try {
         "function",
         "function",
         "function",
+        "function",
+        "function",
+        "function",
+        "function",
       ],
+      durableWorkflowVersion: "0.1.0",
       connectorLedgerFormat: "teammem-event-ledger/1",
       connectorRecordCount: 1,
       connectorConformanceStatus: "passed",
@@ -1822,7 +2102,7 @@ console.log(JSON.stringify({
         "--input-type=module",
         "--eval",
         `import { readFile } from "node:fs/promises";
-const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.5.0`)});
+const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.9.0`)});
 const baseline = JSON.parse(await readFile(new URL(baselineUrl), "utf8"));
 const changeCases = (await readFile(new URL("./change-cases.jsonl", baselineUrl), "utf8"))
   .trim()
@@ -1846,8 +2126,8 @@ console.log(JSON.stringify({
     assert.deepEqual(
       JSON.parse(importedCurrentCompatibility.stdout.trim()),
       {
-        baselineVersion: "0.5.0",
-        classifications: ["additive", "breaking"],
+        baselineVersion: "0.9.0",
+        classifications: ["additive"],
       },
     );
 
@@ -1861,6 +2141,18 @@ console.log(JSON.stringify({
       true,
       "installed collective-cognition executable is missing",
     );
+    const assertInstalledMode = (path, name) => {
+      if (process.platform === "win32") {
+        return;
+      }
+      const target = realpathSync(path);
+      assert.equal(
+        statSync(target).mode & 0o777,
+        0o755,
+        `installed ${name} target must be exactly 0755`,
+      );
+    };
+    assertInstalledMode(executable, "collective-cognition");
     const teamMemoryExecutableName =
       process.platform === "win32"
         ? "collective-cognition-teammem.cmd"
@@ -1872,13 +2164,7 @@ console.log(JSON.stringify({
       true,
       "installed collective-cognition-teammem executable is missing",
     );
-    if (process.platform !== "win32") {
-      assert.notEqual(
-        statSync(teamMemoryExecutable).mode & 0o111,
-        0,
-        "installed collective-cognition-teammem must be executable",
-      );
-    }
+    assertInstalledMode(teamMemoryExecutable, "collective-cognition-teammem");
     const teamMemoryExecuted = spawnSync(
       teamMemoryExecutable,
       [
@@ -1959,13 +2245,7 @@ console.log(JSON.stringify({
       "utf8",
     );
     assert.equal(existsSync(markdownExecutable), true);
-    if (process.platform !== "win32") {
-      assert.notEqual(
-        statSync(markdownExecutable).mode & 0o111,
-        0,
-        "installed collective-cognition-markdown must be executable",
-      );
-    }
+    assertInstalledMode(markdownExecutable, "collective-cognition-markdown");
     const markdownHelp = spawnSync(markdownExecutable, ["--help"], {
       cwd: consumerRoot,
       encoding: "utf8",
@@ -1991,6 +2271,112 @@ console.log(JSON.stringify({
     );
     assert.equal(markdownVerified.status, 0, markdownVerified.stderr);
     assert.equal(JSON.parse(markdownVerified.stdout.trim()).status, "passed");
+
+    const workflowExecutableName =
+      process.platform === "win32"
+        ? "collective-cognition-workflow.cmd"
+        : "collective-cognition-workflow";
+    const workflowExecutable = join(
+      consumerRoot,
+      "node_modules",
+      ".bin",
+      workflowExecutableName,
+    );
+    assert.equal(existsSync(workflowExecutable), true);
+    assertInstalledMode(workflowExecutable, "collective-cognition-workflow");
+    const workflowRequestPath = join(consumerRoot, "workflow-request.json");
+    const workflowInputPath = join(consumerRoot, "workflow-input.jsonl");
+    const workflowDatabasePath = join(consumerRoot, "workflow-cognition.db");
+    const workflowHypothesis = {
+      id: "hypothesis:packed-workflow",
+      type: "hypothesis",
+      version: 1,
+      state: "proposed",
+      title: "Packed workflow hypothesis",
+      data: { statement: "Packed records are ready for review." },
+      createdAt: "2026-08-13T08:00:00.000Z",
+      updatedAt: "2026-08-13T08:00:00.000Z",
+      attribution: {
+        initiatorId: "human:author",
+        executorId: "human:author",
+        accountableId: "human:owner",
+      },
+      provenance: [{
+        source: "package-test",
+        sourceId: "packed:hypothesis",
+        capturedAt: "2026-08-13T08:00:00.000Z",
+      }],
+      contextId: "context:packed-workflow",
+      relationships: [{
+        type: "supports-goal",
+        targetId: "goal:packed-workflow",
+      }],
+    };
+    writeFileSync(workflowRequestPath, JSON.stringify({
+      workflowVersion: "0.1.0",
+      workflowId: "workflow:packed-workflow:1",
+      hypothesis: workflowHypothesis,
+      promotion: {
+        hypothesisId: workflowHypothesis.id,
+        contextId: workflowHypothesis.contextId,
+        rationale: "The packed record is relevant to the explicit hypothesis.",
+        promotedAt: "2026-08-13T09:00:00.000Z",
+        attribution: {
+          initiatorId: "human:reviewer",
+          executorId: "human:reviewer",
+          accountableId: "human:owner",
+        },
+      },
+      reviewTransition: {
+        eventId: "event:packed-workflow:1",
+        occurredAt: "2026-08-13T10:00:00.000Z",
+        initiator: { id: "human:reviewer", kind: "human" },
+        executor: { id: "human:reviewer", kind: "human" },
+        accountableParty: { id: "human:owner", kind: "human" },
+        automationMode: "manual",
+        consequenceLevel: "routine",
+        rationale: "Review the hypothesis with the packed evidence.",
+      },
+      policyId: "neutral-evidence-v1",
+    }));
+    writeFileSync(workflowInputPath, `${JSON.stringify({
+      schemaVersion: "0.1.0",
+      id: "source-record:packed-workflow:1",
+      source: { system: "package-test" },
+      sourceId: "packed:1",
+      revisionId: "1",
+      capturedAt: "2026-08-13T09:00:00.000Z",
+      mediaType: "application/json",
+      content: { summary: "Packed workflow evidence." },
+    })}\n`);
+    if (typeof DatabaseSync.prototype.enableDefensive === "function") {
+      const workflowExecuted = spawnSync(workflowExecutable, [
+        "run",
+        "--request",
+        workflowRequestPath,
+        "--input",
+        workflowInputPath,
+        "--format",
+        "jsonl",
+        "--cognition-db",
+        workflowDatabasePath,
+        "--create-cognition-db",
+      ], {
+        cwd: consumerRoot,
+        encoding: "utf8",
+        env: { ...process.env, NODE_NO_WARNINGS: "1" },
+        shell: process.platform === "win32",
+      });
+      assert.equal(
+        workflowExecuted.status,
+        0,
+        workflowExecuted.stderr || workflowExecuted.stdout,
+      );
+      assert.equal(workflowExecuted.stderr, "");
+      assert.equal(JSON.parse(workflowExecuted.stdout).status, "committed");
+    } else {
+      assert.equal(existsSync(workflowDatabasePath), false);
+    }
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
   }

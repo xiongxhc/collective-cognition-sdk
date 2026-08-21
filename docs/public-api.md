@@ -2,6 +2,9 @@
 
 This reference is checked against the compatibility baseline selected by the current `package.json` version. It names every exported surface that the package promises to keep visible.
 
+Current package `0.9.0` is private and unpublished. This inventory does not
+authorize npm publication, certify a deployment, or claim production use.
+
 ## Stability
 
 - `Normative Stable` means a versioned contract or immutable policy artifact that downstream code may rely on across compatible releases.
@@ -9,6 +12,15 @@ This reference is checked against the compatibility baseline selected by the cur
 - `Internal` means a repository path that does not appear in `exports` and has no package compatibility promise.
 - Supported Experimental is not Normative Stable.
 - source paths absent from `exports` are internal.
+
+### Durable Workflow Runtime
+
+Supported Experimental workflow execution requires Node.js `>=24.14.0` and
+`DatabaseSync.prototype.enableDefensive`. Node.js `24.9.0` remains a
+package/core compatibility lane with honest workflow and SQLite capability
+skips; it is not a full workflow runtime. The root package engine remains
+Node.js `>=24`. `WORKFLOW_CLI_CONTRACT.runtime` records this workflow-specific
+minimum and capability in machine-readable form.
 
 ## Root API
 
@@ -68,6 +80,7 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
 - `./compatibility/0.6.0` — Compatibility baseline for package `0.6.0`.
 - `./compatibility/0.7.0` — Compatibility baseline for package `0.7.0`.
 - `./compatibility/0.8.0` — Compatibility baseline for package `0.8.0`.
+- `./compatibility/0.9.0` — Compatibility baseline for package `0.9.0`.
 - `./contracts/host-integration/0.1.0` — Host integration prose contract.
 - `./conformance/portable-cognition/0.1.0/valid` — Portable Cognition valid conformance corpus.
 - `./conformance/portable-cognition/0.1.0/invalid` — Portable Cognition invalid conformance corpus.
@@ -104,6 +117,14 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
   - Stability: Supported Experimental store surface; governed by [RFC 0005: SQLite Cognition Store](../rfcs/0005-sqlite-cognition-store.md), [Host Integration](../spec/host-integration.md), and [Compatibility Policy](../spec/compatibility.md).
   - Runtime exports: `SqliteCognitionStore`
   - Type exports: `SqliteCognitionStoreOptions`
+- `./stores/sqlite-workflow/0.1.0` — SQLite durable workflow-store adapter.
+  - Stability: Supported Experimental Node-specific store surface; governed by [RFC 0010: Durable Cognition Workflow](../rfcs/0010-durable-cognition-workflow.md), [Durable Cognition Workflow Guide](durable-cognition-workflow-guide.md), and [Compatibility Policy](../spec/compatibility.md).
+  - Runtime exports: `SqliteCognitionWorkflowStore`
+  - Type exports: `SqliteCognitionWorkflowStoreOptions`
+- `./workflows/durable/0.1.0` — Source-neutral durable Evidence-review workflow.
+  - Stability: Supported Experimental workflow surface; governed by [RFC 0010: Durable Cognition Workflow](../rfcs/0010-durable-cognition-workflow.md), [Durable Cognition Workflow Guide](durable-cognition-workflow-guide.md), and [Compatibility Policy](../spec/compatibility.md).
+  - Runtime exports: `DURABLE_COGNITION_WORKFLOW_VERSION`, `prepareDurableCognitionWorkflow`, `runDurableCognitionWorkflow`, `runDurableWorkflowStoreConformance`
+  - Type exports: `CognitionWorkflowStore`, `DurableCognitionCommitResult`, `DurableCognitionProjectionStatus`, `DurableCognitionProjector`, `DurableCognitionPublicationStatus`, `DurableCognitionWorkflowCommitted`, `DurableCognitionWorkflowCompletion`, `DurableCognitionWorkflowConflict`, `DurableCognitionWorkflowFailure`, `DurableCognitionWorkflowHost`, `DurableCognitionWorkflowRequest`, `DurableCognitionWorkflowResult`, `DurableCognitionWorkflowUnprojected`, `DurableCognitionWorkflowUnpublished`, `DurableCognitionWorkflowUnpublishedAndUnprojected`, `DurableWorkflowConflictCode`, `DurableWorkflowConformanceCaseResult`, `DurableWorkflowConformanceReport`, `DurableWorkflowStoreConformanceScenario`, `DurableWorkflowStoreFactory`, `PreparedDurableCognitionCommit`
 - `./package.json` — Package manifest export for introspection only.
 
 ## Executables
@@ -111,6 +132,7 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
 - `collective-cognition` — Supported Experimental root CLI for validate, ingest, promote, and ingest-promote operations; governed by [README](../README.md) and [Compatibility Policy](../spec/compatibility.md).
 - `collective-cognition-teammem` — Supported Experimental team-memory export CLI; governed by [docs/connector-author-guide](../docs/connector-author-guide.md) and [RFC 0006: Maintained Source Connectors](../rfcs/0006-maintained-source-connectors.md).
 - `collective-cognition-markdown` — Supported Experimental Markdown cognition projection CLI; governed by [docs/markdown-cognition-adapter-guide](../docs/markdown-cognition-adapter-guide.md) and [RFC 0007: Markdown Cognition Adapter](../rfcs/0007-markdown-cognition-adapter.md).
+- `collective-cognition-workflow` — Supported Experimental closed durable workflow CLI; governed by the [Durable Cognition Workflow Guide](durable-cognition-workflow-guide.md) and [RFC 0010: Durable Cognition Workflow](../rfcs/0010-durable-cognition-workflow.md). It has no publisher option.
 
 ## Not Public API
 
@@ -120,3 +142,4 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
 - `docs/superpowers/plans/` files are planning artifacts, not package API.
 - generated `dist/` file paths are build outputs, not source-of-truth import contracts.
 - any source path absent from `exports` is internal, including unexported adapter and connector implementation paths under `src/`.
+- The package tarball contains no `sqlite-internal` JavaScript or declaration file. The historical SQLite store and the SQLite workflow store are self-contained modules with independent declaration closures.
