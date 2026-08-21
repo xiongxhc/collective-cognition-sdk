@@ -561,10 +561,10 @@ git commit -m "feat: package interoperability surfaces"
 
 **Interfaces:**
 - Consumes: verified Tasks 1–5 behavior and exact observed test/package evidence.
-- Produces: accurate public package `0.10.0` status, connector usage guidance, resource-consumption guidance, and Task 6 local documentation and verification evidence. Controller-owned independent reviews, merge, and post-merge CI remain pending before Phase 5 completion.
+- Produces: accurate public package `0.10.0` status, connector usage guidance, resource-consumption guidance, and final Task 6 review, merge, and CI evidence.
 
-**Task 6 local documentation and verification status:** local reconciliation
-is recorded with merge and post-merge CI pending; Phase 5 is not Complete.
+**Task 6 documentation and verification status:** Complete. Independent reviews,
+pull-request CI, merge, and post-merge `main` CI are verified below.
 
 - [x] **Step 1: Add documentation assertions before prose**
 
@@ -619,13 +619,13 @@ Compare every pre-existing file under `spec/compatibility/0.1.0` through `0.9.0`
 
 Observed local evidence: all `27` historical files were byte-identical to `main`; the dry-run package contained exactly `136` expected files (`72` under `dist/`) with zero missing and zero unexpected paths; the root export, all `27` historical export subpaths, and all four existing binaries remained unchanged. The immutable GitHub prerelease workflow remained byte-identical to `main` with SHA-256 `b628e8e07829bd115a01133595d4f3424e0634e7479f9f00c35bc4e5c9a8508f`.
 
-- [ ] **Step 5: Run required independent reviews**
+- [x] **Step 5: Run required independent reviews**
 
 Give fresh reviewers the approved design, this plan, `main...HEAD` diff, Git process/environment inventory, profile fixtures, compatibility baseline, package dry-run inventory, and full test output. Run separate specification/code, security/privacy, and whole-branch reviews. Fix every Critical or Important finding, rerun affected tests plus the full gate, and request residual review until no unresolved Critical or Important finding remains.
 
-Pending controller action: Task 6 explicitly excludes subagents and reviewers from this local implementation slice.
+Observed review evidence: all task-level specification and quality reviews completed without unresolved Critical or Important findings. The final whole-branch review initially found one Critical, two Important, and one Minor issue; commit `f2e605134d8589daf3269e6c5a79a90f712c6a40` corrected them. A fresh whole-branch review and the later scoped cross-platform CI-fix review both returned `0` Critical, `0` Important, and `0` Minor findings.
 
-- [ ] **Step 6: Record final evidence, commit, push, merge, and verify CI**
+- [x] **Step 6: Record final evidence and close the feature branch**
 
 Update this plan and roadmap only with observed evidence. Commit the final reconciliation with:
 
@@ -634,6 +634,6 @@ git add README.md CHANGELOG.md .github/workflows/ci.yml docs spec rfcs tests/pac
 git commit -m "docs: complete cross-connector interoperability"
 ```
 
-Push `feature/cross-connector-interoperability`, open a Conventional Commit-titled pull request, require all CI matrix jobs to pass, merge to `main`, pull the merged commit locally, rerun `git status --short --branch`, and verify the post-merge Actions run before deleting the local and remote feature branch/worktree. Only after that evidence exists, use a small follow-up documentation branch to mark Phase 5 **Complete**, record the merged commit and post-merge run, merge that documentation update with passing CI, and remove its branch/worktree.
+Push `feature/cross-connector-interoperability`, open a Conventional Commit-titled pull request, require all CI matrix jobs to pass, merge to `main`, pull the merged commit locally, rerun `git status --short --branch`, and verify the post-merge Actions run before deleting the local and remote feature branch/worktree. Only after that evidence exists, use a small follow-up documentation branch to mark Phase 5 **Complete** and record the merged commit and post-merge run. The documentation branch's own merge is repository closeout, not evidence required to make the already-observed Phase 5 acceptance true.
 
-Observed local commit: `f149805fcb366ba01255499abbf63746f9dda421` records the Task 6 documentation reconciliation and local verification evidence. Independent reviews, push, pull request creation, merge, post-merge CI, Phase 5 completion, branch/worktree deletion, and any follow-up completion branch remain controller-owned and pending.
+Observed final evidence: `f149805fcb366ba01255499abbf63746f9dda421` records the Task 6 documentation reconciliation; `cdc9e868bd6fe5b69ad5d0da6aacbd4c58b0cf64` fixes the macOS and Git-for-Windows CI portability findings. [Pull request #13](https://github.com/xiongxhc/collective-cognition-sdk/pull/13) passed [CI run `32483502879`](https://github.com/xiongxhc/collective-cognition-sdk/actions/runs/32483502879) and merged to `main` at `8556ee8ab2e7db05d5dbaa72fe1d544665b2b133`. [Post-merge run `32483677646`](https://github.com/xiongxhc/collective-cognition-sdk/actions/runs/32483677646) passed distribution verification and every declared Ubuntu, macOS, and Windows lane. The obsolete feature worktree and local and remote feature branches were removed. This follow-up documentation branch records Phase 5 Complete without changing the private, unpublished, or production-readiness boundaries.

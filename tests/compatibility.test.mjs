@@ -178,7 +178,7 @@ const expectedInteroperabilityPortableCognitionSha256 =
 const expectedInteroperabilityErrorsSha256 =
   "c0aeb321060cb4d0c40eb1ae80d93de43a1878e3665cdf31829fd3ad680b40a6";
 const expectedInteroperabilityAcceptanceSha256 =
-  "0bf76a6fb9f7cdfa694792cbffef5dff7372ace7a8a006727ea6bae24c248586";
+  "6050735446ef6108dc4a98606afc96719eba22e509066f5120302e0137e3a407";
 const expectedGitConnectorGuideSha256 =
   "40d147e57b68cfcd92ffe2e1b5a3873f36413c2affb741c4a42de86af069da22";
 const expectedCurrentChangeCasesSha256 =

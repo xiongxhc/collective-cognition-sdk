@@ -956,7 +956,7 @@ test("Git connector guide documents the exact local package contract", () => {
   }
 });
 
-test("public documentation records locally verified cross-connector interoperability without external completion claims", () => {
+test("public documentation records verified cross-connector interoperability without publication claims", () => {
   const documents = [
     { name: "README", content: readFileSync(readmeUrl, "utf8") },
     { name: "CHANGELOG", content: readFileSync(changelogUrl, "utf8") },
@@ -1072,15 +1072,15 @@ const sourceRecordsJsonl = readFileSync(
 
   assert.match(
     roadmap,
-    /## Phase 5: Cross-Connector Interoperability\n\n\*\*Status:\*\* Locally verified; merge and post-merge CI pending\./,
-  );
-  assert.doesNotMatch(
-    roadmap,
     /## Phase 5: Cross-Connector Interoperability\n\n\*\*Status:\*\* Complete\./,
   );
+  assert.match(roadmap, /8556ee8ab2e7db05d5dbaa72fe1d544665b2b133/);
+  assert.match(roadmap, /actions\/runs\/32483502879/);
+  assert.match(roadmap, /actions\/runs\/32483677646/);
   assert.match(roadmap, /## Phase 6:[\s\S]*\*\*Status:\*\* Planned\./);
-  assert.match(plan, /Task 6 local documentation and verification/);
-  assert.match(plan, /merge and post-merge CI pending/i);
+  assert.match(plan, /Task 6 documentation and verification status:\*\* Complete\./);
+  assert.match(plan, /Pull request #13/);
+  assert.match(plan, /Post-merge run `32483677646`/);
 });
 
 test("npm package manifest and tarball expose only approved artifacts", () => {

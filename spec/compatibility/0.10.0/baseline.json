@@ -164,7 +164,7 @@
       ]
     },
     "artifacts": {
-      "docs/acceptance/cross-connector-interoperability-0.1.0.md": "0bf76a6fb9f7cdfa694792cbffef5dff7372ace7a8a006727ea6bae24c248586",
+      "docs/acceptance/cross-connector-interoperability-0.1.0.md": "6050735446ef6108dc4a98606afc96719eba22e509066f5120302e0137e3a407",
       "docs/durable-cognition-workflow-guide.md": "2403b288b6201bb82eab5b93e37a56aa58140006cb75ca60f765798ab80024bb",
       "docs/git-connector-guide.md": "40d147e57b68cfcd92ffe2e1b5a3873f36413c2affb741c4a42de86af069da22",
       "docs/public-api.md": "05852b7f50e1ad8a029bae95f179f30565d1242b53c4dbbf57028fd3ad2da835",
