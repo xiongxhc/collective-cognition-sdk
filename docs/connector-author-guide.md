@@ -4,7 +4,7 @@ This guide is for maintainers of source connectors that emit records for
 Collective Cognition SDK. `SourceRecord` is the universal boundary between
 source collection and the SDK's generic ingestion behavior.
 
-Package `0.5.0` is private and unpublished. The example can run against a
+Current package `0.10.0` is private and unpublished. The example can run against a
 local checkout or packed tarball, but the package is not yet available from a
 public registry. Connector conformance is not certification, does not imply
 endorsement, and is not an LTS commitment.
@@ -26,6 +26,26 @@ The root provides `SourceRecord` creation and validation. The versioned
 conformance subpath checks connector output. No team-memory connector,
 `team-memory-agent`, shared connector runtime, registry, transport, or
 configuration format is required.
+
+## Maintained Examples
+
+Package `0.10.0` has two maintained connectors with independent source
+boundaries. The team-memory connector reads an explicitly selected compatible
+SQLite ledger. The Git connector at
+`collective-cognition-sdk/connectors/git/0.1.0` reads an explicit local
+repository through a local Git executable, follows first-parent history from
+an exact tip, performs read-only bounded collection, and keeps messages and
+author email behind disabled-by-default privacy options.
+
+These are maintained examples, not an architecture external connectors must
+copy. External connectors do not need to import either implementation or use
+SQLite, Git, child processes, their option shapes, or their error classes.
+Package `0.10.0` adds no connector registry, plugin discovery or runtime,
+network connector, scheduler, automatic cognition, or Git CLI. The
+[Interoperability Profile `0.1.0`](../spec/interoperability.md), owned by
+`collective-cognition-sdk-maintainers`, supplies evidence for the maintained
+pair only; it is not production certification, endorsement, or an LTS
+commitment.
 
 ## Complete Fictional Connector
 
@@ -223,5 +243,7 @@ Keep source stores and cognition stores logically distinct.
 
 See [RFC 0006](../rfcs/0006-maintained-source-connectors.md) for the public
 extension decision and the
+[RFC 0011](../rfcs/0011-cross-connector-interoperability.md) for the maintained
+Git connector and cross-connector evidence boundary. See the
 [SourceRecord specification](../spec/source-record.md) for the normative
 record contract.

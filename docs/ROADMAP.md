@@ -134,7 +134,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 - Independent final review found no remaining Critical or Important issue after the correction wave.
 - The complete local matrix passes: `npm test` reports 194 source, 10 combined SourceRecord and Portable Cognition schema, 14 compatibility, and 6 package tests; TypeScript checking, syntax checking, both examples, `pack:check`, and `git diff --check` also exit successfully.
-- Package version `0.2.0` retained `"private": true` at the time of this slice. It was later superseded by the private `0.3.0` Host Integration slice, private `0.4.0` SQLite slice, private `0.5.0` connector slice, private `0.6.0` Markdown slice, private `0.7.0` Runtime and Security slice, historical private package `0.8.0`, and current private, unpublished package `0.9.0`; the maintained connector implementation, final verification, and real-ledger acceptance are complete.
+- Package version `0.2.0` retained `"private": true` at the time of this slice. It was later superseded by the private `0.3.0` Host Integration slice, private `0.4.0` SQLite slice, private `0.5.0` connector slice, private `0.6.0` Markdown slice, private `0.7.0` Runtime and Security slice, historical private packages `0.8.0` and `0.9.0`, and current private, unpublished package `0.10.0`; the maintained connector implementation, final verification, and real-ledger acceptance are complete.
 - Compatibility hashes: baseline `0.1.0` `4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b`; change cases `0.1.0` `3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b`; baseline `0.2.0` `3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4`; change cases `0.2.0` `e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5`.
 - SourceRecord artifact hashes remain byte-identical: schema `56cf53c5da98dfbec19a021fbb90673beab8248c7a77df44989b535a0e155648`; valid fixtures `f52c212026b70bf2b339e1132b2895c91be509f250dde841319dbbb4edd3f74a`; invalid fixtures `4705f32eb5ea48ddd693759728294d2557b0a6f4a5cc666843b2e03bb03e99c0`.
 - Portable Cognition artifact hashes: prose `d73a6de049c7408715d7e717dd326e79830d99fe84ff85cb5936dfb8a757be89`; schema `6dec3f942ca88994fef588a2ffb93240d716e116dbec7ded46a1f362446f6bdd`; valid fixtures `cc3854706ace472b0d5335ecb9596c7ea3bf2b48c04fd9dd950f9683e8b203f4`; invalid fixtures `0f8e21f7379824223482e26ae26ec0b7b5031077ab63f6dac4558239b4908ba4`; cognitive-loop fixtures `1693d97e207cfeee63d370ba23d07ffd9023e8b087e5dbd3c0ad53e945184053`.
@@ -167,7 +167,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Normative [Runtime and Security Profile `0.1.0`](../spec/runtime-security.md), synchronized JSON inventory at `collective-cognition-sdk/runtime-security/0.1.0`, and [RFC 0008](../rfcs/0008-runtime-security-profile.md).
 - [x] Four explicit enforcement classes: `sdk-enforced`, `conformance-verified`, `host-required`, and `out-of-scope`.
 - [x] Closed control coverage for authentication, encryption, tenant or workspace isolation, durable publication recovery, and related host-owned boundaries without adding a runtime policy engine.
-- [x] At the Runtime and Security slice boundary, private, unpublished package `0.7.0` added its compatibility baseline without changing root exports, existing CLIs, or historical `v0.6.0` records; package `0.8.0` superseded that private baseline additively, and current package `0.9.0` preserves both historical artifacts.
+- [x] At the Runtime and Security slice boundary, private, unpublished package `0.7.0` added its compatibility baseline without changing root exports, existing CLIs, or historical `v0.6.0` records; current package `0.10.0` preserves those historical artifacts.
 - [x] Public documentation reconciliation that explains host-owned responsibilities and states that conformance is not certification.
 
 **Runtime and Security Profile final verification evidence**
@@ -382,29 +382,43 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 5: Cross-Connector Interoperability
 
-**Status:** Next SDK development slice. Phase 4 is complete. Phase 5 remains pending the two-connector criteria: at least two independently useful connectors must pass their own contract tests, and a real cross-connector exchange workflow must have a named owner.
+**Status:** Locally verified; merge and post-merge CI pending. Package `0.10.0` now has two maintained connectors, Cross-Connector Interoperability Profile `0.1.0`, and a reference exchange owned by `collective-cognition-sdk-maintainers`. Local macOS gates do not make Phase 5 Complete: controller-owned independent reviews, pull-request CI across Linux, macOS, and Windows, merge, and post-merge CI remain external acceptance gates.
+
+Phase 5 completes only when at least two independently useful connectors pass
+their contract tests, the owned exchange passes, independent reviews are
+clean, and merge plus post-merge CI are verified.
 
 **Entry criteria**
 
-- Phase 3 conformance artifacts are published.
-- At least two independently useful connectors pass their own contract tests.
-- A real exchange workflow has a named owner.
+- Phase 4 is complete.
+- SourceRecord and connector-conformance contracts are available as versioned
+  package surfaces.
+- Collective Cognition SDK maintainers accept ownership of the reference
+  exchange fixtures, report, and compatibility inventory.
 
 **Deliverables**
 
-- Shared fixtures covering source records, cognitive objects, transitions, events, extensions, and errors.
-- An interoperability report documenting semantic matches, mismatches, and migrations.
-- Compatibility tests proving connectors do not depend on another connector's private behavior.
+- [x] Maintained read-only Git connector `0.1.0` for an explicit local repository, using a local Git executable, first-parent traversal from an exact tip, and disabled-by-default message and author-email privacy options.
+- [x] Shared fixtures covering source records, cognitive objects, transitions, events, extensions, and errors.
+- [x] An interoperability report documenting semantic matches, mismatches, and migrations.
+- [x] Compatibility tests proving connectors do not depend on another connector's private behavior.
+- [x] Additive private, unpublished package `0.10.0` exports and compatibility baseline with no Git CLI.
 
 **Acceptance checks**
 
-- Two connectors emit semantically valid source records consumed by the same generic ingestion path.
-- Objects exported through the exchange format remain semantically equivalent.
-- Unsupported extensions fail or degrade according to compatibility rules, never silently.
+- [x] Two connectors emit semantically valid source records consumed by the same generic ingestion path.
+- [x] At least two independently useful maintained connectors pass their own
+  source-specific contract tests and the shared connector-conformance boundary.
+- [x] The real reference exchange workflow has a named owner and remains isolated
+  from live repositories, ledgers, and vaults.
+- [x] Objects exported through the exchange format remain semantically equivalent.
+- [x] Unsupported extensions fail or degrade according to compatibility rules, never silently.
+- [ ] Controller-owned specification/code, security/privacy, and whole-branch reviews report no unresolved Critical or Important finding.
+- [ ] Pull-request and post-merge GitHub Actions prove the declared Linux, macOS, and Windows matrix.
 
 **Explicit deferrals**
 
-- No distributed consensus, real-time synchronization, arbitrary ecosystem guarantee, or certification claim for untested implementations.
+- No connector registry, plugin discovery or runtime, network Git access, scheduling, automatic cognition, distributed consensus, real-time synchronization, arbitrary ecosystem guarantee, publication authority, production certification, endorsement, or LTS commitment.
 
 ## Phase 6: Operational Governance and Retirement Tooling
 

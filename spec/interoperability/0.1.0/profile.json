@@ -1,0 +1,30 @@
+{
+  "profileVersion": "0.1.0",
+  "owner": "collective-cognition-sdk-maintainers",
+  "sourceRecordSchemaVersion": "0.1.0",
+  "portableCognitionSchemaVersion": "0.1.0",
+  "connectors": [
+    "git-repository/1",
+    "teammem-event-ledger/1"
+  ],
+  "fixtures": {
+    "sourceRecords": "source-records.jsonl",
+    "portableCognition": "portable-cognition.jsonl",
+    "errorCases": "error-cases.jsonl"
+  },
+  "semanticEquivalence": [
+    "normalized-validated-contract-values",
+    "canonical-json-equality",
+    "ignore-member-order-formatting-and-object-identity"
+  ],
+  "extensionPolicy": "preserve-or-reject-never-drop",
+  "nonInference": [
+    "decisions",
+    "principles",
+    "truth",
+    "confidence",
+    "readiness",
+    "belief",
+    "authorization"
+  ]
+}

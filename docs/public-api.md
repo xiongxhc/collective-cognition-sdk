@@ -2,7 +2,7 @@
 
 This reference is checked against the compatibility baseline selected by the current `package.json` version. It names every exported surface that the package promises to keep visible.
 
-Current package `0.9.0` is private and unpublished. This inventory does not
+Current package `0.10.0` is private and unpublished. This inventory does not
 authorize npm publication, certify a deployment, or claim production use.
 
 ## Stability
@@ -81,12 +81,17 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
 - `./compatibility/0.7.0` — Compatibility baseline for package `0.7.0`.
 - `./compatibility/0.8.0` — Compatibility baseline for package `0.8.0`.
 - `./compatibility/0.9.0` — Compatibility baseline for package `0.9.0`.
+- `./compatibility/0.10.0` — Compatibility baseline for package `0.10.0`.
 - `./contracts/host-integration/0.1.0` — Host integration prose contract.
 - `./conformance/portable-cognition/0.1.0/valid` — Portable Cognition valid conformance corpus.
 - `./conformance/portable-cognition/0.1.0/invalid` — Portable Cognition invalid conformance corpus.
 - `./conformance/portable-cognition/0.1.0/cognitive-loop` — Portable Cognition cognitive-loop conformance corpus.
 - `./distribution-readiness/0.1.0` — Distribution Readiness Profile JSON inventory.
 - `./runtime-security/0.1.0` — Runtime and Security Profile JSON inventory.
+- `./interoperability/0.1.0/profile` — Cross-Connector Interoperability Profile JSON.
+- `./interoperability/0.1.0/source-records` — SourceRecord JSONL fixtures.
+- `./interoperability/0.1.0/portable-cognition` — Portable Cognition JSONL fixtures.
+- `./interoperability/0.1.0/errors` — Interoperability error-case JSONL fixtures.
 - `./schemas/source-record/0.1.0` — SourceRecord JSON Schema.
 - `./schemas/portable-cognition/0.1.0` — Portable Cognition JSON Schema.
 
@@ -105,6 +110,48 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
   - Stability: Supported Experimental connector surface; governed by [docs/connector-author-guide](../docs/connector-author-guide.md), [RFC 0006: Maintained Source Connectors](../rfcs/0006-maintained-source-connectors.md), and [Compatibility Policy](../spec/compatibility.md).
   - Runtime exports: `TEAM_MEMORY_LEDGER_FORMAT`, `TeamMemoryConnectorError`, `readTeamMemorySourceRecords`
   - Type exports: `TeamMemoryConnectorErrorCode`, `TeamMemorySourceRecordOptions`
+- `./connectors/git/0.1.0` — Maintained explicit local Git repository connector.
+  - Stability: Supported Experimental connector surface; governed by the [Git Connector Guide](git-connector-guide.md), [Interoperability Profile `0.1.0`](../spec/interoperability.md), [RFC 0011](../rfcs/0011-cross-connector-interoperability.md), and [Compatibility Policy](../spec/compatibility.md).
+  - Runtime exports: `GIT_REPOSITORY_FORMAT`, `GitConnectorError`, `readGitCommitSourceRecords`
+  - Type exports: `GitCommitSourceRecordOptions`, `GitConnectorErrorCode`, `GitConnectorStage`
+  - Requirements: an explicit absolute local repository path and an available local Git executable. Collection is read-only, follows first-parent history from the exact tip, and keeps full messages and author email behind privacy defaults that are disabled unless explicitly opted in.
+
+```ts
+import {
+  readGitCommitSourceRecords,
+} from "collective-cognition-sdk/connectors/git/0.1.0";
+
+const records = readGitCommitSourceRecords({
+  repositoryPath: "/absolute/path/to/fictional-repository",
+  sourceInstance: "fictional-local-repository",
+  tipCommitId: "0123456789abcdef0123456789abcdef01234567",
+  capturedAt: "2026-08-21T12:00:00.000Z",
+  limit: 25,
+});
+```
+
+Interoperability resources are UTF-8 file resources, not JavaScript modules.
+Resolve and read them explicitly:
+
+```ts
+import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+
+const sourceRecordsUrl = import.meta.resolve(
+  "collective-cognition-sdk/interoperability/0.1.0/source-records",
+);
+const sourceRecordsJsonl = readFileSync(
+  fileURLToPath(sourceRecordsUrl),
+  "utf8",
+);
+```
+
+`collective-cognition-sdk-maintainers` owns the profile fixtures, tests,
+report, and compatibility inventory. Package `0.10.0` has two maintained
+connectors but no Git CLI, connector registry, plugin discovery or runtime,
+network connector, scheduler, or automatic cognition. The package remains
+private and unpublished; the profile does not claim production readiness,
+certification, endorsement, or LTS support.
 - `./host-conformance/0.1.0` — Host conformance checks.
   - Stability: Supported Experimental host-conformance surface; governed by [Host Integration](../spec/host-integration.md), [RFC 0004: Host Integration Contract](../rfcs/0004-host-integration-contract.md), and [Compatibility Policy](../spec/compatibility.md).
   - Runtime exports: `runCognitionHostConformance`

@@ -45,7 +45,7 @@ const packageJsonUrl = new URL("../package.json", import.meta.url);
 const packageLockUrl = new URL("../package-lock.json", import.meta.url);
 const gitAttributesUrl = new URL("../.gitattributes", import.meta.url);
 const compatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.9.0/baseline.json",
+  "../spec/compatibility/0.10.0/baseline.json",
   import.meta.url,
 );
 const historicalCompatibilityBaselineUrl = new URL(
@@ -53,13 +53,14 @@ const historicalCompatibilityBaselineUrl = new URL(
   import.meta.url,
 );
 const previousCompatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.8.0/baseline.json",
+  "../spec/compatibility/0.9.0/baseline.json",
   import.meta.url,
 );
 const licenseUrl = new URL("../LICENSE", import.meta.url);
 const noticeUrl = new URL("../NOTICE", import.meta.url);
 const citationUrl = new URL("../CITATION.cff", import.meta.url);
 const readmeUrl = new URL("../README.md", import.meta.url);
+const changelogUrl = new URL("../CHANGELOG.md", import.meta.url);
 const connectorAuthorGuideUrl = new URL(
   "../docs/connector-author-guide.md",
   import.meta.url,
@@ -69,6 +70,7 @@ const durableWorkflowGuideUrl = new URL(
   import.meta.url,
 );
 const roadmapUrl = new URL("../docs/ROADMAP.md", import.meta.url);
+const publicApiUrl = new URL("../docs/public-api.md", import.meta.url);
 const connectorRfcUrl = new URL(
   "../rfcs/0006-maintained-source-connectors.md",
   import.meta.url,
@@ -81,10 +83,22 @@ const durableWorkflowRfcUrl = new URL(
   "../rfcs/0010-durable-cognition-workflow.md",
   import.meta.url,
 );
+const gitConnectorGuideUrl = new URL(
+  "../docs/git-connector-guide.md",
+  import.meta.url,
+);
 const rfcIndexUrl = new URL("../rfcs/README.md", import.meta.url);
 const specificationIndexUrl = new URL("../spec/README.md", import.meta.url);
 const compatibilityPolicyUrl = new URL(
   "../spec/compatibility.md",
+  import.meta.url,
+);
+const interoperabilityProfileUrl = new URL(
+  "../spec/interoperability/0.1.0/profile.json",
+  import.meta.url,
+);
+const interoperabilityPlanUrl = new URL(
+  "../docs/superpowers/plans/2026-08-21-cross-connector-interoperability.md",
   import.meta.url,
 );
 const runtimeSecurityProfileUrl = new URL(
@@ -144,6 +158,11 @@ const expectedDurableWorkflowRuntimeExports = [
   "prepareDurableCognitionWorkflow",
   "runDurableCognitionWorkflow",
   "runDurableWorkflowStoreConformance",
+].sort();
+const expectedGitConnectorRuntimeExports = [
+  "GIT_REPOSITORY_FORMAT",
+  "GitConnectorError",
+  "readGitCommitSourceRecords",
 ].sort();
 const expectedHistoricalEmittedFiles030 = Object.freeze([
   "dist/authorization.d.ts",
@@ -240,6 +259,15 @@ const expectedDurableWorkflowEmittedFiles090 = Object.freeze([
 ]);
 const expectedEmittedFiles090 = Object.freeze(
   [...expectedEmittedFiles060, ...expectedDurableWorkflowEmittedFiles090].sort(),
+);
+const expectedGitConnectorEmittedFiles0100 = Object.freeze([
+  "dist/connectors/git-process-result.d.ts",
+  "dist/connectors/git-process-result.js",
+  "dist/connectors/git.d.ts",
+  "dist/connectors/git.js",
+]);
+const expectedEmittedFiles0100 = Object.freeze(
+  [...expectedEmittedFiles090, ...expectedGitConnectorEmittedFiles0100].sort(),
 );
 const productionDependencyFields = Object.freeze([
   "dependencies",
@@ -352,10 +380,36 @@ test("built package exposes only the source-neutral runtime API", async () => {
   assert.deepEqual(Object.keys(builtApi).sort(), expectedRuntimeExports);
 });
 
-test("package 0.9.0 exposes the exact durable workflow subpaths and executable", async () => {
+test("package 0.10.0 exposes exact interoperability subpaths without a new executable", async () => {
   const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
 
-  assert.equal(packageJson.version, "0.9.0");
+  assert.equal(packageJson.version, "0.10.0");
+  assert.equal(packageJson.private, true);
+  assert.deepEqual(packageJson.exports["./connectors/git/0.1.0"], {
+    types: "./dist/connectors/git.d.ts",
+    import: "./dist/connectors/git.js",
+  });
+  assert.equal(
+    packageJson.exports["./compatibility/0.10.0"],
+    "./spec/compatibility/0.10.0/baseline.json",
+  );
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(packageJson.exports).filter(([subpath]) =>
+        subpath.startsWith("./interoperability/0.1.0/")
+      ),
+    ),
+    {
+      "./interoperability/0.1.0/profile":
+        "./spec/interoperability/0.1.0/profile.json",
+      "./interoperability/0.1.0/source-records":
+        "./spec/interoperability/0.1.0/source-records.jsonl",
+      "./interoperability/0.1.0/portable-cognition":
+        "./spec/interoperability/0.1.0/portable-cognition.jsonl",
+      "./interoperability/0.1.0/errors":
+        "./spec/interoperability/0.1.0/error-cases.jsonl",
+    },
+  );
   assert.deepEqual(packageJson.exports["./workflows/durable/0.1.0"], {
     types: "./dist/workflows/durable.d.ts",
     import: "./dist/workflows/durable.js",
@@ -367,6 +421,18 @@ test("package 0.9.0 exposes the exact durable workflow subpaths and executable",
   assert.equal(
     packageJson.bin["collective-cognition-workflow"],
     "./dist/workflow-cli.js",
+  );
+  assert.deepEqual(Object.keys(packageJson.bin).sort(), [
+    "collective-cognition",
+    "collective-cognition-markdown",
+    "collective-cognition-teammem",
+    "collective-cognition-workflow",
+  ]);
+  assert.deepEqual(
+    Object.keys(
+      await import("collective-cognition-sdk/connectors/git/0.1.0")
+    ).sort(),
+    expectedGitConnectorRuntimeExports,
   );
   assert.deepEqual(
     Object.keys(await import("collective-cognition-sdk/workflows/durable/0.1.0")).sort(),
@@ -634,7 +700,7 @@ test("public documentation explains the source-neutral connector model", () => {
   );
   assert.match(
     rfcIndex,
-    /current package is private, unpublished `0\.9\.0`/,
+    /current package is private, unpublished `0\.10\.0`/,
   );
   assert.doesNotMatch(
     rfcIndex,
@@ -703,7 +769,7 @@ test("public documentation explains the source-neutral connector model", () => {
   assert.match(roadmap, /delivered|verified/i);
   assert.match(
     roadmap,
-    /current package `0\.9\.0` preserves both historical artifacts/,
+    /current package `0\.10\.0` preserves (?:both|those) historical artifacts/,
   );
   assert.doesNotMatch(
     roadmap,
@@ -764,7 +830,7 @@ test("public documentation defines the durable workflow without upgrading readin
   const documents = [readme, roadmap, publicApi, guide, rfc];
   const combined = documents.join("\n");
 
-  assert.equal(packageJson.version, "0.9.0");
+  assert.equal(packageJson.version, "0.10.0");
   assert.equal(packageJson.private, true);
   assert.match(readme, /connector or canonical JSONL[\s\S]*explicit durable workflow request[\s\S]*atomic cognition database[\s\S]*optional event publisher[\s\S]*optional managed Markdown projection/);
   for (const document of documents) {
@@ -801,9 +867,9 @@ test("public documentation defines the durable workflow without upgrading readin
   assert.match(roadmap, /\[x\] A source-neutral durable workflow/);
   assert.match(roadmap, /\[x\] Task 8 final independent specification and code review\./);
   assert.doesNotMatch(roadmap, /does not perform Task 8 final independent review/);
-  assert.match(roadmap, /Phase 5 remains pending the two-connector criteria/);
+  assert.match(roadmap, /Phase 5 completes only when at least two independently useful connectors/);
   assert.match(roadmap, /at least two independently useful connectors/);
-  assert.match(roadmap, /real cross-connector exchange workflow must have a named owner/);
+  assert.match(roadmap, /real reference exchange workflow has a named owner/);
   assert.match(publicApi, /\.\/workflows\/durable\/0\.1\.0/);
   assert.match(publicApi, /\.\/stores\/sqlite-workflow\/0\.1\.0/);
   assert.match(publicApi, /collective-cognition-workflow/);
@@ -843,6 +909,180 @@ test("development dependency security floors remain pinned", () => {
   assert.equal(packageLock.packages["node_modules/fast-uri"].version, "3.1.5");
 });
 
+test("Git connector guide documents the exact local package contract", () => {
+  const guide = readFileSync(gitConnectorGuideUrl, "utf8");
+
+  assert.match(
+    guide,
+    /from "collective-cognition-sdk\/connectors\/git\/0\.1\.0";/,
+  );
+  for (const option of [
+    "repositoryPath",
+    "sourceInstance",
+    "tipCommitId",
+    "capturedAt",
+    "limit",
+    "includeMessage",
+    "includeAuthorEmail",
+  ]) {
+    assert.equal(guide.includes(`| \`${option}\` |`), true, option);
+  }
+  assert.match(guide, /first-parent/i);
+  assert.match(guide, /oldest-to-newest/i);
+  assert.match(guide, /`includeMessage` defaults to `false`/);
+  assert.match(guide, /`includeAuthorEmail` defaults to `false`/);
+  assert.match(guide, /local `git` executable/i);
+  for (const code of [
+    "invalid_options",
+    "target_unavailable",
+    "incompatible_repository",
+    "invalid_commit",
+    "read_failed",
+  ]) {
+    assert.match(guide, new RegExp(code), code);
+  }
+  for (const stage of ["options", "open", "history", "mapping"]) {
+    assert.match(guide, new RegExp(stage), stage);
+  }
+  for (const nonGoal of [
+    /no Git CLI/i,
+    /does not fetch, pull, clone, checkout, or push/i,
+    /does not discover a repository/i,
+    /does not infer Evidence, Decisions, or Principles/i,
+    /private and unpublished/i,
+    /not production certification/i,
+  ]) {
+    assert.match(guide, nonGoal);
+  }
+});
+
+test("public documentation records locally verified cross-connector interoperability without external completion claims", () => {
+  const documents = [
+    { name: "README", content: readFileSync(readmeUrl, "utf8") },
+    { name: "CHANGELOG", content: readFileSync(changelogUrl, "utf8") },
+    {
+      name: "roadmap",
+      content: readFileSync(roadmapUrl, "utf8"),
+    },
+    {
+      name: "connector author guide",
+      content: readFileSync(connectorAuthorGuideUrl, "utf8"),
+    },
+    {
+      name: "Git connector guide",
+      content: readFileSync(gitConnectorGuideUrl, "utf8"),
+    },
+    {
+      name: "public API",
+      content: readFileSync(publicApiUrl, "utf8"),
+    },
+    {
+      name: "specification index",
+      content: readFileSync(specificationIndexUrl, "utf8"),
+    },
+    {
+      name: "compatibility policy",
+      content: readFileSync(compatibilityPolicyUrl, "utf8"),
+    },
+    {
+      name: "RFC index",
+      content: readFileSync(rfcIndexUrl, "utf8"),
+    },
+  ];
+  const combined = documents.map(({ content }) => content).join("\n");
+  const readme = documents[0].content;
+  const roadmap = documents[2].content;
+  const publicApi = documents[5].content;
+  const specificationIndex = documents[6].content;
+  const compatibilityPolicy = documents[7].content;
+  const rfcIndex = documents[8].content;
+  const profile = JSON.parse(readFileSync(interoperabilityProfileUrl, "utf8"));
+  const plan = readFileSync(interoperabilityPlanUrl, "utf8");
+
+  for (const document of documents) {
+    assert.match(document.content, /0\.10\.0/, `${document.name} must identify package 0.10.0`);
+  }
+
+  for (const phrase of [
+    "explicit local repository",
+    "read-only",
+    "first-parent",
+    "exact tip",
+    "privacy defaults",
+    "local Git executable",
+  ]) {
+    assert.match(combined, new RegExp(escapeRegExp(phrase), "i"), phrase);
+  }
+
+  const gitImport =
+    'from "collective-cognition-sdk/connectors/git/0.1.0";';
+  assert.match(readme, new RegExp(escapeRegExp(gitImport)));
+  assert.match(publicApi, new RegExp(escapeRegExp(gitImport)));
+
+  const resourceExample = `import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+
+const sourceRecordsUrl = import.meta.resolve(
+  "collective-cognition-sdk/interoperability/0.1.0/source-records",
+);
+const sourceRecordsJsonl = readFileSync(
+  fileURLToPath(sourceRecordsUrl),
+  "utf8",
+);`;
+  assert.equal(publicApi.includes(resourceExample), true);
+  assert.equal(profile.owner, "collective-cognition-sdk-maintainers");
+  assert.match(combined, /collective-cognition-sdk-maintainers/);
+
+  for (const document of [readme, roadmap, specificationIndex, rfcIndex]) {
+    assert.match(document, /two maintained connectors/i);
+  }
+  for (const document of [readme, publicApi, documents[1].content, documents[7].content]) {
+    assert.match(document, /no Git\s+CLI/i);
+  }
+
+  const normativeStableRow = compatibilityPolicy
+    .split("\n")
+    .find((line) => line.startsWith("| Normative Stable |"));
+  const supportedExperimentalRow = compatibilityPolicy
+    .split("\n")
+    .find((line) => line.startsWith("| Supported Experimental |"));
+  assert.match(
+    normativeStableRow ?? "",
+    /Cross-Connector Interoperability Profile `0\.1\.0`/,
+  );
+  assert.match(
+    supportedExperimentalRow ?? "",
+    /`collective-cognition-workflow`/,
+  );
+
+  for (const nonClaim of [
+    /no connector registry/i,
+    /no (?:connector registry, )?plugin (?:runtime|discovery|loader)/i,
+    /no network/i,
+    /no schedul/i,
+    /no [^\n.]*automatic cognition/i,
+    /private and unpublished|private, unpublished/i,
+    /production (?:use|readiness|certification)[^\n]*(?:not claimed|no|does not|not authorize)|no production certification/i,
+    /not certification|does not certify/i,
+    /does not imply endorsement|not endorsement/i,
+    /not an LTS|no LTS|not a long-term support/i,
+  ]) {
+    assert.match(combined, nonClaim);
+  }
+
+  assert.match(
+    roadmap,
+    /## Phase 5: Cross-Connector Interoperability\n\n\*\*Status:\*\* Locally verified; merge and post-merge CI pending\./,
+  );
+  assert.doesNotMatch(
+    roadmap,
+    /## Phase 5: Cross-Connector Interoperability\n\n\*\*Status:\*\* Complete\./,
+  );
+  assert.match(roadmap, /## Phase 6:[\s\S]*\*\*Status:\*\* Planned\./);
+  assert.match(plan, /Task 6 local documentation and verification/);
+  assert.match(plan, /merge and post-merge CI pending/i);
+});
+
 test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.equal(existsSync(gitAttributesUrl), true, ".gitattributes must exist");
   const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
@@ -859,16 +1099,16 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.deepEqual(
     baseline.package.runtimeExports,
     previousBaseline.package.runtimeExports,
-    "package 0.9 root runtime exports must remain identical to 0.8",
+    "package 0.10 root runtime exports must remain identical to 0.9",
   );
   assert.deepEqual(
     baseline.package.typeExports,
     previousBaseline.package.typeExports,
-    "package 0.9 root type exports must remain identical to 0.8",
+    "package 0.10 root type exports must remain identical to 0.9",
   );
-  assert.equal(packageJson.version, "0.9.0");
-  assert.equal(packageLock.version, "0.9.0");
-  assert.equal(packageLock.packages[""].version, "0.9.0");
+  assert.equal(packageJson.version, "0.10.0");
+  assert.equal(packageLock.version, "0.10.0");
+  assert.equal(packageLock.packages[""].version, "0.10.0");
   assert.equal(
     packageJson.exports["./distribution-readiness/0.1.0"],
     "./spec/distribution-readiness/0.1.0/profile.json",
@@ -907,6 +1147,20 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     packageJson.scripts["example:host"],
     "npm run --silent build && node --disable-warning=ExperimentalWarning examples/host-integration.ts",
   );
+  for (const path of [
+    "src/connectors/git-process-result.ts",
+    "src/connectors/git.ts",
+    "tests/git-process-result.test.ts",
+    "tests/git-connector.test.ts",
+    "examples/cross-connector-interoperability.ts",
+    "tests/cross-connector-interoperability-example.test.ts",
+  ]) {
+    assert.match(
+      packageJson.scripts.check,
+      new RegExp(`node --disable-warning=ExperimentalWarning --check ${escapeRegExp(path)}`),
+      path,
+    );
+  }
   assert.equal(
     packageJson.private,
     true,
@@ -938,6 +1192,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       "./spec/compatibility/0.8.0/baseline.json",
     "./compatibility/0.9.0":
       "./spec/compatibility/0.9.0/baseline.json",
+    "./compatibility/0.10.0":
+      "./spec/compatibility/0.10.0/baseline.json",
     "./adapters/markdown/0.1.0": {
       types: "./dist/markdown-cognition.d.ts",
       import: "./dist/markdown-cognition.js",
@@ -954,6 +1210,18 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       types: "./dist/connectors/team-memory.d.ts",
       import: "./dist/connectors/team-memory.js",
     },
+    "./connectors/git/0.1.0": {
+      types: "./dist/connectors/git.d.ts",
+      import: "./dist/connectors/git.js",
+    },
+    "./interoperability/0.1.0/profile":
+      "./spec/interoperability/0.1.0/profile.json",
+    "./interoperability/0.1.0/source-records":
+      "./spec/interoperability/0.1.0/source-records.jsonl",
+    "./interoperability/0.1.0/portable-cognition":
+      "./spec/interoperability/0.1.0/portable-cognition.jsonl",
+    "./interoperability/0.1.0/errors":
+      "./spec/interoperability/0.1.0/error-cases.jsonl",
     "./contracts/host-integration/0.1.0":
       "./spec/host-integration.md",
     "./host-conformance/0.1.0": {
@@ -996,8 +1264,10 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "README.md",
     "docs/connector-author-guide.md",
     "docs/durable-cognition-workflow-guide.md",
+    "docs/git-connector-guide.md",
     "docs/markdown-cognition-adapter-guide.md",
     "docs/public-api.md",
+    "docs/acceptance/cross-connector-interoperability-0.1.0.md",
     "rfcs/README.md",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
@@ -1009,6 +1279,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0008-runtime-security-profile.md",
     "rfcs/0009-public-api-and-distribution-readiness.md",
     "rfcs/0010-durable-cognition-workflow.md",
+    "rfcs/0011-cross-connector-interoperability.md",
     "spec/README.md",
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
@@ -1029,9 +1300,16 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.8.0/change-cases.jsonl",
     "spec/compatibility/0.9.0/baseline.json",
     "spec/compatibility/0.9.0/change-cases.jsonl",
+    "spec/compatibility/0.10.0/baseline.json",
+    "spec/compatibility/0.10.0/change-cases.jsonl",
     "spec/distribution-readiness.md",
     "spec/distribution-readiness/0.1.0/profile.json",
     "spec/host-integration.md",
+    "spec/interoperability.md",
+    "spec/interoperability/0.1.0/profile.json",
+    "spec/interoperability/0.1.0/source-records.jsonl",
+    "spec/interoperability/0.1.0/portable-cognition.jsonl",
+    "spec/interoperability/0.1.0/error-cases.jsonl",
     "spec/source-record.md",
     "spec/portable-cognition.md",
     "spec/runtime-security.md",
@@ -1066,8 +1344,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   );
   assert.deepEqual(
     baseline.package.emittedFiles,
-    expectedEmittedFiles090,
-    "package 0.9 emitted inventory must match its literal allowlist",
+    expectedEmittedFiles0100,
+    "package 0.10 emitted inventory must match its literal allowlist",
   );
   assert.deepEqual(
     baseline.package.emittedFiles.filter(
@@ -1077,13 +1355,14 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       ...expectedConnectorEmittedFiles050,
       ...expectedMarkdownEmittedFiles060,
       ...expectedDurableWorkflowEmittedFiles090,
+      ...expectedGitConnectorEmittedFiles0100,
     ].sort(),
-    "package 0.9 emitted additions must be exactly the approved files",
+    "package 0.10 emitted additions must be exactly the approved files",
   );
   assert.deepEqual(
     actualEmittedFiles,
-    expectedEmittedFiles090,
-    "dist/ contents must match the independent package 0.9 allowlist",
+    expectedEmittedFiles0100,
+    "dist/ contents must match the independent package 0.10 allowlist",
   );
 
   const npmCache = mkdtempSync(join(tmpdir(), "ccsdk-npm-cache-"));
@@ -1112,7 +1391,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "LICENSE",
     "NOTICE",
     "README.md",
-    ...expectedEmittedFiles090,
+    ...expectedEmittedFiles0100,
     "package.json",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
@@ -1124,6 +1403,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0008-runtime-security-profile.md",
     "rfcs/0009-public-api-and-distribution-readiness.md",
     "rfcs/0010-durable-cognition-workflow.md",
+    "rfcs/0011-cross-connector-interoperability.md",
     "rfcs/README.md",
     "spec/README.md",
     "spec/compatibility.md",
@@ -1145,6 +1425,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.8.0/change-cases.jsonl",
     "spec/compatibility/0.9.0/baseline.json",
     "spec/compatibility/0.9.0/change-cases.jsonl",
+    "spec/compatibility/0.10.0/baseline.json",
+    "spec/compatibility/0.10.0/change-cases.jsonl",
     "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
     "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
@@ -1153,6 +1435,11 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/distribution-readiness.md",
     "spec/distribution-readiness/0.1.0/profile.json",
     "spec/host-integration.md",
+    "spec/interoperability.md",
+    "spec/interoperability/0.1.0/error-cases.jsonl",
+    "spec/interoperability/0.1.0/portable-cognition.jsonl",
+    "spec/interoperability/0.1.0/profile.json",
+    "spec/interoperability/0.1.0/source-records.jsonl",
     "spec/portable-cognition.md",
     "spec/runtime-security.md",
     "spec/runtime-security/0.1.0/profile.json",
@@ -1164,14 +1451,16 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     ...expectedBaselinePaths,
     "docs/connector-author-guide.md",
     "docs/durable-cognition-workflow-guide.md",
+    "docs/git-connector-guide.md",
     "docs/markdown-cognition-adapter-guide.md",
     "docs/public-api.md",
+    "docs/acceptance/cross-connector-interoperability-0.1.0.md",
   ].sort();
 
   assert.deepEqual(
     baseline.package.packageFiles,
     expectedPaths,
-    "package 0.9 compatibility inventory must match its literal allowlist",
+    "package 0.10 compatibility inventory must match its literal allowlist",
   );
   assert.deepEqual(paths, expectedPaths, "package contents must match allowlist");
   assert.equal(
@@ -1187,8 +1476,10 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
           !/^docs\//.test(path) ||
           path === "docs/connector-author-guide.md" ||
           path === "docs/durable-cognition-workflow-guide.md" ||
+          path === "docs/git-connector-guide.md" ||
           path === "docs/markdown-cognition-adapter-guide.md" ||
-          path === "docs/public-api.md"
+          path === "docs/public-api.md" ||
+          path === "docs/acceptance/cross-connector-interoperability-0.1.0.md"
         ) &&
         !/(?:^|\/)adapters?\//i.test(path) &&
         !/(?:git-commit|team-memory-activity|teammem-cli)/i.test(path),
@@ -1359,6 +1650,14 @@ import {
   type TeamMemorySourceRecordOptions,
 } from ${JSON.stringify(`${packageJson.name}/connectors/team-memory/0.1.0`)};
 import {
+  GIT_REPOSITORY_FORMAT,
+  GitConnectorError,
+  readGitCommitSourceRecords,
+  type GitCommitSourceRecordOptions,
+  type GitConnectorErrorCode,
+  type GitConnectorStage,
+} from ${JSON.stringify(`${packageJson.name}/connectors/git/0.1.0`)};
+import {
   MARKDOWN_COGNITION_MANIFEST_FILE,
   MARKDOWN_COGNITION_MARKER_FILE,
   MARKDOWN_COGNITION_MAX_INPUT_BYTES,
@@ -1486,7 +1785,11 @@ type ConnectorTypes =
   | SourceConnectorConformanceResult
   | TeamMemoryConnectorError
   | TeamMemoryConnectorErrorCode
-  | TeamMemorySourceRecordOptions;
+  | TeamMemorySourceRecordOptions
+  | GitConnectorError
+  | GitCommitSourceRecordOptions
+  | GitConnectorErrorCode
+  | GitConnectorStage;
 type MarkdownTypes =
   | MarkdownCognitionErrorCode
   | MarkdownCognitionProjectionOptions
@@ -1544,6 +1847,9 @@ void runSourceConnectorConformance;
 void TEAM_MEMORY_LEDGER_FORMAT;
 void TeamMemoryConnectorError;
 void readTeamMemorySourceRecords;
+void GIT_REPOSITORY_FORMAT;
+void GitConnectorError;
+void readGitCommitSourceRecords;
 void MARKDOWN_COGNITION_MANIFEST_FILE;
 void MARKDOWN_COGNITION_MARKER_FILE;
 void MARKDOWN_COGNITION_MAX_INPUT_BYTES;
@@ -1624,6 +1930,11 @@ import {
   readTeamMemorySourceRecords,
 } from ${JSON.stringify(`${packageJson.name}/connectors/team-memory/0.1.0`)};
 import {
+  GIT_REPOSITORY_FORMAT,
+  GitConnectorError,
+  readGitCommitSourceRecords,
+} from ${JSON.stringify(`${packageJson.name}/connectors/git/0.1.0`)};
+import {
   MARKDOWN_COGNITION_MANIFEST_FILE,
   MARKDOWN_COGNITION_MARKER_FILE,
   MARKDOWN_COGNITION_MAX_INPUT_BYTES,
@@ -1659,6 +1970,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { fileURLToPath } from "node:url";
 
 const contractUrl = import.meta.resolve(
   ${JSON.stringify(`${packageJson.name}/contracts/host-integration/0.1.0`)},
@@ -1668,6 +1980,15 @@ const schemaUrl = import.meta.resolve(
 );
 const fixturesUrl = import.meta.resolve(
   ${JSON.stringify(`${packageJson.name}/conformance/portable-cognition/0.1.0/valid`)},
+);
+const interoperabilityResourceSpecifiers = [
+  ${JSON.stringify(`${packageJson.name}/interoperability/0.1.0/profile`)},
+  ${JSON.stringify(`${packageJson.name}/interoperability/0.1.0/source-records`)},
+  ${JSON.stringify(`${packageJson.name}/interoperability/0.1.0/portable-cognition`)},
+  ${JSON.stringify(`${packageJson.name}/interoperability/0.1.0/errors`)},
+];
+const interoperabilityResourceText = interoperabilityResourceSpecifiers.map(
+  (specifier) => readFileSync(fileURLToPath(import.meta.resolve(specifier)), "utf8"),
 );
 const portableSchema = JSON.parse(readFileSync(new URL(schemaUrl), "utf8"));
 const hostContract = readFileSync(new URL(contractUrl), "utf8");
@@ -1810,6 +2131,8 @@ console.log(JSON.stringify({
     typeof runSourceConnectorConformance,
     typeof TeamMemoryConnectorError,
     typeof readTeamMemorySourceRecords,
+    typeof GitConnectorError,
+    typeof readGitCommitSourceRecords,
     typeof prepareDurableCognitionWorkflow,
     typeof runDurableCognitionWorkflow,
     typeof runDurableWorkflowStoreConformance,
@@ -1819,8 +2142,12 @@ console.log(JSON.stringify({
   sqliteReopened: reopened,
   sqliteRejectedWithoutMutation: rejectedWithoutMutation,
   connectorLedgerFormat: TEAM_MEMORY_LEDGER_FORMAT,
+  gitRepositoryFormat: GIT_REPOSITORY_FORMAT,
   connectorRecordCount: teamMemoryRecords.length,
   connectorConformanceStatus: connectorConformance[0]?.status,
+  interoperabilityResourceBytes: interoperabilityResourceText.map(
+    (resource) => Buffer.byteLength(resource, "utf8"),
+  ),
 }));
 `,
     "utf8",
@@ -1995,11 +2322,15 @@ try {
         "function",
         "function",
         "function",
+        "function",
+        "function",
       ],
       durableWorkflowVersion: "0.1.0",
       connectorLedgerFormat: "teammem-event-ledger/1",
+      gitRepositoryFormat: "git-repository/1",
       connectorRecordCount: 1,
       connectorConformanceStatus: "passed",
+      interoperabilityResourceBytes: [761, 3348, 4096, 1432],
     });
     assert.equal(
       sqliteReopened || sqliteRejectedWithoutMutation,
@@ -2102,7 +2433,7 @@ console.log(JSON.stringify({
         "--input-type=module",
         "--eval",
         `import { readFile } from "node:fs/promises";
-const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.9.0`)});
+const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.10.0`)});
 const baseline = JSON.parse(await readFile(new URL(baselineUrl), "utf8"));
 const changeCases = (await readFile(new URL("./change-cases.jsonl", baselineUrl), "utf8"))
   .trim()
@@ -2126,7 +2457,7 @@ console.log(JSON.stringify({
     assert.deepEqual(
       JSON.parse(importedCurrentCompatibility.stdout.trim()),
       {
-        baselineVersion: "0.9.0",
+        baselineVersion: "0.10.0",
         classifications: ["additive"],
       },
     );

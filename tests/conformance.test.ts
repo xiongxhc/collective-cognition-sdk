@@ -10,14 +10,6 @@ import {
   ingestSourceRecords,
   validateSourceRecord,
 } from "../src/index.ts";
-import {
-  gitCommitToSourceRecord,
-} from "../src/adapters/git-commit.ts";
-import {
-  teamMemoryEventToSourceRecord,
-} from "../src/adapters/team-memory.ts";
-import type { GitCommitInput } from "../src/adapters/git-commit.ts";
-import type { TeamMemoryEventRow } from "../src/adapters/team-memory.ts";
 import type { SourceRecord } from "../src/index.ts";
 
 // @ts-expect-error source-specific connector types must not leak from the root API
@@ -339,45 +331,4 @@ test("over-depth JSON remains an item-level SourceRecord rejection", () => {
       DomainErrorCode.INVALID_SOURCE_RECORD,
     );
   }
-});
-
-test("team-memory and Git connectors satisfy the same SourceRecord contract", () => {
-  const teamMemoryInput: TeamMemoryEventRow = {
-    id: 1,
-    person: "Chris",
-    project: "collective-cognition-sdk",
-    ts: "2026-07-24T09:58:00.000Z",
-    source: "gitlab",
-    kind: "commit",
-    summary: "Implemented neutral ingestion.",
-    refs: '{"url":"https://git.example/acme/sdk/commit/abc123"}',
-    raw: null,
-    hash: "team-memory-revision-1",
-  };
-  const gitInput: GitCommitInput = {
-    repository: { id: "git.example/acme/sdk" },
-    commitId: "abc123",
-    author: { id: "human:chris", name: "Chris" },
-    authoredAt: "2026-07-24T09:57:00.000Z",
-    capturedAt: "2026-07-24T09:59:00.000Z",
-    summary: "Implemented neutral ingestion.",
-    message: "Implemented neutral ingestion.",
-    parents: ["parent-1"],
-  };
-  const records = [
-    teamMemoryEventToSourceRecord(teamMemoryInput),
-    gitCommitToSourceRecord(gitInput),
-  ];
-
-  records.forEach((record) => {
-    assert.doesNotThrow(() => validateSourceRecord(record));
-  });
-  assert.deepEqual(
-    ingestSourceRecords(records).items.map((item) => item.status),
-    ["accepted", "accepted"],
-  );
-  assert.deepEqual(
-    records.map((record) => record.source.system),
-    ["team-memory-agent", "git"],
-  );
 });
