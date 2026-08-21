@@ -1,0 +1,1473 @@
+{
+  "baselineVersion": "0.10.0",
+  "packagePolicyVersion": "0.1.0",
+  "appliesToPackageVersion": "0.10.0",
+  "packageChange": {
+    "classification": "additive",
+    "packageVersionEffect": "minor-before-1.0"
+  },
+  "historicalBaselines": {
+    "0.1.0": {
+      "path": "spec/compatibility/0.1.0/baseline.json",
+      "sha256": "4e0c857ad8d115735aa8df99e9d524af55d3a6efae8ead7473b97c5201f5f89b"
+    },
+    "0.2.0": {
+      "path": "spec/compatibility/0.2.0/baseline.json",
+      "sha256": "3da00ab49c1f3b02bfc19226545dce68379546641f418993f632851b8c49ddc4"
+    },
+    "0.3.0": {
+      "path": "spec/compatibility/0.3.0/baseline.json",
+      "sha256": "02991abb5133a4aef2b6a2fc736567fbbde9e29859909f806f08822fcd40d3d4"
+    },
+    "0.4.0": {
+      "path": "spec/compatibility/0.4.0/baseline.json",
+      "sha256": "3f807dc1eeeaa3ebcd700e8e38f5c6358da60a2645a5b101ec1ba6429b97a918"
+    },
+    "0.5.0": {
+      "path": "spec/compatibility/0.5.0/baseline.json",
+      "sha256": "5350c0b6eda15f84539c0e7b8f33c377cfdce781425ed20bbafd61250f7e3327"
+    },
+    "0.6.0": {
+      "path": "spec/compatibility/0.6.0/baseline.json",
+      "sha256": "5549845df16c610d3b418220ebe895941ffcbb1f9dbe849d0a231e51e17d7289"
+    },
+    "0.7.0": {
+      "path": "spec/compatibility/0.7.0/baseline.json",
+      "sha256": "732dad2f2aff303c0b80cfcf1474e64b71648d82256e2ba5c9efcf9e6575e50f"
+    },
+    "0.8.0": {
+      "path": "spec/compatibility/0.8.0/baseline.json",
+      "sha256": "29479b4119519724a29d02ba4e4c5ce6d3276a34f515c0c2f018859d22ca3c0e"
+    },
+    "0.9.0": {
+      "path": "spec/compatibility/0.9.0/baseline.json",
+      "sha256": "4b426bfa572c79a51af317ecfec1806a2fe6f8a2ef38b9b598b25bbbd393ea1f"
+    }
+  },
+  "stabilityLevels": [
+    {
+      "id": "normative-stable",
+      "definition": "Portable behavior and immutable versioned artifacts on which implementations and stored data can rely."
+    },
+    {
+      "id": "supported-experimental",
+      "definition": "Public and tested package behavior that can evolve under this policy before 1.0.0."
+    },
+    {
+      "id": "internal",
+      "definition": "Repository implementation details with no compatibility promise."
+    }
+  ],
+  "normative": {
+    "sourceRecord": {
+      "version": "0.1.0",
+      "prosePath": "spec/source-record.md",
+      "ruleIds": [
+        "SR-001",
+        "SR-002",
+        "SR-003",
+        "SR-004",
+        "SR-005",
+        "SR-006",
+        "SR-007",
+        "SR-008",
+        "SR-009",
+        "SR-010",
+        "SR-011",
+        "SR-012",
+        "SR-013",
+        "SR-014",
+        "SR-015"
+      ],
+      "schema": {
+        "path": "spec/schemas/0.1.0/source-record.schema.json",
+        "id": "urn:collective-cognition:schema:source-record:0.1.0",
+        "packageSubpath": "./schemas/source-record/0.1.0"
+      },
+      "sourceRevisionKeyRule": "SR-005",
+      "canonicalRevisionEqualityRule": "SR-013",
+      "stableErrorsRule": "SR-014"
+    },
+    "portableCognition": {
+      "version": "0.1.0",
+      "prosePath": "spec/portable-cognition.md",
+      "proseSha256": "d73a6de049c7408715d7e717dd326e79830d99fe84ff85cb5936dfb8a757be89",
+      "ruleIds": [
+        "PCR-001",
+        "PCR-002",
+        "PCR-003",
+        "PCR-004",
+        "PCR-005",
+        "PCR-006",
+        "PCR-007",
+        "PCR-008",
+        "PCR-009",
+        "PCR-010",
+        "PCR-011",
+        "PCR-012",
+        "PCR-013",
+        "PCR-014",
+        "PCR-015",
+        "PCR-016",
+        "PCR-017",
+        "PCR-018",
+        "PCR-019",
+        "PCR-020",
+        "PCR-021",
+        "PCR-022"
+      ],
+      "schema": {
+        "path": "spec/schemas/0.1.0/portable-cognition.schema.json",
+        "id": "urn:collective-cognition:schema:portable-cognition:0.1.0",
+        "packageSubpath": "./schemas/portable-cognition/0.1.0"
+      },
+      "conformance": {
+        "valid": {
+          "path": "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
+          "packageSubpath": "./conformance/portable-cognition/0.1.0/valid"
+        },
+        "invalid": {
+          "path": "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
+          "packageSubpath": "./conformance/portable-cognition/0.1.0/invalid"
+        },
+        "cognitiveLoop": {
+          "path": "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
+          "packageSubpath": "./conformance/portable-cognition/0.1.0/cognitive-loop"
+        }
+      },
+      "runtimeIsolationRule": "PCR-019",
+      "stableErrorsRule": "PCR-020",
+      "versionIndependenceRule": "PCR-021",
+      "hostTrustBoundaryRule": "PCR-022"
+    },
+    "compatibility": {
+      "prosePath": "spec/compatibility.md",
+      "ruleIds": [
+        "COMP-001",
+        "COMP-002",
+        "COMP-003",
+        "COMP-004",
+        "COMP-005",
+        "COMP-006",
+        "COMP-007",
+        "COMP-008",
+        "COMP-009",
+        "COMP-010",
+        "COMP-011",
+        "COMP-012",
+        "COMP-013",
+        "COMP-014",
+        "COMP-015",
+        "COMP-016",
+        "COMP-017",
+        "COMP-018"
+      ]
+    },
+    "artifacts": {
+      "docs/acceptance/cross-connector-interoperability-0.1.0.md": "0bf76a6fb9f7cdfa694792cbffef5dff7372ace7a8a006727ea6bae24c248586",
+      "docs/durable-cognition-workflow-guide.md": "2403b288b6201bb82eab5b93e37a56aa58140006cb75ca60f765798ab80024bb",
+      "docs/git-connector-guide.md": "cc785e60413544e6672d5ed3bf92607797fcdc9d3264a0c8bfd76837cc651aaf",
+      "docs/public-api.md": "5fc334d7a89cb44de8f2a467905e18658303bb516c63439ee267094b146f7772",
+      "rfcs/0009-public-api-and-distribution-readiness.md": "967b0cc1b6584902c4d606bbdc7cf47f9801283a3f67d7a802152994dabc6da3",
+      "rfcs/0010-durable-cognition-workflow.md": "2f8df9982684bd93e20c2c2f19500855a8151cb43271176cf731512f18cd28ad",
+      "rfcs/0011-cross-connector-interoperability.md": "620a381ae066111b61d841882625a8365029d7f85a0a8d250bfe7ab1e8f0c922",
+      "spec/compatibility/0.1.0/change-cases.jsonl": "3337f8e2ca7aaa0769a18ad8ce724c621d94d01528980b6d30feec9e8626bd6b",
+      "spec/compatibility/0.2.0/change-cases.jsonl": "e0229b0436827bc71456e839e852f96d8d075da8fd65c32342fd6089c995e5f5",
+      "spec/compatibility/0.3.0/change-cases.jsonl": "1f1ff3822de318806640357bb11804a0213d7084f05350035f8bb8d519dd95f2",
+      "spec/compatibility/0.4.0/change-cases.jsonl": "704d478ed8738f3f591d6b49886bce919dcd0318b8c54a107619d1aa9961c645",
+      "spec/compatibility/0.5.0/change-cases.jsonl": "992a3dfb12f5edcc96604007e61d28c102f0581d9bdba80f63697199be7e698e",
+      "spec/compatibility/0.6.0/change-cases.jsonl": "344c98585ab3c6572ea460a5902bea92bb9266bb29e33813492dd1c9bada62c8",
+      "spec/compatibility/0.7.0/change-cases.jsonl": "23d6577eb6aa927ab37f33278363f00a38cb2e0e67adfbc50a9dc2075b1b9e9e",
+      "spec/compatibility/0.8.0/change-cases.jsonl": "9cb7bd259d2b84e7fb1f8839263bfae0d54eb2ba8aaa07de9f15957660244572",
+      "spec/compatibility/0.9.0/change-cases.jsonl": "22ba5a27a3c60520ac3e45f2246941d8efe0145c282dcbe689575e1bb54dedc3",
+      "spec/compatibility/0.10.0/change-cases.jsonl": "3c74491fbac5ee0b3dea274e3b183f60c64ed54eedb1a50375377dbf0c4a051a",
+      "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl": "1693d97e207cfeee63d370ba23d07ffd9023e8b087e5dbd3c0ad53e945184053",
+      "spec/conformance/0.1.0/portable-cognition/invalid.jsonl": "0f8e21f7379824223482e26ae26ec0b7b5031077ab63f6dac4558239b4908ba4",
+      "spec/conformance/0.1.0/portable-cognition/valid.jsonl": "cc3854706ace472b0d5335ecb9596c7ea3bf2b48c04fd9dd950f9683e8b203f4",
+      "spec/conformance/0.1.0/source-record/invalid.jsonl": "4705f32eb5ea48ddd693759728294d2557b0a6f4a5cc666843b2e03bb03e99c0",
+      "spec/conformance/0.1.0/source-record/valid.jsonl": "f52c212026b70bf2b339e1132b2895c91be509f250dde841319dbbb4edd3f74a",
+      "spec/distribution-readiness.md": "72d583c3e83b3a8c909c421bb1aa65ece2fa7bbda9a5eaca665d5998c429e936",
+      "spec/distribution-readiness/0.1.0/profile.json": "5d1d236c946820be65d04648b66ca215073810a908ad8d44da8f04f800909af9",
+      "spec/interoperability.md": "58deb989685c346c210745e7f9a31855f374ca5a7cf65258ce2f4ba1b8e0478f",
+      "spec/interoperability/0.1.0/error-cases.jsonl": "c0aeb321060cb4d0c40eb1ae80d93de43a1878e3665cdf31829fd3ad680b40a6",
+      "spec/interoperability/0.1.0/portable-cognition.jsonl": "a140ef3a746f6cfa72d160ee056dfb26326c400fbf586d383dab6a651f522641",
+      "spec/interoperability/0.1.0/profile.json": "4b646debe6809367ab1ddceea5717e081279efc7854cf31aba5f406a3ec7c704",
+      "spec/interoperability/0.1.0/source-records.jsonl": "42757122645c2e0650e2347eedc61ed302ee2d330f4d0bdf771271bc9f5f9ed6",
+      "spec/runtime-security.md": "a4ec4d386ecec9d670effb8b82997933bdcd763556b08f96163c93bc24d0f2e9",
+      "spec/runtime-security/0.1.0/profile.json": "960fe7a5927f1df1082cb88a9006b088f7669bb597c1d219b27dda9a4e5c66a1",
+      "spec/schemas/0.1.0/portable-cognition.schema.json": "6dec3f942ca88994fef588a2ffb93240d716e116dbec7ded46a1f362446f6bdd",
+      "spec/schemas/0.1.0/source-record.schema.json": "56cf53c5da98dfbec19a021fbb90673beab8248c7a77df44989b535a0e155648"
+    },
+    "hostIntegration": {
+      "version": "0.1.0",
+      "prosePath": "spec/host-integration.md",
+      "proseSha256": "41d2094f60a096540983bdeb9be5320d43136a8519b9e3ce2336c20f788f7bd7",
+      "ruleIds": [
+        "HIC-001",
+        "HIC-002",
+        "HIC-003",
+        "HIC-004",
+        "HIC-005",
+        "HIC-006",
+        "HIC-007",
+        "HIC-008",
+        "HIC-009",
+        "HIC-010",
+        "HIC-011",
+        "HIC-012",
+        "HIC-013",
+        "HIC-014",
+        "HIC-015",
+        "HIC-016"
+      ],
+      "packageSubpaths": {
+        "contract": "./contracts/host-integration/0.1.0",
+        "conformance": "./host-conformance/0.1.0",
+        "referenceHost": "./reference-host/0.1.0"
+      }
+    },
+    "runtimeSecurity": {
+      "version": "0.1.0",
+      "prosePath": "spec/runtime-security.md",
+      "proseSha256": "a4ec4d386ecec9d670effb8b82997933bdcd763556b08f96163c93bc24d0f2e9",
+      "profile": {
+        "path": "spec/runtime-security/0.1.0/profile.json",
+        "sha256": "960fe7a5927f1df1082cb88a9006b088f7669bb597c1d219b27dda9a4e5c66a1",
+        "packageSubpath": "./runtime-security/0.1.0"
+      },
+      "ruleIds": [
+        "RSP-001",
+        "RSP-002",
+        "RSP-003",
+        "RSP-004",
+        "RSP-005",
+        "RSP-006",
+        "RSP-007",
+        "RSP-008",
+        "RSP-009",
+        "RSP-010",
+        "RSP-011",
+        "RSP-012",
+        "RSP-013",
+        "RSP-014",
+        "RSP-015",
+        "RSP-016",
+        "RSP-017",
+        "RSP-018",
+        "RSP-019",
+        "RSP-020",
+        "RSP-021",
+        "RSP-022"
+      ],
+      "nonClaimIds": [
+        "RSP-NC-001",
+        "RSP-NC-002",
+        "RSP-NC-003",
+        "RSP-NC-004",
+        "RSP-NC-005"
+      ]
+    },
+    "distributionReadiness": {
+      "version": "0.1.0",
+      "prosePath": "spec/distribution-readiness.md",
+      "proseSha256": "72d583c3e83b3a8c909c421bb1aa65ece2fa7bbda9a5eaca665d5998c429e936",
+      "profile": {
+        "path": "spec/distribution-readiness/0.1.0/profile.json",
+        "sha256": "5d1d236c946820be65d04648b66ca215073810a908ad8d44da8f04f800909af9",
+        "packageSubpath": "./distribution-readiness/0.1.0",
+        "describesPackageVersion": "0.8.0"
+      },
+      "publicApiReference": {
+        "path": "docs/public-api.md",
+        "sha256": "02d6732330cf2ffaeed5ae02fd809c2b7dbdee5ce77704dc81e4d21f0bc5596d"
+      },
+      "rfc": {
+        "path": "rfcs/0009-public-api-and-distribution-readiness.md",
+        "sha256": "967b0cc1b6584902c4d606bbdc7cf47f9801283a3f67d7a802152994dabc6da3"
+      },
+      "ruleIds": [
+        "DRP-001",
+        "DRP-002",
+        "DRP-003",
+        "DRP-004",
+        "DRP-005",
+        "DRP-006",
+        "DRP-007",
+        "DRP-008",
+        "DRP-009",
+        "DRP-010",
+        "DRP-011",
+        "DRP-012"
+      ],
+      "gateIds": [
+        "DRP-GATE-001",
+        "DRP-GATE-002",
+        "DRP-GATE-003",
+        "DRP-GATE-004",
+        "DRP-GATE-005"
+      ],
+      "npmBlockerIds": [
+        "DRP-NPM-001",
+        "DRP-NPM-002"
+      ],
+      "nonClaimIds": [
+        "DRP-NC-001",
+        "DRP-NC-002",
+        "DRP-NC-003",
+        "DRP-NC-004",
+        "DRP-NC-005"
+      ]
+    }
+  },
+  "package": {
+    "metadata": {
+      "name": "collective-cognition-sdk",
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "license": "Apache-2.0",
+      "engines": {
+        "node": ">=24"
+      },
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "import": "./dist/index.js"
+        },
+        "./compatibility/0.1.0": "./spec/compatibility/0.1.0/baseline.json",
+        "./compatibility/0.2.0": "./spec/compatibility/0.2.0/baseline.json",
+        "./compatibility/0.3.0": "./spec/compatibility/0.3.0/baseline.json",
+        "./compatibility/0.4.0": "./spec/compatibility/0.4.0/baseline.json",
+        "./compatibility/0.5.0": "./spec/compatibility/0.5.0/baseline.json",
+        "./compatibility/0.6.0": "./spec/compatibility/0.6.0/baseline.json",
+        "./compatibility/0.7.0": "./spec/compatibility/0.7.0/baseline.json",
+        "./compatibility/0.8.0": "./spec/compatibility/0.8.0/baseline.json",
+        "./compatibility/0.9.0": "./spec/compatibility/0.9.0/baseline.json",
+        "./compatibility/0.10.0": "./spec/compatibility/0.10.0/baseline.json",
+        "./adapters/markdown/0.1.0": {
+          "types": "./dist/markdown-cognition.d.ts",
+          "import": "./dist/markdown-cognition.js"
+        },
+        "./workflows/durable/0.1.0": {
+          "types": "./dist/workflows/durable.d.ts",
+          "import": "./dist/workflows/durable.js"
+        },
+        "./connector-conformance/0.1.0": {
+          "types": "./dist/connector-conformance.d.ts",
+          "import": "./dist/connector-conformance.js"
+        },
+        "./connectors/team-memory/0.1.0": {
+          "types": "./dist/connectors/team-memory.d.ts",
+          "import": "./dist/connectors/team-memory.js"
+        },
+        "./connectors/git/0.1.0": {
+          "types": "./dist/connectors/git.d.ts",
+          "import": "./dist/connectors/git.js"
+        },
+        "./interoperability/0.1.0/profile": "./spec/interoperability/0.1.0/profile.json",
+        "./interoperability/0.1.0/source-records": "./spec/interoperability/0.1.0/source-records.jsonl",
+        "./interoperability/0.1.0/portable-cognition": "./spec/interoperability/0.1.0/portable-cognition.jsonl",
+        "./interoperability/0.1.0/errors": "./spec/interoperability/0.1.0/error-cases.jsonl",
+        "./contracts/host-integration/0.1.0": "./spec/host-integration.md",
+        "./host-conformance/0.1.0": {
+          "types": "./dist/host-conformance.d.ts",
+          "import": "./dist/host-conformance.js"
+        },
+        "./reference-host/0.1.0": {
+          "types": "./dist/reference-host.d.ts",
+          "import": "./dist/reference-host.js"
+        },
+        "./stores/sqlite/0.1.0": {
+          "types": "./dist/stores/sqlite.d.ts",
+          "import": "./dist/stores/sqlite.js"
+        },
+        "./stores/sqlite-workflow/0.1.0": {
+          "types": "./dist/stores/sqlite-workflow.d.ts",
+          "import": "./dist/stores/sqlite-workflow.js"
+        },
+        "./schemas/source-record/0.1.0": "./spec/schemas/0.1.0/source-record.schema.json",
+        "./schemas/portable-cognition/0.1.0": "./spec/schemas/0.1.0/portable-cognition.schema.json",
+        "./conformance/portable-cognition/0.1.0/valid": "./spec/conformance/0.1.0/portable-cognition/valid.jsonl",
+        "./conformance/portable-cognition/0.1.0/invalid": "./spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
+        "./conformance/portable-cognition/0.1.0/cognitive-loop": "./spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
+        "./distribution-readiness/0.1.0": "./spec/distribution-readiness/0.1.0/profile.json",
+        "./runtime-security/0.1.0": "./spec/runtime-security/0.1.0/profile.json",
+        "./package.json": "./package.json"
+      },
+      "bin": {
+        "collective-cognition": "./dist/cli.js",
+        "collective-cognition-teammem": "./dist/team-memory-cli.js",
+        "collective-cognition-markdown": "./dist/markdown-cognition-cli.js",
+        "collective-cognition-workflow": "./dist/workflow-cli.js"
+      },
+      "productionDependencyFields": []
+    },
+    "emittedFiles": [
+      "dist/authorization.d.ts",
+      "dist/authorization.js",
+      "dist/cli-contract.d.ts",
+      "dist/cli-contract.js",
+      "dist/cli.d.ts",
+      "dist/cli.js",
+      "dist/connector-conformance.d.ts",
+      "dist/connector-conformance.js",
+      "dist/connectors/git.d.ts",
+      "dist/connectors/git.js",
+      "dist/connectors/team-memory.d.ts",
+      "dist/connectors/team-memory.js",
+      "dist/errors.d.ts",
+      "dist/errors.js",
+      "dist/events.d.ts",
+      "dist/events.js",
+      "dist/host-conformance.d.ts",
+      "dist/host-conformance.js",
+      "dist/host-integration.d.ts",
+      "dist/host-integration.js",
+      "dist/index.d.ts",
+      "dist/index.js",
+      "dist/ingestion.d.ts",
+      "dist/ingestion.js",
+      "dist/json-text.d.ts",
+      "dist/json-text.js",
+      "dist/markdown-cognition-cli.d.ts",
+      "dist/markdown-cognition-cli.js",
+      "dist/markdown-cognition-profile.d.ts",
+      "dist/markdown-cognition-profile.js",
+      "dist/markdown-cognition-projection.d.ts",
+      "dist/markdown-cognition-projection.js",
+      "dist/markdown-cognition-target.d.ts",
+      "dist/markdown-cognition-target.js",
+      "dist/markdown-cognition.d.ts",
+      "dist/markdown-cognition.js",
+      "dist/objects.d.ts",
+      "dist/objects.js",
+      "dist/portable-cognition.d.ts",
+      "dist/portable-cognition.js",
+      "dist/promotion.d.ts",
+      "dist/promotion.js",
+      "dist/reference-host.d.ts",
+      "dist/reference-host.js",
+      "dist/source-records.d.ts",
+      "dist/source-records.js",
+      "dist/stores/sqlite-workflow.d.ts",
+      "dist/stores/sqlite-workflow.js",
+      "dist/stores/sqlite.d.ts",
+      "dist/stores/sqlite.js",
+      "dist/team-memory-cli.d.ts",
+      "dist/team-memory-cli.js",
+      "dist/transitions.d.ts",
+      "dist/transitions.js",
+      "dist/types.d.ts",
+      "dist/types.js",
+      "dist/workflow-cli-contract.d.ts",
+      "dist/workflow-cli-contract.js",
+      "dist/workflow-cli.d.ts",
+      "dist/workflow-cli.js",
+      "dist/workflows/durable-conformance.d.ts",
+      "dist/workflows/durable-conformance.js",
+      "dist/workflows/durable-contract.d.ts",
+      "dist/workflows/durable-contract.js",
+      "dist/workflows/durable-prepare.d.ts",
+      "dist/workflows/durable-prepare.js",
+      "dist/workflows/durable-run.d.ts",
+      "dist/workflows/durable-run.js",
+      "dist/workflows/durable.d.ts",
+      "dist/workflows/durable.js"
+    ],
+    "packageFiles": [
+      "CITATION.cff",
+      "LICENSE",
+      "NOTICE",
+      "README.md",
+      "dist/authorization.d.ts",
+      "dist/authorization.js",
+      "dist/cli-contract.d.ts",
+      "dist/cli-contract.js",
+      "dist/cli.d.ts",
+      "dist/cli.js",
+      "dist/connector-conformance.d.ts",
+      "dist/connector-conformance.js",
+      "dist/connectors/git.d.ts",
+      "dist/connectors/git.js",
+      "dist/connectors/team-memory.d.ts",
+      "dist/connectors/team-memory.js",
+      "dist/errors.d.ts",
+      "dist/errors.js",
+      "dist/events.d.ts",
+      "dist/events.js",
+      "dist/host-conformance.d.ts",
+      "dist/host-conformance.js",
+      "dist/host-integration.d.ts",
+      "dist/host-integration.js",
+      "dist/index.d.ts",
+      "dist/index.js",
+      "dist/ingestion.d.ts",
+      "dist/ingestion.js",
+      "dist/json-text.d.ts",
+      "dist/json-text.js",
+      "dist/markdown-cognition-cli.d.ts",
+      "dist/markdown-cognition-cli.js",
+      "dist/markdown-cognition-profile.d.ts",
+      "dist/markdown-cognition-profile.js",
+      "dist/markdown-cognition-projection.d.ts",
+      "dist/markdown-cognition-projection.js",
+      "dist/markdown-cognition-target.d.ts",
+      "dist/markdown-cognition-target.js",
+      "dist/markdown-cognition.d.ts",
+      "dist/markdown-cognition.js",
+      "dist/objects.d.ts",
+      "dist/objects.js",
+      "dist/portable-cognition.d.ts",
+      "dist/portable-cognition.js",
+      "dist/promotion.d.ts",
+      "dist/promotion.js",
+      "dist/reference-host.d.ts",
+      "dist/reference-host.js",
+      "dist/source-records.d.ts",
+      "dist/source-records.js",
+      "dist/stores/sqlite-workflow.d.ts",
+      "dist/stores/sqlite-workflow.js",
+      "dist/stores/sqlite.d.ts",
+      "dist/stores/sqlite.js",
+      "dist/team-memory-cli.d.ts",
+      "dist/team-memory-cli.js",
+      "dist/transitions.d.ts",
+      "dist/transitions.js",
+      "dist/types.d.ts",
+      "dist/types.js",
+      "dist/workflow-cli-contract.d.ts",
+      "dist/workflow-cli-contract.js",
+      "dist/workflow-cli.d.ts",
+      "dist/workflow-cli.js",
+      "dist/workflows/durable-conformance.d.ts",
+      "dist/workflows/durable-conformance.js",
+      "dist/workflows/durable-contract.d.ts",
+      "dist/workflows/durable-contract.js",
+      "dist/workflows/durable-prepare.d.ts",
+      "dist/workflows/durable-prepare.js",
+      "dist/workflows/durable-run.d.ts",
+      "dist/workflows/durable-run.js",
+      "dist/workflows/durable.d.ts",
+      "dist/workflows/durable.js",
+      "docs/acceptance/cross-connector-interoperability-0.1.0.md",
+      "docs/connector-author-guide.md",
+      "docs/durable-cognition-workflow-guide.md",
+      "docs/git-connector-guide.md",
+      "docs/markdown-cognition-adapter-guide.md",
+      "docs/public-api.md",
+      "package.json",
+      "rfcs/0001-universal-source-record-ingestion.md",
+      "rfcs/0002-compatibility-versioning-and-deprecation.md",
+      "rfcs/0003-portable-cognition-contract.md",
+      "rfcs/0004-host-integration-contract.md",
+      "rfcs/0005-sqlite-cognition-store.md",
+      "rfcs/0006-maintained-source-connectors.md",
+      "rfcs/0007-markdown-cognition-adapter.md",
+      "rfcs/0008-runtime-security-profile.md",
+      "rfcs/0009-public-api-and-distribution-readiness.md",
+      "rfcs/0010-durable-cognition-workflow.md",
+      "rfcs/0011-cross-connector-interoperability.md",
+      "rfcs/README.md",
+      "spec/README.md",
+      "spec/compatibility.md",
+      "spec/compatibility/0.1.0/baseline.json",
+      "spec/compatibility/0.1.0/change-cases.jsonl",
+      "spec/compatibility/0.10.0/baseline.json",
+      "spec/compatibility/0.10.0/change-cases.jsonl",
+      "spec/compatibility/0.2.0/baseline.json",
+      "spec/compatibility/0.2.0/change-cases.jsonl",
+      "spec/compatibility/0.3.0/baseline.json",
+      "spec/compatibility/0.3.0/change-cases.jsonl",
+      "spec/compatibility/0.4.0/baseline.json",
+      "spec/compatibility/0.4.0/change-cases.jsonl",
+      "spec/compatibility/0.5.0/baseline.json",
+      "spec/compatibility/0.5.0/change-cases.jsonl",
+      "spec/compatibility/0.6.0/baseline.json",
+      "spec/compatibility/0.6.0/change-cases.jsonl",
+      "spec/compatibility/0.7.0/baseline.json",
+      "spec/compatibility/0.7.0/change-cases.jsonl",
+      "spec/compatibility/0.8.0/baseline.json",
+      "spec/compatibility/0.8.0/change-cases.jsonl",
+      "spec/compatibility/0.9.0/baseline.json",
+      "spec/compatibility/0.9.0/change-cases.jsonl",
+      "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
+      "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
+      "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
+      "spec/conformance/0.1.0/source-record/invalid.jsonl",
+      "spec/conformance/0.1.0/source-record/valid.jsonl",
+      "spec/distribution-readiness.md",
+      "spec/distribution-readiness/0.1.0/profile.json",
+      "spec/host-integration.md",
+      "spec/interoperability.md",
+      "spec/interoperability/0.1.0/error-cases.jsonl",
+      "spec/interoperability/0.1.0/portable-cognition.jsonl",
+      "spec/interoperability/0.1.0/profile.json",
+      "spec/interoperability/0.1.0/source-records.jsonl",
+      "spec/portable-cognition.md",
+      "spec/runtime-security.md",
+      "spec/runtime-security/0.1.0/profile.json",
+      "spec/schemas/0.1.0/portable-cognition.schema.json",
+      "spec/schemas/0.1.0/source-record.schema.json",
+      "spec/source-record.md"
+    ],
+    "runtimeExports": [
+      "DomainError",
+      "DomainErrorCode",
+      "HOST_INTEGRATION_CONTRACT_VERSION",
+      "HostFailureCode",
+      "PORTABLE_COGNITION_MAX_JSON_DEPTH",
+      "PORTABLE_COGNITION_SCHEMA_VERSION",
+      "SOURCE_RECORD_MAX_JSON_DEPTH",
+      "SOURCE_RECORD_SCHEMA_VERSION",
+      "canonicalizeJson",
+      "commitCognitionTransition",
+      "commitInitialCognition",
+      "createObject",
+      "createPortableCognitionRecord",
+      "createSourceRecord",
+      "deserializeObject",
+      "deserializePortableCognitionRecord",
+      "deserializeSourceRecord",
+      "evaluateAuthorization",
+      "ingestAndPromoteEvidence",
+      "ingestSourceRecordText",
+      "ingestSourceRecords",
+      "neutralEvidencePolicyV1",
+      "promoteSourceRecordsToEvidence",
+      "serializeObject",
+      "serializePortableCognitionRecord",
+      "serializeSourceRecord",
+      "sourceRevisionKey",
+      "transitionObject",
+      "validatePortableCognitionRecord",
+      "validateSourceRecord"
+    ],
+    "typeExports": [
+      "ActorKind",
+      "Attribution",
+      "AuthorizationDecision",
+      "AuthorizationPolicy",
+      "AutomationMode",
+      "CognitionEvent",
+      "CognitionEventPublisher",
+      "CognitionHost",
+      "CognitionPersistenceStatus",
+      "CognitionPublicationStatus",
+      "CognitionStore",
+      "CognitionStoreCommitResult",
+      "CognitiveObject",
+      "CognitiveObjectFor",
+      "ConsequenceLevel",
+      "CreateObjectInput",
+      "CreateObjectInputFor",
+      "CreatePortableCognitionRecordInput",
+      "CreateSourceRecordInput",
+      "DataByType",
+      "DecisionData",
+      "DecisionState",
+      "EvidenceData",
+      "EvidencePromotionContext",
+      "EvidencePromotionMapping",
+      "EvidencePromotionPolicy",
+      "EvidencePromotionRequest",
+      "EvidencePromotionResult",
+      "EvidenceState",
+      "ExperimentData",
+      "ExperimentState",
+      "GoalData",
+      "GoalState",
+      "HostConflict",
+      "HostConflictCode",
+      "HostFailure",
+      "HumanConfirmation",
+      "HypothesisData",
+      "HypothesisState",
+      "IdentityData",
+      "IdentityState",
+      "IngestAndPromoteEvidenceResult",
+      "IngestionBatchResult",
+      "IngestionItemResult",
+      "IngestionMode",
+      "IngestionOptions",
+      "IngestionTextOptions",
+      "InitialCognitionCommit",
+      "InitialCommitOutcome",
+      "JsonArray",
+      "JsonObject",
+      "JsonPrimitive",
+      "JsonValue",
+      "ObjectType",
+      "PortableCognitionEventRecord",
+      "PortableCognitionPayloadByType",
+      "PortableCognitionRecord",
+      "PortableCognitionRecordType",
+      "PortableCognitiveObjectRecord",
+      "PortableDomainError",
+      "PrincipleData",
+      "PrincipleState",
+      "PromotionFailure",
+      "ProvenanceRef",
+      "Relationship",
+      "RelationshipType",
+      "SourceRecord",
+      "SourceRecordSource",
+      "StateByType",
+      "TransitionActor",
+      "TransitionCognitionCommit",
+      "TransitionCommitOutcome",
+      "TransitionContext",
+      "TransitionResult"
+    ],
+    "errorCodes": [
+      "AUTHORIZATION_DENIED",
+      "CONFIRMATION_REQUIRED",
+      "INGESTION_LIMIT_EXCEEDED",
+      "INVALID_HOST_INTEGRATION_REQUEST",
+      "INVALID_OBJECT",
+      "INVALID_PORTABLE_COGNITION_RECORD",
+      "INVALID_RELATIONSHIP",
+      "INVALID_SOURCE_RECORD",
+      "INVALID_TRANSITION",
+      "PROMOTION_FAILED",
+      "SERIALIZATION_ERROR",
+      "SOURCE_REVISION_COLLISION"
+    ],
+    "normativeStableErrorCodes": [
+      "INVALID_HOST_INTEGRATION_REQUEST",
+      "INVALID_PORTABLE_COGNITION_RECORD",
+      "INVALID_SOURCE_RECORD",
+      "SOURCE_REVISION_COLLISION"
+    ],
+    "policyIdentities": {
+      "neutralEvidencePolicyV1": {
+        "id": "neutral-evidence",
+        "version": "1"
+      }
+    },
+    "declarations": {
+      "root": {
+        "packageSubpath": ".",
+        "declarationEntrypoint": "dist/index.d.ts",
+        "files": [
+          "dist/authorization.d.ts",
+          "dist/errors.d.ts",
+          "dist/events.d.ts",
+          "dist/host-integration.d.ts",
+          "dist/index.d.ts",
+          "dist/ingestion.d.ts",
+          "dist/objects.d.ts",
+          "dist/portable-cognition.d.ts",
+          "dist/promotion.d.ts",
+          "dist/source-records.d.ts",
+          "dist/transitions.d.ts",
+          "dist/types.d.ts"
+        ],
+        "sha256": "7f9e352c9adf8a48d433d280c8040ddad57240726276a15d690133b3dfcf7333"
+      },
+      "hostConformance": {
+        "packageSubpath": "./host-conformance/0.1.0",
+        "declarationEntrypoint": "dist/host-conformance.d.ts",
+        "files": [
+          "dist/authorization.d.ts",
+          "dist/events.d.ts",
+          "dist/host-conformance.d.ts",
+          "dist/host-integration.d.ts",
+          "dist/portable-cognition.d.ts",
+          "dist/types.d.ts"
+        ],
+        "sha256": "4cb58d68d6796cc77a8dfdb5a31013e441c99142bbb5bc62a91e5e71d64db94b"
+      },
+      "referenceHost": {
+        "packageSubpath": "./reference-host/0.1.0",
+        "declarationEntrypoint": "dist/reference-host.d.ts",
+        "files": [
+          "dist/authorization.d.ts",
+          "dist/events.d.ts",
+          "dist/host-integration.d.ts",
+          "dist/portable-cognition.d.ts",
+          "dist/reference-host.d.ts",
+          "dist/types.d.ts"
+        ],
+        "sha256": "1447986d26b53d77a083fe414da8d744056df30db4e0094bb28a656d0f8965b2"
+      },
+      "sqlite": {
+        "packageSubpath": "./stores/sqlite/0.1.0",
+        "declarationEntrypoint": "dist/stores/sqlite.d.ts",
+        "files": [
+          "dist/authorization.d.ts",
+          "dist/events.d.ts",
+          "dist/host-integration.d.ts",
+          "dist/portable-cognition.d.ts",
+          "dist/stores/sqlite.d.ts",
+          "dist/types.d.ts"
+        ],
+        "sha256": "4b957a8d4a7cf5fe400f6197440da8b60ae92ba3b300807d8f4e21818feb3b0f"
+      },
+      "connectorConformance": {
+        "packageSubpath": "./connector-conformance/0.1.0",
+        "declarationEntrypoint": "dist/connector-conformance.d.ts",
+        "files": [
+          "dist/connector-conformance.d.ts",
+          "dist/source-records.d.ts",
+          "dist/types.d.ts"
+        ],
+        "sha256": "aefa0ef5dafce7eb4bb0c9bc39db893fe9622844c66e3a051769303af3756f4f"
+      },
+      "teamMemoryConnector": {
+        "packageSubpath": "./connectors/team-memory/0.1.0",
+        "declarationEntrypoint": "dist/connectors/team-memory.d.ts",
+        "files": [
+          "dist/connectors/team-memory.d.ts",
+          "dist/source-records.d.ts",
+          "dist/types.d.ts"
+        ],
+        "sha256": "8e420e5a930c153faaa46837e6aa0cc11086c411a3b3bebbf515825db820db75"
+      },
+      "gitConnector": {
+        "packageSubpath": "./connectors/git/0.1.0",
+        "declarationEntrypoint": "dist/connectors/git.d.ts",
+        "files": [
+          "dist/connectors/git.d.ts",
+          "dist/source-records.d.ts",
+          "dist/types.d.ts"
+        ],
+        "sha256": "9b968fac610f355181b3ad30bc99fff8f5e09f70a27a28a5c6b17ce02c9515ba"
+      },
+      "markdownCognition": {
+        "packageSubpath": "./adapters/markdown/0.1.0",
+        "declarationEntrypoint": "dist/markdown-cognition.d.ts",
+        "files": [
+          "dist/authorization.d.ts",
+          "dist/events.d.ts",
+          "dist/markdown-cognition-profile.d.ts",
+          "dist/markdown-cognition-projection.d.ts",
+          "dist/markdown-cognition-target.d.ts",
+          "dist/markdown-cognition.d.ts",
+          "dist/portable-cognition.d.ts",
+          "dist/types.d.ts"
+        ],
+        "sha256": "92774073936f3f75621e9dd5f8a513729a355abdbc098c384fac87cc6f31be11"
+      },
+      "durableWorkflow": {
+        "packageSubpath": "./workflows/durable/0.1.0",
+        "declarationEntrypoint": "dist/workflows/durable.d.ts",
+        "files": [
+          "dist/authorization.d.ts",
+          "dist/errors.d.ts",
+          "dist/events.d.ts",
+          "dist/host-integration.d.ts",
+          "dist/ingestion.d.ts",
+          "dist/markdown-cognition-profile.d.ts",
+          "dist/markdown-cognition-projection.d.ts",
+          "dist/markdown-cognition-target.d.ts",
+          "dist/markdown-cognition.d.ts",
+          "dist/portable-cognition.d.ts",
+          "dist/promotion.d.ts",
+          "dist/source-records.d.ts",
+          "dist/types.d.ts",
+          "dist/workflows/durable-conformance.d.ts",
+          "dist/workflows/durable-contract.d.ts",
+          "dist/workflows/durable-prepare.d.ts",
+          "dist/workflows/durable-run.d.ts",
+          "dist/workflows/durable.d.ts"
+        ],
+        "sha256": "145d4493a5b39bb305e3b8b8e2ca3fc863b298f867dc21711e5d14fced6d5498"
+      },
+      "sqliteWorkflow": {
+        "packageSubpath": "./stores/sqlite-workflow/0.1.0",
+        "declarationEntrypoint": "dist/stores/sqlite-workflow.d.ts",
+        "files": [
+          "dist/authorization.d.ts",
+          "dist/errors.d.ts",
+          "dist/events.d.ts",
+          "dist/host-integration.d.ts",
+          "dist/ingestion.d.ts",
+          "dist/markdown-cognition-profile.d.ts",
+          "dist/markdown-cognition-projection.d.ts",
+          "dist/markdown-cognition-target.d.ts",
+          "dist/markdown-cognition.d.ts",
+          "dist/portable-cognition.d.ts",
+          "dist/promotion.d.ts",
+          "dist/source-records.d.ts",
+          "dist/stores/sqlite-workflow.d.ts",
+          "dist/types.d.ts",
+          "dist/workflows/durable-conformance.d.ts",
+          "dist/workflows/durable-contract.d.ts",
+          "dist/workflows/durable-prepare.d.ts",
+          "dist/workflows/durable-run.d.ts",
+          "dist/workflows/durable.d.ts"
+        ],
+        "sha256": "3eff49d7a1c705cd20a05e85dd57b4cc474d3f1d2d0b23baa312fe518782483e"
+      }
+    },
+    "executableModes": {
+      "dist/cli.js": 493,
+      "dist/markdown-cognition-cli.js": 493,
+      "dist/team-memory-cli.js": 493,
+      "dist/workflow-cli.js": 493
+    }
+  },
+  "cli": {
+    "formats": [
+      "json",
+      "jsonl"
+    ],
+    "baseOptionNames": [
+      "input",
+      "format",
+      "max-input-bytes",
+      "max-records",
+      "max-record-bytes"
+    ],
+    "promotionOptionNames": [
+      "policy",
+      "hypothesis-id",
+      "context-id",
+      "rationale",
+      "initiator-id",
+      "executor-id",
+      "accountable-id",
+      "promoted-at"
+    ],
+    "commands": {
+      "validate": {
+        "options": [
+          "input",
+          "format",
+          "max-input-bytes",
+          "max-records",
+          "max-record-bytes"
+        ],
+        "requiredOptions": [
+          "input",
+          "format"
+        ]
+      },
+      "ingest": {
+        "options": [
+          "input",
+          "format",
+          "max-input-bytes",
+          "max-records",
+          "max-record-bytes"
+        ],
+        "requiredOptions": [
+          "input",
+          "format"
+        ]
+      },
+      "promote": {
+        "options": [
+          "input",
+          "format",
+          "max-input-bytes",
+          "max-records",
+          "max-record-bytes",
+          "policy",
+          "hypothesis-id",
+          "context-id",
+          "rationale",
+          "initiator-id",
+          "executor-id",
+          "accountable-id",
+          "promoted-at"
+        ],
+        "requiredOptions": [
+          "input",
+          "format",
+          "policy",
+          "hypothesis-id",
+          "context-id",
+          "rationale",
+          "initiator-id",
+          "executor-id",
+          "accountable-id",
+          "promoted-at"
+        ]
+      },
+      "ingest-promote": {
+        "options": [
+          "input",
+          "format",
+          "max-input-bytes",
+          "max-records",
+          "max-record-bytes",
+          "policy",
+          "hypothesis-id",
+          "context-id",
+          "rationale",
+          "initiator-id",
+          "executor-id",
+          "accountable-id",
+          "promoted-at"
+        ],
+        "requiredOptions": [
+          "input",
+          "format",
+          "policy",
+          "hypothesis-id",
+          "context-id",
+          "rationale",
+          "initiator-id",
+          "executor-id",
+          "accountable-id",
+          "promoted-at"
+        ]
+      }
+    },
+    "defaults": {
+      "maxInputBytes": 10485760,
+      "maxRecords": 10000,
+      "maxRecordBytes": 1048576
+    },
+    "outputs": {
+      "validate": {
+        "channel": "stdout",
+        "framing": "jsonl",
+        "cardinality": "one-per-ingestion-item",
+        "variants": {
+          "accepted": {
+            "requiredFields": [
+              "index",
+              "status",
+              "record"
+            ],
+            "optionalFields": [
+              "line"
+            ]
+          },
+          "duplicate": {
+            "requiredFields": [
+              "index",
+              "status",
+              "record",
+              "retainedRecordId"
+            ],
+            "optionalFields": [
+              "line"
+            ]
+          },
+          "rejected": {
+            "requiredFields": [
+              "index",
+              "status",
+              "error"
+            ],
+            "optionalFields": [
+              "line"
+            ],
+            "errorFields": [
+              "code",
+              "message",
+              "details"
+            ]
+          }
+        }
+      },
+      "ingest": {
+        "channel": "stdout",
+        "framing": "jsonl",
+        "cardinality": "one-per-accepted-record",
+        "requiredFields": [
+          "schemaVersion",
+          "id",
+          "source",
+          "sourceId",
+          "revisionId",
+          "capturedAt",
+          "mediaType",
+          "content"
+        ],
+        "optionalFields": [
+          "observedAt",
+          "contentHash",
+          "actorId",
+          "context",
+          "extensions"
+        ],
+        "sourceRequiredFields": [
+          "system"
+        ],
+        "sourceOptionalFields": [
+          "instance"
+        ]
+      },
+      "promote": {
+        "channel": "stdout",
+        "framing": "jsonl",
+        "cardinality": "exactly-one-on-success",
+        "requiredFields": [
+          "id",
+          "type",
+          "version",
+          "state",
+          "title",
+          "data",
+          "createdAt",
+          "updatedAt",
+          "attribution",
+          "provenance",
+          "contextId",
+          "relationships",
+          "extensions"
+        ],
+        "objectType": "evidence"
+      },
+      "ingest-promote": {
+        "channel": "stdout",
+        "framing": "jsonl",
+        "cardinality": "exactly-one-after-ingestion",
+        "requiredFields": [
+          "ingestion",
+          "promotion"
+        ],
+        "ingestionFields": [
+          "items",
+          "acceptedRecords"
+        ],
+        "promotionVariants": {
+          "succeeded": [
+            "status",
+            "evidence"
+          ],
+          "failed": [
+            "status",
+            "error"
+          ]
+        },
+        "promotionErrorFields": [
+          "code",
+          "message",
+          "details"
+        ]
+      },
+      "rejectedItemDiagnostics": {
+        "channel": "stderr",
+        "framing": "jsonl",
+        "cardinality": "one-per-rejected-item",
+        "requiredFields": [
+          "index",
+          "status",
+          "error"
+        ],
+        "optionalFields": [
+          "line"
+        ],
+        "errorFields": [
+          "code",
+          "message",
+          "details"
+        ]
+      },
+      "topLevelDiagnostic": {
+        "channel": "stderr",
+        "framing": "jsonl",
+        "cardinality": "exactly-one-on-failure",
+        "requiredFields": [
+          "code",
+          "message",
+          "details",
+          "stage"
+        ]
+      },
+      "promotionFailureDiagnostic": {
+        "channel": "stderr",
+        "framing": "jsonl",
+        "cardinality": "exactly-one-on-composed-promotion-failure",
+        "requiredFields": [
+          "code",
+          "message",
+          "details",
+          "stage"
+        ]
+      }
+    },
+    "policySelectors": {
+      "neutral-evidence-v1": {
+        "sdkExport": "neutralEvidencePolicyV1",
+        "id": "neutral-evidence",
+        "version": "1"
+      }
+    },
+    "diagnostics": {
+      "fields": [
+        "code",
+        "message",
+        "details",
+        "stage"
+      ],
+      "stages": [
+        "arguments",
+        "input",
+        "ingestion",
+        "promotion",
+        "output"
+      ],
+      "cliAuthoredCodes": [
+        "CLI_ERROR",
+        "INPUT_READ_ERROR",
+        "INVALID_ARGUMENT"
+      ],
+      "rejectedItemCodes": [
+        "INVALID_SOURCE_RECORD",
+        "SERIALIZATION_ERROR",
+        "SOURCE_REVISION_COLLISION"
+      ]
+    },
+    "exitStatuses": {
+      "success": 0,
+      "topLevelFailure": 1,
+      "rejectedItem": 1,
+      "composedPromotionFailure": 1,
+      "duplicatesOnly": 0
+    }
+  },
+  "deprecations": [],
+  "hostConformance": {
+    "version": "0.1.0",
+    "packageSubpath": "./host-conformance/0.1.0",
+    "runtimeExports": [
+      "runCognitionHostConformance"
+    ],
+    "typeExports": [
+      "CognitionHostConformanceCaseResult",
+      "CognitionHostConformanceFactory",
+      "CognitionHostConformanceReport"
+    ]
+  },
+  "referenceHost": {
+    "version": "0.1.0",
+    "packageSubpath": "./reference-host/0.1.0",
+    "runtimeExports": [
+      "InMemoryCognitionEventPublisher",
+      "InMemoryCognitionStore"
+    ],
+    "typeExports": []
+  },
+  "sqlite": {
+    "version": "0.1.0",
+    "packageSubpath": "./stores/sqlite/0.1.0",
+    "runtimeExports": [
+      "SqliteCognitionStore"
+    ],
+    "typeExports": [
+      "SqliteCognitionStoreOptions"
+    ]
+  },
+  "connectorConformance": {
+    "version": "0.1.0",
+    "packageSubpath": "./connector-conformance/0.1.0",
+    "runtimeExports": [
+      "runSourceConnectorConformance"
+    ],
+    "typeExports": [
+      "SourceConnectorConformanceCase",
+      "SourceConnectorConformanceDiagnostic",
+      "SourceConnectorConformanceDiagnosticCode",
+      "SourceConnectorConformanceResult"
+    ],
+    "diagnosticCodes": [
+      "connector_exception",
+      "duplicate_revision",
+      "invalid_collection",
+      "invalid_source_record",
+      "nondeterministic_output"
+    ],
+    "statuses": [
+      "failed",
+      "passed"
+    ]
+  },
+  "teamMemoryConnector": {
+    "version": "0.1.0",
+    "packageSubpath": "./connectors/team-memory/0.1.0",
+    "runtimeExports": [
+      "TEAM_MEMORY_LEDGER_FORMAT",
+      "TeamMemoryConnectorError",
+      "readTeamMemorySourceRecords"
+    ],
+    "typeExports": [
+      "TeamMemoryConnectorErrorCode",
+      "TeamMemorySourceRecordOptions"
+    ],
+    "errorCodes": [
+      "incompatible_ledger",
+      "invalid_options",
+      "invalid_row",
+      "read_failed",
+      "target_unavailable"
+    ],
+    "stages": [
+      "mapping",
+      "open",
+      "options",
+      "query",
+      "schema"
+    ],
+    "ledgerFormat": "teammem-event-ledger/1"
+  },
+  "gitConnector": {
+    "version": "0.1.0",
+    "packageSubpath": "./connectors/git/0.1.0",
+    "runtimeExports": [
+      "GIT_REPOSITORY_FORMAT",
+      "GitConnectorError",
+      "readGitCommitSourceRecords"
+    ],
+    "typeExports": [
+      "GitCommitSourceRecordOptions",
+      "GitConnectorErrorCode",
+      "GitConnectorStage"
+    ],
+    "errorCodes": [
+      "incompatible_repository",
+      "invalid_commit",
+      "invalid_options",
+      "read_failed",
+      "target_unavailable"
+    ]
+  },
+  "interoperabilityProfile": {
+    "version": "0.1.0",
+    "owner": "collective-cognition-sdk-maintainers"
+  },
+  "teamMemoryCli": {
+    "binaryName": "collective-cognition-teammem",
+    "commandNames": [
+      "export"
+    ]
+  },
+  "markdownCognition": {
+    "version": "0.1.0",
+    "packageSubpath": "./adapters/markdown/0.1.0",
+    "runtimeExports": [
+      "MARKDOWN_COGNITION_MANIFEST_FILE",
+      "MARKDOWN_COGNITION_MARKER_FILE",
+      "MARKDOWN_COGNITION_MAX_INPUT_BYTES",
+      "MARKDOWN_COGNITION_MAX_MANIFEST_ENTRIES",
+      "MARKDOWN_COGNITION_MAX_NOTE_BYTES",
+      "MARKDOWN_COGNITION_MAX_OBJECT_VERSION",
+      "MARKDOWN_COGNITION_MAX_PATH_SEGMENTS",
+      "MARKDOWN_COGNITION_MAX_RECORDS",
+      "MARKDOWN_COGNITION_MAX_RELATIVE_PATH_BYTES",
+      "MARKDOWN_COGNITION_MAX_TOTAL_BYTES",
+      "MARKDOWN_COGNITION_PROFILE_VERSION",
+      "MARKDOWN_COGNITION_TARGET_FORMAT",
+      "MarkdownCognitionError",
+      "initializeMarkdownCognitionTarget",
+      "markdownCognitionRelativePath",
+      "parseMarkdownCognitionRecord",
+      "projectMarkdownCognition",
+      "renderMarkdownCognitionIndex",
+      "renderMarkdownCognitionRecord",
+      "verifyMarkdownCognitionTarget"
+    ],
+    "typeExports": [
+      "MarkdownCognitionErrorCode",
+      "MarkdownCognitionProjectionOptions",
+      "MarkdownCognitionProjectionReport",
+      "MarkdownCognitionRecord",
+      "MarkdownCognitionRenderContext",
+      "MarkdownCognitionTargetOptions",
+      "MarkdownCognitionVerificationDiagnostic",
+      "MarkdownCognitionVerificationReport"
+    ],
+    "errorCodes": [
+      "incompatible_target",
+      "invalid_markdown_record",
+      "invalid_projection_input",
+      "invalid_target",
+      "managed_file_conflict",
+      "projection_io_failed",
+      "projection_limit_exceeded",
+      "target_not_initialized",
+      "unsafe_target_entry"
+    ],
+    "constants": {
+      "profileVersion": "portable-cognition-markdown/0.1.0",
+      "targetFormat": "collective-cognition-markdown-target/1",
+      "markerFile": ".collective-cognition.json",
+      "manifestFile": ".collective-cognition-manifest.json",
+      "maxInputBytes": 1048576,
+      "maxNoteBytes": 1048576,
+      "maxObjectVersion": 99999999,
+      "maxRecords": 10000,
+      "maxTotalBytes": 134217728,
+      "maxManifestEntries": 10001,
+      "maxPathSegments": 4,
+      "maxRelativePathBytes": 512
+    },
+    "binaryName": "collective-cognition-markdown"
+  },
+  "durableWorkflow": {
+    "version": "0.1.0",
+    "packageSubpath": "./workflows/durable/0.1.0",
+    "runtimeExports": [
+      "DURABLE_COGNITION_WORKFLOW_VERSION",
+      "prepareDurableCognitionWorkflow",
+      "runDurableCognitionWorkflow",
+      "runDurableWorkflowStoreConformance"
+    ],
+    "typeExports": [
+      "CognitionWorkflowStore",
+      "DurableCognitionCommitResult",
+      "DurableCognitionProjectionStatus",
+      "DurableCognitionProjector",
+      "DurableCognitionPublicationStatus",
+      "DurableCognitionWorkflowCommitted",
+      "DurableCognitionWorkflowCompletion",
+      "DurableCognitionWorkflowConflict",
+      "DurableCognitionWorkflowFailure",
+      "DurableCognitionWorkflowHost",
+      "DurableCognitionWorkflowRequest",
+      "DurableCognitionWorkflowResult",
+      "DurableCognitionWorkflowUnprojected",
+      "DurableCognitionWorkflowUnpublished",
+      "DurableCognitionWorkflowUnpublishedAndUnprojected",
+      "DurableWorkflowConflictCode",
+      "DurableWorkflowConformanceCaseResult",
+      "DurableWorkflowConformanceReport",
+      "DurableWorkflowStoreConformanceScenario",
+      "DurableWorkflowStoreFactory",
+      "PreparedDurableCognitionCommit"
+    ]
+  },
+  "sqliteWorkflow": {
+    "version": "0.1.0",
+    "packageSubpath": "./stores/sqlite-workflow/0.1.0",
+    "runtimeExports": [
+      "SqliteCognitionWorkflowStore"
+    ],
+    "typeExports": [
+      "SqliteCognitionWorkflowStoreOptions"
+    ]
+  },
+  "workflowCli": {
+    "version": "0.1.0",
+    "binaryName": "collective-cognition-workflow",
+    "commandNames": [
+      "run"
+    ],
+    "formats": [
+      "json",
+      "jsonl"
+    ],
+    "policyIds": [
+      "neutral-evidence-v1"
+    ],
+    "defaults": {
+      "maxInputBytes": 10485760,
+      "maxRecords": 10000,
+      "maxRecordBytes": 1048576,
+      "maxRequestBytes": 1048576
+    },
+    "runtime": {
+      "stability": "supported-experimental",
+      "node": ">=24.14.0",
+      "requiredCapabilities": [
+        "DatabaseSync.prototype.enableDefensive"
+      ]
+    },
+    "publisherSupported": false
+  }
+}

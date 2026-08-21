@@ -31,6 +31,7 @@ import * as referenceHostApi from "../dist/reference-host.js";
 import * as sqliteApi from "../dist/stores/sqlite.js";
 import * as connectorConformanceApi from "../dist/connector-conformance.js";
 import * as teamMemoryConnectorApi from "../dist/connectors/team-memory.js";
+import * as gitConnectorApi from "../dist/connectors/git.js";
 import * as markdownCognitionApi from "../dist/markdown-cognition.js";
 import * as durableWorkflowApi from "../dist/workflows/durable.js";
 import * as sqliteWorkflowApi from "../dist/stores/sqlite-workflow.js";
@@ -71,18 +72,26 @@ const previousCurrentChangeCasesUrl = new URL(
   import.meta.url,
 );
 const currentBaselineUrl = new URL(
-  "../spec/compatibility/0.9.0/baseline.json",
+  "../spec/compatibility/0.10.0/baseline.json",
   import.meta.url,
 );
 const currentChangeCasesUrl = new URL(
-  "../spec/compatibility/0.9.0/change-cases.jsonl",
+  "../spec/compatibility/0.10.0/change-cases.jsonl",
   import.meta.url,
 );
 const previousPackageBaselineUrl = new URL(
-  "../spec/compatibility/0.8.0/baseline.json",
+  "../spec/compatibility/0.9.0/baseline.json",
   import.meta.url,
 );
 const previousPackageChangeCasesUrl = new URL(
+  "../spec/compatibility/0.9.0/change-cases.jsonl",
+  import.meta.url,
+);
+const package080BaselineUrl = new URL(
+  "../spec/compatibility/0.8.0/baseline.json",
+  import.meta.url,
+);
+const package080ChangeCasesUrl = new URL(
   "../spec/compatibility/0.8.0/change-cases.jsonl",
   import.meta.url,
 );
@@ -148,12 +157,34 @@ const expectedDistributionReadinessProseSha256 =
   "72d583c3e83b3a8c909c421bb1aa65ece2fa7bbda9a5eaca665d5998c429e936";
 const expectedDistributionReadinessProfileSha256 =
   "5d1d236c946820be65d04648b66ca215073810a908ad8d44da8f04f800909af9";
-const expectedPreviousPackageChangeCasesSha256 =
+const expectedPackage080ChangeCasesSha256 =
   "9cb7bd259d2b84e7fb1f8839263bfae0d54eb2ba8aaa07de9f15957660244572";
-const expectedPreviousPackageBaselineSha256 =
+const expectedPackage080BaselineSha256 =
   "29479b4119519724a29d02ba4e4c5ce6d3276a34f515c0c2f018859d22ca3c0e";
-const expectedCurrentChangeCasesSha256 =
+const expectedPreviousPackageBaselineSha256 =
+  "4b426bfa572c79a51af317ecfec1806a2fe6f8a2ef38b9b598b25bbbd393ea1f";
+const expectedPreviousPackageChangeCasesSha256 =
   "22ba5a27a3c60520ac3e45f2246941d8efe0145c282dcbe689575e1bb54dedc3";
+const expectedGitRfcSha256 =
+  "620a381ae066111b61d841882625a8365029d7f85a0a8d250bfe7ab1e8f0c922";
+const expectedInteroperabilityProseSha256 =
+  "58deb989685c346c210745e7f9a31855f374ca5a7cf65258ce2f4ba1b8e0478f";
+const expectedInteroperabilityProfileSha256 =
+  "4b646debe6809367ab1ddceea5717e081279efc7854cf31aba5f406a3ec7c704";
+const expectedInteroperabilitySourceRecordsSha256 =
+  "42757122645c2e0650e2347eedc61ed302ee2d330f4d0bdf771271bc9f5f9ed6";
+const expectedInteroperabilityPortableCognitionSha256 =
+  "a140ef3a746f6cfa72d160ee056dfb26326c400fbf586d383dab6a651f522641";
+const expectedInteroperabilityErrorsSha256 =
+  "c0aeb321060cb4d0c40eb1ae80d93de43a1878e3665cdf31829fd3ad680b40a6";
+const expectedInteroperabilityAcceptanceSha256 =
+  "0bf76a6fb9f7cdfa694792cbffef5dff7372ace7a8a006727ea6bae24c248586";
+const expectedGitConnectorGuideSha256 =
+  "cc785e60413544e6672d5ed3bf92607797fcdc9d3264a0c8bfd76837cc651aaf";
+const expectedCurrentChangeCasesSha256 =
+  "3c74491fbac5ee0b3dea274e3b183f60c64ed54eedb1a50375377dbf0c4a051a";
+const expectedGitDeclarationSha256 =
+  "9b968fac610f355181b3ad30bc99fff8f5e09f70a27a28a5c6b17ce02c9515ba";
 const expectedHistoricalChangeCaseDigests = Object.freeze({
   "spec/compatibility/0.1.0/change-cases.jsonl":
     expectedHistoricalChangeCasesSha256,
@@ -170,6 +201,8 @@ const expectedHistoricalChangeCaseDigests = Object.freeze({
   "spec/compatibility/0.7.0/change-cases.jsonl":
     expectedLatestReleaseChangeCasesSha256,
   "spec/compatibility/0.8.0/change-cases.jsonl":
+    expectedPackage080ChangeCasesSha256,
+  "spec/compatibility/0.9.0/change-cases.jsonl":
     expectedPreviousPackageChangeCasesSha256,
 });
 const productionDependencyFieldNames = Object.freeze([
@@ -533,6 +566,17 @@ test("historical compatibility 0.7.0 artifacts remain immutable", () => {
 
 test("historical compatibility 0.8.0 artifacts remain immutable", () => {
   assert.equal(
+    sha256(readFileSync(package080BaselineUrl)),
+    expectedPackage080BaselineSha256,
+  );
+  assert.equal(
+    sha256(readFileSync(package080ChangeCasesUrl)),
+    expectedPackage080ChangeCasesSha256,
+  );
+});
+
+test("historical compatibility 0.9.0 artifacts remain immutable", () => {
+  assert.equal(
     sha256(readFileSync(previousPackageBaselineUrl)),
     expectedPreviousPackageBaselineSha256,
   );
@@ -542,40 +586,62 @@ test("historical compatibility 0.8.0 artifacts remain immutable", () => {
   );
 });
 
-test("package 0.9.0 baseline records the additive durable workflow surface", () => {
+test("package 0.10.0 baseline records the additive interoperability surface", () => {
   const baseline = readJson(currentBaselineUrl);
   const cases = readJsonLines(currentChangeCasesUrl);
 
-  assert.equal(baseline.baselineVersion, "0.9.0");
-  assert.equal(baseline.appliesToPackageVersion, "0.9.0");
+  assert.equal(baseline.baselineVersion, "0.10.0");
+  assert.equal(baseline.appliesToPackageVersion, "0.10.0");
   assert.deepEqual(baseline.packageChange, {
     classification: "additive",
-    packageVersionEffect: "minor",
+    packageVersionEffect: "minor-before-1.0",
   });
-  assert.deepEqual(baseline.historicalBaselines["0.8.0"], {
-    path: "spec/compatibility/0.8.0/baseline.json",
+  assert.deepEqual(baseline.historicalBaselines["0.9.0"], {
+    path: "spec/compatibility/0.9.0/baseline.json",
     sha256: expectedPreviousPackageBaselineSha256,
   });
-  assert.deepEqual(baseline.durableWorkflow.packageSubpath, "./workflows/durable/0.1.0");
-  assert.deepEqual(
-    baseline.sqliteWorkflow.packageSubpath,
-    "./stores/sqlite-workflow/0.1.0",
-  );
-  assert.equal(baseline.workflowCli.binaryName, "collective-cognition-workflow");
+  assert.deepEqual(baseline.gitConnector, {
+    version: "0.1.0",
+    packageSubpath: "./connectors/git/0.1.0",
+    runtimeExports: [
+      "GIT_REPOSITORY_FORMAT",
+      "GitConnectorError",
+      "readGitCommitSourceRecords",
+    ],
+    typeExports: [
+      "GitCommitSourceRecordOptions",
+      "GitConnectorErrorCode",
+      "GitConnectorStage",
+    ],
+    errorCodes: [
+      "incompatible_repository",
+      "invalid_commit",
+      "invalid_options",
+      "read_failed",
+      "target_unavailable",
+    ],
+  });
+  assert.deepEqual(baseline.interoperabilityProfile, {
+    version: "0.1.0",
+    owner: "collective-cognition-sdk-maintainers",
+  });
   assert.deepEqual(cases.map(({ classification, packageVersionEffect }) => ({
     classification,
     packageVersionEffect,
-  })), [{ classification: "additive", packageVersionEffect: "minor" }]);
+  })), [{
+    classification: "additive",
+    packageVersionEffect: "minor-before-1.0",
+  }]);
 });
 
-test("current baseline describes the additive package 0.9.0 release", () => {
+test("current baseline describes the additive package 0.10.0 release", () => {
   const baseline = readJson(currentBaselineUrl);
 
-  assert.equal(baseline.baselineVersion, "0.9.0");
-  assert.equal(baseline.appliesToPackageVersion, "0.9.0");
+  assert.equal(baseline.baselineVersion, "0.10.0");
+  assert.equal(baseline.appliesToPackageVersion, "0.10.0");
   assert.deepEqual(baseline.packageChange, {
     classification: "additive",
-    packageVersionEffect: "minor",
+    packageVersionEffect: "minor-before-1.0",
   });
   assert.deepEqual(baseline.package.metadata.engines, {
     node: ">=24",
@@ -617,6 +683,10 @@ test("current baseline describes the additive package 0.9.0 release", () => {
     },
     "0.8.0": {
       path: "spec/compatibility/0.8.0/baseline.json",
+      sha256: expectedPackage080BaselineSha256,
+    },
+    "0.9.0": {
+      path: "spec/compatibility/0.9.0/baseline.json",
       sha256: expectedPreviousPackageBaselineSha256,
     },
   });
@@ -656,11 +726,15 @@ test("normative machine artifacts match exact digests", () => {
   assert.deepEqual(
     Object.keys(baseline.normative.artifacts).sort(),
     [
+      "docs/acceptance/cross-connector-interoperability-0.1.0.md",
       "docs/durable-cognition-workflow-guide.md",
+      "docs/git-connector-guide.md",
       "docs/public-api.md",
       "rfcs/0009-public-api-and-distribution-readiness.md",
       "rfcs/0010-durable-cognition-workflow.md",
+      "rfcs/0011-cross-connector-interoperability.md",
       "spec/compatibility/0.1.0/change-cases.jsonl",
+      "spec/compatibility/0.10.0/change-cases.jsonl",
       "spec/compatibility/0.2.0/change-cases.jsonl",
       "spec/compatibility/0.3.0/change-cases.jsonl",
       "spec/compatibility/0.4.0/change-cases.jsonl",
@@ -676,11 +750,24 @@ test("normative machine artifacts match exact digests", () => {
       "spec/conformance/0.1.0/source-record/valid.jsonl",
       "spec/distribution-readiness.md",
       "spec/distribution-readiness/0.1.0/profile.json",
+      "spec/interoperability.md",
+      "spec/interoperability/0.1.0/error-cases.jsonl",
+      "spec/interoperability/0.1.0/portable-cognition.jsonl",
+      "spec/interoperability/0.1.0/profile.json",
+      "spec/interoperability/0.1.0/source-records.jsonl",
       "spec/runtime-security.md",
       "spec/runtime-security/0.1.0/profile.json",
       "spec/schemas/0.1.0/portable-cognition.schema.json",
       "spec/schemas/0.1.0/source-record.schema.json",
     ],
+  );
+  assert.equal(
+    baseline.normative.artifacts["docs/git-connector-guide.md"],
+    expectedGitConnectorGuideSha256,
+  );
+  assert.equal(
+    baseline.normative.artifacts["spec/compatibility/0.10.0/change-cases.jsonl"],
+    expectedCurrentChangeCasesSha256,
   );
   assert.deepEqual(
     Object.fromEntries(
@@ -713,11 +800,43 @@ test("normative machine artifacts match exact digests", () => {
   );
   assert.equal(
     baseline.normative.artifacts["spec/compatibility/0.8.0/change-cases.jsonl"],
-    expectedPreviousPackageChangeCasesSha256,
+    expectedPackage080ChangeCasesSha256,
   );
   assert.equal(
     baseline.normative.artifacts["spec/compatibility/0.9.0/change-cases.jsonl"],
-    expectedCurrentChangeCasesSha256,
+    expectedPreviousPackageChangeCasesSha256,
+  );
+  assert.deepEqual(
+    {
+      rfc: baseline.normative.artifacts[
+        "rfcs/0011-cross-connector-interoperability.md"
+      ],
+      prose: baseline.normative.artifacts["spec/interoperability.md"],
+      profile: baseline.normative.artifacts[
+        "spec/interoperability/0.1.0/profile.json"
+      ],
+      sourceRecords: baseline.normative.artifacts[
+        "spec/interoperability/0.1.0/source-records.jsonl"
+      ],
+      portableCognition: baseline.normative.artifacts[
+        "spec/interoperability/0.1.0/portable-cognition.jsonl"
+      ],
+      errors: baseline.normative.artifacts[
+        "spec/interoperability/0.1.0/error-cases.jsonl"
+      ],
+      acceptance: baseline.normative.artifacts[
+        "docs/acceptance/cross-connector-interoperability-0.1.0.md"
+      ],
+    },
+    {
+      rfc: expectedGitRfcSha256,
+      prose: expectedInteroperabilityProseSha256,
+      profile: expectedInteroperabilityProfileSha256,
+      sourceRecords: expectedInteroperabilitySourceRecordsSha256,
+      portableCognition: expectedInteroperabilityPortableCognitionSha256,
+      errors: expectedInteroperabilityErrorsSha256,
+      acceptance: expectedInteroperabilityAcceptanceSha256,
+    },
   );
   assert.equal(
     sha256(readFileSync(new URL("docs/public-api.md", repositoryRoot))),
@@ -761,7 +880,7 @@ test("normative machine artifacts match exact digests", () => {
         new URL("spec/compatibility/0.9.0/change-cases.jsonl", repositoryRoot),
       ),
     ),
-    expectedCurrentChangeCasesSha256,
+    expectedPreviousPackageChangeCasesSha256,
     "spec/compatibility/0.9.0/change-cases.jsonl",
   );
   Object.entries(baseline.normative.artifacts).forEach(
@@ -956,7 +1075,7 @@ test("root runtime and domain error inventories match exactly", () => {
   assert.deepEqual(
     baseline.package.errorCodes,
     previousCurrentBaseline.package.errorCodes,
-    "package 0.9 must preserve the exhaustive package 0.8 DomainErrorCode inventory",
+    "package 0.10 must preserve the exhaustive package 0.9 DomainErrorCode inventory",
   );
   assert.deepEqual(
     baseline.package.normativeStableErrorCodes,
@@ -1162,6 +1281,23 @@ test("connector subpath contracts match exact additive inventories", () => {
     binaryName: "collective-cognition-teammem",
     commandNames: ["export"],
   });
+
+  assert.deepEqual(
+    Object.keys(gitConnectorApi).sort(),
+    baseline.gitConnector.runtimeExports,
+  );
+  assert.deepEqual(
+    directDeclarationTypeExports("dist/connectors/git.d.ts"),
+    baseline.gitConnector.typeExports,
+  );
+  assert.deepEqual(
+    declarationStringUnion(
+      "dist/connectors/git.d.ts",
+      /export type GitConnectorErrorCode = ([^;]+);/,
+    ),
+    baseline.gitConnector.errorCodes,
+  );
+  assert.equal(gitConnectorApi.GIT_REPOSITORY_FORMAT, "git-repository/1");
 });
 
 test("Markdown adapter subpath contract matches its exact additive inventory", () => {
@@ -1409,6 +1545,10 @@ test("public declaration entrypoint closures match exact independent digests", (
       packageSubpath: "./connectors/team-memory/0.1.0",
       declarationEntrypoint: "dist/connectors/team-memory.d.ts",
     },
+    gitConnector: {
+      packageSubpath: "./connectors/git/0.1.0",
+      declarationEntrypoint: "dist/connectors/git.d.ts",
+    },
     markdownCognition: {
       packageSubpath: "./adapters/markdown/0.1.0",
       declarationEntrypoint: "dist/markdown-cognition.d.ts",
@@ -1430,12 +1570,12 @@ test("public declaration entrypoint closures match exact independent digests", (
   assert.deepEqual(
     baseline.package.declarations.root,
     previousCurrentBaseline.package.declarations.root,
-    "package 0.9 root declaration closure must remain byte-compatible with 0.8",
+    "package 0.10 root declaration closure must remain byte-compatible with 0.9",
   );
   assert.deepEqual(
     baseline.package.declarations.sqlite,
     previousCurrentBaseline.package.declarations.sqlite,
-    "the historical SQLite subpath declaration closure must remain byte-compatible with 0.8",
+    "the historical SQLite subpath declaration closure must remain byte-compatible with 0.9",
   );
   Object.entries(entrypoints).forEach(([name, expected]) => {
     const declaration = baseline.package.declarations[name];
@@ -1452,6 +1592,10 @@ test("public declaration entrypoint closures match exact independent digests", (
     assert.deepEqual(paths, declaration.files, name);
     assert.equal(declarationDigest(paths), declaration.sha256, name);
   });
+  assert.equal(
+    baseline.package.declarations.gitConnector.sha256,
+    expectedGitDeclarationSha256,
+  );
 });
 
 test("declaration closure resolves nested references and rejects missing targets", () => {
@@ -1563,6 +1707,7 @@ test("package compatibility metadata matches exactly", () => {
 test("CLI registry matches the exact baseline", () => {
   const baseline = readJson(currentBaselineUrl);
   const previousCurrentBaseline = readJson(latestReleaseBaselineUrl);
+  const previousPackageBaseline = readJson(previousPackageBaselineUrl);
 
   assert.deepEqual(CLI_CONTRACT, baseline.cli);
   assert.deepEqual(baseline.cli, previousCurrentBaseline.cli);
@@ -1577,10 +1722,8 @@ test("CLI registry matches the exact baseline", () => {
   );
   assert.deepEqual(
     baseline.package.metadata.bin,
-    {
-      ...previousCurrentBaseline.package.metadata.bin,
-      "collective-cognition-workflow": "./dist/workflow-cli.js",
-    },
+    previousPackageBaseline.package.metadata.bin,
+    "package 0.10 must not add or remove an executable",
   );
 });
 
@@ -1617,29 +1760,32 @@ test("change cases exercise the additive package process", () => {
     readJson(currentBaselineUrl).stabilityLevels.map((level) => level.id),
   );
   const classifications = new Set(["additive"]);
-  const packageVersionEffects = new Set(["minor"]);
+  const packageVersionEffects = new Set(["minor-before-1.0"]);
 
   assert.deepEqual(cases, [
     {
-      id: "additive-durable-cognition-workflow",
+      id: "additive-cross-connector-interoperability",
       description:
-        "Add Durable Cognition Workflow 0.1.0, its SQLite workflow-store implementation, installed workflow executable, RFC, guide, and exact package artifacts while preserving root export names and every historical package entrypoint and artifact.",
+        "Add the maintained Git connector and Cross-Connector Interoperability Profile 0.1.0 as versioned package subpaths with exact compatibility evidence while preserving every existing root export, executable, package entrypoint, and artifact.",
       surface: "supported-experimental",
       classification: "additive",
-      packageVersionEffect: "minor",
+      packageVersionEffect: "minor-before-1.0",
       requiresRfc: true,
       requiresMigrationNotes: false,
       requiresDeprecation: false,
       addedPackageSubpaths: [
-        "./compatibility/0.9.0",
-        "./stores/sqlite-workflow/0.1.0",
-        "./workflows/durable/0.1.0",
+        "./compatibility/0.10.0",
+        "./connectors/git/0.1.0",
+        "./interoperability/0.1.0/errors",
+        "./interoperability/0.1.0/portable-cognition",
+        "./interoperability/0.1.0/profile",
+        "./interoperability/0.1.0/source-records",
       ],
-      addedExecutables: ["collective-cognition-workflow"],
+      addedExecutables: [],
       rootRuntimeExportsChanged: false,
       rootTypeExportsChanged: false,
       rationale:
-        "Existing imports and executables remain available; the new source-neutral workflow surface requires an explicit SQLite v2 database, leaves publication host-owned, keeps Markdown non-authoritative, and does not authorize npm publication or claim production use.",
+        "Existing imports and executables remain available; the new connector is explicit, local, read-only, and privacy-defaulted, the profile resources are immutable UTF-8 files, and package 0.10.0 remains private and unpublished without production, certification, endorsement, or LTS claims.",
     },
   ]);
   cases.forEach((changeCase) => {
