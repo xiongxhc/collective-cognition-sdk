@@ -16,11 +16,12 @@ The observed public release contains exactly:
 
 The core verification matrix runs only `npm test`, `npx tsc --noEmit`, and
 `npm run check` on Ubuntu with Node.js `24.9.0`, Ubuntu with Node.js `24.14.0`,
-macOS with Node.js `24.14.0`, and Windows with Node.js `24.14.0`.
+Ubuntu with Node.js `24.19.0`, macOS with Node.js `24.14.0`, macOS with Node.js
+`24.19.0`, Windows with Node.js `24.14.0`, and Windows with Node.js `24.19.0`.
 
 The distribution verification environment is Ubuntu with Node.js `24.14.0`
 only. It runs examples, durable SQLite, deterministic assets, clean tarball
-installation, imports, and installed CLIs; the other three core-matrix
+installation, imports, and installed CLIs; the other six core-matrix
 environments do not verify those paths.
 
 The privileged no-checkout job sets `GH_REPO` from `github.repository` on its
