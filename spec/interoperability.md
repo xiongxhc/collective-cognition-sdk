@@ -64,8 +64,10 @@ directory. Every JSONL line is a complete independent JSON record. Consumers
 MUST read fixture resources as UTF-8 text and MUST NOT treat JSONL as an ES
 module.
 
-The source fixtures contain two accepted source systems, a source-local
-duplicate, and a source-local revision collision. The portable fixtures contain
-an explicit Goal and Hypothesis, neutral Evidence attributable to both source
+The five source fixtures contain an accepted team-memory record, a source-local
+duplicate, a source-local revision collision, an independent Git record, and a
+Git record that shares the team-memory source ID and revision ID while retaining
+its distinct source system and instance. The portable fixtures contain an
+explicit Goal and Hypothesis, neutral Evidence attributable to both source
 systems, an explicit Hypothesis transition and matching Event, and one opaque
 namespaced extension. They intentionally contain no Decision or Principle.

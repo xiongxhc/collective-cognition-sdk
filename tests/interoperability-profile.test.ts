@@ -205,7 +205,7 @@ test("defines a closed versioned interoperability profile", () => {
 test("fixtures retain source-local ingestion meaning and canonical source round trips", () => {
   const sourceText = readFileSync(sourceRecordsUrl, "utf8");
   const parsedRecords = readJsonLines(sourceRecordsUrl);
-  assert.equal(parsedRecords.length, 4);
+  assert.equal(parsedRecords.length, 5);
 
   const normalizedRecords = parsedRecords.map((record) =>
     deserializeSourceRecord(JSON.stringify(record)),
@@ -230,6 +230,23 @@ test("fixtures retain source-local ingestion meaning and canonical source round 
     new Set(normalizedRecords.map((record) => record.source.system)),
     new Set(["git-repository", "teammem-event-ledger"]),
   );
+  const acceptedTeamMemoryRecord = normalizedRecords[0];
+  const crossSourceIdentityRecord = normalizedRecords[4];
+  assert.ok(acceptedTeamMemoryRecord);
+  assert.ok(crossSourceIdentityRecord);
+  assert.equal(crossSourceIdentityRecord.source.system, "git-repository");
+  assert.notEqual(
+    crossSourceIdentityRecord.source.instance,
+    acceptedTeamMemoryRecord.source.instance,
+  );
+  assert.equal(
+    crossSourceIdentityRecord.sourceId,
+    acceptedTeamMemoryRecord.sourceId,
+  );
+  assert.equal(
+    crossSourceIdentityRecord.revisionId,
+    acceptedTeamMemoryRecord.revisionId,
+  );
 
   const result = ingestSourceRecordText(sourceText, {
     format: "jsonl",
@@ -240,13 +257,16 @@ test("fixtures retain source-local ingestion meaning and canonical source round 
     "duplicate",
     "rejected",
     "accepted",
+    "accepted",
   ]);
-  assert.equal(result.acceptedRecords.length, 2);
+  assert.equal(result.acceptedRecords.length, 3);
   const collision = result.items[2];
   assert.equal(collision?.status, "rejected");
   if (collision?.status === "rejected") {
     assert.equal(collision.error.code, "SOURCE_REVISION_COLLISION");
   }
+  const crossSourceIdentityOutcome = result.items[4];
+  assert.equal(crossSourceIdentityOutcome?.status, "accepted");
 
   const acceptedBySystem = new Set(
     result.acceptedRecords.map((record) => record.source.system),
