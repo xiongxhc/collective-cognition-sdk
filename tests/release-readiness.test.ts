@@ -2548,7 +2548,9 @@ test("public documentation records the observed GitHub prerelease boundary", () 
   assert.match(roadmap, /GitHub prerelease distribution readiness/i);
   assert.match(roadmap, /## Phase 4: Adapter Ecosystem Foundations/);
   assert.match(roadmap, /GitHub prerelease.*observed and verified/i);
-  assert.match(roadmap, /## Phase 5: Cross-Connector Interoperability\n\n\*\*Status:\*\* Locally verified; merge and post-merge CI pending\./);
+  assert.match(roadmap, /## Phase 5: Cross-Connector Interoperability\n\n\*\*Status:\*\* Complete\./);
+  assert.match(roadmap, /actions\/runs\/32483502879/);
+  assert.match(roadmap, /actions\/runs\/32483677646/);
   assert.match(roadmap, /Release execution checklist/i);
   assert.match(roadmap, /30766556678/);
   assert.match(roadmap, /30766660796/);

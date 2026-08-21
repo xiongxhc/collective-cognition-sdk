@@ -8,7 +8,7 @@ Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript 
 
 This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.10.0` remains private and unpublished on npm; its source, emitted ESM build, declarations, and CLIs are runnable, but production use is not claimed. The [checked public API reference](docs/public-api.md) describes the supported surface. Distribution Readiness Profile `0.1.0` remains the immutable package-`0.8.0` assessment and does not authorize publication of `0.10.0`. The experimental [`v0.6.0` GitHub prerelease](https://github.com/xiongxhc/collective-cognition-sdk/releases/tag/v0.6.0) remains the first and only observed public package artifact.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 package and specification work remains open beyond its completed contract slices. Phase 4's Durable Cognition Workflow `0.1.0` is final-review verified; the slice includes an atomic SQLite workflow store, closed CLI, guide, RFC, and compatibility baseline `0.9.0`. Phase 5 now has two maintained connectors, Interoperability Profile `0.1.0`, and an owned reference exchange locally verified; merge and post-merge CI remain pending, so Phase 5 is not Complete. Publication and production-readiness work remain open.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 package and specification work remains open beyond its completed contract slices. Phase 4's Durable Cognition Workflow `0.1.0` is final-review verified; the slice includes an atomic SQLite workflow store, closed CLI, guide, RFC, and compatibility baseline `0.9.0`. Phase 5 is complete: two maintained connectors, Interoperability Profile `0.1.0`, and the owned reference exchange passed independent review, the full pull-request matrix, merge, and post-merge CI. Publication and production-readiness work remain open.
 
 Supported Experimental workflow execution requires Node.js `>=24.14.0` and
 `DatabaseSync.prototype.enableDefensive`. Node.js `24.9.0` remains a
@@ -674,7 +674,7 @@ The tracked [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/
 2. the completed universal neutral-first ingestion foundation;
 3. in-progress specification and package stabilization, with the checked public-API and distribution-readiness documentation slice complete while broader semantic, schema, publication, and production gates remain open;
 4. completed adapter ecosystem foundations with Durable Cognition Workflow `0.1.0` final-review verified;
-5. locally verified cross-connector interoperability, with merge and post-merge CI pending before Phase 5 can be Complete;
+5. completed cross-connector interoperability, verified by independent review, the full pull-request matrix, merge, and post-merge CI;
 6. operational governance and retirement tooling;
 7. real-team validation.
 
