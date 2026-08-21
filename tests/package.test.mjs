@@ -1242,7 +1242,7 @@ test("packed artifact installs, typechecks, imports, and exposes its executable"
   const temporaryRoot = mkdtempSync(join(tmpdir(), "ccsdk-consumer-"));
   const npmCache = `${temporaryRoot}/npm-cache`;
   const packageOutput = `${temporaryRoot}/package`;
-  const consumerRoot = realpathSync(
+  const consumerRoot = realpathSync.native(
     mkdtempSync(join(temporaryRoot, "consumer-")),
   );
   mkdirSync(packageOutput);
