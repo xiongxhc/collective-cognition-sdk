@@ -42,7 +42,7 @@ const expectedAssets = [
 ];
 const expectedChecksumAssets = expectedAssets.slice(1);
 const expectedPackageScriptsSha256 = "7a2d3e4caf6dda279b46cf4d33788b11ba57f18fea285abc176914b70400d268";
-const expectedCiWorkflowSha256 = "6d355031d6cb75abb56a884e179641a61ccc8798e39093ab993d4a79d2db1c85";
+const expectedCiWorkflowSha256 = "1ef227da1df92f8452c16a3bc5afe03732cd5c553941feb10e439dfa587d395b";
 const expectedGitHubPrereleaseWorkflowSha256 = "b628e8e07829bd115a01133595d4f3424e0634e7479f9f00c35bc4e5c9a8508f";
 const expectedTarballSha256 = "3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe";
 const expectedReleaseCommit = "76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e";
@@ -699,8 +699,11 @@ function assertReadOnlyCiWorkflow(workflow: string): void {
   assert.deepEqual(matrixEntries, [
     { os: "ubuntu-latest", node: "24.9.0" },
     { os: "ubuntu-latest", node: "24.14.0" },
+    { os: "ubuntu-latest", node: "24.19.0" },
     { os: "macos-latest", node: "24.14.0" },
+    { os: "macos-latest", node: "24.19.0" },
     { os: "windows-latest", node: "24.14.0" },
+    { os: "windows-latest", node: "24.19.0" },
   ]);
   assert.doesNotMatch(verifyJob.raw, /^ {8}(?:os|node|exclude):/m);
   assert.equal(verifyJob.properties["runs-on"], "${{ matrix.os }}");
@@ -2501,8 +2504,11 @@ test("public documentation records the observed GitHub prerelease boundary", () 
   for (const runtime of [
     "Ubuntu with Node.js `24.9.0`",
     "Ubuntu with Node.js `24.14.0`",
+    "Ubuntu with Node.js `24.19.0`",
     "macOS with Node.js `24.14.0`",
+    "macOS with Node.js `24.19.0`",
     "Windows with Node.js `24.14.0`",
+    "Windows with Node.js `24.19.0`",
   ]) {
     assert.equal(documentation.includes(runtime), true, `document ${runtime}`);
   }
@@ -2596,8 +2602,11 @@ test("prerelease documentation keeps verification fixtures and release predicate
   const expectedRuntimes = [
     "Ubuntu with Node.js `24.9.0`",
     "Ubuntu with Node.js `24.14.0`",
+    "Ubuntu with Node.js `24.19.0`",
     "macOS with Node.js `24.14.0`",
+    "macOS with Node.js `24.19.0`",
     "Windows with Node.js `24.14.0`",
+    "Windows with Node.js `24.19.0`",
   ];
   const assertRuntimeBoundary = (documentation: string): void => {
     const runtimes = [...documentation.matchAll(

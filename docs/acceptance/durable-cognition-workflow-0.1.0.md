@@ -98,6 +98,18 @@ The source ledger was not copied, vacuumed, migrated, or opened writable.
   and were not changed; this runtime is therefore not used for the complete
   source-suite zero-failure claim.
 
+### Subsequent Node.js `v24.19.0` Compatibility Hardening
+
+The later test-harness hardening preserves the historical acceptance above.
+It grants read access to the synthetic fixture root so Node.js `v24.19.0` can
+resolve canonical and symlinked SQLite-family paths, keeps write access limited
+to explicit cognition targets, and places the nonexistent synthetic personal
+vault outside the readable root. The focused durable Team Memory example now
+passes `11/11` on both Node.js `v24.14.0` and `v24.19.0`; the complete
+Node.js `v24.19.0` package suite reports `561` passes, `10` expected
+skips (`9` immutable-release-context and `1` supported-runtime inverse test),
+and `0` failures.
+
 ### Node.js `v24.9.0`
 
 - `npm ci --ignore-scripts` completed from available dependency state and added

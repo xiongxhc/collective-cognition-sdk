@@ -184,7 +184,7 @@ function createFixture(t: test.TestContext): Fixture {
     cognitionPath: join(cognitionDirectory, "cognition.db"),
     cognitionDirectory,
     runDirectory,
-    forbiddenHome: join(root, "personal-vault-must-not-be-accessed"),
+    forbiddenHome: `${root}-personal-vault-must-not-be-accessed`,
   };
 }
 
@@ -240,6 +240,7 @@ function runExample(
       "--disable-warning=ExperimentalWarning",
       "--permission",
       `--allow-fs-read=${repositoryRoot}`,
+      `--allow-fs-read=${fixture.root}`,
       ...[...ledgerPermissions].map(
         (directory) => `--allow-fs-read=${directory}`,
       ),
