@@ -78,6 +78,8 @@ interface GitCommit {
 interface GitCommandFailure {
   readonly code: GitConnectorErrorCode;
   readonly stage: GitConnectorStage;
+  readonly outputLimit: number;
+  readonly recognizeIncompatibleRepository?: boolean;
 }
 
 const allowedOptionFields = new Set([
@@ -98,9 +100,10 @@ const gitEnvironment = {
   GIT_OPTIONAL_LOCKS: "0",
   GIT_TERMINAL_PROMPT: "0",
 };
-const gitCommandTimeoutMs = 5_000;
-const gitCommandMaxBuffer = 16 * 1024 * 1024;
-const maximumCommitBytes = 1024 * 1024;
+const GIT_PROCESS_TIMEOUT_MS = 5_000;
+const GIT_HISTORY_MAX_BYTES = 128 * 1024;
+const GIT_OBJECT_BATCH_MAX_BYTES = 8 * 1024 * 1024;
+const GIT_COMMIT_MAX_BYTES = 1024 * 1024;
 
 function connectorError(
   code: GitConnectorErrorCode,
@@ -235,11 +238,22 @@ function runGit(
     encoding: null,
     env: gitEnvironment,
     input,
-    maxBuffer: gitCommandMaxBuffer,
+    maxBuffer: failure.outputLimit,
     shell: false,
-    timeout: gitCommandTimeoutMs,
+    timeout: GIT_PROCESS_TIMEOUT_MS,
   });
+  const processError = result.error as NodeJS.ErrnoException | undefined;
+  if (processError?.code === "ENOENT") {
+    throw connectorError("target_unavailable", "open");
+  }
   if (result.error !== undefined || result.status !== 0 || result.signal !== null) {
+    if (
+      failure.recognizeIncompatibleRepository === true &&
+      Buffer.isBuffer(result.stderr) &&
+      /not a git repository/i.test(result.stderr.toString("utf8"))
+    ) {
+      throw connectorError("incompatible_repository", "open");
+    }
     throw connectorError(failure.code, failure.stage);
   }
   if (!Buffer.isBuffer(result.stdout)) {
@@ -256,6 +270,22 @@ function objectIdPattern(objectFormat: string): RegExp | undefined {
     return /^[0-9a-f]{64}$/;
   }
   return undefined;
+}
+
+function partialOrPromisorRepository(config: Buffer): boolean {
+  let entries: readonly string[];
+  try {
+    entries = new TextDecoder("utf-8", { fatal: true }).decode(config).split("\0");
+  } catch {
+    throw connectorError("read_failed", "open");
+  }
+  return entries.some((entry) => {
+    const separatorIndex = entry.indexOf("\n");
+    const key = (separatorIndex < 0 ? entry : entry.slice(0, separatorIndex)).toLowerCase();
+    const value = separatorIndex < 0 ? "" : entry.slice(separatorIndex + 1);
+    return key === "extensions.partialclone" ||
+      (/^remote\.[^.]+\.promisor$/.test(key) && value === "true");
+  });
 }
 
 function epochTimestamp(value: string): string | undefined {
@@ -357,7 +387,7 @@ function parseCommitBatch(
       throw connectorError("invalid_commit", "history", { commitIndex });
     }
     const byteLength = Number(match[2]);
-    if (!Number.isSafeInteger(byteLength) || byteLength > maximumCommitBytes) {
+    if (!Number.isSafeInteger(byteLength) || byteLength > GIT_COMMIT_MAX_BYTES) {
       throw connectorError("invalid_commit", "history", { commitIndex });
     }
     const contentsStart = headerEnd + 1;
@@ -437,20 +467,39 @@ export function readGitCommitSourceRecords(
   runGit(
     validatedOptions.repositoryPath,
     ["rev-parse", "--git-dir"],
-    { code: "incompatible_repository", stage: "open" },
+    {
+      code: "read_failed",
+      stage: "open",
+      outputLimit: GIT_HISTORY_MAX_BYTES,
+      recognizeIncompatibleRepository: true,
+    },
   );
+  const localConfig = runGit(
+    validatedOptions.repositoryPath,
+    ["config", "--local", "--null", "--list"],
+    { code: "read_failed", stage: "open", outputLimit: GIT_HISTORY_MAX_BYTES },
+  );
+  if (partialOrPromisorRepository(localConfig)) {
+    throw connectorError("incompatible_repository", "open");
+  }
   const objectFormat = runGit(
     validatedOptions.repositoryPath,
     ["rev-parse", "--show-object-format"],
-    { code: "incompatible_repository", stage: "open" },
+    { code: "read_failed", stage: "open", outputLimit: GIT_HISTORY_MAX_BYTES },
   ).toString("ascii").trim();
   const objectId = objectIdPattern(objectFormat);
   if (objectId === undefined) {
     throw connectorError("incompatible_repository", "open");
   }
   if (!objectId.test(validatedOptions.tipCommitId)) {
-    throw connectorError("invalid_commit", "history", { field: "tipCommitId" });
+    throw connectorError("incompatible_repository", "history");
   }
+
+  runGit(
+    validatedOptions.repositoryPath,
+    ["cat-file", "-e", `${validatedOptions.tipCommitId}^{commit}`],
+    { code: "incompatible_repository", stage: "history", outputLimit: GIT_HISTORY_MAX_BYTES },
+  );
 
   const selected = runGit(
     validatedOptions.repositoryPath,
@@ -460,7 +509,7 @@ export function readGitCommitSourceRecords(
       `--max-count=${validatedOptions.limit}`,
       validatedOptions.tipCommitId,
     ],
-    { code: "incompatible_repository", stage: "history" },
+    { code: "read_failed", stage: "history", outputLimit: GIT_HISTORY_MAX_BYTES },
   ).toString("ascii").trimEnd();
   if (selected.length === 0) {
     throw connectorError("invalid_commit", "history");
@@ -478,7 +527,7 @@ export function readGitCommitSourceRecords(
     runGit(
       validatedOptions.repositoryPath,
       ["cat-file", "--batch"],
-      { code: "read_failed", stage: "history" },
+      { code: "read_failed", stage: "history", outputLimit: GIT_OBJECT_BATCH_MAX_BYTES },
       Buffer.from(`${selectedCommitIds.join("\n")}\n`, "ascii"),
     ),
     selectedCommitIds,

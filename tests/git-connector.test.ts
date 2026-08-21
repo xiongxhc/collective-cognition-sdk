@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import {
+  chmodSync,
   mkdtempSync,
   mkdirSync,
+  readdirSync,
+  readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 
@@ -28,6 +33,15 @@ interface GitFixture {
   readonly directory: string;
   readonly repositoryPath: string;
   readonly commits: Readonly<Record<string, string>>;
+}
+
+interface RepositorySnapshot {
+  readonly head: string;
+  readonly refs: string;
+  readonly index: { readonly size: bigint; readonly mtimeNs: bigint } | null;
+  readonly config: { readonly size: bigint; readonly mtimeNs: bigint };
+  readonly status: string;
+  readonly worktreeEntries: readonly string[];
 }
 
 const gitEnvironment = {
@@ -55,13 +69,36 @@ function runGit(repositoryPath: string, args: readonly string[]): string {
   return result.stdout;
 }
 
+function runReadOnlyGit(repositoryPath: string, args: readonly string[]): string {
+  const result = spawnSync("git", ["-C", repositoryPath, ...args], {
+    encoding: "utf8",
+    env: { ...gitEnvironment, GIT_OPTIONAL_LOCKS: "0" },
+  });
+  if (result.error !== undefined || result.status !== 0) {
+    throw new Error(
+      `Git read-only fixture command failed: ${[...args].join(" ")}\n${result.stderr}`,
+    );
+  }
+  return result.stdout;
+}
+
 function writeCommitObject(
   repositoryPath: string,
   contents: string,
+  literally = false,
 ): string {
   const result = spawnSync(
     "git",
-    ["-C", repositoryPath, "hash-object", "-t", "commit", "-w", "--stdin"],
+    [
+      "-C",
+      repositoryPath,
+      "hash-object",
+      "-t",
+      "commit",
+      "-w",
+      "--stdin",
+      ...(literally ? ["--literally"] : []),
+    ],
     {
       encoding: "utf8",
       env: gitEnvironment,
@@ -129,10 +166,111 @@ function removeGitFixture(directory: string): void {
   rmSync(directory, { force: true, recursive: true });
 }
 
+function snapshotFile(path: string): { readonly size: bigint; readonly mtimeNs: bigint } {
+  const file = statSync(path, { bigint: true });
+  return { size: file.size, mtimeNs: file.mtimeNs };
+}
+
+function recursiveEntries(directory: string): readonly string[] {
+  const entries: string[] = [];
+  const visit = (current: string): void => {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const path = join(current, entry.name);
+      entries.push(relative(directory, path));
+      if (entry.isDirectory()) {
+        visit(path);
+      }
+    }
+  };
+  visit(directory);
+  return entries.sort();
+}
+
+function snapshotRepository(repositoryPath: string): RepositorySnapshot {
+  const gitDirectory = runReadOnlyGit(repositoryPath, ["rev-parse", "--git-dir"]).trim();
+  const resolvedGitDirectory = resolve(repositoryPath, gitDirectory);
+  const indexPath = join(resolvedGitDirectory, "index");
+  return {
+    head: readFileSync(join(resolvedGitDirectory, "HEAD"), "utf8"),
+    refs: runReadOnlyGit(repositoryPath, ["show-ref", "--head"]).trim(),
+    index: (() => {
+      try {
+        return snapshotFile(indexPath);
+      } catch {
+        return null;
+      }
+    })(),
+    config: snapshotFile(join(resolvedGitDirectory, "config")),
+    status: runReadOnlyGit(repositoryPath, ["status", "--porcelain=v1", "--untracked-files=all"]),
+    worktreeEntries: recursiveEntries(repositoryPath),
+  };
+}
+
+function writeGitExecutable(directory: string, source: string): string {
+  const binDirectory = join(directory, "bin");
+  mkdirSync(binDirectory);
+  const executable = join(binDirectory, "git");
+  writeFileSync(executable, `#!${process.execPath}\n${source}\n`);
+  chmodSync(executable, 0o755);
+  return binDirectory;
+}
+
+function readInControlledGitEnvironment(
+  fixture: GitFixture,
+  path: string,
+): Record<string, unknown> {
+  const connectorUrl = pathToFileURL(resolve("src/connectors/git.ts")).href;
+  const input = [
+    `import { readGitCommitSourceRecords } from ${JSON.stringify(connectorUrl)};`,
+    "try {",
+    `  readGitCommitSourceRecords(${JSON.stringify(connectorOptions(fixture))});`,
+    "  process.stdout.write(JSON.stringify({ result: \"returned\" }));",
+    "} catch (error) {",
+    "  process.stdout.write(JSON.stringify({",
+    "    name: error instanceof Error ? error.name : undefined,",
+    "    message: error instanceof Error ? error.message : undefined,",
+    "    code: error && typeof error === \"object\" ? error.code : undefined,",
+    "    stage: error && typeof error === \"object\" ? error.stage : undefined,",
+    "    details: error && typeof error === \"object\" ? error.details : undefined,",
+    "  }));",
+    "}",
+  ].join("\n");
+  const result = spawnSync(process.execPath, ["--input-type=module", "--eval", input], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    env: { ...process.env, PATH: path },
+  });
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout) as Record<string, unknown>;
+}
+
+function assertControlledError(
+  result: Record<string, unknown>,
+  code: GitConnectorErrorCode,
+  stage: GitConnectorStage,
+  details: Record<string, string | number | boolean> = {},
+): void {
+  assert.deepEqual(result, {
+    name: "GitConnectorError",
+    message: {
+      invalid_options: "Git connector options are invalid.",
+      target_unavailable: "Git repository is unavailable.",
+      incompatible_repository: "Git repository is incompatible.",
+      invalid_commit: "Git repository contains an invalid commit.",
+      read_failed: "Git repository could not be read.",
+    }[code],
+    code,
+    stage,
+    details,
+  });
+}
+
 function assertGitConnectorError(
   action: () => unknown,
   code: GitConnectorErrorCode,
   stage: GitConnectorStage,
+  details?: Record<string, string | number | boolean>,
 ): GitConnectorError {
   let thrown: unknown;
   try {
@@ -141,8 +279,19 @@ function assertGitConnectorError(
     thrown = error;
   }
   assert.ok(thrown instanceof GitConnectorError);
+  assert.equal(thrown.name, "GitConnectorError");
+  assert.equal(thrown.message, {
+    invalid_options: "Git connector options are invalid.",
+    target_unavailable: "Git repository is unavailable.",
+    incompatible_repository: "Git repository is incompatible.",
+    invalid_commit: "Git repository contains an invalid commit.",
+    read_failed: "Git repository could not be read.",
+  }[code]);
   assert.equal(thrown.code, code);
   assert.equal(thrown.stage, stage);
+  if (details !== undefined) {
+    assert.deepEqual(thrown.details, details);
+  }
   assert.equal(Object.isFrozen(thrown), true);
   assert.equal(Object.isFrozen(thrown.details), true);
   return thrown;
@@ -254,36 +403,46 @@ test("selects exact tips, honors privacy opt-ins, and remains deterministic", as
   }
 });
 
-test("rejects invalid closed options before repository access", () => {
+test("rejects every malformed closed option before repository access", () => {
   const fixture = createGitFixture();
   try {
-    const invalidValues: readonly Partial<GitCommitSourceRecordOptions>[] = [
-      { repositoryPath: "relative/repository" },
-      { repositoryPath: "~/repository" },
-      { repositoryPath: "https://example.invalid/repository" },
-      { repositoryPath: `${fixture.repositoryPath}\u0000suffix` },
-      { sourceInstance: " fictional-git-main" },
-      { sourceInstance: "fictional\u0000git" },
-      { tipCommitId: fixture.commits.merge.toUpperCase() },
-      { tipCommitId: "abcdef" },
-      { capturedAt: "2026-08-21T12:00:00" },
-      { limit: 0 },
-      { limit: 1001 },
-      { includeMessage: "yes" as never },
-      { includeAuthorEmail: 1 as never },
+    const unavailableOptions = connectorOptions(fixture, {
+      repositoryPath: join(fixture.directory, "missing-before-options"),
+    });
+    const invalidValues: readonly {
+      readonly field: string;
+      readonly overrides: Partial<GitCommitSourceRecordOptions>;
+    }[] = [
+      { field: "repositoryPath", overrides: { repositoryPath: "relative/repository" } },
+      { field: "repositoryPath", overrides: { repositoryPath: "~/repository" } },
+      { field: "repositoryPath", overrides: { repositoryPath: "https://example.invalid/repository" } },
+      { field: "repositoryPath", overrides: { repositoryPath: `${fixture.repositoryPath}\u0000suffix` } },
+      { field: "sourceInstance", overrides: { sourceInstance: " fictional-git-main" } },
+      { field: "sourceInstance", overrides: { sourceInstance: "fictional\u0000git" } },
+      { field: "tipCommitId", overrides: { tipCommitId: fixture.commits.merge.toUpperCase() } },
+      { field: "tipCommitId", overrides: { tipCommitId: "abcdef" } },
+      { field: "tipCommitId", overrides: { tipCommitId: "HEAD" } },
+      { field: "tipCommitId", overrides: { tipCommitId: `${fixture.commits.merge}^` } },
+      { field: "capturedAt", overrides: { capturedAt: "2026-08-21T12:00:00" } },
+      { field: "limit", overrides: { limit: Number.NaN } },
+      { field: "limit", overrides: { limit: 1.5 } },
+      { field: "limit", overrides: { limit: 0 } },
+      { field: "limit", overrides: { limit: 1001 } },
+      { field: "includeMessage", overrides: { includeMessage: "yes" as never } },
+      { field: "includeAuthorEmail", overrides: { includeAuthorEmail: 1 as never } },
     ];
-    for (const invalidValue of invalidValues) {
-      const error = assertGitConnectorError(
-        () => readGitCommitSourceRecords(connectorOptions(fixture, invalidValue)),
+    for (const { field, overrides } of invalidValues) {
+      assertGitConnectorError(
+        () => readGitCommitSourceRecords({ ...unavailableOptions, ...overrides }),
         "invalid_options",
         "options",
+        { field },
       );
-      assert.equal(error.message, "Git connector options are invalid.");
     }
 
     let accessorReads = 0;
     const accessorOptions = {
-      ...connectorOptions(fixture),
+      ...unavailableOptions,
     } as Record<string, unknown>;
     Object.defineProperty(accessorOptions, "limit", {
       enumerable: true,
@@ -298,6 +457,31 @@ test("rejects invalid closed options before repository access", () => {
       "options",
     );
     assert.equal(accessorReads, 0);
+
+    const nonEnumerableOptions = { ...unavailableOptions } as Record<string, unknown>;
+    Object.defineProperty(nonEnumerableOptions, "limit", {
+      configurable: true,
+      enumerable: false,
+      value: 3,
+    });
+    assertGitConnectorError(
+      () => readGitCommitSourceRecords(nonEnumerableOptions as unknown as GitCommitSourceRecordOptions),
+      "invalid_options",
+      "options",
+      {},
+    );
+
+    const symbolOptions = { ...unavailableOptions } as Record<string | symbol, unknown>;
+    Object.defineProperty(symbolOptions, Symbol("unexpected"), {
+      enumerable: true,
+      value: "must-not-be-read",
+    });
+    assertGitConnectorError(
+      () => readGitCommitSourceRecords(symbolOptions as unknown as GitCommitSourceRecordOptions),
+      "invalid_options",
+      "options",
+      {},
+    );
 
     assertGitConnectorError(
       () => readGitCommitSourceRecords({
@@ -329,7 +513,7 @@ test("rejects inherited custom-prototype options before repository access", () =
       "invalid_options",
       "options",
     );
-    assert.equal(error.message, "Git connector options are invalid.");
+    assert.deepEqual(error.details, {});
   } finally {
     removeGitFixture(fixture.directory);
   }
@@ -359,6 +543,179 @@ test("reports unavailable targets and incompatible repositories with fixed diagn
     assert.equal(incompatible.message, "Git repository is incompatible.");
   } finally {
     removeGitFixture(fixture.directory);
+  }
+});
+
+test("classifies unavailable, incompatible, missing, and malformed local objects", () => {
+  const fixture = createGitFixture();
+  try {
+    const blobTip = runGit(
+      fixture.repositoryPath,
+      ["rev-parse", `${fixture.commits.root}:root.txt`],
+    ).trim();
+    assertGitConnectorError(
+      () => readGitCommitSourceRecords(connectorOptions(fixture, { tipCommitId: blobTip })),
+      "incompatible_repository",
+      "history",
+      {},
+    );
+
+    const malformedCommit = writeCommitObject(
+      fixture.repositoryPath,
+      [
+        `tree ${runGit(fixture.repositoryPath, ["rev-parse", `${fixture.commits.root}^{tree}`]).trim()}`,
+        `parent ${fixture.commits.root}`,
+        "author Fictional Author <author@fictional.example> not-a-timestamp +0000",
+        "committer Fictional Committer <commit.writer@fictional.example> 1787220000 +0000",
+        "",
+        "Malformed metadata",
+        "",
+      ].join("\n"),
+      true,
+    );
+    const malformedSnapshot = snapshotRepository(fixture.repositoryPath);
+    assertGitConnectorError(
+      () => readGitCommitSourceRecords(connectorOptions(fixture, {
+        limit: 1,
+        tipCommitId: malformedCommit,
+      })),
+      "invalid_commit",
+      "mapping",
+      { commitIndex: 0 },
+    );
+    assert.deepEqual(snapshotRepository(fixture.repositoryPath), malformedSnapshot);
+
+    const deletedCommit = writeCommitObject(
+      fixture.repositoryPath,
+      [
+        `tree ${runGit(fixture.repositoryPath, ["rev-parse", `${fixture.commits.root}^{tree}`]).trim()}`,
+        `parent ${fixture.commits.root}`,
+        "author Fictional Author <author@fictional.example> 1787220000 +0000",
+        "committer Fictional Committer <commit.writer@fictional.example> 1787220000 +0000",
+        "",
+        "Deleted object",
+        "",
+      ].join("\n"),
+    );
+    const objectPath = join(
+      fixture.repositoryPath,
+      ".git",
+      "objects",
+      deletedCommit.slice(0, 2),
+      deletedCommit.slice(2),
+    );
+    rmSync(objectPath);
+    assertGitConnectorError(
+      () => readGitCommitSourceRecords(connectorOptions(fixture, {
+        limit: 1,
+        tipCommitId: deletedCommit,
+      })),
+      "incompatible_repository",
+      "history",
+      {},
+    );
+  } finally {
+    removeGitFixture(fixture.directory);
+  }
+});
+
+test("rejects partial and promisor repositories without changing their state", () => {
+  for (const [key, value] of [
+    ["extensions.partialClone", "origin"],
+    ["remote.origin.promisor", "true"],
+  ] as const) {
+    const fixture = createGitFixture();
+    try {
+      runGit(fixture.repositoryPath, ["config", key, value]);
+      const before = snapshotRepository(fixture.repositoryPath);
+      assertGitConnectorError(
+        () => readGitCommitSourceRecords(connectorOptions(fixture)),
+        "incompatible_repository",
+        "open",
+        {},
+      );
+      assert.deepEqual(snapshotRepository(fixture.repositoryPath), before);
+    } finally {
+      removeGitFixture(fixture.directory);
+    }
+  }
+});
+
+test("preserves repository state after successful and failed collection", () => {
+  const fixture = createGitFixture();
+  try {
+    const beforeSuccessfulRead = snapshotRepository(fixture.repositoryPath);
+    readGitCommitSourceRecords(connectorOptions(fixture));
+    assert.deepEqual(snapshotRepository(fixture.repositoryPath), beforeSuccessfulRead);
+
+    const incompatibleBefore = snapshotRepository(fixture.repositoryPath);
+    const blobTip = runGit(
+      fixture.repositoryPath,
+      ["rev-parse", `${fixture.commits.root}:root.txt`],
+    ).trim();
+    assertGitConnectorError(
+      () => readGitCommitSourceRecords(connectorOptions(fixture, { tipCommitId: blobTip })),
+      "incompatible_repository",
+      "history",
+      {},
+    );
+    assert.deepEqual(snapshotRepository(fixture.repositoryPath), incompatibleBefore);
+  } finally {
+    removeGitFixture(fixture.directory);
+  }
+});
+
+test("sanitizes missing executable and bounded process failures", () => {
+  const fixture = createGitFixture();
+  const controlledDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-process-"));
+  const timeoutDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-timeout-"));
+  const overflowDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-overflow-"));
+  try {
+    assertControlledError(
+      readInControlledGitEnvironment(fixture, ""),
+      "target_unavailable",
+      "open",
+    );
+
+    const failurePath = writeGitExecutable(controlledDirectory, "process.exit(1);");
+    assertControlledError(
+      readInControlledGitEnvironment(fixture, failurePath),
+      "read_failed",
+      "open",
+    );
+
+    const timeoutPath = writeGitExecutable(
+      timeoutDirectory,
+      "setTimeout(() => {}, 6_000);",
+    );
+    assertControlledError(
+      readInControlledGitEnvironment(fixture, timeoutPath),
+      "read_failed",
+      "open",
+    );
+
+    const overflowPath = writeGitExecutable(
+      overflowDirectory,
+      [
+        "const [, , command, ...rest] = process.argv.slice(2);",
+        "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
+        "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
+        "else if (command === 'config') process.stdout.write('');",
+        "else if (command === 'cat-file') process.exit(0);",
+        "else if (command === 'rev-list') process.stdout.write('x'.repeat(128 * 1024 + 1));",
+        "else process.exit(1);",
+      ].join("\n"),
+    );
+    assertControlledError(
+      readInControlledGitEnvironment(fixture, overflowPath),
+      "read_failed",
+      "history",
+    );
+  } finally {
+    removeGitFixture(fixture.directory);
+    rmSync(controlledDirectory, { force: true, recursive: true });
+    rmSync(timeoutDirectory, { force: true, recursive: true });
+    rmSync(overflowDirectory, { force: true, recursive: true });
   }
 });
 
