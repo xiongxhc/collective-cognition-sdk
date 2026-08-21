@@ -261,6 +261,8 @@ const expectedEmittedFiles090 = Object.freeze(
   [...expectedEmittedFiles060, ...expectedDurableWorkflowEmittedFiles090].sort(),
 );
 const expectedGitConnectorEmittedFiles0100 = Object.freeze([
+  "dist/connectors/git-process-result.d.ts",
+  "dist/connectors/git-process-result.js",
   "dist/connectors/git.d.ts",
   "dist/connectors/git.js",
 ]);
@@ -1146,7 +1148,9 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "npm run --silent build && node --disable-warning=ExperimentalWarning examples/host-integration.ts",
   );
   for (const path of [
+    "src/connectors/git-process-result.ts",
     "src/connectors/git.ts",
+    "tests/git-process-result.test.ts",
     "tests/git-connector.test.ts",
     "examples/cross-connector-interoperability.ts",
     "tests/cross-connector-interoperability-example.test.ts",

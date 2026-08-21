@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readdirSync,
@@ -9,7 +10,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { devNull, tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -48,6 +49,10 @@ interface ControlledGitRead {
   readonly result: Record<string, unknown>;
   readonly elapsedMilliseconds: number;
 }
+
+const posixGitShimSkip = process.platform === "win32"
+  ? "This adversarial executable shim requires POSIX shebang process mechanics."
+  : undefined;
 
 const gitEnvironment = {
   ...process.env,
@@ -212,6 +217,9 @@ function snapshotRepository(repositoryPath: string): RepositorySnapshot {
 }
 
 function writeGitExecutable(directory: string, source: string): string {
+  if (process.platform === "win32") {
+    throw new Error("POSIX Git shim must not run on Windows.");
+  }
   const binDirectory = join(directory, "bin");
   mkdirSync(binDirectory);
   const executable = join(binDirectory, "git");
@@ -223,20 +231,49 @@ function writeGitExecutable(directory: string, source: string): string {
 function readInControlledGitEnvironment(
   fixture: GitFixture,
   path: string,
+  options: GitCommitSourceRecordOptions = connectorOptions(fixture),
+  environment: NodeJS.ProcessEnv = {},
 ): Record<string, unknown> {
-  return controlledGitRead(fixture, path).result;
+  return controlledGitRead(fixture, path, options, environment).result;
+}
+
+function environmentWith(
+  overrides: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv {
+  const environment = { ...process.env };
+  for (const name of Object.keys(overrides)) {
+    for (const inheritedName of Object.keys(environment)) {
+      if (inheritedName.toLowerCase() === name.toLowerCase()) {
+        delete environment[inheritedName];
+      }
+    }
+  }
+  return { ...environment, ...overrides };
+}
+
+function inheritedEnvironmentValue(name: string): string | undefined {
+  const inheritedName = Object.keys(process.env).find(
+    (candidate) => candidate.toLowerCase() === name.toLowerCase(),
+  );
+  return inheritedName === undefined ? undefined : process.env[inheritedName];
 }
 
 function controlledGitRead(
   fixture: GitFixture,
   path: string,
+  options: GitCommitSourceRecordOptions = connectorOptions(fixture),
+  environment: NodeJS.ProcessEnv = {},
 ): ControlledGitRead {
   const connectorUrl = pathToFileURL(resolve("src/connectors/git.ts")).href;
   const input = [
     `import { readGitCommitSourceRecords } from ${JSON.stringify(connectorUrl)};`,
     "try {",
-    `  readGitCommitSourceRecords(${JSON.stringify(connectorOptions(fixture))});`,
-    "  process.stdout.write(JSON.stringify({ result: \"returned\" }));",
+    `  const records = readGitCommitSourceRecords(${JSON.stringify(options)});`,
+    "  process.stdout.write(JSON.stringify({",
+    "    status: \"returned\",",
+    "    revisionIds: records.map(({ revisionId }) => revisionId),",
+    "    summaries: records.map(({ content }) => content.summary),",
+    "  }));",
     "} catch (error) {",
     "  process.stdout.write(JSON.stringify({",
     "    name: error instanceof Error ? error.name : undefined,",
@@ -251,7 +288,7 @@ function controlledGitRead(
   const processResult = spawnSync(process.execPath, ["--input-type=module", "--eval", input], {
     cwd: process.cwd(),
     encoding: "utf8",
-    env: { ...process.env, PATH: path },
+    env: environmentWith({ ...environment, PATH: path }),
   });
   const elapsedMilliseconds = Date.now() - startedAt;
   assert.equal(processResult.error, undefined);
@@ -420,6 +457,264 @@ test("selects exact tips, honors privacy opt-ins, and remains deterministic", as
   }
 });
 
+test("keeps repositoryPath authoritative over hostile ambient Git state", () => {
+  const selectedFixture = createGitFixture();
+  const ambientFixture = createGitFixture();
+  try {
+    writeFileSync(join(selectedFixture.repositoryPath, "selected-only.txt"), "selected\n");
+    runGit(selectedFixture.repositoryPath, ["add", "selected-only.txt"]);
+    runGit(selectedFixture.repositoryPath, [
+      "commit",
+      "--no-gpg-sign",
+      "-m",
+      "Selected repository boundary",
+    ]);
+    const selectedTip = runGit(selectedFixture.repositoryPath, ["rev-parse", "HEAD"]).trim();
+
+    writeFileSync(join(ambientFixture.repositoryPath, "ambient-only.txt"), "ambient\n");
+    runGit(ambientFixture.repositoryPath, ["add", "ambient-only.txt"]);
+    runGit(ambientFixture.repositoryPath, [
+      "commit",
+      "--no-gpg-sign",
+      "-m",
+      "Ambient repository must not be read",
+    ]);
+    const ambientTip = runGit(ambientFixture.repositoryPath, ["rev-parse", "HEAD"]).trim();
+    assert.notEqual(selectedTip, ambientTip);
+
+    const ambientGitDirectory = join(ambientFixture.repositoryPath, ".git");
+    const globalConfig = join(ambientFixture.directory, "ambient-global.gitconfig");
+    const systemConfig = join(ambientFixture.directory, "ambient-system.gitconfig");
+    writeFileSync(globalConfig, "[core]\n\tworktree = ambient-global-secret\n");
+    writeFileSync(systemConfig, "[core]\n\tworktree = ambient-system-secret\n");
+    const path = inheritedEnvironmentValue("PATH") ?? "";
+    const secret = "ambient-connector-secret-must-not-appear";
+    const scenarios: readonly {
+      readonly environment: NodeJS.ProcessEnv;
+      readonly label: string;
+      readonly tipCommitId?: string;
+    }[] = [
+      { label: "GIT_DIR", environment: { GIT_DIR: ambientGitDirectory } },
+      { label: "GIT_WORK_TREE", environment: { GIT_WORK_TREE: ambientFixture.repositoryPath } },
+      { label: "GIT_COMMON_DIR", environment: { GIT_COMMON_DIR: ambientGitDirectory } },
+      {
+        label: "GIT_OBJECT_DIRECTORY",
+        environment: { GIT_OBJECT_DIRECTORY: join(ambientGitDirectory, "objects") },
+      },
+      {
+        label: "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        environment: {
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: join(ambientGitDirectory, "objects"),
+        },
+        tipCommitId: ambientTip,
+      },
+      { label: "GIT_NAMESPACE", environment: { GIT_NAMESPACE: "ambient-namespace" } },
+      { label: "GIT_INDEX_FILE", environment: { GIT_INDEX_FILE: join(ambientGitDirectory, "index") } },
+      {
+        label: "GIT_CONFIG_COUNT/KEY/VALUE",
+        environment: {
+          GIT_CONFIG_COUNT: "1",
+          GIT_CONFIG_KEY_0: "core.worktree",
+          GIT_CONFIG_VALUE_0: ambientFixture.repositoryPath,
+        },
+      },
+      {
+        label: "global and system Git config",
+        environment: {
+          GIT_CONFIG_GLOBAL: globalConfig,
+          GIT_CONFIG_NOSYSTEM: "0",
+          GIT_CONFIG_SYSTEM: systemConfig,
+        },
+      },
+    ];
+
+    for (const [scenarioIndex, scenario] of scenarios.entries()) {
+      const tracePath = join(
+        selectedFixture.directory,
+        `${secret}-${scenarioIndex}.trace.json`,
+      );
+      const result = readInControlledGitEnvironment(
+        selectedFixture,
+        path,
+        connectorOptions(selectedFixture, {
+          limit: 1,
+          tipCommitId: scenario.tipCommitId ?? selectedTip,
+        }),
+        {
+          ...scenario.environment,
+          COLLECTIVE_COGNITION_AMBIENT_SECRET: secret,
+          GIT_TRACE2_EVENT: tracePath,
+        },
+      );
+
+      if (scenario.tipCommitId === ambientTip) {
+        assertControlledError(
+          result,
+          "incompatible_repository",
+          "history",
+        );
+      } else {
+        assert.deepEqual(result, {
+          status: "returned",
+          revisionIds: [selectedTip],
+          summaries: ["Selected repository boundary"],
+        }, scenario.label);
+      }
+      assert.equal(
+        JSON.stringify(result).includes(secret),
+        false,
+        `${scenario.label} leaked an ambient secret in diagnostics.`,
+      );
+      assert.equal(
+        existsSync(tracePath),
+        false,
+        `${scenario.label} reached Git through the ambient environment.`,
+      );
+    }
+  } finally {
+    removeGitFixture(selectedFixture.directory);
+    removeGitFixture(ambientFixture.directory);
+  }
+});
+
+test("passes only a closed deterministic environment to Git children", {
+  skip: posixGitShimSkip,
+}, () => {
+  const fixture = createGitFixture();
+  const shimDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-environment-"));
+  const capturePath = join(shimDirectory, "captured-environment.json");
+  try {
+    const tree = runGit(
+      fixture.repositoryPath,
+      ["rev-parse", `${fixture.commits.merge}^{tree}`],
+    ).trim();
+    const commitContents = [
+      `tree ${tree}`,
+      `parent ${fixture.commits.main}`,
+      `parent ${fixture.commits.side}`,
+      "author Zoë Fictional <zoe.author@fictional.example> 1787220000 +0000",
+      "committer Fictional Committer <commit.writer@fictional.example> 1787220000 +0000",
+      "",
+      "Closed child environment",
+      "",
+    ].join("\n");
+    const path = writeGitExecutable(
+      shimDirectory,
+      [
+        "const fs = require('node:fs');",
+        `fs.writeFileSync(${JSON.stringify(capturePath)}, JSON.stringify(process.env));`,
+        "const [, , command, ...rest] = process.argv.slice(2);",
+        "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
+        "else if (command === 'config') process.stdout.write('');",
+        "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
+        "else if (command === 'cat-file' && rest[0] === '-e') process.exit(0);",
+        "else if (command === 'cat-file' && rest[0] === '-t') process.stdout.write('commit\\n');",
+        `else if (command === 'rev-list') process.stdout.write(${JSON.stringify(`${fixture.commits.merge}\n`)});`,
+        `else if (command === 'cat-file' && rest[0] === '--batch') process.stdout.write(${JSON.stringify(`${fixture.commits.merge} commit ${Buffer.byteLength(commitContents)}\n${commitContents}\n`)});`,
+        "else process.exit(1);",
+      ].join("\n"),
+    );
+    const secret = "closed-environment-secret";
+    assert.deepEqual(
+      readInControlledGitEnvironment(
+        fixture,
+        path,
+        connectorOptions(fixture, { limit: 1 }),
+        {
+          COLLECTIVE_COGNITION_AMBIENT_SECRET: secret,
+          GIT_CONFIG_COUNT: "1",
+          GIT_CONFIG_KEY_0: "core.worktree",
+          GIT_CONFIG_VALUE_0: fixture.directory,
+          GIT_DIR: join(fixture.directory, "ambient.git"),
+          GIT_INDEX_FILE: join(fixture.directory, "ambient.index"),
+        },
+      ),
+      {
+        status: "returned",
+        revisionIds: [fixture.commits.merge],
+        summaries: ["Closed child environment"],
+      },
+    );
+
+    const captured = JSON.parse(readFileSync(capturePath, "utf8")) as Record<string, string>;
+    const normalizedCaptured = { ...captured };
+    if (process.platform === "darwin") {
+      if (normalizedCaptured.__CF_USER_TEXT_ENCODING !== undefined) {
+        assert.match(normalizedCaptured.__CF_USER_TEXT_ENCODING, /^0x[0-9A-F]+:\d+:\d+$/);
+      }
+      delete normalizedCaptured.__CF_USER_TEXT_ENCODING;
+    }
+    const expected: Record<string, string> = {
+      GIT_CONFIG_GLOBAL: devNull,
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_NO_LAZY_FETCH: "1",
+      GIT_OPTIONAL_LOCKS: "0",
+      GIT_TERMINAL_PROMPT: "0",
+      LANG: "C",
+      LC_ALL: "C",
+      PATH: path,
+    };
+    for (const name of ["PATHEXT", "SystemRoot", "WINDIR", "COMSPEC", "TMP", "TEMP"]) {
+      const value = inheritedEnvironmentValue(name);
+      if (value !== undefined) {
+        expected[name] = value;
+      }
+    }
+    assert.deepEqual(normalizedCaptured, expected);
+    assert.equal(JSON.stringify(captured).includes(secret), false);
+  } finally {
+    removeGitFixture(fixture.directory);
+    rmSync(shimDirectory, { force: true, recursive: true });
+  }
+});
+
+test("rejects a rev-list whose newest object differs from the exact tip", {
+  skip: posixGitShimSkip,
+}, () => {
+  const fixture = createGitFixture();
+  const shimDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-exact-tip-"));
+  try {
+    const tree = runGit(
+      fixture.repositoryPath,
+      ["rev-parse", `${fixture.commits.root}^{tree}`],
+    ).trim();
+    const commitContents = [
+      `tree ${tree}`,
+      "author Fictional Author <author@fictional.example> 1787220000 +0000",
+      "committer Fictional Committer <commit.writer@fictional.example> 1787220000 +0000",
+      "",
+      "Wrong selected tip",
+      "",
+    ].join("\n");
+    const path = writeGitExecutable(
+      shimDirectory,
+      [
+        "const [, , command, ...rest] = process.argv.slice(2);",
+        "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
+        "else if (command === 'config') process.stdout.write('');",
+        "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
+        "else if (command === 'cat-file' && rest[0] === '-e') process.exit(0);",
+        "else if (command === 'cat-file' && rest[0] === '-t') process.stdout.write('commit\\n');",
+        `else if (command === 'rev-list') process.stdout.write(${JSON.stringify(`${fixture.commits.root}\n`)});`,
+        `else if (command === 'cat-file' && rest[0] === '--batch') process.stdout.write(${JSON.stringify(`${fixture.commits.root} commit ${Buffer.byteLength(commitContents)}\n${commitContents}\n`)});`,
+        "else process.exit(1);",
+      ].join("\n"),
+    );
+    assertControlledError(
+      readInControlledGitEnvironment(
+        fixture,
+        path,
+        connectorOptions(fixture, { limit: 1 }),
+      ),
+      "invalid_commit",
+      "history",
+    );
+  } finally {
+    removeGitFixture(fixture.directory);
+    rmSync(shimDirectory, { force: true, recursive: true });
+  }
+});
+
 test("rejects every malformed closed option before repository access", () => {
   const fixture = createGitFixture();
   try {
@@ -577,6 +872,28 @@ test("classifies unavailable, incompatible, missing, and malformed local objects
       {},
     );
 
+    runGit(fixture.repositoryPath, [
+      "tag",
+      "--annotate",
+      "annotated-tip",
+      "--message",
+      "Annotated tag object is not a commit tip",
+      fixture.commits.main,
+    ]);
+    const annotatedTagTip = runGit(
+      fixture.repositoryPath,
+      ["rev-parse", "annotated-tip^{tag}"],
+    ).trim();
+    assertGitConnectorError(
+      () => readGitCommitSourceRecords(connectorOptions(fixture, {
+        limit: 1,
+        tipCommitId: annotatedTagTip,
+      })),
+      "incompatible_repository",
+      "history",
+      {},
+    );
+
     const malformedCommit = writeCommitObject(
       fixture.repositoryPath,
       [
@@ -701,7 +1018,9 @@ test("preserves repository state after successful and failed collection", () => 
   }
 });
 
-test("classifies repository recognition without stderr content", () => {
+test("classifies repository recognition without stderr content", {
+  skip: posixGitShimSkip,
+}, () => {
   const fixture = createGitFixture();
   const nonEnglishDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-non-english-"));
   const overflowDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-recognition-overflow-"));
@@ -740,18 +1059,27 @@ test("classifies repository recognition without stderr content", () => {
   }
 });
 
-test("bounds Git execution failures at the tip probe", () => {
+test("classifies a missing Git executable without shell lookup", () => {
   const fixture = createGitFixture();
-  const failureDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-process-"));
-  const timeoutDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-timeout-"));
-  const overflowDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-overflow-"));
   try {
     assertControlledError(
       readInControlledGitEnvironment(fixture, ""),
       "target_unavailable",
       "open",
     );
+  } finally {
+    removeGitFixture(fixture.directory);
+  }
+});
 
+test("bounds POSIX Git execution failures at the tip probe", {
+  skip: posixGitShimSkip,
+}, () => {
+  const fixture = createGitFixture();
+  const failureDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-process-"));
+  const timeoutDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-timeout-"));
+  const overflowDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-overflow-"));
+  try {
     const failurePath = writeGitExecutable(
       failureDirectory,
       [
@@ -774,7 +1102,7 @@ test("bounds Git execution failures at the tip probe", () => {
         "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
         "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
         "else if (command === 'config') process.stdout.write('');",
-        "else if (command === 'cat-file' && rest[0] === '-e') { process.on('SIGTERM', () => {}); setInterval(() => {}, 1_000); }",
+        "else if (command === 'cat-file' && (rest[0] === '-e' || rest[0] === '-t')) { process.on('SIGTERM', () => {}); setInterval(() => {}, 1_000); }",
         "else process.exit(1);",
       ].join("\n"),
     );
@@ -794,7 +1122,7 @@ test("bounds Git execution failures at the tip probe", () => {
         "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
         "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
         "else if (command === 'config') process.stdout.write('');",
-        "else if (command === 'cat-file' && rest[0] === '-e') process.stderr.write('x'.repeat(128 * 1024 + 1));",
+        "else if (command === 'cat-file' && (rest[0] === '-e' || rest[0] === '-t')) process.stderr.write('x'.repeat(128 * 1024 + 1));",
         "else process.exit(1);",
       ].join("\n"),
     );
@@ -811,51 +1139,60 @@ test("bounds Git execution failures at the tip probe", () => {
   }
 });
 
-test("bounds aggregate Git objects and rejects oversized declared commits", () => {
+test("bounds aggregate real Git output and rejects oversized commits", () => {
   const fixture = createGitFixture();
-  const aggregateDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-batch-overflow-"));
-  const declaredSizeDirectory = mkdtempSync(join(tmpdir(), "collective-cognition-git-commit-overflow-"));
   try {
-    const aggregatePath = writeGitExecutable(
-      aggregateDirectory,
-      [
-        "const [, , command, ...rest] = process.argv.slice(2);",
-        "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
-        "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
-        "else if (command === 'config' || (command === 'cat-file' && rest[0] === '-e')) process.exit(0);",
-        `else if (command === 'rev-list') process.stdout.write(${JSON.stringify(`${fixture.commits.merge}\n`)});`,
-        "else if (command === 'cat-file' && rest[0] === '--batch') process.stdout.write('x'.repeat(8 * 1024 * 1024 + 1));",
-        "else process.exit(1);",
-      ].join("\n"),
-    );
-    assertControlledError(
-      readInControlledGitEnvironment(fixture, aggregatePath),
+    const tree = runGit(
+      fixture.repositoryPath,
+      ["rev-parse", `${fixture.commits.root}^{tree}`],
+    ).trim();
+    let aggregateTip = fixture.commits.root;
+    for (let commitIndex = 0; commitIndex < 9; commitIndex += 1) {
+      aggregateTip = writeCommitObject(
+        fixture.repositoryPath,
+        [
+          `tree ${tree}`,
+          `parent ${aggregateTip}`,
+          "author Fictional Author <author@fictional.example> 1787220000 +0000",
+          "committer Fictional Committer <commit.writer@fictional.example> 1787220000 +0000",
+          "",
+          `${commitIndex}-${"x".repeat(960 * 1024)}`,
+          "",
+        ].join("\n"),
+      );
+    }
+    assertGitConnectorError(
+      () => readGitCommitSourceRecords(connectorOptions(fixture, {
+        limit: 9,
+        tipCommitId: aggregateTip,
+      })),
       "read_failed",
       "history",
     );
 
-    const declaredSizePath = writeGitExecutable(
-      declaredSizeDirectory,
+    const oversizedTip = writeCommitObject(
+      fixture.repositoryPath,
       [
-        "const [, , command, ...rest] = process.argv.slice(2);",
-        "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
-        "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
-        "else if (command === 'config' || (command === 'cat-file' && rest[0] === '-e')) process.exit(0);",
-        `else if (command === 'rev-list') process.stdout.write(${JSON.stringify(`${fixture.commits.merge}\n`)});`,
-        `else if (command === 'cat-file' && rest[0] === '--batch') process.stdout.write(${JSON.stringify(`${fixture.commits.merge} commit ${1024 * 1024 + 1}\n`)});`,
-        "else process.exit(1);",
+        `tree ${tree}`,
+        `parent ${fixture.commits.root}`,
+        "author Fictional Author <author@fictional.example> 1787220000 +0000",
+        "committer Fictional Committer <commit.writer@fictional.example> 1787220000 +0000",
+        "",
+        "x".repeat(1024 * 1024),
+        "",
       ].join("\n"),
     );
-    assertControlledError(
-      readInControlledGitEnvironment(fixture, declaredSizePath),
+    assertGitConnectorError(
+      () => readGitCommitSourceRecords(connectorOptions(fixture, {
+        limit: 1,
+        tipCommitId: oversizedTip,
+      })),
       "invalid_commit",
       "history",
       { commitIndex: 0 },
     );
   } finally {
     removeGitFixture(fixture.directory);
-    rmSync(aggregateDirectory, { force: true, recursive: true });
-    rmSync(declaredSizeDirectory, { force: true, recursive: true });
   }
 });
 

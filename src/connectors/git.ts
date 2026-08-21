@@ -1,9 +1,14 @@
 import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
+import { devNull } from "node:os";
 import { isAbsolute } from "node:path";
 
 import { createSourceRecord } from "../source-records.ts";
 import { isUnicodeScalarString } from "../types.ts";
+import {
+  classifyGitProcessResult,
+  validGitObjectByteLength,
+} from "./git-process-result.ts";
 import type { SourceRecord } from "../source-records.ts";
 
 export const GIT_REPOSITORY_FORMAT = "git-repository/1";
@@ -93,12 +98,38 @@ const allowedOptionFields = new Set([
 const isoTimestampPattern =
   /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
 const controlCharacterPattern = /[\u0000-\u001f\u007f-\u009f]/u;
-const gitEnvironment = {
-  ...process.env,
+const executionEnvironmentFields = [
+  "PATH",
+  "PATHEXT",
+  "SystemRoot",
+  "WINDIR",
+  "COMSPEC",
+  "TMP",
+  "TEMP",
+] as const;
+
+function inheritedEnvironmentValue(name: string): string | undefined {
+  const inheritedName = Object.keys(process.env).find(
+    (candidate) => candidate.toLowerCase() === name.toLowerCase(),
+  );
+  return inheritedName === undefined ? undefined : process.env[inheritedName];
+}
+
+const gitEnvironment: Readonly<NodeJS.ProcessEnv> = Object.freeze({
+  ...Object.fromEntries(
+    executionEnvironmentFields.flatMap((name) => {
+      const value = inheritedEnvironmentValue(name);
+      return value === undefined ? [] : [[name, value]];
+    }),
+  ),
+  GIT_CONFIG_GLOBAL: devNull,
+  GIT_CONFIG_NOSYSTEM: "1",
   GIT_NO_LAZY_FETCH: "1",
   GIT_OPTIONAL_LOCKS: "0",
   GIT_TERMINAL_PROMPT: "0",
-};
+  LANG: "C",
+  LC_ALL: "C",
+});
 const GIT_PROCESS_TIMEOUT_MS = 5_000;
 const GIT_HISTORY_MAX_BYTES = 128 * 1024;
 const GIT_OBJECT_BATCH_MAX_BYTES = 8 * 1024 * 1024;
@@ -242,20 +273,17 @@ function runGit(
     timeout: GIT_PROCESS_TIMEOUT_MS,
     killSignal: "SIGKILL",
   });
-  const processError = result.error as NodeJS.ErrnoException | undefined;
-  if (processError?.code === "ENOENT") {
-    throw connectorError("target_unavailable", "open");
+  const classification = classifyGitProcessResult(result);
+  switch (classification.kind) {
+    case "target_unavailable":
+      throw connectorError("target_unavailable", "open");
+    case "read_failed":
+      throw connectorError("read_failed", failure.stage);
+    case "command_failed":
+      throw connectorError(failure.code, failure.stage);
+    case "success":
+      return classification.stdout;
   }
-  if (result.error !== undefined || result.signal !== null) {
-    throw connectorError("read_failed", failure.stage);
-  }
-  if (result.status !== 0) {
-    throw connectorError(failure.code, failure.stage);
-  }
-  if (!Buffer.isBuffer(result.stdout)) {
-    throw connectorError("read_failed", failure.stage);
-  }
-  return result.stdout;
 }
 
 function objectIdPattern(objectFormat: string): RegExp | undefined {
@@ -384,10 +412,10 @@ function parseCommitBatch(
     ) {
       throw connectorError("invalid_commit", "history", { commitIndex });
     }
-    const byteLength = Number(match[2]);
-    if (!Number.isSafeInteger(byteLength) || byteLength > GIT_COMMIT_MAX_BYTES) {
+    if (!validGitObjectByteLength(match[2], GIT_COMMIT_MAX_BYTES)) {
       throw connectorError("invalid_commit", "history", { commitIndex });
     }
+    const byteLength = Number(match[2]);
     const contentsStart = headerEnd + 1;
     const contentsEnd = contentsStart + byteLength;
     if (contentsEnd >= output.length || output[contentsEnd] !== 0x0a) {
@@ -492,11 +520,14 @@ export function readGitCommitSourceRecords(
     throw connectorError("incompatible_repository", "history");
   }
 
-  runGit(
+  const tipType = runGit(
     validatedOptions.repositoryPath,
-    ["cat-file", "-e", `${validatedOptions.tipCommitId}^{commit}`],
+    ["cat-file", "-t", validatedOptions.tipCommitId],
     { code: "incompatible_repository", stage: "history", outputLimit: GIT_HISTORY_MAX_BYTES },
-  );
+  ).toString("ascii").trim();
+  if (tipType !== "commit") {
+    throw connectorError("incompatible_repository", "history");
+  }
 
   const selected = runGit(
     validatedOptions.repositoryPath,
@@ -514,6 +545,7 @@ export function readGitCommitSourceRecords(
   const selectedCommitIds = selected.split("\n");
   if (
     selectedCommitIds.length > validatedOptions.limit ||
+    selectedCommitIds[0] !== validatedOptions.tipCommitId ||
     selectedCommitIds.some((commitId) => !objectId.test(commitId))
   ) {
     throw connectorError("invalid_commit", "history");
