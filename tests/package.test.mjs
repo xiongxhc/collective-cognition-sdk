@@ -60,6 +60,7 @@ const licenseUrl = new URL("../LICENSE", import.meta.url);
 const noticeUrl = new URL("../NOTICE", import.meta.url);
 const citationUrl = new URL("../CITATION.cff", import.meta.url);
 const readmeUrl = new URL("../README.md", import.meta.url);
+const changelogUrl = new URL("../CHANGELOG.md", import.meta.url);
 const connectorAuthorGuideUrl = new URL(
   "../docs/connector-author-guide.md",
   import.meta.url,
@@ -69,6 +70,7 @@ const durableWorkflowGuideUrl = new URL(
   import.meta.url,
 );
 const roadmapUrl = new URL("../docs/ROADMAP.md", import.meta.url);
+const publicApiUrl = new URL("../docs/public-api.md", import.meta.url);
 const connectorRfcUrl = new URL(
   "../rfcs/0006-maintained-source-connectors.md",
   import.meta.url,
@@ -89,6 +91,14 @@ const rfcIndexUrl = new URL("../rfcs/README.md", import.meta.url);
 const specificationIndexUrl = new URL("../spec/README.md", import.meta.url);
 const compatibilityPolicyUrl = new URL(
   "../spec/compatibility.md",
+  import.meta.url,
+);
+const interoperabilityProfileUrl = new URL(
+  "../spec/interoperability/0.1.0/profile.json",
+  import.meta.url,
+);
+const interoperabilityPlanUrl = new URL(
+  "../docs/superpowers/plans/2026-08-21-cross-connector-interoperability.md",
   import.meta.url,
 );
 const runtimeSecurityProfileUrl = new URL(
@@ -688,7 +698,7 @@ test("public documentation explains the source-neutral connector model", () => {
   );
   assert.match(
     rfcIndex,
-    /current package is private, unpublished `0\.9\.0`/,
+    /current package is private, unpublished `0\.10\.0`/,
   );
   assert.doesNotMatch(
     rfcIndex,
@@ -757,7 +767,7 @@ test("public documentation explains the source-neutral connector model", () => {
   assert.match(roadmap, /delivered|verified/i);
   assert.match(
     roadmap,
-    /current package `0\.9\.0` preserves both historical artifacts/,
+    /current package `0\.10\.0` preserves (?:both|those) historical artifacts/,
   );
   assert.doesNotMatch(
     roadmap,
@@ -942,6 +952,117 @@ test("Git connector guide documents the exact local package contract", () => {
   ]) {
     assert.match(guide, nonGoal);
   }
+});
+
+test("public documentation records locally verified cross-connector interoperability without external completion claims", () => {
+  const documents = [
+    { name: "README", content: readFileSync(readmeUrl, "utf8") },
+    { name: "CHANGELOG", content: readFileSync(changelogUrl, "utf8") },
+    {
+      name: "roadmap",
+      content: readFileSync(roadmapUrl, "utf8"),
+    },
+    {
+      name: "connector author guide",
+      content: readFileSync(connectorAuthorGuideUrl, "utf8"),
+    },
+    {
+      name: "Git connector guide",
+      content: readFileSync(gitConnectorGuideUrl, "utf8"),
+    },
+    {
+      name: "public API",
+      content: readFileSync(publicApiUrl, "utf8"),
+    },
+    {
+      name: "specification index",
+      content: readFileSync(specificationIndexUrl, "utf8"),
+    },
+    {
+      name: "compatibility policy",
+      content: readFileSync(compatibilityPolicyUrl, "utf8"),
+    },
+    {
+      name: "RFC index",
+      content: readFileSync(rfcIndexUrl, "utf8"),
+    },
+  ];
+  const combined = documents.map(({ content }) => content).join("\n");
+  const readme = documents[0].content;
+  const roadmap = documents[2].content;
+  const publicApi = documents[5].content;
+  const specificationIndex = documents[6].content;
+  const rfcIndex = documents[8].content;
+  const profile = JSON.parse(readFileSync(interoperabilityProfileUrl, "utf8"));
+  const plan = readFileSync(interoperabilityPlanUrl, "utf8");
+
+  for (const document of documents) {
+    assert.match(document.content, /0\.10\.0/, `${document.name} must identify package 0.10.0`);
+  }
+
+  for (const phrase of [
+    "explicit local repository",
+    "read-only",
+    "first-parent",
+    "exact tip",
+    "privacy defaults",
+    "local Git executable",
+  ]) {
+    assert.match(combined, new RegExp(escapeRegExp(phrase), "i"), phrase);
+  }
+
+  const gitImport =
+    'from "collective-cognition-sdk/connectors/git/0.1.0";';
+  assert.match(readme, new RegExp(escapeRegExp(gitImport)));
+  assert.match(publicApi, new RegExp(escapeRegExp(gitImport)));
+
+  const resourceExample = `import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+
+const sourceRecordsUrl = import.meta.resolve(
+  "collective-cognition-sdk/interoperability/0.1.0/source-records",
+);
+const sourceRecordsJsonl = readFileSync(
+  fileURLToPath(sourceRecordsUrl),
+  "utf8",
+);`;
+  assert.equal(publicApi.includes(resourceExample), true);
+  assert.equal(profile.owner, "collective-cognition-sdk-maintainers");
+  assert.match(combined, /collective-cognition-sdk-maintainers/);
+
+  for (const document of [readme, roadmap, specificationIndex, rfcIndex]) {
+    assert.match(document, /two maintained connectors/i);
+  }
+  for (const document of [readme, publicApi, documents[1].content, documents[7].content]) {
+    assert.match(document, /no Git\s+CLI/i);
+  }
+
+  for (const nonClaim of [
+    /no connector registry/i,
+    /no (?:connector registry, )?plugin (?:runtime|discovery|loader)/i,
+    /no network/i,
+    /no schedul/i,
+    /no [^\n.]*automatic cognition/i,
+    /private and unpublished|private, unpublished/i,
+    /production (?:use|readiness|certification)[^\n]*(?:not claimed|no|does not|not authorize)|no production certification/i,
+    /not certification|does not certify/i,
+    /does not imply endorsement|not endorsement/i,
+    /not an LTS|no LTS|not a long-term support/i,
+  ]) {
+    assert.match(combined, nonClaim);
+  }
+
+  assert.match(
+    roadmap,
+    /## Phase 5: Cross-Connector Interoperability\n\n\*\*Status:\*\* Locally verified; merge and post-merge CI pending\./,
+  );
+  assert.doesNotMatch(
+    roadmap,
+    /## Phase 5: Cross-Connector Interoperability\n\n\*\*Status:\*\* Complete\./,
+  );
+  assert.match(roadmap, /## Phase 6:[\s\S]*\*\*Status:\*\* Planned\./);
+  assert.match(plan, /Task 6 local documentation and verification/);
+  assert.match(plan, /merge and post-merge CI pending/i);
 });
 
 test("npm package manifest and tarball expose only approved artifacts", () => {

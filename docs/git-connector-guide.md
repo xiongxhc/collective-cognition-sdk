@@ -16,11 +16,18 @@ import {
 
 The package root does not export Git-specific names. There is no Git CLI.
 
+## Installation
+
+Package `0.10.0` is private and unpublished. Use a local checkout or an
+accountably supplied packed tarball with lifecycle scripts disabled; no npm
+registry installation is authorized by this guide.
+
 ## Requirements
 
 The connector requires a local `git` executable and an explicit local
 repository path. It invokes Git without a shell, disables optional locks,
 lazy fetching, and terminal prompts, and uses only bounded read operations.
+Its collection boundary is read-only.
 
 ## Options
 
@@ -47,6 +54,8 @@ const records = readGitCommitSourceRecords({
 The selected ancestry window follows only the first-parent chain from the
 exact tip. Records are returned oldest-to-newest. Merge commits on that chain
 retain all ordered parent IDs, but secondary-parent history is not traversed.
+The message and author-email privacy defaults remain disabled unless their
+exact boolean opt-ins are supplied.
 
 ## Errors
 
@@ -75,3 +84,8 @@ messages, author values, object contents, environment values, or credentials.
 - The SDK package remains private and unpublished. This connector is reference
   interoperability evidence, not production certification, endorsement, or an
   LTS commitment.
+- It adds no connector registry, plugin discovery or runtime, network access,
+  scheduling, or automatic cognition.
+
+The Cross-Connector Interoperability Profile `0.1.0` resources and reference
+exchange are owned by `collective-cognition-sdk-maintainers`.

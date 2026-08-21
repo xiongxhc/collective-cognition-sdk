@@ -166,8 +166,8 @@
     "artifacts": {
       "docs/acceptance/cross-connector-interoperability-0.1.0.md": "0bf76a6fb9f7cdfa694792cbffef5dff7372ace7a8a006727ea6bae24c248586",
       "docs/durable-cognition-workflow-guide.md": "2403b288b6201bb82eab5b93e37a56aa58140006cb75ca60f765798ab80024bb",
-      "docs/git-connector-guide.md": "cc785e60413544e6672d5ed3bf92607797fcdc9d3264a0c8bfd76837cc651aaf",
-      "docs/public-api.md": "5fc334d7a89cb44de8f2a467905e18658303bb516c63439ee267094b146f7772",
+      "docs/git-connector-guide.md": "40d147e57b68cfcd92ffe2e1b5a3873f36413c2affb741c4a42de86af069da22",
+      "docs/public-api.md": "05852b7f50e1ad8a029bae95f179f30565d1242b53c4dbbf57028fd3ad2da835",
       "rfcs/0009-public-api-and-distribution-readiness.md": "967b0cc1b6584902c4d606bbdc7cf47f9801283a3f67d7a802152994dabc6da3",
       "rfcs/0010-durable-cognition-workflow.md": "2f8df9982684bd93e20c2c2f19500855a8151cb43271176cf731512f18cd28ad",
       "rfcs/0011-cross-connector-interoperability.md": "620a381ae066111b61d841882625a8365029d7f85a0a8d250bfe7ab1e8f0c922",

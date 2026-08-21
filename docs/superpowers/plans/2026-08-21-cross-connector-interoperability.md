@@ -551,21 +551,26 @@ git commit -m "feat: package interoperability surfaces"
 - Modify: `docs/public-api.md`
 - Modify: `spec/README.md`
 - Modify: `spec/compatibility.md`
+- Modify: `spec/compatibility/0.10.0/baseline.json`
 - Modify: `rfcs/README.md`
 - Modify: `.github/workflows/ci.yml`
 - Modify: `tests/package.test.mjs`
+- Modify: `tests/compatibility.test.mjs`
 - Modify: `tests/release-readiness.test.ts`
 - Modify: `docs/superpowers/plans/2026-08-21-cross-connector-interoperability.md`
 
 **Interfaces:**
 - Consumes: verified Tasks 1–5 behavior and exact observed test/package evidence.
-- Produces: accurate public package `0.10.0` status, connector usage guidance, resource-consumption guidance, completed Phase 5 evidence, independent reviews, and merge-ready branch state.
+- Produces: accurate public package `0.10.0` status, connector usage guidance, resource-consumption guidance, and Task 6 local documentation and verification evidence. Controller-owned independent reviews, merge, and post-merge CI remain pending before Phase 5 completion.
 
-- [ ] **Step 1: Add documentation assertions before prose**
+**Task 6 local documentation and verification status:** local reconciliation
+is recorded with merge and post-merge CI pending; Phase 5 is not Complete.
+
+- [x] **Step 1: Add documentation assertions before prose**
 
 Require all public documents to identify the Git connector as explicit, local, read-only, first-parent, exact-tip, privacy-defaulted, and Git-executable-dependent. Require exact import subpath, resource-resolution examples, owner name, package `0.10.0`, two maintained connector status, no Git CLI, and the non-claims for registry, plugins, network, scheduling, automatic cognition, publication, production, certification, endorsement, and LTS.
 
-- [ ] **Step 2: Reconcile every public document**
+- [x] **Step 2: Reconcile every public document**
 
 Update README and public API with the new subpaths and a minimal Git usage example. Add a focused Git connector guide covering installation, exact options, first-parent behavior, privacy defaults, local-only process requirements, error codes/stages, and non-goals. Extend the connector-author guide with Git as a second independent maintained example without making it a required architecture for external connectors. Index RFC 0011 and Interoperability Profile `0.1.0`. Update the changelog and compatibility prose for additive `0.10.0`. Before merge, describe Phase 5 as locally verified with merge/post-merge CI pending; leave Phase 6 planned.
 
@@ -586,7 +591,7 @@ const sourceRecordsJsonl = readFileSync(
 );
 ```
 
-- [ ] **Step 3: Run focused documentation and complete local gates**
+- [x] **Step 3: Run focused documentation and complete local gates**
 
 ```bash
 PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm test
@@ -596,6 +601,7 @@ PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin
 PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run example:portable
 PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run example:host
 PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run example:markdown
+PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run example:workflow
 PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run example:interoperability
 PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run pack:check
 git diff --check
@@ -605,13 +611,19 @@ Expected: zero failures. Record exact pass/skip counts and capability-limited sk
 
 Run the same `npm test`, `npx tsc --noEmit`, and `npm run check` gates under locally available Node.js `24.9.0`, `24.14.0`, and `24.19.0` runtimes. The pull request and post-merge CI must then prove the full Linux/macOS/Windows matrix declared in `.github/workflows/ci.yml`; local single-OS evidence never substitutes for that matrix.
 
-- [ ] **Step 4: Verify historical immutability and exact package contents**
+Observed local evidence: Node.js `24.19.0` passed `580` tests with `10` capability/context skips and zero failures; Node.js `24.9.0` passed `515` tests with `76` capability/context skips and zero failures. TypeScript and `npm run check` passed under both available runtimes. Node.js `24.14.0` was not locally installed and could not be obtained from the offline npm cache, so its required evidence remains assigned to CI rather than being misreported as local. All six source-free examples, including durable workflow and interoperability, plus `pack:check` passed under Node.js `24.19.0`.
+
+- [x] **Step 4: Verify historical immutability and exact package contents**
 
 Compare every pre-existing file under `spec/compatibility/0.1.0` through `0.9.0`, `spec/conformance/0.1.0`, `spec/schemas/0.1.0`, `spec/runtime-security/0.1.0`, and `spec/distribution-readiness/0.1.0` byte-for-byte against `main`. Run `npm pack --dry-run --json` with an isolated temporary cache and compare exact expected/missing/unexpected paths. Confirm the root API and all existing binaries/subpaths remain unchanged.
+
+Observed local evidence: all `27` historical files were byte-identical to `main`; the dry-run package contained exactly `134` expected files (`70` under `dist/`) with zero missing and zero unexpected paths; the root export, all `27` historical export subpaths, and all four existing binaries remained unchanged. The immutable GitHub prerelease workflow remained byte-identical to `main` with SHA-256 `b628e8e07829bd115a01133595d4f3424e0634e7479f9f00c35bc4e5c9a8508f`.
 
 - [ ] **Step 5: Run required independent reviews**
 
 Give fresh reviewers the approved design, this plan, `main...HEAD` diff, Git process/environment inventory, profile fixtures, compatibility baseline, package dry-run inventory, and full test output. Run separate specification/code, security/privacy, and whole-branch reviews. Fix every Critical or Important finding, rerun affected tests plus the full gate, and request residual review until no unresolved Critical or Important finding remains.
+
+Pending controller action: Task 6 explicitly excludes subagents and reviewers from this local implementation slice.
 
 - [ ] **Step 6: Record final evidence, commit, push, merge, and verify CI**
 
@@ -623,3 +635,5 @@ git commit -m "docs: complete cross-connector interoperability"
 ```
 
 Push `feature/cross-connector-interoperability`, open a Conventional Commit-titled pull request, require all CI matrix jobs to pass, merge to `main`, pull the merged commit locally, rerun `git status --short --branch`, and verify the post-merge Actions run before deleting the local and remote feature branch/worktree. Only after that evidence exists, use a small follow-up documentation branch to mark Phase 5 **Complete**, record the merged commit and post-merge run, merge that documentation update with passing CI, and remove its branch/worktree.
+
+Local portion only: the documentation reconciliation and local evidence are ready for the planned commit. Push, pull request creation, independent reviews, merge, post-merge CI, branch/worktree deletion, and any follow-up completion branch remain controller-owned and pending.

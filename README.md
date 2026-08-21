@@ -6,9 +6,9 @@
 
 Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript reference implementation for attributed, versioned collaborative reasoning. It models a portable `Goal → Hypothesis → Experiment → Evidence → Decision → Principle` loop without prescribing storage, UI, agent runtime, source system, or organizational beliefs.
 
-This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.9.0` remains private and unpublished on npm; its source, emitted ESM build, declarations, and CLIs are runnable, but production use is not claimed. The [checked public API reference](docs/public-api.md) describes the supported surface. Distribution Readiness Profile `0.1.0` remains the immutable package-`0.8.0` assessment and does not authorize publication of `0.9.0`. The experimental [`v0.6.0` GitHub prerelease](https://github.com/xiongxhc/collective-cognition-sdk/releases/tag/v0.6.0) remains the first and only observed public package artifact.
+This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.10.0` remains private and unpublished on npm; its source, emitted ESM build, declarations, and CLIs are runnable, but production use is not claimed. The [checked public API reference](docs/public-api.md) describes the supported surface. Distribution Readiness Profile `0.1.0` remains the immutable package-`0.8.0` assessment and does not authorize publication of `0.10.0`. The experimental [`v0.6.0` GitHub prerelease](https://github.com/xiongxhc/collective-cognition-sdk/releases/tag/v0.6.0) remains the first and only observed public package artifact.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 package and specification work remains open beyond its completed contract slices. Phase 4's Durable Cognition Workflow `0.1.0` is final-review verified; the slice includes an atomic SQLite workflow store, closed CLI, guide, RFC, and compatibility baseline `0.9.0`. Phase 5 remains pending until at least two independently useful connectors pass their own contract tests and a real exchange workflow has a named owner. Publication and production-readiness work remain open.
+Phase 2 universal ingestion is implemented and final-review verified. Phase 3 package and specification work remains open beyond its completed contract slices. Phase 4's Durable Cognition Workflow `0.1.0` is final-review verified; the slice includes an atomic SQLite workflow store, closed CLI, guide, RFC, and compatibility baseline `0.9.0`. Phase 5 now has two maintained connectors, Interoperability Profile `0.1.0`, and an owned reference exchange locally verified; merge and post-merge CI remain pending, so Phase 5 is not Complete. Publication and production-readiness work remain open.
 
 Supported Experimental workflow execution requires Node.js `>=24.14.0` and
 `DatabaseSync.prototype.enableDefensive`. Node.js `24.9.0` remains a
@@ -47,7 +47,7 @@ Runnable now:
 - a [checked public API reference](docs/public-api.md) that enumerates every baseline-recorded root export, package subpath, and executable with its stability class;
 - Distribution Readiness Profile `0.1.0`: normative prose and descriptive JSON at `collective-cognition-sdk/distribution-readiness/0.1.0`, reporting public source as available, the immutable historical `v0.6.0` GitHub prerelease as available, npm as blocked, and production use as not claimed;
 - source-neutral connector conformance at `collective-cognition-sdk/connector-conformance/0.1.0`;
-- one maintained compatible connector for structurally compatible `teammem-event-ledger/1` databases at `collective-cognition-sdk/connectors/team-memory/0.1.0`;
+- two maintained connectors: the structurally compatible team-memory connector at `collective-cognition-sdk/connectors/team-memory/0.1.0` and the explicit local Git repository connector at `collective-cognition-sdk/connectors/git/0.1.0`;
 - the dedicated `collective-cognition-teammem` export CLI, with generic validation and promotion left to the root CLI or APIs;
 - an internal structured team-memory activity policy that produces neutral Evidence without inferring a Decision or Principle;
 - an optional durable SQLite `CognitionStore` reference adapter, available only at `collective-cognition-sdk/stores/sqlite/0.1.0` and requiring an explicit separate cognition-database path;
@@ -55,7 +55,7 @@ Runnable now:
 - the SQLite workflow store at `collective-cognition-sdk/stores/sqlite-workflow/0.1.0`, requiring a new explicit schema-version-`2` cognition database, plus the installed `collective-cognition-workflow` executable;
 - schema, SDK, and CLI tests over the complete canonical valid and invalid corpus, plus package and clean-consumer smoke tests for shipped fixtures, schema discovery, and the installed CLI;
 - a read-only maintained team-memory-compatible SQLite connector that emits SourceRecord JSONL;
-- a small Git commit fixture connector used to prove a second source-specific module satisfies the same SourceRecord contract.
+- Cross-Connector Interoperability Profile `0.1.0`, owned by `collective-cognition-sdk-maintainers`, with versioned language-neutral fixtures and an owned temporary-source reference exchange proving both maintained connectors enter one generic ingestion path.
 - a deterministic, read-only Markdown cognition projection with canonical machine
   records, explicit target initialization, marker/manifest ownership,
   write-if-changed behavior, conflict detection, opt-in safe pruning, a closed
@@ -74,17 +74,17 @@ Not implemented yet:
   integration;
 - automatic cognition from conversations.
 - workflow scheduling, automatic connector execution, authentication, encryption, or a durable publication outbox.
-- a second independently useful connector with its own contract tests, or a named owner for a real cross-connector exchange workflow.
+- connector registry, plugin discovery or runtime, remote/network Git access, connector scheduling, or automatic cognition.
 
 `SourceRecord` is the universal boundary. Team-memory is one maintained compatible connector, not SDK root behavior. External connectors may live in separate repositories and packages, importing only the root SDK and optional source-neutral conformance subpath. Read the [connector author guide](docs/connector-author-guide.md) and [RFC 0006: Maintained Source Connectors](rfcs/0006-maintained-source-connectors.md).
 
 ## Compatibility Status
 
-- SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, Runtime and Security Profile `0.1.0`, Distribution Readiness Profile `0.1.0`, and compatibility baselines `0.1.0` through `0.9.0` are **Normative Stable** contracts.
+- SourceRecord `0.1.0`, Portable Cognition `0.1.0`, Host Integration `0.1.0`, Runtime and Security Profile `0.1.0`, Distribution Readiness Profile `0.1.0`, Interoperability Profile `0.1.0`, and compatibility baselines `0.1.0` through `0.10.0` are **Normative Stable** contracts.
 - Before `1.0.0`, the package root, installed CLIs, and declared non-normative package subpaths are **Supported Experimental**.
 - Unexported connector modules and repository-only examples remain **Internal** and create no public compatibility promise.
 - The baseline locks runtime and type exports, selected package metadata, independent declaration closures and literal digests for public TypeScript entrypoints, CLI behavior, domain error codes, policy identities, and normative artifact hashes.
-- Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0` through `collective-cognition-sdk/compatibility/0.9.0`.
+- Consumers can resolve the baselines at `collective-cognition-sdk/compatibility/0.1.0` through `collective-cognition-sdk/compatibility/0.10.0`.
 - Compatibility tests detect exact baseline drift and declared process consequences; they do not automatically determine semantic compatibility.
 - Package `0.3.0` is classified as a `minor-before-1.0` breaking correction: the Host Integration additions are optional, while `PortableDomainError.code` is narrowed from package `0.2.0`'s package-wide `DomainErrorCode` to the immutable Portable Cognition `0.1.0` allowlist under `COMP-012`.
 - Package `0.4.0` is an additive minor release before `1.0`: it adds the optional SQLite subpath and its compatibility baseline without changing root exports or the generic CLI contract.
@@ -95,7 +95,8 @@ Not implemented yet:
   existing CLIs, or prior Normative Stable contracts.
 - Historical private package `0.7.0` is an additive minor release before `1.0`: it adds the Normative Stable `collective-cognition-sdk/runtime-security/0.1.0` JSON profile without changing root exports, existing CLIs, historical `v0.6.0` records, or prior Normative Stable contracts.
 - Historical private package `0.8.0` is additive before `1.0`: it adds the Normative Stable `collective-cognition-sdk/distribution-readiness/0.1.0` JSON profile, checked public API documentation, RFC 0009, and baseline `0.8.0` without changing root runtime or type exports, executable behavior, or historical artifacts.
-- Current private package `0.9.0` is additive before `1.0`: it adds the Supported Experimental durable workflow and SQLite workflow-store subpaths, installed workflow executable, RFC 0010, guide, and baseline `0.9.0` while preserving root runtime and type export names and all historical package entrypoints.
+- Historical private package `0.9.0` is additive before `1.0`: it adds the Supported Experimental durable workflow and SQLite workflow-store subpaths, installed workflow executable, RFC 0010, guide, and baseline `0.9.0` while preserving root runtime and type export names and all historical package entrypoints.
+- Current private package `0.10.0` is additive before `1.0`: it adds the maintained Git connector subpath, Interoperability Profile `0.1.0` resources, RFC 0011, reference exchange, guide, and baseline `0.10.0` without changing root exports, existing subpaths, or executables. There is no Git CLI.
 
 Read the [public API reference](docs/public-api.md), [compatibility policy](spec/compatibility.md), [Distribution Readiness Profile](spec/distribution-readiness.md), [RFC 0002](rfcs/0002-compatibility-versioning-and-deprecation.md), and [RFC 0009](rfcs/0009-public-api-and-distribution-readiness.md). npm publication, registry confirmation, a runtime policy engine, broader schemas, and production readiness remain open. The manifest retains `"private": true`, and the package is unpublished.
 
@@ -121,7 +122,7 @@ See the [normative Runtime and Security Profile `0.1.0`](spec/runtime-security.m
 
 ## Public API and Distribution Readiness
 
-Use the [checked public API reference](docs/public-api.md) rather than repository source paths to identify supported imports and executables. The [normative Distribution Readiness Profile `0.1.0`](spec/distribution-readiness.md) and its [machine-readable JSON](spec/distribution-readiness/0.1.0/profile.json) report the historical private package `0.8.0` with overall status `blocked`. Package `0.9.0` does not upgrade any channel:
+Use the [checked public API reference](docs/public-api.md) rather than repository source paths to identify supported imports and executables. The [normative Distribution Readiness Profile `0.1.0`](spec/distribution-readiness.md) and its [machine-readable JSON](spec/distribution-readiness/0.1.0/profile.json) report the historical private package `0.8.0` with overall status `blocked`. Package `0.10.0` does not upgrade any channel:
 
 - public source is `available`;
 - the GitHub prerelease channel is `available` only for immutable historical `v0.6.0`;
@@ -327,6 +328,38 @@ import {
 } from "collective-cognition-sdk/connectors/team-memory/0.1.0";
 ```
 
+### Maintained Local Git Connector
+
+Package `0.10.0` adds the second maintained connector at
+`collective-cognition-sdk/connectors/git/0.1.0`. It reads only an explicit local
+repository through an available local Git executable, follows first-parent
+history from an exact tip, returns the bounded window oldest-to-newest, and
+does not mutate the repository. Message and author-email privacy defaults are
+off unless the caller explicitly opts in.
+
+```ts
+import {
+  readGitCommitSourceRecords,
+} from "collective-cognition-sdk/connectors/git/0.1.0";
+
+const records = readGitCommitSourceRecords({
+  repositoryPath: "/absolute/path/to/fictional-repository",
+  sourceInstance: "fictional-local-repository",
+  tipCommitId: "0123456789abcdef0123456789abcdef01234567",
+  capturedAt: "2026-08-21T12:00:00.000Z",
+  limit: 25,
+});
+```
+
+Read the [Git connector guide](docs/git-connector-guide.md),
+[Interoperability Profile `0.1.0`](spec/interoperability.md), and
+[RFC 0011](rfcs/0011-cross-connector-interoperability.md). The profile is
+owned by `collective-cognition-sdk-maintainers`. It is fixture and semantic
+outcome evidence, not a connector registry, plugin runtime, network service,
+scheduler, automatic cognition system, certification, endorsement, or LTS
+commitment. There is no Git CLI. Package `0.10.0` remains private and
+unpublished, and production use is not claimed.
+
 ## Requirements
 
 - Node.js 24 or newer. The examples rely on Node 24 native TypeScript execution.
@@ -448,7 +481,7 @@ import sourceRecordSchema from "collective-cognition-sdk/schemas/source-record/0
 Consumers can resolve the versioned compatibility baseline through:
 
 ```js
-import compatibilityBaseline from "collective-cognition-sdk/compatibility/0.9.0"
+import compatibilityBaseline from "collective-cognition-sdk/compatibility/0.10.0"
   with { type: "json" };
 ```
 
@@ -641,7 +674,7 @@ The tracked [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/
 2. the completed universal neutral-first ingestion foundation;
 3. in-progress specification and package stabilization, with the checked public-API and distribution-readiness documentation slice complete while broader semantic, schema, publication, and production gates remain open;
 4. completed adapter ecosystem foundations with Durable Cognition Workflow `0.1.0` final-review verified;
-5. pending cross-connector interoperability, blocked on two independently useful connectors and a named real exchange owner;
+5. locally verified cross-connector interoperability, with merge and post-merge CI pending before Phase 5 can be Complete;
 6. operational governance and retirement tooling;
 7. real-team validation.
 

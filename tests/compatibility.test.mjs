@@ -148,7 +148,7 @@ const expectedLatestReleaseBaselineSha256 =
 const expectedLatestReleaseChangeCasesSha256 =
   "23d6577eb6aa927ab37f33278363f00a38cb2e0e67adfbc50a9dc2075b1b9e9e";
 const expectedPublicApiReferenceSha256 =
-  "5fc334d7a89cb44de8f2a467905e18658303bb516c63439ee267094b146f7772";
+  "05852b7f50e1ad8a029bae95f179f30565d1242b53c4dbbf57028fd3ad2da835";
 const expectedHistoricalPublicApiReferenceSha256 =
   "02d6732330cf2ffaeed5ae02fd809c2b7dbdee5ce77704dc81e4d21f0bc5596d";
 const expectedDistributionReadinessRfcSha256 =
@@ -180,7 +180,7 @@ const expectedInteroperabilityErrorsSha256 =
 const expectedInteroperabilityAcceptanceSha256 =
   "0bf76a6fb9f7cdfa694792cbffef5dff7372ace7a8a006727ea6bae24c248586";
 const expectedGitConnectorGuideSha256 =
-  "cc785e60413544e6672d5ed3bf92607797fcdc9d3264a0c8bfd76837cc651aaf";
+  "40d147e57b68cfcd92ffe2e1b5a3873f36413c2affb741c4a42de86af069da22";
 const expectedCurrentChangeCasesSha256 =
   "3c74491fbac5ee0b3dea274e3b183f60c64ed54eedb1a50375377dbf0c4a051a";
 const expectedGitDeclarationSha256 =

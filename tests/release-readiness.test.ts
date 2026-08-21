@@ -41,8 +41,8 @@ const expectedAssets = [
   "release-manifest.json",
 ];
 const expectedChecksumAssets = expectedAssets.slice(1);
-const expectedPackageScriptsSha256 = "7a2d3e4caf6dda279b46cf4d33788b11ba57f18fea285abc176914b70400d268";
-const expectedCiWorkflowSha256 = "1ef227da1df92f8452c16a3bc5afe03732cd5c553941feb10e439dfa587d395b";
+const expectedPackageScriptsSha256 = "845cbd172125c90be141df99712cdb2c9f2a986327baf5e28528130efda22d0b";
+const expectedCiWorkflowSha256 = "e30ee54fd07a65f34ed24694d85f64ba48c303148964a8683d43910589e74ede";
 const expectedGitHubPrereleaseWorkflowSha256 = "b628e8e07829bd115a01133595d4f3424e0634e7479f9f00c35bc4e5c9a8508f";
 const expectedTarballSha256 = "3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe";
 const expectedReleaseCommit = "76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e";
@@ -753,6 +753,8 @@ function assertReadOnlyCiWorkflow(workflow: string): void {
     "npm run example:markdown",
     "npm run example:portable",
     "npm run example:host",
+    "npm run example:workflow",
+    "npm run example:interoperability",
     'npm run example:teammem -- "$ledger"',
     'npm run example:teammem:durable -- --ledger "$ledger" --cognition-db "$cognition" --project ci-synthetic --from 2026-08-02T00:00:00.000Z --limit 1 --create',
     "npm run pack:check",
@@ -771,8 +773,12 @@ function assertReadOnlyCiWorkflow(workflow: string): void {
       examples.indexOf("npm run example"),
   );
   assert.ok(
+    examples.indexOf("npm run example:interoperability") >
+      examples.indexOf("npm run example:workflow"),
+  );
+  assert.ok(
     examples.indexOf("npm run pack:check") > examples.indexOf(
-      'npm run example:teammem:durable -- --ledger "$ledger" --cognition-db "$cognition" --project ci-synthetic --from 2026-08-02T00:00:00.000Z --limit 1 --create',
+      "npm run example:interoperability",
     ),
   );
   const releasedArtifactStep = requiredStep(
@@ -1012,14 +1018,19 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
   assert.match(currentExamples.run ?? "", /^\s*npm run example:workflow$/m);
   assert.doesNotMatch(
     examples.run ?? "",
-    /^\s*npm run example:workflow$/m,
+    /^\s*npm run example:(?:workflow|interoperability)$/m,
     "the immutable v0.6.0 prerelease workflow must not acquire later examples",
   );
   assert.equal(
     normalizedVerificationBody(examples),
     normalizedVerificationBody(currentExamples)
       .split("\n")
-      .filter((line) => line.trim() !== "npm run example:workflow")
+      .filter((line) =>
+        ![
+          "npm run example:workflow",
+          "npm run example:interoperability",
+        ].includes(line.trim())
+      )
       .join("\n"),
   );
   assert.match(examples.run ?? "", /\$\{\{ runner\.temp \}\}\/release-examples/);
@@ -2537,7 +2548,7 @@ test("public documentation records the observed GitHub prerelease boundary", () 
   assert.match(roadmap, /GitHub prerelease distribution readiness/i);
   assert.match(roadmap, /## Phase 4: Adapter Ecosystem Foundations/);
   assert.match(roadmap, /GitHub prerelease.*observed and verified/i);
-  assert.match(roadmap, /## Phase 5: Cross-Connector Interoperability\n\n\*\*Status:\*\* Next SDK development slice\./);
+  assert.match(roadmap, /## Phase 5: Cross-Connector Interoperability\n\n\*\*Status:\*\* Locally verified; merge and post-merge CI pending\./);
   assert.match(roadmap, /Release execution checklist/i);
   assert.match(roadmap, /30766556678/);
   assert.match(roadmap, /30766660796/);

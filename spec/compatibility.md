@@ -4,7 +4,7 @@
 
 This document defines the normative compatibility policy for the Collective Cognition SDK. It separates portable serialized contracts from the installable package, public experimental APIs, and repository internals.
 
-The historical compatibility baseline `0.1.0` records the inaugural surface of the unpublished package `0.1.0`; it does not represent a migration from an earlier published release. Baseline `0.2.0` records the additive Portable Cognition package surface. Historical baseline `0.3.0` records the additive Host Integration package surface plus the source-breaking correction that narrows `PortableDomainError.code` to the already-normative Portable Cognition `0.1.0` allowlist, while retaining prior baselines and serialized artifacts byte-for-byte. Historical baseline `0.4.0` adds the optional SQLite cognition-store subpath and its packaged RFC. Historical baseline `0.5.0` adds source-neutral connector conformance, one maintained compatible connector subpath, and a dedicated connector CLI without changing root exports or the generic CLI contract. Historical baseline `0.6.0` adds the independent Supported Experimental `adapters/markdown/0.1.0` subpath, dedicated Markdown CLI, explicit eight-digit object-version ceiling, documentation, and package artifacts while preserving all prior exports, executables, contracts, and baselines. Historical baseline `0.7.0` packages Runtime and Security Profile `0.1.0` as normative prose and a versioned machine-readable JSON subpath. Historical baseline `0.8.0` adds the checked [public API reference](../docs/public-api.md), Distribution Readiness Profile `0.1.0` [prose](distribution-readiness.md) and [JSON](distribution-readiness/0.1.0/profile.json), and [RFC 0009](../rfcs/0009-public-api-and-distribution-readiness.md). The current additive private baseline `0.9.0` adds the source-neutral Durable Cognition Workflow `0.1.0`, SQLite workflow-store `0.1.0`, installed workflow executable, [operator guide](../docs/durable-cognition-workflow-guide.md), and [RFC 0010](../rfcs/0010-durable-cognition-workflow.md) while preserving root runtime and type export names and every historical subpath, executable, and artifact. Package `0.9.0` remains private and unpublished, and production use is not claimed.
+The historical compatibility baseline `0.1.0` records the inaugural surface of the unpublished package `0.1.0`; it does not represent a migration from an earlier published release. Baseline `0.2.0` records the additive Portable Cognition package surface. Historical baseline `0.3.0` records the additive Host Integration package surface plus the source-breaking correction that narrows `PortableDomainError.code` to the already-normative Portable Cognition `0.1.0` allowlist, while retaining prior baselines and serialized artifacts byte-for-byte. Historical baseline `0.4.0` adds the optional SQLite cognition-store subpath and its packaged RFC. Historical baseline `0.5.0` adds source-neutral connector conformance, one maintained compatible connector subpath, and a dedicated connector CLI without changing root exports or the generic CLI contract. Historical baseline `0.6.0` adds the independent Supported Experimental `adapters/markdown/0.1.0` subpath, dedicated Markdown CLI, explicit eight-digit object-version ceiling, documentation, and package artifacts while preserving all prior exports, executables, contracts, and baselines. Historical baseline `0.7.0` packages Runtime and Security Profile `0.1.0` as normative prose and a versioned machine-readable JSON subpath. Historical baseline `0.8.0` adds the checked [public API reference](../docs/public-api.md), Distribution Readiness Profile `0.1.0` [prose](distribution-readiness.md) and [JSON](distribution-readiness/0.1.0/profile.json), and [RFC 0009](../rfcs/0009-public-api-and-distribution-readiness.md). Historical baseline `0.9.0` adds the source-neutral Durable Cognition Workflow `0.1.0`, SQLite workflow-store `0.1.0`, installed workflow executable, [operator guide](../docs/durable-cognition-workflow-guide.md), and [RFC 0010](../rfcs/0010-durable-cognition-workflow.md). The current additive private baseline `0.10.0` adds the maintained Git connector, Cross-Connector Interoperability Profile `0.1.0` resources, [Git connector guide](../docs/git-connector-guide.md), owned reference exchange, and [RFC 0011](../rfcs/0011-cross-connector-interoperability.md) while preserving root runtime and type export names and every historical subpath, executable, and artifact. Package `0.10.0` remains private and unpublished, and production use is not claimed.
 
 The terms **MUST**, **MUST NOT**, **SHOULD**, and **MAY** express normative requirements.
 
@@ -202,6 +202,19 @@ has no publisher; Markdown is non-authoritative. No scheduler, automatic
 cognition, Obsidian discovery, authentication, encryption, durable outbox,
 publication authority, or production certification is added.
 
+Baseline `0.10.0` additively adds
+`collective-cognition-sdk/connectors/git/0.1.0` and the four
+`collective-cognition-sdk/interoperability/0.1.0/*` resource subpaths. Package
+`0.10.0` therefore has two maintained connectors while retaining the exact
+root runtime/type API, every existing subpath, and all four existing
+executables; there is no Git CLI. The connector performs read-only bounded
+collection from an explicit local repository through a local Git executable,
+follows first-parent history from the exact tip, and keeps message and author
+email behind disabled-by-default privacy options. The profile is owned by
+`collective-cognition-sdk-maintainers` and does not add a connector registry,
+plugin discovery or runtime, network access, scheduling, or automatic
+cognition.
+
 ### COMP-018 — Deliberate Baseline Updates
 
 A baseline failure MUST receive human classification. Contributors MUST NOT update a baseline snapshot automatically. A deliberate change MUST identify the affected consumer, classify the change, follow the required RFC, migration, deprecation, and release process, and create a new baseline version when the inventory or policy snapshot changes.
@@ -222,7 +235,7 @@ This policy does not:
 - claim cross-language interoperability without conformance evidence; or
 - make this repository a standards body.
 
-Package `0.9.0` is private and unpublished. The Runtime and Security Profile
+Package `0.10.0` is private and unpublished. The Runtime and Security Profile
 and Distribution Readiness Profile machine data are not certification, a host
 security implementation, or publication authority. Connector conformance is not
 certification, does not imply endorsement, and is not an LTS commitment.
