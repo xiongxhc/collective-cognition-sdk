@@ -312,6 +312,29 @@ test("rejects invalid closed options before repository access", () => {
   }
 });
 
+test("rejects inherited custom-prototype options before repository access", () => {
+  const fixture = createGitFixture();
+  try {
+    const inheritedOptions = Object.create({
+      inheritedOption: "must-not-be-accepted",
+    }) as Record<string, unknown>;
+    Object.assign(inheritedOptions, connectorOptions(fixture, {
+      repositoryPath: join(fixture.directory, "missing"),
+    }));
+
+    const error = assertGitConnectorError(
+      () => readGitCommitSourceRecords(
+        inheritedOptions as unknown as GitCommitSourceRecordOptions,
+      ),
+      "invalid_options",
+      "options",
+    );
+    assert.equal(error.message, "Git connector options are invalid.");
+  } finally {
+    removeGitFixture(fixture.directory);
+  }
+});
+
 test("reports unavailable targets and incompatible repositories with fixed diagnostics", () => {
   const fixture = createGitFixture();
   const nonRepository = join(fixture.directory, "not-a-repository");

@@ -38,10 +38,6 @@
       "types": "./dist/connectors/team-memory.d.ts",
       "import": "./dist/connectors/team-memory.js"
     },
-    "./connectors/git/0.1.0": {
-      "types": "./dist/connectors/git.d.ts",
-      "import": "./dist/connectors/git.js"
-    },
     "./contracts/host-integration/0.1.0": "./spec/host-integration.md",
     "./host-conformance/0.1.0": {
       "types": "./dist/host-conformance.d.ts",

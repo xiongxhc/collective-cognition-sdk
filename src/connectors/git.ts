@@ -122,6 +122,9 @@ function snapshotOptions(value: unknown): Record<string, unknown> {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
       throw connectorError("invalid_options", "options");
     }
+    if (Reflect.getPrototypeOf(value) !== Object.prototype) {
+      throw connectorError("invalid_options", "options");
+    }
     const keys = Reflect.ownKeys(value);
     if (keys.some((key) => typeof key !== "string" || !allowedOptionFields.has(key))) {
       throw connectorError("invalid_options", "options");
