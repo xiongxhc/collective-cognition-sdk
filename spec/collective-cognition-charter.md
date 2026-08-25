@@ -250,32 +250,35 @@ or a production certification. It MUST NOT be interpreted as a standards body,
 an npm publication authorization, an LTS commitment, or a guarantee of
 exactly-once downstream effects.
 
-## Rule-to-Evidence Mapping
+## Rule-to-Evidence Plan
 
-| Rule | Evidence type | Current evidence |
-| --- | --- | --- |
-| CCC-001 | prose-only | [Compatibility policy](compatibility.md) |
-| CCC-002 | fixture | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/invalid.jsonl) |
-| CCC-003 | fixture | [SourceRecord fixtures](conformance/0.1.0/source-record/valid.jsonl) |
-| CCC-004 | schema | [Portable Cognition schema](schemas/0.1.0/portable-cognition.schema.json) |
-| CCC-005 | schema | [Portable Cognition schema](schemas/0.1.0/portable-cognition.schema.json) |
-| CCC-006 | schema | [Portable Cognition schema](schemas/0.1.0/portable-cognition.schema.json) |
-| CCC-007 | fixture | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
-| CCC-008 | fixture | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
-| CCC-009 | fixture | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
-| CCC-010 | fixture | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
-| CCC-011 | fixture | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
-| CCC-012 | fixture | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
-| CCC-013 | fixture | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
-| CCC-014 | test | [`tests/cognition-projection-conformance.test.ts`](../tests/cognition-projection-conformance.test.ts) |
-| CCC-015 | test | [`tests/cognition-projection-conformance.test.ts`](../tests/cognition-projection-conformance.test.ts) |
-| CCC-016 | fixture | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/cognitive-loop.jsonl) |
-| CCC-017 | fixture | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
-| CCC-018 | fixture | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/invalid.jsonl) |
-| CCC-019 | test | [`tests/promotion.test.ts`](../tests/promotion.test.ts) |
-| CCC-020 | test | [`tests/portable-cognition.test.ts`](../tests/portable-cognition.test.ts) |
-| CCC-021 | prose-only | [Runtime and Security Profile](runtime-security.md) |
-| CCC-022 | test | [`tests/host-conformance.test.ts`](../tests/host-conformance.test.ts) |
-| CCC-023 | fixture | [SourceRecord extension fixtures](conformance/0.1.0/source-record/invalid.jsonl) |
-| CCC-024 | test | [`tests/charter.test.ts`](../tests/charter.test.ts) |
-| CCC-025 | prose-only | [Runtime and Security Profile](runtime-security.md) |
+Evidence marked `current` exists in this checkout. Evidence marked `deferred`
+is reserved for the named later task and is not current conformance evidence.
+
+| Rule | Evidence type | Evidence status | Evidence target |
+| --- | --- | --- | --- |
+| CCC-001 | prose-only | current | [Compatibility policy](compatibility.md) |
+| CCC-002 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/invalid.jsonl) |
+| CCC-003 | fixture | current | [SourceRecord fixtures](conformance/0.1.0/source-record/valid.jsonl) |
+| CCC-004 | schema | current | [Portable Cognition schema](schemas/0.1.0/portable-cognition.schema.json) |
+| CCC-005 | schema | current | [Portable Cognition schema](schemas/0.1.0/portable-cognition.schema.json) |
+| CCC-006 | schema | current | [Portable Cognition schema](schemas/0.1.0/portable-cognition.schema.json) |
+| CCC-007 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
+| CCC-008 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
+| CCC-009 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
+| CCC-010 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
+| CCC-011 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
+| CCC-012 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
+| CCC-013 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
+| CCC-014 | test | deferred | Deferred to Task 4: linked relationship conformance |
+| CCC-015 | test | deferred | Deferred to Task 4: linked lifecycle conformance |
+| CCC-016 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/cognitive-loop.jsonl) |
+| CCC-017 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
+| CCC-018 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/invalid.jsonl) |
+| CCC-019 | test | current | [`tests/promotion.test.ts`](../tests/promotion.test.ts) |
+| CCC-020 | test | current | [`tests/portable-cognition.test.ts`](../tests/portable-cognition.test.ts) |
+| CCC-021 | prose-only | current | [Runtime and Security Profile](runtime-security.md) |
+| CCC-022 | test | current | [`tests/host-conformance.test.ts`](../tests/host-conformance.test.ts) |
+| CCC-023 | fixture | current | [SourceRecord extension fixtures](conformance/0.1.0/source-record/invalid.jsonl) |
+| CCC-024 | test | current | [`tests/charter.test.ts`](../tests/charter.test.ts) |
+| CCC-025 | prose-only | current | [Runtime and Security Profile](runtime-security.md) |
