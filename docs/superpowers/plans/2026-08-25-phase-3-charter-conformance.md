@@ -296,7 +296,7 @@ This keeps the immutable error split: malformed JSON syntax is `SERIALIZATION_ER
 
 - [ ] **Step 4: Export the reference API and include syntax checks**
 
-Export all six names from `src/index.ts`. Add `src/cognition-projections.ts` and `tests/cognition-projections.test.ts` to the repository `check` script.
+Export all seven names from `src/index.ts`. Add `src/cognition-projections.ts` and `tests/cognition-projections.test.ts` to the repository `check` script.
 
 - [ ] **Step 5: Run focused and adjacent tests**
 
@@ -429,6 +429,7 @@ git commit -m "test: add stable external host acceptance"
 - Modify: `tests/compatibility.test.mjs`
 - Modify: `tests/package.test.mjs`
 - Modify: `tests/distribution-readiness-profile.test.ts`
+- Modify: `tests/release-readiness.test.ts`
 - Modify: `README.md`
 - Modify: `docs/public-api.md`
 - Modify: `docs/ROADMAP.md`
@@ -470,14 +471,17 @@ Expected: FAIL on package version, missing baseline, subpaths, files, and prerel
 
 Bump package and lockfile to `0.11.0`, retain `"private": true`, add all eight exports and allowlisted files, then record:
 
-- complete root runtime/type export inventories including the six projection exports;
+- complete root runtime/type export inventories including the seven projection exports;
 - all historical and new package subpaths;
 - all four executable contracts unchanged;
 - declaration closure digests;
 - Charter/schema/fixture digests; and
 - additive change cases for the Charter, projections, validators, and package resources.
 
-Do not modify older baseline or profile bytes.
+After all Task 3-5 `package.json` script additions are present, review the
+complete final script map and pin its canonical SHA-256 in
+`tests/release-readiness.test.ts` exactly once. Do not modify older baseline
+or profile bytes.
 
 - [ ] **Step 4: Synchronize public Markdown**
 
@@ -507,7 +511,7 @@ Expected: all commands pass; package remains private and unpublished.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add package.json package-lock.json spec/compatibility/0.11.0 tests/compatibility.test.mjs tests/package.test.mjs tests/distribution-readiness-profile.test.ts README.md docs/public-api.md docs/ROADMAP.md spec/README.md rfcs/0011-cross-connector-interoperability.md docs/connector-author-guide.md docs/markdown-cognition-adapter-guide.md SECURITY.md SUPPORT.md
+git add package.json package-lock.json spec/compatibility/0.11.0 tests/compatibility.test.mjs tests/package.test.mjs tests/distribution-readiness-profile.test.ts tests/release-readiness.test.ts README.md docs/public-api.md docs/ROADMAP.md spec/README.md rfcs/0011-cross-connector-interoperability.md docs/connector-author-guide.md docs/markdown-cognition-adapter-guide.md SECURITY.md SUPPORT.md
 git commit -m "feat: package Phase 3 contract candidate"
 ```
 
