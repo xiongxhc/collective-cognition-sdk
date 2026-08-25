@@ -108,6 +108,34 @@ function lifecycleEdge(event) {
   return `${event.objectType}:${event.previousState}->${event.nextState}:${event.type}`;
 }
 
+function maximumContainerDepth(value, depth = 1) {
+  if (value === null || typeof value !== "object") return depth - 1;
+  return Math.max(
+    depth,
+    ...Object.values(value).map((child) => maximumContainerDepth(child, depth + 1)),
+  );
+}
+
+test("projection fixtures close the required category and depth matrix", () => {
+  const objects = readJsonLines(fixtureUrls.cognitiveObject.valid);
+  const objectInvalid = readJsonLines(fixtureUrls.cognitiveObject.invalid);
+  const eventValid = readJsonLines(fixtureUrls.cognitionEvent.valid);
+  const eventInvalid = readJsonLines(fixtureUrls.cognitionEvent.invalid);
+  assert.ok(objects.some((payload) => payload.version === Number.MAX_SAFE_INTEGER));
+  assert.equal(Math.max(...objects.map((payload) => maximumContainerDepth(payload))), 255);
+  assert.equal(maximumContainerDepth(objectInvalid.find((x) => x.description === "cognitive object depth-256 runtime boundary").payload), 256);
+  assert.deepEqual(objectInvalid.map((x) => x.description).sort(), ["cognitive object depth-256 runtime boundary", "cognitive object duplicate payload member name", "cognitive object lone surrogate data string", "cognitive object version zero", "hypothesis missing supports-goal"].sort());
+  assert.deepEqual(eventInvalid.map((x) => x.description).sort(), ["cognition event duplicate payload member name", "cognition event future human confirmation", "cognition event lone surrogate rationale", "cognition event mismatched confirmation event binding", "cognition event mismatched confirmation object binding", "cognition event mismatched confirmation target state binding", "cognition event same-state transition", "cognition event state and type mismatch", "cognition event version zero", "cognition event forbidden transition", "cognition event depth-256 runtime-before-schema precedence"].sort());
+  assert.ok(eventValid.some((x) => x.automationMode === "manual"));
+  assert.ok(eventValid.some((x) => x.automationMode === "automated"));
+  assert.ok(eventValid.some((x) => x.consequenceLevel === "routine"));
+  assert.ok(eventValid.some((x) => x.consequenceLevel === "consequential" && x.humanConfirmation));
+  const overDepthEvent = eventInvalid.find((x) => x.description === "cognition event depth-256 runtime-before-schema precedence");
+  assert.equal(maximumContainerDepth(overDepthEvent.payload), 256);
+  assert.equal(compile(readJson(cognitionEventSchemaUrl))(overDepthEvent.payload), false);
+  for (const fixture of [...objectInvalid, ...eventInvalid]) assert.ok(["CCC-002", "CCC-014", "CCC-015", "CCC-016", "CCC-018"].includes(fixture.ruleId));
+});
+
 test("standalone cognitive projections preserve Portable Cognition definitions", () => {
   const portableSchema = readJson(portableSchemaUrl);
   const cognitiveObjectSchema = readJson(cognitiveObjectSchemaUrl);
