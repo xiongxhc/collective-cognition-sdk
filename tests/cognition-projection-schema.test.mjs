@@ -126,6 +126,27 @@ test("projection fixtures close the required category and depth matrix", () => {
   assert.equal(maximumContainerDepth(objectInvalid.find((x) => x.description === "cognitive object depth-256 runtime boundary").payload), 256);
   assert.deepEqual(objectInvalid.map((x) => x.description).sort(), ["cognitive object depth-256 runtime boundary", "cognitive object duplicate payload member name", "cognitive object lone surrogate data string", "cognitive object version zero", "hypothesis missing supports-goal"].sort());
   assert.deepEqual(eventInvalid.map((x) => x.description).sort(), ["cognition event duplicate payload member name", "cognition event future human confirmation", "cognition event lone surrogate rationale", "cognition event mismatched confirmation event binding", "cognition event mismatched confirmation object binding", "cognition event mismatched confirmation target state binding", "cognition event same-state transition", "cognition event state and type mismatch", "cognition event version zero", "cognition event forbidden transition", "cognition event depth-256 runtime-before-schema precedence"].sort());
+  assert.deepEqual(
+    [...objectInvalid, ...eventInvalid].map(({ description, ruleId, validationLayer }) => ({ description, ruleId, validationLayer })).sort((left, right) => left.description.localeCompare(right.description)),
+    [
+      ["cognitive object depth-256 runtime boundary", "CCC-002", "runtime"],
+      ["cognitive object duplicate payload member name", "CCC-002", "lexical"],
+      ["cognitive object lone surrogate data string", "CCC-002", "lexical"],
+      ["cognitive object version zero", "CCC-004", "schema"],
+      ["hypothesis missing supports-goal", "CCC-014", "schema"],
+      ["cognition event depth-256 runtime-before-schema precedence", "CCC-002", "runtime"],
+      ["cognition event duplicate payload member name", "CCC-002", "lexical"],
+      ["cognition event forbidden transition", "CCC-015", "schema"],
+      ["cognition event future human confirmation", "CCC-018", "runtime"],
+      ["cognition event lone surrogate rationale", "CCC-002", "lexical"],
+      ["cognition event mismatched confirmation event binding", "CCC-018", "runtime"],
+      ["cognition event mismatched confirmation object binding", "CCC-018", "runtime"],
+      ["cognition event mismatched confirmation target state binding", "CCC-018", "runtime"],
+      ["cognition event same-state transition", "CCC-015", "schema"],
+      ["cognition event state and type mismatch", "CCC-016", "schema"],
+      ["cognition event version zero", "CCC-016", "schema"],
+    ].map(([description, ruleId, validationLayer]) => ({ description, ruleId, validationLayer })).sort((left, right) => left.description.localeCompare(right.description)),
+  );
   assert.ok(eventValid.some((x) => x.automationMode === "manual"));
   assert.ok(eventValid.some((x) => x.automationMode === "automated"));
   assert.ok(eventValid.some((x) => x.consequenceLevel === "routine"));
@@ -133,7 +154,7 @@ test("projection fixtures close the required category and depth matrix", () => {
   const overDepthEvent = eventInvalid.find((x) => x.description === "cognition event depth-256 runtime-before-schema precedence");
   assert.equal(maximumContainerDepth(overDepthEvent.payload), 256);
   assert.equal(compile(readJson(cognitionEventSchemaUrl))(overDepthEvent.payload), false);
-  for (const fixture of [...objectInvalid, ...eventInvalid]) assert.ok(["CCC-002", "CCC-014", "CCC-015", "CCC-016", "CCC-018"].includes(fixture.ruleId));
+  for (const fixture of [...objectInvalid, ...eventInvalid]) assert.ok(["CCC-002", "CCC-004", "CCC-014", "CCC-015", "CCC-016", "CCC-018"].includes(fixture.ruleId));
 });
 
 test("standalone cognitive projections preserve Portable Cognition definitions", () => {
