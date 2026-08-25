@@ -40,8 +40,8 @@ Phase 3 will finish through a contract-first, layered design:
    remain Supported Experimental even though the core contracts and runtime
    become stable.
 
-The result is a stable universal cognition contract and TypeScript reference
-SDK. It is not a cognition service, team agent, scheduler, policy engine,
+The result is a stable language-neutral cognition contract and TypeScript
+reference SDK. It is not a cognition service, team agent, scheduler, policy engine,
 security certification, or long-term support commitment.
 
 ## Considered Approaches
@@ -187,9 +187,13 @@ Cognition envelope:
 
 The cognition-event projection substitutes `cognition-event` as the record
 type. A standalone payload conforms if and only if this canonical envelope
-conforms. The standalone payload root is depth 1 and may contain at most 255
-nested JSON containers because the implicit envelope adds the first container
-to Portable Cognition's maximum of 256. Reference validators apply the existing
+conforms. Because Portable Cognition `PCR-004` allows at most 256 nested JSON
+containers counting the envelope object as depth 1, the payload object sits at
+depth 2 inside the envelope. A standalone payload therefore MUST contain at most
+255 nested JSON containers, counting the standalone payload root object as
+depth 1; a standalone payload whose deepest container is at depth 256 is
+invalid. Fixtures include the depth-255 valid boundary and a depth-256 invalid
+runtime-layer case for each projection. Reference validators apply the existing
 lossless lexical profile to standalone JSON text, wrap the parsed payload
 without semantic transformation, and preserve the existing error split:
 malformed JSON text reports `SERIALIZATION_ERROR`; invalid structure, depth, or
@@ -211,8 +215,10 @@ Required relationship groups preserve the current runtime meaning:
 - an Experiment tests a Hypothesis;
 - Evidence relates to a Hypothesis or Experiment using a declared evidence
   relationship;
-- a Decision is connected to a Goal, justification, considered option, and
-  accountable Identity; and
+- a Decision has a `supports-goal` relationship, at least one justification
+  relationship of type `justified-by-evidence` or `informs-decision`, a
+  `considers-option` relationship, and an `accountable-identity` relationship;
+  and
 - a Principle is justified by a Decision or Evidence.
 
 Schema validation proves local shape and declared relationship requirements.
@@ -328,10 +334,34 @@ collective-cognition-sdk/conformance/cognition-event/0.1.0/invalid
 collective-cognition-sdk/conformance/cognition-event/0.1.0/lifecycle
 ```
 
+The existing convention also exposes every compatibility baseline at
+`collective-cognition-sdk/compatibility/<version>` and every Distribution
+Readiness Profile at `collective-cognition-sdk/distribution-readiness/<version>`.
+The release sequence below therefore adds these subpaths, and stable package
+`1.0.0` ships all of them permanently:
+
+```text
+collective-cognition-sdk/compatibility/1.0.0-rc.1
+collective-cognition-sdk/compatibility/1.0.0-rc.N   (one per later candidate)
+collective-cognition-sdk/compatibility/1.0.0
+collective-cognition-sdk/distribution-readiness/0.2.0-rc.1
+collective-cognition-sdk/distribution-readiness/0.2.0-rc.N   (one per later candidate)
+collective-cognition-sdk/distribution-readiness/0.2.0
+```
+
+Each release candidate permanently adds one immutable baseline and one
+immutable profile to every later `1.x` package. This is accepted; the
+implementation plan must keep the candidate count small rather than dropping
+candidate artifacts from the stable package. Before Slice B starts, the plan
+must confirm that the baseline and profile JSON version fields, their schema
+patterns, and the compatibility tests accept Semantic Versioning prerelease
+identifiers such as `1.0.0-rc.1` and `0.2.0-rc.1`; if they do not, the
+additive change is made in Slice A.
+
 The implementation plan may refine internal file placement, but it must not
-multiply public subpaths without a demonstrated consumer. All normative
-resources are UTF-8 file resources resolved explicitly by consumers; they are
-not JavaScript modules.
+multiply public subpaths beyond the two lists above without a demonstrated
+consumer. All normative resources are UTF-8 file resources resolved explicitly
+by consumers; they are not JavaScript modules.
 
 ## Compatibility and Stability
 
@@ -358,6 +388,20 @@ The root baseline includes every runtime and type export currently declared by
 package `0.10.0`; implementation may add the minimum new charter validation
 exports, but it may not remove or relocate an existing root export before
 `1.0.0`. The final baseline and public API reference enumerate every name.
+
+This matrix changes the compatibility policy itself. `spec/compatibility.md`
+currently classifies root exports, root declarations, the four executables, CLI
+behavior, and non-SourceRecord domain error codes as Supported Experimental
+that "can evolve under this policy before `1.0.0`", and `COMP-003` permits
+reviewed breaking Supported Experimental changes in a pre-`1.0.0` minor
+release. Slice B amends the policy in place, as every prior baseline has done:
+the classification table moves the surfaces listed above into Stable Public
+API, redefines Supported Experimental as an operational-maturity label that is
+SemVer protected from `1.0.0` onward, and adds a post-`1.0.0` rule stating
+that an incompatible Supported Experimental change requires a new versioned
+subpath or a major package release. The `minor-before-1.0` mechanism is
+retained for historical baselines and is not available at or after `1.0.0`.
+The amendment is recorded in the Phase 3 RFC and migration guidance.
 
 Semantic Versioning applies to:
 
@@ -447,36 +491,77 @@ Phase 3 implementation is divided into three sequential slices.
 
 - implement and verify the approved stability matrix for every root export,
   subpath, executable, error catalog, and selected package field;
-- add immutable compatibility baseline `1.0.0-rc.1`, migration guidance, and
-  Distribution Readiness Profile `0.2.0-rc.1` candidate evidence;
+- draft and review immutable compatibility baseline `1.0.0-rc.1`, migration
+  guidance, and Distribution Readiness Profile `0.2.0-rc.1` candidate evidence;
+  the baseline and profile files themselves land in the release commit below,
+  because they name the candidate version that the tests pin;
 - give every later `1.0.0-rc.N` its own immutable compatibility baseline and
-  Distribution Readiness Profile candidate version;
+  Distribution Readiness Profile candidate version, landed the same way in
+  that candidate's release commit;
 - pass all private-package pre-unlock tests, compatibility checks,
   documentation checks, security checks, and package-inventory simulation;
-- create one reviewed release commit that sets `1.0.0-rc.1` and removes
-  `"private": true` without changing approved contract/runtime semantics;
+- land the release workflow change described at the start of Slice C on `main`
+  before the release commit, so that the commit later tagged already contains
+  `npm-publish.yml` and no longer matches the retired prerelease trigger;
+- create one reviewed release commit on `main` that, together, sets
+  `1.0.0-rc.1`, removes `"private": true`, adds the new
+  `spec/compatibility/1.0.0-rc.1/` and `spec/distribution-readiness/0.2.0-rc.1/`
+  directories with their package exports, and flips the publication guards
+  that assert the private state and the pinned package version: the
+  `test:package`, compatibility, and distribution-readiness tests that require
+  `private === true` or version `0.10.0`, and the "private and unpublished"
+  status prose in `README.md`, `docs/`, and `spec/`. These land in one commit
+  because the tests pin the package version, so a baseline naming `1.0.0-rc.1`
+  cannot pass before the bump, and `prepack` runs `test:package`, so a release
+  commit that leaves the guards untouched cannot be packed. The release commit
+  changes nothing else: no existing file under `src/`, `spec/schemas/`,
+  `spec/conformance/`, or `spec/compatibility/` is modified, so contract and
+  runtime semantics are byte-identical to the reviewed pre-release head;
 - build the exact publishable `1.0.0-rc.1` archive from that commit; and
 - verify that exact archive in a clean external consumer and CI matrix before
   requesting publication approval.
 
 ### Slice C: release bootstrap and stable publication
 
-- narrow or retire `.github/workflows/github-prerelease.yml`, whose immutable
-  `v0.6.0` assumptions must never process a `v1` tag, and replace it with a
-  dedicated protected `.github/workflows/npm-publish.yml` path;
+Two facts about the npm registry must be verified against current npm
+documentation and a throwaway scoped test package before any `v1` tag is
+pushed, and the outcome recorded in the RC Release Evidence Record:
+
+1. whether a trusted publisher can be configured for a package name that does
+   not yet exist on the registry. If it can, the token bootstrap below is
+   skipped entirely and `1.0.0-rc.1` is published through OIDC; if it cannot,
+   the bootstrap is used once and the OIDC-published `1.0.0-rc.2` is mandatory.
+2. whether the first-ever publication of a package with `--tag next` leaves
+   `latest` unset. If it does not, the workflow immediately corrects the
+   dist-tags after publication, and the RC evidence records both states.
+
+Ordering within the slice:
+
+- the first step already landed on `main` during Slice B: narrow
+  `.github/workflows/github-prerelease.yml`, which currently triggers on every
+  `v*` tag and asserts the immutable `v0.6.0` manifest, so that it never
+  processes a `v1` tag, and add the dedicated protected
+  `.github/workflows/npm-publish.yml` path. GitHub Actions evaluates workflow
+  files at the pushed tag's commit, so this change must precede the release
+  commit rather than follow it;
+- the release workflow runs only on GitHub-hosted runners with npm CLI
+  `11.5.1` or later, `id-token: write`, and a protected GitHub environment
+  whose name and the `npm-publish.yml` filename match the npm trusted-publisher
+  configuration exactly;
 - create and push an approved annotated `v1.0.0-rc.1` tag on the exact verified
-  RC commit, triggering only the new protected workflow;
-- bootstrap the first registry package from the protected GitHub environment
-  with a short-lived granular npm token, `id-token: write`, and explicit
-  provenance, publishing `1.0.0-rc.1` with `--tag next` so `latest` remains
-  unset;
-- after the package exists, configure npm trusted publishing for the exact
-  public repository, `npm-publish.yml` workflow filename, protected GitHub
-  environment, and `npm publish` action; then restrict traditional token
-  publishing and revoke the bootstrap token;
-- publish a newly tagged `1.0.0-rc.N` through OIDC if necessary to prove the
-  trusted publisher path before stable release; never overwrite an RC or move
-  its tag;
+  RC commit, which must be the current `main` head, triggering only the new
+  protected workflow;
+- if the bootstrap is required: publish the first registry package from the
+  protected GitHub environment with a short-lived granular npm token and
+  explicit provenance, using `--tag next`; then configure npm trusted
+  publishing for the exact public repository, `npm-publish.yml` workflow
+  filename, protected GitHub environment, and `npm publish` action; then set
+  the package to require two-factor authentication and disallow tokens, and
+  revoke the bootstrap token;
+- if the bootstrap was required, publish a newly tagged `1.0.0-rc.2` through
+  OIDC. The trusted-publisher path is proven only when at least one release
+  candidate has been published through it; a token-published candidate does
+  not satisfy completion criterion 4. Never overwrite an RC or move its tag;
 - verify registry bytes, installation, imports, CLIs, metadata, provenance,
   license, citation, and `next`/`latest` dist-tags from an unauthenticated clean
   consumer;
@@ -490,6 +575,7 @@ Phase 3 implementation is divided into three sequential slices.
 - present the final version, commit, archive inventory, digest, and gate results
   for accountable-human approval immediately before stable publication;
 - create and push the annotated immutable `v1.0.0` tag on the approved commit,
+  which must be the current `main` head,
   triggering the protected trusted-publisher workflow;
 - publish `1.0.0` through trusted publishing, verify that `latest` resolves to
   `1.0.0` and `next` remains explicit or is intentionally removed, then verify
@@ -505,7 +591,9 @@ GitHub environment approval. npm's documented
 is to move `latest` unless `--tag` is supplied, so every prerelease command
 names `next` explicitly. The privileged publish job receives the exact verified
 archive and does not run repository dependency or lifecycle code after
-approval.
+approval: it runs `npm publish <archive>.tgz --ignore-scripts` from a directory
+containing no repository checkout, because the repository's `prepack` script
+builds and tests and must not execute inside the privileged job.
 
 Public tags and published registry versions are immutable. A failed candidate
 is corrected in a new prerelease version; tags and published versions are never
@@ -548,8 +636,13 @@ Before either npm publication:
 
 - the private candidate passes the supported Node matrix locally where
   reproducible and in CI before the publication guard is removed;
-- the reviewed release commit removes the guard and changes only approved
-  version, release evidence, and publication metadata;
+- the reviewed release commit removes the guard and changes only the approved
+  version, publication metadata, release evidence, and the tests and status
+  prose that assert the private state and pinned version, plus the new RC
+  baseline and profile directories, as defined in Slice B; a diff against the
+  pre-release head shows only additions under `spec/compatibility/` and
+  `spec/distribution-readiness/` and no change to any existing file under
+  `src/`, `spec/schemas/`, `spec/conformance/`, or `spec/compatibility/`;
 - `npm test`, `npx tsc --noEmit`, repository syntax checks, examples, package
   checks, and whitespace checks pass again on that release commit;
 - dependency audit and secret scanning report no unresolved release blocker;
@@ -594,9 +687,10 @@ Phase 3 is complete only when:
 3. separate immutable RC and stable compatibility baselines, migration
    guidance, public API inventory, and Distribution Readiness Profiles are
    final;
-4. at least one `1.0.0-rc.N` is published under `next`, independently verified
-   from the registry, and the trusted-publisher path is proven before stable
-   publication;
+4. at least one `1.0.0-rc.N` is published under `next` through npm trusted
+   publishing (OIDC), independently verified from the registry, before stable
+   publication; a token-published candidate alone does not satisfy this
+   criterion;
 5. the accountable-human stable-publication gate approves the exact final
    archive and commit;
 6. `collective-cognition-sdk@1.0.0` is published and verified from a clean
