@@ -420,7 +420,7 @@ const productionDependencyFields = Object.freeze([
   "bundleDependencies",
   "bundledDependencies",
 ]);
-const sliceAStatus = "The private `0.11.0` Slice A contract candidate passes the local automated gate; integration, public RC/stable publication, and supported-runtime SQLite acceptance remain pending.";
+const sliceAStatus = "The private, unpublished `0.11.0` Slice A is integrated on `main` at merge commit `669b3ed3a30cccee098730fe6cf558bc37e18ac5` via PR #15; its PR checks all passed. Post-merge CI run `32950251966` passed all eight jobs, including Node `24.14.0` Ubuntu job `98119822963`, which passed \"runs a fictional external host through an explicit source fixture and SQLite target\". This records supported-runtime CI acceptance only; real-device acceptance, public RC/stable publication, npm OIDC/bootstrap work, production readiness, adoption, certification, SLA, and LTS remain pending or unclaimed.";
 
 function emittedFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -1296,7 +1296,7 @@ const sourceRecordsJsonl = readFileSync(
   );
 });
 
-test("public Phase 3 status records the private candidate and pending gates", () => {
+test("public Phase 3 status records Slice A integration evidence without release claims", () => {
   const documents = [
     { name: "README", url: readmeUrl },
     { name: "CHANGELOG", url: changelogUrl },
@@ -1305,6 +1305,8 @@ test("public Phase 3 status records the private candidate and pending gates", ()
     { name: "specification index", url: specificationIndexUrl },
     { name: "RFC index", url: rfcIndexUrl },
     { name: "RFC 0012", url: phase3RfcUrl },
+    { name: "security policy", url: securityUrl },
+    { name: "support policy", url: supportUrl },
   ];
 
   for (const document of documents) {
@@ -1312,9 +1314,24 @@ test("public Phase 3 status records the private candidate and pending gates", ()
     assert.equal(content.includes(sliceAStatus), true, document.name);
     assert.doesNotMatch(
       content,
-      /(?:Slice A\b (?:is|work is) complete|Slice A\b completion|complete Phase 3 Slice A\b|Slice A\b[^.\n]*(?:final-review|final review|merged?|\bCI\b|published))/i,
+      /The private `0\.11\.0` Slice A contract candidate passes the local automated gate; integration, public RC\/stable publication, and supported-runtime SQLite acceptance remain pending\./,
       document.name,
     );
+    assert.doesNotMatch(
+      content,
+      /(?:Slice A\b[^.\n]*(?:real-device acceptance (?:is|was) (?:observed|accepted)|public RC\/stable publication (?:is|was) (?:observed|approved)|production readiness (?:is|was) (?:observed|approved))|\b(?:is|are|was|were)\s+(?:production[- ]ready|npm published|certified|LTS))\b/i,
+      document.name,
+    );
+  }
+
+  const roadmap = readFileSync(roadmapUrl, "utf8");
+  for (const evidence of [
+    "669b3ed3a30cccee098730fe6cf558bc37e18ac5",
+    "PR #15",
+    "32950251966",
+    "98119822963",
+  ]) {
+    assert.match(roadmap, new RegExp(escapeRegExp(evidence)));
   }
 });
 
