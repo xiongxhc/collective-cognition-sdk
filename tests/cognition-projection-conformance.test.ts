@@ -59,11 +59,9 @@ function readJsonLines<T>(url: URL): T[] {
     .map((line) => JSON.parse(line) as T);
 }
 
-function validationLayer(fixture: LifecycleFixture): ValidationLayer {
-  if (fixture.expected.validationLayer !== undefined) {
-    return fixture.expected.validationLayer;
-  }
-  return linkedValidity(fixture) ? "reference" : "transition";
+function failureBoundary(fixture: LifecycleFixture): ValidationLayer | undefined {
+  if (linkedValidity(fixture)) return undefined;
+  return fixture.expected.validationLayer ?? "transition";
 }
 
 function linkedValidity(fixture: LifecycleFixture): boolean {
@@ -132,6 +130,13 @@ function validateLifecycle(
     );
   }
 
+  if (event.previousState !== previousObject.state) {
+    throw new DomainError(
+      DomainErrorCode.INVALID_TRANSITION,
+      "A lifecycle event previous state must match its prior object revision.",
+    );
+  }
+
   transitionObject(
     previousObject as never,
     resultingObject.state as never,
@@ -160,8 +165,8 @@ function outcomeFor(
   let outcome: ExpectedCode = "VALID";
 
   try {
-    const layer = validationLayer(input);
-    if (layer === "projection") {
+    const boundary = failureBoundary(input);
+    if (boundary === "projection") {
       for (const object of resolvedObjects) {
         validateCognitiveObjectProjection(object);
       }
@@ -170,11 +175,14 @@ function outcomeFor(
       for (const object of resolvedObjects) {
         validateCognitiveObjectProjection(object);
       }
-      if (layer === "reference") {
+      if (boundary === "transition") {
+        validateLifecycle(input.objects as CognitiveObject[], input.event as CognitionEvent);
+      } else {
         validateCognitionEventProjection(input.event);
         validateRelationships(resolvedObjects as CognitiveObject[]);
-      } else {
-        validateLifecycle(input.objects as CognitiveObject[], input.event as CognitionEvent);
+        if (boundary === undefined) {
+          validateLifecycle(input.objects as CognitiveObject[], input.event as CognitionEvent);
+        }
       }
     }
   } catch (error) {
@@ -186,6 +194,24 @@ function outcomeFor(
   assert.deepEqual(input.event, historicalEvent, `${input.description} mutates its event`);
   return outcome;
 }
+
+test("valid lifecycle rows run event-object correlation after reference checks", () => {
+  const fixtures = readJsonLines<LifecycleFixture>(lifecycleUrl);
+  const referenceCatalog = fixtures
+    .filter((fixture) => linkedValidity(fixture))
+    .flatMap((fixture) => fixture.objects);
+  const fixture = structuredClone(
+    fixtures.find((candidate) => candidate.description === "ExperimentActive"),
+  );
+
+  assert.ok(fixture);
+  (fixture.event as { objectId: string }).objectId = "experiment:missing";
+
+  assert.equal(
+    outcomeFor(fixture, referenceCatalog),
+    DomainErrorCode.INVALID_TRANSITION,
+  );
+});
 
 test("linked lifecycle fixtures resolve compatible references without mutation", () => {
   const fixtures = readJsonLines<LifecycleFixture>(lifecycleUrl);
