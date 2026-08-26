@@ -156,7 +156,7 @@ const expectedLatestReleaseBaselineSha256 =
 const expectedLatestReleaseChangeCasesSha256 =
   "23d6577eb6aa927ab37f33278363f00a38cb2e0e67adfbc50a9dc2075b1b9e9e";
 const expectedPublicApiReferenceSha256 =
-  "7c50dc506b1b203b0292fe63d505837f31b1ba6abbbc1af6a7ee1aa17627d3f0";
+  "33b561fb71a43e6224d91de535a77054d45959c12a34e28205c736307dedb764";
 const expectedHistoricalPublicApiReferenceSha256 =
   "02d6732330cf2ffaeed5ae02fd809c2b7dbdee5ce77704dc81e4d21f0bc5596d";
 const expectedDistributionReadinessRfcSha256 =
@@ -201,7 +201,7 @@ const expectedRootDeclarationSha256 =
   "83d435dc12444e4da464ce56dda3b762d069d0e832736f750594802e34218ace";
 const expectedPhase3ResourceDigests = Object.freeze({
   "rfcs/0012-phase-3-charter-and-stable-package.md":
-    "5c1e7e826d15c5f58d6338160bea2bd5cf9337d28002f38a65b4553d35e1ed87",
+    "a3b41212e723a5473bdef9d7e66f26bfe48e33e4fa4f68f221c7d97c205c7e11",
   "spec/collective-cognition-charter.md":
     "342f88f478a82fa55fdd087f57bab50cc5e6a0818c890e74d014c261b9122004",
   "spec/schemas/0.1.0/cognitive-object.schema.json":

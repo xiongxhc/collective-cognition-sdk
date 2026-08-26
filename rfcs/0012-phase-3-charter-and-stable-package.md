@@ -1,9 +1,9 @@
 # RFC 0012: Phase 3 Charter and Stable Package
 
-**Status:** Accepted; Slice A contract candidate locally gated
+**Status:** Accepted; Slice A integrated on `main` with post-merge CI evidence
 **Created:** 2026-08-25
 
-The private `0.11.0` Slice A contract candidate passes the local automated gate; integration, public RC/stable publication, and supported-runtime SQLite acceptance remain pending.
+The private, unpublished `0.11.0` Slice A is integrated on `main` at merge commit `669b3ed3a30cccee098730fe6cf558bc37e18ac5` via PR #15; its PR checks all passed. Post-merge CI run `32950251966` passed all eight jobs, including Node `24.14.0` Ubuntu job `98119822963`, which passed "runs a fictional external host through an explicit source fixture and SQLite target". This records supported-runtime CI acceptance only; real-device acceptance, public RC/stable publication, npm OIDC/bootstrap work, production readiness, adoption, certification, SLA, and LTS remain pending or unclaimed.
 
 ## Problem
 
