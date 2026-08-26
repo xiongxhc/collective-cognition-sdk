@@ -125,6 +125,21 @@ resolve it to the required compatible target type; an opaque external option
 symbol is permitted only for `considers-option`. A relationship MUST NOT create
 or mutate a missing target object.
 
+| Relationship | Declaring object family | Required target |
+| --- | --- | --- |
+| `parent-goal` | Goal | Goal |
+| `supports-goal` | Hypothesis, Decision | Goal |
+| `tests-hypothesis` | Experiment | Hypothesis |
+| `supports-hypothesis` | Evidence | Hypothesis |
+| `challenges-hypothesis` | Evidence | Hypothesis |
+| `relates-to-hypothesis` | Evidence | Hypothesis |
+| `observed-in-experiment` | Evidence | Experiment |
+| `informs-decision` | Decision | Decision |
+| `considers-option` | Decision | Opaque external option symbol, not a cognitive object |
+| `accountable-identity` | Decision | Identity |
+| `justified-by-decision` | Principle | Decision |
+| `justified-by-evidence` | Decision, Principle | Evidence |
+
 ### CCC-015 — Lifecycle Transitions
 
 An object state change MUST use an allowed Portable Cognition lifecycle edge and
@@ -132,6 +147,16 @@ create a successor revision rather than mutating historical state. A conforming
 implementation MUST reject a same-state, forbidden, or mismatched transition
 with the applicable stable domain error. The linked transition corpus defines
 the cross-record evidence for this rule.
+
+| Object family | Allowed state transitions |
+| --- | --- |
+| Identity | `active → inactive`, `inactive → active` |
+| Goal | `draft → active`; `active → at_risk`, `paused`, `achieved`, `abandoned`, or `revised` |
+| Hypothesis | `proposed → under_review`; `under_review → testing`; `testing → supported`, `refuted`, or `inconclusive` |
+| Experiment | `planned → active` or `cancelled`; `active → completed` or `cancelled` |
+| Evidence | `collected → assessed`; `assessed → accepted`, `disputed`, `rejected`, or `expired` |
+| Decision | `draft → proposed`; `proposed → approved` or `rejected`; `approved → active`; `active → superseded`; `superseded → archived` |
+| Principle | `proposed → trial` or `rejected`; `trial → adopted` or `rejected`; `adopted → revised` or `retired` |
 
 ### CCC-016 — Cognition Events
 
