@@ -385,7 +385,8 @@ The complete stability matrix is:
 | Repository source, tests, examples, generated file paths, and unexported modules | Internal | No compatibility promise. |
 
 The root baseline includes every runtime and type export currently declared by
-package `0.10.0`; implementation may add the minimum new charter validation
+the current private package (`0.11.0` after Slice A); implementation may add
+the minimum new charter validation
 exports, but it may not remove or relocate an existing root export before
 `1.0.0`. The final baseline and public API reference enumerate every name.
 
@@ -394,14 +395,23 @@ currently classifies root exports, root declarations, the four executables, CLI
 behavior, and non-SourceRecord domain error codes as Supported Experimental
 that "can evolve under this policy before `1.0.0`", and `COMP-003` permits
 reviewed breaking Supported Experimental changes in a pre-`1.0.0` minor
-release. Slice B amends the policy in place, as every prior baseline has done:
-the classification table moves the surfaces listed above into Stable Public
-API, redefines Supported Experimental as an operational-maturity label that is
-SemVer protected from `1.0.0` onward, and adds a post-`1.0.0` rule stating
-that an incompatible Supported Experimental change requires a new versioned
-subpath or a major package release. The `minor-before-1.0` mechanism is
-retained for historical baselines and is not available at or after `1.0.0`.
-The amendment is recorded in the Phase 3 RFC and migration guidance.
+release. The stability table classifies the policy itself as Normative Stable,
+and `COMP-002` forbids behavior-changing in-place edits to a Normative Stable
+resource, so this change cannot be an unversioned in-place amendment. Slice B
+instead revises the policy through its existing version mechanism: every
+compatibility baseline records a `packagePolicyVersion` (currently `0.1.0`),
+so the revised policy is published as `packagePolicyVersion` `1.0.0`, recorded
+by compatibility baseline `1.0.0-rc.1` and every later baseline, while
+historical baselines `0.1.0` through `0.11.0` keep recording policy `0.1.0`
+and the rules that governed them remain recoverable from those immutable
+baselines and the Phase 3 RFC. The revised policy moves the surfaces listed
+above into Stable Public API, redefines Supported Experimental as an
+operational-maturity label that is SemVer protected from `1.0.0` onward, and
+adds a post-`1.0.0` rule stating that an incompatible Supported Experimental
+change requires a new versioned subpath or a major package release. The
+`minor-before-1.0` mechanism applies only under policy `0.1.0` and is not
+available at or after `1.0.0`. The revision is recorded in the Phase 3 RFC
+and migration guidance.
 
 Semantic Versioning applies to:
 
@@ -447,7 +457,11 @@ resources, and both supersede only the descriptive status of historical profile
 - source repository and license availability;
 - exact package version and supported runtime;
 - registry-name verification and expected publication identity;
-- npm publication state as `pending` and the approved provenance mechanism;
+- the npm publication state, expressed in the existing `DRP-002` closed
+  vocabulary — `blocked` until the accountable-human publication gate is
+  approved; the profile introduces no `pending` or other new status value
+  without an explicit reviewed vocabulary amendment in its own prose — and
+  the approved provenance mechanism;
 - package-content, clean-install, compatibility, test, and security gates;
 - the intended immutable Git tag and release workflow identity;
 - stable and experimental support boundaries; and
@@ -509,7 +523,8 @@ Phase 3 implementation is divided into three sequential slices.
   directories with their package exports, and flips the publication guards
   that assert the private state and the pinned package version: the
   `test:package`, compatibility, and distribution-readiness tests that require
-  `private === true` or version `0.10.0`, and the "private and unpublished"
+  `private === true` or the current pinned pre-release version, and the
+  "private and unpublished"
   status prose in `README.md`, `docs/`, and `spec/`. These land in one commit
   because the tests pin the package version, so a baseline naming `1.0.0-rc.1`
   cannot pass before the bump, and `prepack` runs `test:package`, so a release
@@ -524,16 +539,26 @@ Phase 3 implementation is divided into three sequential slices.
 ### Slice C: release bootstrap and stable publication
 
 Two facts about the npm registry must be verified against current npm
-documentation and a throwaway scoped test package before any `v1` tag is
-pushed, and the outcome recorded in the RC Release Evidence Record:
+documentation and a throwaway scoped test package, and the outcome recorded in
+the RC Release Evidence Record. The experiments depend on nothing from Slices
+A or B, so they run as early as possible — in parallel with remaining Slice B
+work at the latest — and both outcomes must be known before the Slice B
+release commit is created, because fact 1 decides whether a mandatory extra
+candidate (with its own permanent baseline and profile) exists:
 
 1. whether a trusted publisher can be configured for a package name that does
    not yet exist on the registry. If it can, the token bootstrap below is
    skipped entirely and `1.0.0-rc.1` is published through OIDC; if it cannot,
    the bootstrap is used once and the OIDC-published `1.0.0-rc.2` is mandatory.
 2. whether the first-ever publication of a package with `--tag next` leaves
-   `latest` unset. If it does not, the workflow immediately corrects the
-   dist-tags after publication, and the RC evidence records both states.
+   `latest` unset. If it does not, no automated correction exists at that
+   point: npm does not allow removing the `latest` tag, and with a single
+   published version there is nothing to repoint it to. The condition is
+   recorded in the RC Release Evidence Record as a known temporary state, the
+   README and release notes state that the `next` version is a prerelease, and
+   the next publication (the following candidate or stable `1.0.0`) repoints
+   `latest`, with the stable verification step confirming the final dist-tag
+   state.
 
 Ordering within the slice:
 
@@ -637,12 +662,16 @@ Before either npm publication:
 - the private candidate passes the supported Node matrix locally where
   reproducible and in CI before the publication guard is removed;
 - the reviewed release commit removes the guard and changes only the approved
-  version, publication metadata, release evidence, and the tests and status
-  prose that assert the private state and pinned version, plus the new RC
-  baseline and profile directories, as defined in Slice B; a diff against the
-  pre-release head shows only additions under `spec/compatibility/` and
-  `spec/distribution-readiness/` and no change to any existing file under
-  `src/`, `spec/schemas/`, `spec/conformance/`, or `spec/compatibility/`;
+  release-commit change set defined in Slice B: the `package.json` version,
+  private flag, and new resource exports; the new RC baseline and profile
+  directories; the tests that pin the private state and package version; and
+  the status prose in `README.md`, `docs/`, and `spec/`. Release Evidence
+  Records are post-publication artifacts and are never part of this commit.
+  A diff against the pre-release head shows new files only under
+  `spec/compatibility/` and `spec/distribution-readiness/`, modifications only
+  to `package.json`, the named guard tests, and status prose, and no change to
+  any file under `src/`, `spec/schemas/`, `spec/conformance/`, or an existing
+  `spec/compatibility/<version>/` directory;
 - `npm test`, `npx tsc --noEmit`, repository syntax checks, examples, package
   checks, and whitespace checks pass again on that release commit;
 - dependency audit and secret scanning report no unresolved release blocker;
