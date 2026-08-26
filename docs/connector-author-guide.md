@@ -4,7 +4,7 @@ This guide is for maintainers of source connectors that emit records for
 Collective Cognition SDK. `SourceRecord` is the universal boundary between
 source collection and the SDK's generic ingestion behavior.
 
-Current package `0.10.0` is private and unpublished. The example can run against a
+Current package `0.11.0` is private and unpublished. The example can run against a
 local checkout or packed tarball, but the package is not yet available from a
 public registry. Connector conformance is not certification, does not imply
 endorsement, and is not an LTS commitment.
@@ -29,7 +29,7 @@ configuration format is required.
 
 ## Maintained Examples
 
-Package `0.10.0` has two maintained connectors with independent source
+Package `0.10.0` introduced two maintained connectors with independent source
 boundaries. The team-memory connector reads an explicitly selected compatible
 SQLite ledger. The Git connector at
 `collective-cognition-sdk/connectors/git/0.1.0` reads an explicit local
@@ -40,7 +40,7 @@ author email behind disabled-by-default privacy options.
 These are maintained examples, not an architecture external connectors must
 copy. External connectors do not need to import either implementation or use
 SQLite, Git, child processes, their option shapes, or their error classes.
-Package `0.10.0` adds no connector registry, plugin discovery or runtime,
+Current package `0.11.0` preserves those connectors and adds no connector registry, plugin discovery or runtime,
 network connector, scheduler, automatic cognition, or Git CLI. The
 [Interoperability Profile `0.1.0`](../spec/interoperability.md), owned by
 `collective-cognition-sdk-maintainers`, supplies evidence for the maintained
@@ -214,7 +214,9 @@ stable diagnostic codes.
 
 Conformance does not inspect source permissions, credentials, transport
 security, privacy law, retention, pagination completeness, source mutation,
-operational support, or semantic usefulness. Conformance is not
+operational support, projection semantics, host authentication or isolation,
+cognition persistence or publication, or semantic usefulness. It validates the
+SourceRecord boundary only. Conformance is not
 certification, does not imply endorsement, and is not an LTS commitment.
 
 ## Integration Boundary
@@ -240,6 +242,12 @@ SourceRecord[]
 
 Do not make collection success mean accepted Evidence or persisted cognition.
 Keep source stores and cognition stores logically distinct.
+
+The Charter and standalone cognitive-object and cognition-event projection
+resources govern later cognition layers; they do not broaden connector
+conformance. External hosts remain responsible for authentication,
+authorization policy execution, tenant or workspace isolation, storage,
+publication, recovery, logging, and operational security.
 
 See [RFC 0006](../rfcs/0006-maintained-source-connectors.md) for the public
 extension decision and the

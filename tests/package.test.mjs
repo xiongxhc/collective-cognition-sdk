@@ -45,7 +45,7 @@ const packageJsonUrl = new URL("../package.json", import.meta.url);
 const packageLockUrl = new URL("../package-lock.json", import.meta.url);
 const gitAttributesUrl = new URL("../.gitattributes", import.meta.url);
 const compatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.10.0/baseline.json",
+  "../spec/compatibility/0.11.0/baseline.json",
   import.meta.url,
 );
 const historicalCompatibilityBaselineUrl = new URL(
@@ -53,7 +53,7 @@ const historicalCompatibilityBaselineUrl = new URL(
   import.meta.url,
 );
 const previousCompatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.9.0/baseline.json",
+  "../spec/compatibility/0.10.0/baseline.json",
   import.meta.url,
 );
 const licenseUrl = new URL("../LICENSE", import.meta.url);
@@ -122,6 +122,9 @@ const hostIntegrationExampleUrl = new URL(
 );
 
 const expectedRuntimeExports = [
+  "COGNITION_EVENT_PROJECTION_VERSION",
+  "COGNITION_PROJECTION_MAX_JSON_DEPTH",
+  "COGNITIVE_OBJECT_PROJECTION_VERSION",
   "DomainError",
   "DomainErrorCode",
   "HOST_INTEGRATION_CONTRACT_VERSION",
@@ -136,6 +139,8 @@ const expectedRuntimeExports = [
   "createObject",
   "createPortableCognitionRecord",
   "createSourceRecord",
+  "deserializeCognitionEventProjection",
+  "deserializeCognitiveObjectProjection",
   "deserializeObject",
   "deserializePortableCognitionRecord",
   "deserializeSourceRecord",
@@ -150,6 +155,8 @@ const expectedRuntimeExports = [
   "serializeSourceRecord",
   "sourceRevisionKey",
   "transitionObject",
+  "validateCognitionEventProjection",
+  "validateCognitiveObjectProjection",
   "validatePortableCognitionRecord",
   "validateSourceRecord",
 ].sort();
@@ -269,6 +276,31 @@ const expectedGitConnectorEmittedFiles0100 = Object.freeze([
 const expectedEmittedFiles0100 = Object.freeze(
   [...expectedEmittedFiles090, ...expectedGitConnectorEmittedFiles0100].sort(),
 );
+const expectedProjectionEmittedFiles0110 = Object.freeze([
+  "dist/cognition-projections.d.ts",
+  "dist/cognition-projections.js",
+]);
+const expectedEmittedFiles0110 = Object.freeze(
+  [...expectedEmittedFiles0100, ...expectedProjectionEmittedFiles0110].sort(),
+);
+const expectedPhase3ResourceDigests = Object.freeze({
+  [`collective-cognition-sdk/charter/1.0.0`]:
+    "c8b05c2e5ad69471314d1f96ae9dae837ca9bae2d8a930a7cb50bc811660eb18",
+  [`collective-cognition-sdk/schemas/cognitive-object/0.1.0`]:
+    "a9b89aac5bfd31f34a2b89dc5813d3572550b40b512f75bd7d562ad9fa760562",
+  [`collective-cognition-sdk/schemas/cognition-event/0.1.0`]:
+    "10ab368fb61ad35d2bab07a048d5c9bf54dd13af64bf4bb54386253a1896869c",
+  [`collective-cognition-sdk/conformance/cognitive-object/0.1.0/valid`]:
+    "5ada78820b73dc87d54b05b946641764839606f5d04d0a2f10fab2d2eba13dbe",
+  [`collective-cognition-sdk/conformance/cognitive-object/0.1.0/invalid`]:
+    "05fbba2600b9bcceb269ba0b6841bf494952858efb455e3820c97056865af5a5",
+  [`collective-cognition-sdk/conformance/cognition-event/0.1.0/valid`]:
+    "75e0eaa162344ce37181b4e51d0908805ecb19f71a1030ced21c901a64ba945f",
+  [`collective-cognition-sdk/conformance/cognition-event/0.1.0/invalid`]:
+    "b67a5484b404b48d607262d8dc4dc4b0cc90e8af09bc2637dfcbfbc16e6fef2e",
+  [`collective-cognition-sdk/conformance/cognition-event/0.1.0/lifecycle`]:
+    "581a723ea5fb3cac6f3459766c53eb585c317729814f1a8ae0ac665bf67bd4f1",
+});
 const productionDependencyFields = Object.freeze([
   "dependencies",
   "optionalDependencies",
@@ -380,11 +412,46 @@ test("built package exposes only the source-neutral runtime API", async () => {
   assert.deepEqual(Object.keys(builtApi).sort(), expectedRuntimeExports);
 });
 
-test("package 0.10.0 exposes exact interoperability subpaths without a new executable", async () => {
+test("package 0.11.0 exposes the Charter and projection resources without a new executable", async () => {
   const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
 
-  assert.equal(packageJson.version, "0.10.0");
+  assert.equal(packageJson.version, "0.11.0");
   assert.equal(packageJson.private, true);
+  assert.equal(
+    packageJson.exports["./compatibility/0.11.0"],
+    "./spec/compatibility/0.11.0/baseline.json",
+  );
+  assert.deepEqual(
+    Object.fromEntries(
+      [
+        "./charter/1.0.0",
+        "./schemas/cognitive-object/0.1.0",
+        "./schemas/cognition-event/0.1.0",
+        "./conformance/cognitive-object/0.1.0/valid",
+        "./conformance/cognitive-object/0.1.0/invalid",
+        "./conformance/cognition-event/0.1.0/valid",
+        "./conformance/cognition-event/0.1.0/invalid",
+        "./conformance/cognition-event/0.1.0/lifecycle",
+      ].map((subpath) => [subpath, packageJson.exports[subpath]]),
+    ),
+    {
+      "./charter/1.0.0": "./spec/collective-cognition-charter.md",
+      "./schemas/cognitive-object/0.1.0":
+        "./spec/schemas/0.1.0/cognitive-object.schema.json",
+      "./schemas/cognition-event/0.1.0":
+        "./spec/schemas/0.1.0/cognition-event.schema.json",
+      "./conformance/cognitive-object/0.1.0/valid":
+        "./spec/conformance/0.1.0/cognitive-object/valid.jsonl",
+      "./conformance/cognitive-object/0.1.0/invalid":
+        "./spec/conformance/0.1.0/cognitive-object/invalid.jsonl",
+      "./conformance/cognition-event/0.1.0/valid":
+        "./spec/conformance/0.1.0/cognition-event/valid.jsonl",
+      "./conformance/cognition-event/0.1.0/invalid":
+        "./spec/conformance/0.1.0/cognition-event/invalid.jsonl",
+      "./conformance/cognition-event/0.1.0/lifecycle":
+        "./spec/conformance/0.1.0/cognition-event/lifecycle.jsonl",
+    },
+  );
   assert.deepEqual(packageJson.exports["./connectors/git/0.1.0"], {
     types: "./dist/connectors/git.d.ts",
     import: "./dist/connectors/git.js",
@@ -769,7 +836,7 @@ test("public documentation explains the source-neutral connector model", () => {
   assert.match(roadmap, /delivered|verified/i);
   assert.match(
     roadmap,
-    /current package `0\.10\.0` preserves (?:both|those) historical artifacts/,
+    /current package `0\.11\.0` preserves (?:both|those) historical artifacts/,
   );
   assert.doesNotMatch(
     roadmap,
@@ -830,7 +897,7 @@ test("public documentation defines the durable workflow without upgrading readin
   const documents = [readme, roadmap, publicApi, guide, rfc];
   const combined = documents.join("\n");
 
-  assert.equal(packageJson.version, "0.10.0");
+  assert.equal(packageJson.version, "0.11.0");
   assert.equal(packageJson.private, true);
   assert.match(readme, /connector or canonical JSONL[\s\S]*explicit durable workflow request[\s\S]*atomic cognition database[\s\S]*optional event publisher[\s\S]*optional managed Markdown projection/);
   for (const document of documents) {
@@ -999,8 +1066,8 @@ test("public documentation records verified cross-connector interoperability wit
   const profile = JSON.parse(readFileSync(interoperabilityProfileUrl, "utf8"));
   const plan = readFileSync(interoperabilityPlanUrl, "utf8");
 
-  for (const document of documents) {
-    assert.match(document.content, /0\.10\.0/, `${document.name} must identify package 0.10.0`);
+  for (const document of [documents[0], documents[2], documents[3], documents[5], documents[6]]) {
+    assert.match(document.content, /0\.11\.0/, `${document.name} must identify package 0.11.0`);
   }
 
   for (const phrase of [
@@ -1097,18 +1164,28 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     readFileSync(previousCompatibilityBaselineUrl, "utf8"),
   );
   assert.deepEqual(
-    baseline.package.runtimeExports,
-    previousBaseline.package.runtimeExports,
-    "package 0.10 root runtime exports must remain identical to 0.9",
+    baseline.package.runtimeExports.filter(
+      (name) => !previousBaseline.package.runtimeExports.includes(name),
+    ),
+    [
+      "COGNITION_EVENT_PROJECTION_VERSION",
+      "COGNITION_PROJECTION_MAX_JSON_DEPTH",
+      "COGNITIVE_OBJECT_PROJECTION_VERSION",
+      "deserializeCognitionEventProjection",
+      "deserializeCognitiveObjectProjection",
+      "validateCognitionEventProjection",
+      "validateCognitiveObjectProjection",
+    ],
+    "package 0.11 root runtime delta must be exactly the seven projection exports",
   );
   assert.deepEqual(
     baseline.package.typeExports,
     previousBaseline.package.typeExports,
-    "package 0.10 root type exports must remain identical to 0.9",
+    "package 0.11 root type exports must remain identical to 0.10",
   );
-  assert.equal(packageJson.version, "0.10.0");
-  assert.equal(packageLock.version, "0.10.0");
-  assert.equal(packageLock.packages[""].version, "0.10.0");
+  assert.equal(packageJson.version, "0.11.0");
+  assert.equal(packageLock.version, "0.11.0");
+  assert.equal(packageLock.packages[""].version, "0.11.0");
   assert.equal(
     packageJson.exports["./distribution-readiness/0.1.0"],
     "./spec/distribution-readiness/0.1.0/profile.json",
@@ -1194,6 +1271,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       "./spec/compatibility/0.9.0/baseline.json",
     "./compatibility/0.10.0":
       "./spec/compatibility/0.10.0/baseline.json",
+    "./compatibility/0.11.0":
+      "./spec/compatibility/0.11.0/baseline.json",
     "./adapters/markdown/0.1.0": {
       types: "./dist/markdown-cognition.d.ts",
       import: "./dist/markdown-cognition.js",
@@ -1244,6 +1323,21 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       "./spec/schemas/0.1.0/source-record.schema.json",
     "./schemas/portable-cognition/0.1.0":
       "./spec/schemas/0.1.0/portable-cognition.schema.json",
+    "./charter/1.0.0": "./spec/collective-cognition-charter.md",
+    "./schemas/cognitive-object/0.1.0":
+      "./spec/schemas/0.1.0/cognitive-object.schema.json",
+    "./schemas/cognition-event/0.1.0":
+      "./spec/schemas/0.1.0/cognition-event.schema.json",
+    "./conformance/cognitive-object/0.1.0/valid":
+      "./spec/conformance/0.1.0/cognitive-object/valid.jsonl",
+    "./conformance/cognitive-object/0.1.0/invalid":
+      "./spec/conformance/0.1.0/cognitive-object/invalid.jsonl",
+    "./conformance/cognition-event/0.1.0/valid":
+      "./spec/conformance/0.1.0/cognition-event/valid.jsonl",
+    "./conformance/cognition-event/0.1.0/invalid":
+      "./spec/conformance/0.1.0/cognition-event/invalid.jsonl",
+    "./conformance/cognition-event/0.1.0/lifecycle":
+      "./spec/conformance/0.1.0/cognition-event/lifecycle.jsonl",
     "./conformance/portable-cognition/0.1.0/valid":
       "./spec/conformance/0.1.0/portable-cognition/valid.jsonl",
     "./conformance/portable-cognition/0.1.0/invalid":
@@ -1302,6 +1396,9 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.9.0/change-cases.jsonl",
     "spec/compatibility/0.10.0/baseline.json",
     "spec/compatibility/0.10.0/change-cases.jsonl",
+    "spec/compatibility/0.11.0/baseline.json",
+    "spec/compatibility/0.11.0/change-cases.jsonl",
+    "spec/collective-cognition-charter.md",
     "spec/distribution-readiness.md",
     "spec/distribution-readiness/0.1.0/profile.json",
     "spec/host-integration.md",
@@ -1316,11 +1413,18 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/runtime-security/0.1.0/profile.json",
     "spec/schemas/0.1.0/source-record.schema.json",
     "spec/schemas/0.1.0/portable-cognition.schema.json",
+    "spec/schemas/0.1.0/cognitive-object.schema.json",
+    "spec/schemas/0.1.0/cognition-event.schema.json",
     "spec/conformance/0.1.0/source-record/valid.jsonl",
     "spec/conformance/0.1.0/source-record/invalid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
+    "spec/conformance/0.1.0/cognitive-object/valid.jsonl",
+    "spec/conformance/0.1.0/cognitive-object/invalid.jsonl",
+    "spec/conformance/0.1.0/cognition-event/valid.jsonl",
+    "spec/conformance/0.1.0/cognition-event/invalid.jsonl",
+    "spec/conformance/0.1.0/cognition-event/lifecycle.jsonl",
   ]);
   assert.deepEqual(packageJson.bin, {
     "collective-cognition": "./dist/cli.js",
@@ -1344,25 +1448,20 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   );
   assert.deepEqual(
     baseline.package.emittedFiles,
-    expectedEmittedFiles0100,
-    "package 0.10 emitted inventory must match its literal allowlist",
+    expectedEmittedFiles0110,
+    "package 0.11 emitted inventory must match its literal allowlist",
   );
   assert.deepEqual(
     baseline.package.emittedFiles.filter(
-      (path) => !expectedEmittedFiles040.includes(path),
+      (path) => !expectedEmittedFiles0100.includes(path),
     ),
-    [
-      ...expectedConnectorEmittedFiles050,
-      ...expectedMarkdownEmittedFiles060,
-      ...expectedDurableWorkflowEmittedFiles090,
-      ...expectedGitConnectorEmittedFiles0100,
-    ].sort(),
-    "package 0.10 emitted additions must be exactly the approved files",
+    expectedProjectionEmittedFiles0110,
+    "package 0.11 emitted additions must be exactly the projection files",
   );
   assert.deepEqual(
     actualEmittedFiles,
-    expectedEmittedFiles0100,
-    "dist/ contents must match the independent package 0.10 allowlist",
+    expectedEmittedFiles0110,
+    "dist/ contents must match the independent package 0.11 allowlist",
   );
 
   const npmCache = mkdtempSync(join(tmpdir(), "ccsdk-npm-cache-"));
@@ -1391,7 +1490,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "LICENSE",
     "NOTICE",
     "README.md",
-    ...expectedEmittedFiles0100,
+    ...expectedEmittedFiles0110,
     "package.json",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
@@ -1427,6 +1526,14 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.9.0/change-cases.jsonl",
     "spec/compatibility/0.10.0/baseline.json",
     "spec/compatibility/0.10.0/change-cases.jsonl",
+    "spec/compatibility/0.11.0/baseline.json",
+    "spec/compatibility/0.11.0/change-cases.jsonl",
+    "spec/collective-cognition-charter.md",
+    "spec/conformance/0.1.0/cognitive-object/invalid.jsonl",
+    "spec/conformance/0.1.0/cognitive-object/valid.jsonl",
+    "spec/conformance/0.1.0/cognition-event/invalid.jsonl",
+    "spec/conformance/0.1.0/cognition-event/lifecycle.jsonl",
+    "spec/conformance/0.1.0/cognition-event/valid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
     "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
@@ -1445,6 +1552,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/runtime-security/0.1.0/profile.json",
     "spec/schemas/0.1.0/portable-cognition.schema.json",
     "spec/schemas/0.1.0/source-record.schema.json",
+    "spec/schemas/0.1.0/cognition-event.schema.json",
+    "spec/schemas/0.1.0/cognitive-object.schema.json",
     "spec/source-record.md",
   ].sort();
   const expectedPaths = [
@@ -1460,7 +1569,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.deepEqual(
     baseline.package.packageFiles,
     expectedPaths,
-    "package 0.10 compatibility inventory must match its literal allowlist",
+    "package 0.11 compatibility inventory must match its literal allowlist",
   );
   assert.deepEqual(paths, expectedPaths, "package contents must match allowlist");
   assert.equal(
@@ -2433,7 +2542,7 @@ console.log(JSON.stringify({
         "--input-type=module",
         "--eval",
         `import { readFile } from "node:fs/promises";
-const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.10.0`)});
+const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.11.0`)});
 const baseline = JSON.parse(await readFile(new URL(baselineUrl), "utf8"));
 const changeCases = (await readFile(new URL("./change-cases.jsonl", baselineUrl), "utf8"))
   .trim()
@@ -2457,9 +2566,39 @@ console.log(JSON.stringify({
     assert.deepEqual(
       JSON.parse(importedCurrentCompatibility.stdout.trim()),
       {
-        baselineVersion: "0.10.0",
-        classifications: ["additive"],
+        baselineVersion: "0.11.0",
+        classifications: ["additive", "additive", "additive", "additive"],
       },
+    );
+
+    const resolvedPhase3Resources = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        `import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+const specifiers = ${JSON.stringify(Object.keys(expectedPhase3ResourceDigests))};
+const digests = {};
+for (const specifier of specifiers) {
+  const bytes = await readFile(new URL(import.meta.resolve(specifier)));
+  digests[specifier] = createHash("sha256").update(bytes).digest("hex");
+}
+console.log(JSON.stringify(digests));`,
+      ],
+      {
+        cwd: consumerRoot,
+        encoding: "utf8",
+      },
+    );
+    assert.equal(
+      resolvedPhase3Resources.status,
+      0,
+      resolvedPhase3Resources.stderr,
+    );
+    assert.deepEqual(
+      JSON.parse(resolvedPhase3Resources.stdout.trim()),
+      expectedPhase3ResourceDigests,
     );
 
     const executableName =

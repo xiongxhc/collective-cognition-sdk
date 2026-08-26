@@ -180,6 +180,8 @@ const allowedOverallStatuses = ["ready", "blocked", "not-claimed"];
 const allowedChannelStatuses = ["available", "blocked", "not-claimed"];
 const allowedGateStatuses = ["satisfied", "blocked", "not-claimed"];
 const allowedNonClaimStatuses = ["not-claimed"];
+const semanticVersionPattern =
+  /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
 function readProfile(): Record<string, unknown> {
   return JSON.parse(readFileSync(profileUrl, "utf8")) as Record<string, unknown>;
@@ -307,15 +309,31 @@ function assertRepositoryEvidencePath(evidencePath: unknown, label: string): ass
   assert.ok(stats.isFile(), `${label} must resolve to an existing repository file`);
 }
 
-function assertDistributionReadinessProfile(profile: Record<string, unknown>): void {
+function assertDistributionReadinessProfile(
+  profile: Record<string, unknown>,
+  expectedVersions = {
+    profileVersion: "0.1.0",
+    describesPackageVersion: "0.8.0",
+  },
+): void {
   assert.deepEqual(
     Object.keys(profile),
     allowedTopLevelKeys,
     "profile top-level keys must match the closed vocabulary",
   );
 
-  assert.equal(profile.profileVersion, "0.1.0");
-  assert.equal(profile.describesPackageVersion, "0.8.0");
+  assertSingleLineText(profile.profileVersion, "profileVersion");
+  assertSingleLineText(
+    profile.describesPackageVersion,
+    "describesPackageVersion",
+  );
+  assert.match(profile.profileVersion, semanticVersionPattern);
+  assert.match(profile.describesPackageVersion, semanticVersionPattern);
+  assert.equal(profile.profileVersion, expectedVersions.profileVersion);
+  assert.equal(
+    profile.describesPackageVersion,
+    expectedVersions.describesPackageVersion,
+  );
   assert.equal(profile.overallStatus, "blocked");
   assert.ok(
     allowedOverallStatuses.includes(profile.overallStatus as (typeof allowedOverallStatuses)[number]),
@@ -530,6 +548,16 @@ test("distribution readiness profile pins the closed release contract", () => {
   const packageMetadata = JSON.parse(readFileSync(packageJsonUrl, "utf8")) as Record<string, unknown>;
   assert.equal(packageMetadata.private, true);
   assertDistributionReadinessProfile(readProfile());
+});
+
+test("distribution profile version fields accept Semantic Versioning prereleases", () => {
+  const profile = mutateProfile(readProfile());
+  profile.profileVersion = "0.2.0-rc.1";
+  profile.describesPackageVersion = "1.0.0-rc.1";
+  assert.doesNotThrow(() => assertDistributionReadinessProfile(profile, {
+    profileVersion: "0.2.0-rc.1",
+    describesPackageVersion: "1.0.0-rc.1",
+  }));
 });
 
 test("distribution readiness profile rejects unknown top-level keys", () => {
