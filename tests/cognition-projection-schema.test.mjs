@@ -236,10 +236,11 @@ test("projection invalid fixtures declare lexical and runtime boundaries", () =>
 
 test("lifecycle fixtures cover every allowed edge and every object family", () => {
   const fixtures = readJsonLines(fixtureUrls.cognitionEvent.lifecycle);
-  const validEdges = fixtures
-    .filter((fixture) => fixture.expected.valid)
-    .map((fixture) => lifecycleEdge(fixture.event))
-    .sort();
+  const validEdges = [...new Set(
+    fixtures
+      .filter((fixture) => fixture.expected.valid)
+      .map((fixture) => lifecycleEdge(fixture.event)),
+  )].sort();
   const invalidFamilies = new Set(
     fixtures
       .filter((fixture) => !fixture.expected.valid)

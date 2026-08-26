@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const examplePath = fileURLToPath(
   new URL("../examples/stable-external-host.ts", import.meta.url),
@@ -73,6 +73,39 @@ const fictionalSourceRecords = [
     content: { summary: "The fictional pilot recorded an independent review." },
   },
 ];
+
+test("imports the external-host example without executing its CLI", () => {
+  const temporaryRoot = mkdtempSync(
+    join(tmpdir(), "collective-cognition-external-host-import-"),
+  );
+  try {
+    const importerPath = join(temporaryRoot, "import-example.mjs");
+    writeFileSync(
+      importerPath,
+      `await import(${JSON.stringify(pathToFileURL(examplePath).href)});\nprocess.stdout.write("imported\\n");\n`,
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      ["--disable-warning=ExperimentalWarning", importerPath],
+      {
+        cwd: temporaryRoot,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          NODE_DISABLE_COMPILE_CACHE: "1",
+        },
+      },
+    );
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.signal, null);
+    assert.equal(result.stderr, "");
+    assert.equal(result.stdout, "imported\n");
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+});
 
 sqliteTest("runs a fictional external host through an explicit source fixture and SQLite target", () => {
   const temporaryRoot = mkdtempSync(

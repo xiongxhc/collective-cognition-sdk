@@ -156,7 +156,7 @@ const expectedLatestReleaseBaselineSha256 =
 const expectedLatestReleaseChangeCasesSha256 =
   "23d6577eb6aa927ab37f33278363f00a38cb2e0e67adfbc50a9dc2075b1b9e9e";
 const expectedPublicApiReferenceSha256 =
-  "38d46647030ad9928f422c0fc1d43893d99f5beb98c4cd05204fec8c897e86f7";
+  "7c50dc506b1b203b0292fe63d505837f31b1ba6abbbc1af6a7ee1aa17627d3f0";
 const expectedHistoricalPublicApiReferenceSha256 =
   "02d6732330cf2ffaeed5ae02fd809c2b7dbdee5ce77704dc81e4d21f0bc5596d";
 const expectedDistributionReadinessRfcSha256 =
@@ -200,8 +200,10 @@ const expectedGitDeclarationSha256 =
 const expectedRootDeclarationSha256 =
   "83d435dc12444e4da464ce56dda3b762d069d0e832736f750594802e34218ace";
 const expectedPhase3ResourceDigests = Object.freeze({
+  "rfcs/0012-phase-3-charter-and-stable-package.md":
+    "5c1e7e826d15c5f58d6338160bea2bd5cf9337d28002f38a65b4553d35e1ed87",
   "spec/collective-cognition-charter.md":
-    "c8b05c2e5ad69471314d1f96ae9dae837ca9bae2d8a930a7cb50bc811660eb18",
+    "342f88f478a82fa55fdd087f57bab50cc5e6a0818c890e74d014c261b9122004",
   "spec/schemas/0.1.0/cognitive-object.schema.json":
     "a9b89aac5bfd31f34a2b89dc5813d3572550b40b512f75bd7d562ad9fa760562",
   "spec/schemas/0.1.0/cognition-event.schema.json":
@@ -215,7 +217,7 @@ const expectedPhase3ResourceDigests = Object.freeze({
   "spec/conformance/0.1.0/cognition-event/invalid.jsonl":
     "b67a5484b404b48d607262d8dc4dc4b0cc90e8af09bc2637dfcbfbc16e6fef2e",
   "spec/conformance/0.1.0/cognition-event/lifecycle.jsonl":
-    "581a723ea5fb3cac6f3459766c53eb585c317729814f1a8ae0ac665bf67bd4f1",
+    "a76fac5d3ce4fae1118eeae5d97f59ee67b4763cce3af2f3134278e69a2f2222",
 });
 const expectedProjectionRuntimeExports = Object.freeze([
   "COGNITION_EVENT_PROJECTION_VERSION",
@@ -879,6 +881,7 @@ test("normative machine artifacts match exact digests", () => {
       "rfcs/0009-public-api-and-distribution-readiness.md",
       "rfcs/0010-durable-cognition-workflow.md",
       "rfcs/0011-cross-connector-interoperability.md",
+      "rfcs/0012-phase-3-charter-and-stable-package.md",
       "spec/collective-cognition-charter.md",
       "spec/compatibility/0.1.0/change-cases.jsonl",
       "spec/compatibility/0.10.0/change-cases.jsonl",

@@ -17,7 +17,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -83,6 +83,12 @@ const durableWorkflowRfcUrl = new URL(
   "../rfcs/0010-durable-cognition-workflow.md",
   import.meta.url,
 );
+const phase3RfcUrl = new URL(
+  "../rfcs/0012-phase-3-charter-and-stable-package.md",
+  import.meta.url,
+);
+const securityUrl = new URL("../SECURITY.md", import.meta.url);
+const supportUrl = new URL("../SUPPORT.md", import.meta.url);
 const gitConnectorGuideUrl = new URL(
   "../docs/git-connector-guide.md",
   import.meta.url,
@@ -329,6 +335,7 @@ const expectedPackageFiles0110 = Object.freeze([
   "rfcs/0009-public-api-and-distribution-readiness.md",
   "rfcs/0010-durable-cognition-workflow.md",
   "rfcs/0011-cross-connector-interoperability.md",
+  "rfcs/0012-phase-3-charter-and-stable-package.md",
   "rfcs/README.md",
   "spec/README.md",
   "spec/compatibility.md",
@@ -390,7 +397,7 @@ const expectedPackageFiles0110 = Object.freeze([
 ].sort());
 const expectedPhase3ResourceDigests = Object.freeze({
   [`collective-cognition-sdk/charter/1.0.0`]:
-    "c8b05c2e5ad69471314d1f96ae9dae837ca9bae2d8a930a7cb50bc811660eb18",
+    "342f88f478a82fa55fdd087f57bab50cc5e6a0818c890e74d014c261b9122004",
   [`collective-cognition-sdk/schemas/cognitive-object/0.1.0`]:
     "a9b89aac5bfd31f34a2b89dc5813d3572550b40b512f75bd7d562ad9fa760562",
   [`collective-cognition-sdk/schemas/cognition-event/0.1.0`]:
@@ -404,7 +411,7 @@ const expectedPhase3ResourceDigests = Object.freeze({
   [`collective-cognition-sdk/conformance/cognition-event/0.1.0/invalid`]:
     "b67a5484b404b48d607262d8dc4dc4b0cc90e8af09bc2637dfcbfbc16e6fef2e",
   [`collective-cognition-sdk/conformance/cognition-event/0.1.0/lifecycle`]:
-    "581a723ea5fb3cac6f3459766c53eb585c317729814f1a8ae0ac665bf67bd4f1",
+    "a76fac5d3ce4fae1118eeae5d97f59ee67b4763cce3af2f3134278e69a2f2222",
 });
 const productionDependencyFields = Object.freeze([
   "dependencies",
@@ -413,11 +420,25 @@ const productionDependencyFields = Object.freeze([
   "bundleDependencies",
   "bundledDependencies",
 ]);
+const sliceAStatus = "The private `0.11.0` Slice A contract candidate passes the local automated gate; integration, public RC/stable publication, and supported-runtime SQLite acceptance remain pending.";
 
 function emittedFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = `${directory}/${entry.name}`;
     return entry.isDirectory() ? emittedFiles(path) : [path];
+  });
+}
+
+function markdownFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      return path === join(repositoryRoot, "docs", "superpowers") ||
+          path === join(repositoryRoot, "docs", "acceptance")
+        ? []
+        : markdownFiles(path);
+    }
+    return path.endsWith(".md") ? [path] : [];
   });
 }
 
@@ -887,7 +908,7 @@ test("public documentation explains the source-neutral connector model", () => {
   );
   assert.match(
     rfcIndex,
-    /current package is private, unpublished `0\.10\.0`/,
+    /current package is private, unpublished `0\.11\.0`/,
   );
   assert.doesNotMatch(
     rfcIndex,
@@ -1275,6 +1296,54 @@ const sourceRecordsJsonl = readFileSync(
   );
 });
 
+test("public Phase 3 status records the private candidate and pending gates", () => {
+  const documents = [
+    { name: "README", url: readmeUrl },
+    { name: "CHANGELOG", url: changelogUrl },
+    { name: "roadmap", url: roadmapUrl },
+    { name: "public API", url: publicApiUrl },
+    { name: "specification index", url: specificationIndexUrl },
+    { name: "RFC index", url: rfcIndexUrl },
+    { name: "RFC 0012", url: phase3RfcUrl },
+  ];
+
+  for (const document of documents) {
+    const content = readFileSync(document.url, "utf8");
+    assert.equal(content.includes(sliceAStatus), true, document.name);
+    assert.doesNotMatch(
+      content,
+      /(?:Slice A\b (?:is|work is) complete|Slice A\b completion|complete Phase 3 Slice A\b|Slice A\b[^.\n]*(?:final-review|final review|merged?|\bCI\b|published))/i,
+      document.name,
+    );
+  }
+});
+
+test("public Markdown contains no workstation-specific absolute paths", () => {
+  const rootFiles = [
+    readmeUrl,
+    changelogUrl,
+    securityUrl,
+    supportUrl,
+    new URL("../CONTRIBUTING.md", import.meta.url),
+    new URL("../CODE_OF_CONDUCT.md", import.meta.url),
+  ].map(fileURLToPath).filter(existsSync);
+  const paths = [
+    ...rootFiles,
+    ...markdownFiles(join(repositoryRoot, "docs")),
+    ...markdownFiles(join(repositoryRoot, "spec")),
+    ...markdownFiles(join(repositoryRoot, "rfcs")),
+  ];
+  const workstationPath = /(?:\/Users\/[^/\s]+\/|\/home\/[^/\s]+\/|\/private\/tmp\/|[A-Za-z]:\\Users\\[^\\\s]+\\)/;
+
+  for (const path of new Set(paths)) {
+    assert.doesNotMatch(
+      readFileSync(path, "utf8"),
+      workstationPath,
+      relative(repositoryRoot, path),
+    );
+  }
+});
+
 test("npm package manifest and tarball expose only approved artifacts", () => {
   assert.equal(existsSync(gitAttributesUrl), true, ".gitattributes must exist");
   const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
@@ -1334,7 +1403,11 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   });
   assert.equal(
     packageJson.scripts["test:schema"],
-    "node --test tests/schema-conformance.test.mjs tests/portable-cognition-schema.test.mjs",
+    "node --test tests/schema-conformance.test.mjs tests/portable-cognition-schema.test.mjs tests/cognition-projection-schema.test.mjs",
+  );
+  assert.match(
+    packageJson.scripts.check,
+    /node --check tests\/cognition-projection-schema\.test\.mjs/,
   );
   assert.match(packageJson.scripts["pack:check"], /npm run test:schema/);
   assert.match(packageJson.scripts.prepack, /npm run test:schema/);
@@ -1500,6 +1573,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0009-public-api-and-distribution-readiness.md",
     "rfcs/0010-durable-cognition-workflow.md",
     "rfcs/0011-cross-connector-interoperability.md",
+    "rfcs/0012-phase-3-charter-and-stable-package.md",
     "spec/README.md",
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
@@ -2439,6 +2513,33 @@ try {
         "utf8",
       ),
     );
+    const installedPackageRoot = join(
+      consumerRoot,
+      "node_modules",
+      packageJson.name,
+    );
+    const installedPhase3RfcPath = join(
+      installedPackageRoot,
+      "rfcs",
+      "0012-phase-3-charter-and-stable-package.md",
+    );
+    assert.equal(statSync(installedPhase3RfcPath).isFile(), true);
+    for (const documentPath of [
+      join(installedPackageRoot, "spec", "README.md"),
+      join(installedPackageRoot, "rfcs", "README.md"),
+      join(installedPackageRoot, "docs", "public-api.md"),
+    ]) {
+      const content = readFileSync(documentPath, "utf8");
+      const target = content.match(
+        /\[[^\]]*RFC 0012[^\]]*\]\(([^)]*0012-phase-3-charter-and-stable-package\.md)\)/i,
+      )?.[1];
+      assert.equal(typeof target, "string", relative(installedPackageRoot, documentPath));
+      assert.equal(
+        resolve(dirname(documentPath), target),
+        installedPhase3RfcPath,
+        pathToFileURL(documentPath).href,
+      );
+    }
     assert.deepEqual(
       declaredProductionDependencyFields(packedManifest),
       [],

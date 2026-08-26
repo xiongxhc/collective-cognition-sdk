@@ -37,20 +37,23 @@ const lifecycleUrl = new URL(
   import.meta.url,
 );
 
-const relationshipTargetTypes = {
-  "parent-goal": "goal",
-  "supports-goal": "goal",
-  "tests-hypothesis": "hypothesis",
-  "supports-hypothesis": "hypothesis",
-  "challenges-hypothesis": "hypothesis",
-  "relates-to-hypothesis": "hypothesis",
-  "observed-in-experiment": "experiment",
-  "informs-decision": "decision",
-  "considers-option": undefined,
-  "accountable-identity": "identity",
-  "justified-by-decision": "decision",
-  "justified-by-evidence": "evidence",
-} as const satisfies Record<RelationshipType, ObjectType | undefined>;
+const relationshipConstraints = {
+  "parent-goal": { sources: ["goal"], target: "goal" },
+  "supports-goal": { sources: ["hypothesis", "decision"], target: "goal" },
+  "tests-hypothesis": { sources: ["experiment"], target: "hypothesis" },
+  "supports-hypothesis": { sources: ["evidence"], target: "hypothesis" },
+  "challenges-hypothesis": { sources: ["evidence"], target: "hypothesis" },
+  "relates-to-hypothesis": { sources: ["evidence"], target: "hypothesis" },
+  "observed-in-experiment": { sources: ["evidence"], target: "experiment" },
+  "informs-decision": { sources: ["decision"], target: "decision" },
+  "considers-option": { sources: ["decision"], target: undefined },
+  "accountable-identity": { sources: ["decision"], target: "identity" },
+  "justified-by-decision": { sources: ["principle"], target: "decision" },
+  "justified-by-evidence": { sources: ["decision", "principle"], target: "evidence" },
+} as const satisfies Record<
+  RelationshipType,
+  { readonly sources: readonly ObjectType[]; readonly target: ObjectType | undefined }
+>;
 
 function readJsonLines<T>(url: URL): T[] {
   return readFileSync(url, "utf8")
@@ -91,8 +94,22 @@ function validateRelationships(objects: readonly CognitiveObject[]): void {
 
   for (const object of objects) {
     for (const relationship of object.relationships) {
-      const targetType = relationshipTargetTypes[relationship.type];
-      if (targetType === undefined) continue;
+      const constraint = relationshipConstraints[relationship.type];
+      if (!(constraint.sources as readonly ObjectType[]).includes(object.type)) {
+        throw new DomainError(
+          DomainErrorCode.INVALID_RELATIONSHIP,
+          "A cognitive-object relationship has an incompatible declaring family.",
+        );
+      }
+      if (constraint.target === undefined) {
+        if (objectsById.has(relationship.targetId)) {
+          throw new DomainError(
+            DomainErrorCode.INVALID_RELATIONSHIP,
+            "A considers-option target must remain external to the cognitive-object catalog.",
+          );
+        }
+        continue;
+      }
 
       const target = objectsById.get(relationship.targetId);
       if (target === undefined) {
@@ -101,7 +118,7 @@ function validateRelationships(objects: readonly CognitiveObject[]): void {
           "A cognitive-object relationship target is missing.",
         );
       }
-      if (target.type !== targetType) {
+      if (target.type !== constraint.target) {
         throw new DomainError(
           DomainErrorCode.INVALID_RELATIONSHIP,
           "A cognitive-object relationship target has an incompatible type.",
@@ -134,6 +151,13 @@ function validateLifecycle(
     throw new DomainError(
       DomainErrorCode.INVALID_TRANSITION,
       "A lifecycle event previous state must match its prior object revision.",
+    );
+  }
+
+  if (event.occurredAt !== resultingObject.updatedAt) {
+    throw new DomainError(
+      DomainErrorCode.INVALID_TRANSITION,
+      "A lifecycle event occurrence time must match its resulting object update time.",
     );
   }
 
@@ -213,6 +237,25 @@ test("valid lifecycle rows run event-object correlation after reference checks",
   );
 });
 
+test("rejects declaring-family, option-collision, and event-time fixtures", async (context) => {
+  const fixtures = readJsonLines<LifecycleFixture>(lifecycleUrl);
+  const referenceCatalog = fixtures
+    .filter((fixture) => linkedValidity(fixture))
+    .flatMap((fixture) => fixture.objects);
+
+  for (const description of [
+    "WrongDeclaringFamilySupportsGoal",
+    "ConsidersOptionCognitiveObjectCollision",
+    "MismatchedEventAndObjectUpdateTime",
+  ]) {
+    await context.test(description, () => {
+      const fixture = fixtures.find((candidate) => candidate.description === description);
+      assert.ok(fixture);
+      assert.equal(outcomeFor(fixture, referenceCatalog), fixture.expected.code);
+    });
+  }
+});
+
 test("linked lifecycle fixtures resolve compatible references without mutation", () => {
   const fixtures = readJsonLines<LifecycleFixture>(lifecycleUrl);
   const referenceCatalog = fixtures
@@ -237,6 +280,6 @@ test("linked lifecycle fixtures resolve compatible references without mutation",
 
   assert.deepEqual(
     [...relationshipTypesSeen].sort(),
-    Object.keys(relationshipTargetTypes).sort(),
+    Object.keys(relationshipConstraints).sort(),
   );
 });

@@ -83,7 +83,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 
 ## Phase 3: Specification and Package Stabilization
 
-**Status:** In progress. Slice A is complete in private, unpublished package `0.11.0`: the Charter, standalone cognitive-object and cognition-event schemas and fixtures, projection validators, seven additive root exports, external-host boundary, compatibility baseline, exact package resources, and complete local Slice A gate are implemented. The Runtime and Security slice remains implemented, full local-gate verified, and independently reviewed. Slice B still requires stable-package policy and migration closure, a release-candidate compatibility baseline and readiness profile, and release-candidate archive evidence. Slice C still requires registry-name confirmation, accountable-human approval, OIDC trusted publication, stable-tag and stable-baseline verification, and post-publication evidence. The experimental `v0.6.0` GitHub prerelease is observed and verified and remains the only recorded public package artifact; npm publication, production readiness, adoption, certification, and LTS are not claimed.
+**Status:** In progress. The private `0.11.0` Slice A contract candidate passes the local automated gate; integration, public RC/stable publication, and supported-runtime SQLite acceptance remain pending. The candidate contains the Charter, standalone cognitive-object and cognition-event schemas and fixtures, projection validators, seven additive root exports, external-host boundary, compatibility baseline, exact package resources, and local gate evidence. The historical Runtime and Security slice remains implemented, full local-gate verified, and independently reviewed. Slice B and Slice C remain open, and no npm publication, production readiness, adoption, certification, or LTS status is claimed.
 
 **Phase 3 slice progress**
 
@@ -97,7 +97,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Implement the normative policy, machine-readable control inventory, RFC, package subpath, compatibility baseline, and conformance evidence described in [`2026-08-10-runtime-security-policy-design.md`](superpowers/specs/2026-08-10-runtime-security-policy-design.md).
 - [x] Reconcile the checked [public API reference](public-api.md), [Distribution Readiness Profile `0.1.0`](../spec/distribution-readiness.md), [machine-readable profile](../spec/distribution-readiness/0.1.0/profile.json), [RFC 0009](../rfcs/0009-public-api-and-distribution-readiness.md), private package `0.8.0` compatibility narrative, and public indexes without enabling publication or claiming production readiness.
 - [x] Complete the private package `0.8.0` whole-branch gate, fast-forward it to `main` at `1f65c1809f03ffde244529ba41c73bec6e14392a`, and verify [GitHub Actions run `31696629195`](https://github.com/xiongxhc/collective-cognition-sdk/actions/runs/31696629195) across Node `24.9.0` and `24.14.0` on Linux, macOS, Windows, and the distribution job.
-- [x] Complete Phase 3 Slice A in private package `0.11.0` with the Charter, standalone projection schemas and fixtures, reference validators, seven additive root exports, external-host evidence, eight exact resource subpaths, and an immutable compatibility baseline.
+- [x] Assemble the private package `0.11.0` Slice A contract candidate with the Charter, standalone projection schemas and fixtures, reference validators, seven additive root exports, external-host path, eight exact resource subpaths, and a current compatibility baseline.
 
 **Delivered in the SourceRecord normative-conformance slice**
 
@@ -177,7 +177,7 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, `npm run example:markdown`, `npm run pack:check`, and `git diff --check` exit successfully.
 - A byte comparison against `main` finds `0` changes across `23` tracked historical compatibility `0.1.0`–`0.6.0`, SourceRecord, Portable Cognition, and Host Integration artifacts.
 - `npm pack --dry-run --json` with an isolated temporary npm cache reports `96` files (`52` under `dist/`), with `0` unexpected and `0` missing allowlisted paths.
-- `PATH=/Users/cx/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm_config_update_notifier=false npm_config_cache=/private/tmp/collective-cognition-npm-audit npm audit --audit-level=high` exits `0` and reports `found 0 vulnerabilities`.
+- `npm_config_update_notifier=false npm_config_cache="${TMPDIR:-/tmp}/collective-cognition-npm-audit" npm audit --audit-level=high` exits `0` and reports `found 0 vulnerabilities`.
 
 **Delivered public API and distribution-readiness documentation slice**
 
@@ -226,19 +226,20 @@ This roadmap separates verified behavior from planned universal-SDK work. A late
 - [x] Public exports and CLI behavior have compatibility tests.
 - [x] Package dry-run verification includes only approved artifacts and publication remains blocked until every release gate is complete.
 
-**Phase 3 Slice A completion evidence**
+**Phase 3 Slice A candidate evidence**
 
 - Private package `0.11.0` retains `"private": true`; no npm package publication, registry mutation, production-readiness, adoption, certification, or LTS claim is part of this slice.
 - The exact tarball installs into a clean temporary consumer and resolves the Charter plus all seven standalone projection schema and fixture resources through the eight new package subpaths.
-- `npm test` reports `619` tests: `542` passes, `77` expected skips, and `0` failures. The breakdown is `565` source tests (`488` passes and `77` skips), `10` schema tests, `30` compatibility tests, and `14` package tests.
+- `npm test` reports `634` tests: `557` passes, `77` expected skips, and `0` failures. The breakdown is `570` source tests (`493` passes and `77` skips), `18` schema tests, `30` compatibility tests, and `16` package tests.
 - `npx tsc --noEmit`, `npm run check`, all seven required self-contained example gate commands, `npm run pack:check`, `npm audit --audit-level=high`, and `git diff --check` pass. Automation uses the no-argument `npm run example:stable-host:acceptance` harness; on local Node.js `24.9.0` its single SQLite-backed test records the expected skip because enforced defensive mode is unavailable. The separate public `npm run example:stable-host -- ...` command reaches `examples/stable-external-host.ts` with valid explicit paths and rejects that unsupported runtime rather than silently skipping; real-device or supported-runtime acceptance remains outstanding.
-- An isolated `npm pack --dry-run --json --ignore-scripts` reports exactly `148` files for private package `0.11.0`. Package tests also compare both the actual `npm pack` result-file inventory and the actual archive-member inventory with the independent exact `148`-file allowlist before installing that same archive into a clean temporary consumer. The installed package resolves all eight new resource subpaths, and installed-byte SHA-256 values for all four interoperability resources match their source artifacts.
+- An isolated `npm pack --dry-run --json --ignore-scripts` reports exactly `149` files for private package `0.11.0`. Package tests also compare both the actual `npm pack` result-file inventory and the actual archive-member inventory with the independent exact `149`-file allowlist before installing that same archive into a clean temporary consumer. The installed package resolves all eight new resource subpaths plus packaged RFC 0012, and installed-byte SHA-256 values for all four interoperability resources match their source artifacts.
 - Exact SHA-256 comparison covers `36` pinned historical compatibility and versioned specification resources with `0` mismatches. In particular, immutable `0.10.0` baseline digest `e20b19508a6a58a48d7cc5ae42d09b018551d1ecfa89736dff28ca6596476c99` and change-case digest `3c74491fbac5ee0b3dea274e3b183f60c64ed54eedb1a50375377dbf0c4a051a` remain unchanged.
-- Exact additive equality preserves all `30` package `0.10.0` root runtime exports and adds only the seven projection exports for `37` total; the root declaration closure preserves all `12` historical files and adds only `dist/cognition-projections.d.ts` for `13` total. The additive root declaration closure digest is `83d435dc12444e4da464ce56dda3b762d069d0e832736f750594802e34218ace`; the final canonical package script-map digest is `399c0f60357d2653e4f1f8c0b8a5c75bce05c8bc6a101ac7b21bf4a63cde14c5`; the high-severity npm audit reports `0` vulnerabilities.
+- Exact additive equality preserves all `30` package `0.10.0` root runtime exports and adds only the seven projection exports for `37` total; the root declaration closure preserves all `12` historical files and adds only `dist/cognition-projections.d.ts` for `13` total. The additive root declaration closure digest is `83d435dc12444e4da464ce56dda3b762d069d0e832736f750594802e34218ace`; the final canonical package script-map digest is `904046a8c58f6b9864bf5d06079125385530478c67c2156a6b79bc720d3b3cb4`; the high-severity npm audit reports `0` vulnerabilities.
 - Remaining Slice B gates are stable-package policy and migration closure, a release-candidate compatibility baseline and readiness profile, and release-candidate archive evidence. Remaining Slice C gates are registry-name confirmation, accountable-human approval, OIDC trusted publication, stable-tag and stable-baseline verification, and post-publication evidence.
 
 **GitHub prerelease distribution readiness**
 
+- The historical GitHub prerelease was observed and verified independently of the current private `0.11.0` Slice A contract candidate.
 - [x] Deterministic local generation of exactly `SHA256SUMS`,
   `collective-cognition-sdk-0.6.0.cdx.json`,
   `collective-cognition-sdk-0.6.0.tgz`, and `release-manifest.json`.

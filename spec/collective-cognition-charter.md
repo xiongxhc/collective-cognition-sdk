@@ -295,8 +295,8 @@ is reserved for the named later task and is not current conformance evidence.
 | CCC-011 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
 | CCC-012 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
 | CCC-013 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
-| CCC-014 | test | deferred | Deferred to Task 4: linked relationship conformance |
-| CCC-015 | test | deferred | Deferred to Task 4: linked lifecycle conformance |
+| CCC-014 | test | current | [Linked conformance harness](../tests/cognition-projection-conformance.test.ts) |
+| CCC-015 | fixture | current | [Lifecycle corpus](conformance/0.1.0/cognition-event/lifecycle.jsonl) |
 | CCC-016 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/cognitive-loop.jsonl) |
 | CCC-017 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/valid.jsonl) |
 | CCC-018 | fixture | current | [Portable Cognition fixtures](conformance/0.1.0/portable-cognition/invalid.jsonl) |

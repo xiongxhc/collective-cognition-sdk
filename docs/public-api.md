@@ -5,6 +5,8 @@ This reference is checked against the compatibility baseline selected by the cur
 Current package `0.11.0` is private and unpublished. This inventory does not
 authorize npm publication, certify a deployment, or claim production use.
 
+The private `0.11.0` Slice A contract candidate passes the local automated gate; integration, public RC/stable publication, and supported-runtime SQLite acceptance remain pending.
+
 ## Stability
 
 - `Normative Stable` means a versioned contract or immutable policy artifact that downstream code may rely on across compatible releases.
@@ -15,7 +17,7 @@ authorize npm publication, certify a deployment, or claim production use.
 
 These are the private pre-`1.0.0` maturity labels. Phase 3 Slice B still owns
 the separately reviewed stable-package policy and migration boundary; Slice A
-completion does not silently promote Supported Experimental runtime surfaces.
+candidate status does not silently promote Supported Experimental runtime surfaces.
 
 ### Durable Workflow Runtime
 

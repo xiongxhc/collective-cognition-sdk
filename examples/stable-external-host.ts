@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { isAbsolute } from "node:path";
+import { isAbsolute, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
   commitCognitionTransition,
@@ -307,6 +308,9 @@ export async function runStableExternalHostExample(
   }
 }
 
-if (process.argv[1] !== undefined) {
+if (
+  process.argv[1] !== undefined &&
+  pathToFileURL(resolve(process.argv[1])).href === import.meta.url
+) {
   await runStableExternalHostExample(process.argv.slice(2));
 }

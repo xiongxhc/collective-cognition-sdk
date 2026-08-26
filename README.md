@@ -8,7 +8,7 @@ Collective Cognition SDK is an experimental, runtime-dependency-free TypeScript 
 
 This is a public open-source repository licensed under [Apache License 2.0](LICENSE). The current package `0.11.0` remains private and unpublished on npm; its source, emitted ESM build, declarations, CLIs, Charter, standalone schemas, and conformance fixtures are runnable or directly resolvable, but production use is not claimed. The [checked public API reference](docs/public-api.md) describes the supported surface. Distribution Readiness Profile `0.1.0` remains the immutable package-`0.8.0` assessment and does not authorize publication of `0.11.0`. The experimental [`v0.6.0` GitHub prerelease](https://github.com/xiongxhc/collective-cognition-sdk/releases/tag/v0.6.0) remains the first and only observed public package artifact.
 
-Phase 2 universal ingestion is implemented and final-review verified. Phase 3 Slice A is complete in private package `0.11.0`: Charter `1.0.0`, exact standalone cognitive-object and cognition-event projections `0.1.0`, linked conformance, reference validators, package resources, and fictional external-host acceptance are present. Phase 3 itself remains in progress: the stable API policy and migration boundary, immutable `1.0.0-rc.1` candidate and readiness profile, exact archive verification, trusted npm publication, stable `1.0.0` approval/publication, and post-publication evidence remain separate gates. Phase 4's Durable Cognition Workflow `0.1.0` and Phase 5 cross-connector interoperability are complete. No production, ecosystem-adoption, security-certification, or LTS claim is made.
+Phase 2 universal ingestion is implemented and final-review verified. The private `0.11.0` Slice A contract candidate passes the local automated gate; integration, public RC/stable publication, and supported-runtime SQLite acceptance remain pending. Charter `1.0.0`, exact standalone cognitive-object and cognition-event projections `0.1.0`, linked conformance, reference validators, package resources, and the fictional external-host path are present. Phase 4's Durable Cognition Workflow `0.1.0` and Phase 5 cross-connector interoperability are complete historical slices. No production, ecosystem-adoption, security-certification, or LTS claim is made.
 
 Supported Experimental workflow execution requires Node.js `>=24.14.0` and
 `DatabaseSync.prototype.enableDefensive`. Node.js `24.9.0` remains a
@@ -474,7 +474,7 @@ npm run test:package
 npm run pack:check
 ```
 
-`npm run test:schema` compiles both the SourceRecord and Portable Cognition schemas in strict Draft 2020-12 mode and checks both normative fixture corpora. `npm run pack:check` and npm prepack inherit this combined schema gate. `npm run test:compatibility` checks the compatibility baseline’s exact inventories, independent public declaration closures and digests, policy identities, CLI contracts, and declared additive and breaking change cases; it does not decide semantic compatibility automatically. `npm run test:package` imports the built root and versioned subpaths, checks exact runtime and tarball allowlists, runs the installed CLIs, and installs the packed artifact into a clean temporary project to verify runtime and TypeScript imports. npm operations use an isolated temporary cache.
+`npm run test:schema` compiles the SourceRecord, Portable Cognition, standalone cognitive-object, and standalone cognition-event schemas in strict Draft 2020-12 mode and checks their normative fixture corpora plus linked lifecycle coverage. `npm run pack:check` and npm prepack inherit this combined schema gate. `npm run test:compatibility` checks the compatibility baseline’s exact inventories, independent public declaration closures and digests, policy identities, CLI contracts, and declared additive and breaking change cases; it does not decide semantic compatibility automatically. `npm run test:package` imports the built root and versioned subpaths, checks exact runtime and tarball allowlists, runs the installed CLIs, and installs the packed artifact into a clean temporary project to verify runtime and TypeScript imports. npm operations use an isolated temporary cache.
 
 Installed consumers can import the schema through the versioned package subpath:
 
@@ -742,7 +742,7 @@ The tracked [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/
 
 1. the completed runnable core;
 2. the completed universal neutral-first ingestion foundation;
-3. in-progress specification and package stabilization, with Slice A Charter/conformance/package work complete in private `0.11.0` while stable-policy, RC, npm publication, stable-release, and post-publication evidence gates remain open;
+3. in-progress specification and package stabilization, with the private `0.11.0` Slice A contract candidate locally gated while integration, supported-runtime SQLite acceptance, RC, stable publication, and post-publication evidence remain open;
 4. completed adapter ecosystem foundations with Durable Cognition Workflow `0.1.0` final-review verified;
 5. completed cross-connector interoperability, verified by independent review, the full pull-request matrix, merge, and post-merge CI;
 6. operational governance and retirement tooling;

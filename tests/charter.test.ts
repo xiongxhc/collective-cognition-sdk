@@ -72,6 +72,11 @@ test("publishes the exact Charter rule inventory and evidence plan", () => {
   assert.deepEqual(headings.map((heading) => heading.slice(0, 7)), expectedRules);
   assert.deepEqual(headings, expectedRuleTitles);
   assert.deepEqual(mappings.map((match) => match[1]).sort(), [...expectedRules].sort());
+  assert.equal(
+    mappings.some((match) => match[3] === "deferred"),
+    false,
+    "every Slice A Charter rule must have current evidence",
+  );
   for (const ruleId of expectedRules) {
     assert.equal((charter.match(new RegExp(`^### ${ruleId} `, "gm")) ?? []).length, 1);
     assert.match(
@@ -83,10 +88,7 @@ test("publishes the exact Charter rule inventory and evidence plan", () => {
     );
   }
   for (const [, ruleId, , evidenceStatus, evidence] of mappings) {
-    if (evidenceStatus === "deferred") {
-      assert.match(evidence, /^Deferred to Task 4:/, `${ruleId} deferred evidence`);
-      continue;
-    }
+    assert.equal(evidenceStatus, "current", `${ruleId} evidence status`);
     const link = evidence.match(/\]\(([^)]+)\)/);
     assert.ok(link, `${ruleId} current evidence link`);
     assert.equal(

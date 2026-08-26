@@ -1,7 +1,9 @@
 # RFC 0012: Phase 3 Charter and Stable Package
 
-**Status:** Accepted for Phase 3 implementation
+**Status:** Accepted; Slice A contract candidate locally gated
 **Created:** 2026-08-25
+
+The private `0.11.0` Slice A contract candidate passes the local automated gate; integration, public RC/stable publication, and supported-runtime SQLite acceptance remain pending.
 
 ## Problem
 
@@ -72,12 +74,20 @@ production certification.
 
 ## Acceptance Checks
 
-- The Charter inventory test proves one mapped definition for each `CCC-001`
-  through `CCC-025` rule and checks its core non-claims.
-- Later Slice A tasks add standalone-schema, fixture, runtime, and linked
-  conformance checks without changing immutable Portable Cognition resources.
-- The complete repository suite, type check, syntax check, package checks, and
-  diff check provide the implementation gate before a later package decision.
+- The Charter inventory test proves one current mapped definition for each
+  `CCC-001` through `CCC-025` rule and rejects deferred Slice A evidence.
+- The standalone-schema suite proves exact Portable Cognition `$defs`
+  equivalence, direct/envelope fixture agreement, depth boundaries, and the
+  required object, event, and lifecycle matrix.
+- Linked language-neutral fixtures reject wrong relationship declaring
+  families, cognitive-object collisions with opaque option symbols, and event
+  times that differ from the resulting object update time.
+- `npm test`, `test:schema`, `pack:check`, and npm prepack all execute the
+  standalone-schema suite; syntax checking covers that suite directly.
+- Private package `0.11.0` ships this RFC with the Charter, schemas, fixtures,
+  current compatibility baseline, and installed documentation links intact.
+- The repository suite, type check, syntax check, examples, package checks,
+  audit, public path scan, and diff check form the local automated gate only.
 
 ## Explicit Deferrals
 
