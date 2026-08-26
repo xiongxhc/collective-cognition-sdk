@@ -8,7 +8,9 @@ Do not include secrets, credentials, live ledgers, vault data, personal data, or
 
 ## Scope and expectations
 
-The maintained scope is the current experimental prerelease of this repository. This project makes no service-level agreement, certification, production-readiness, or long-term-support promise. Reports are reviewed as maintainer capacity permits; no response or remediation timeframe is guaranteed.
+The maintained scope is the current private, unpublished `0.11.0` source and package candidate, including its Normative Stable resource contracts and Supported Experimental runtime surfaces. Hosts remain responsible for authentication, authorization-policy execution, encryption, tenant or workspace isolation, credential management, persistence, publication, recovery, monitoring, and deployment controls. Conformance does not certify those host controls. This project makes no service-level agreement, certification, production-readiness, adoption, or long-term-support promise. Reports are reviewed as maintainer capacity permits; no response or remediation timeframe is guaranteed.
+
+The private `0.11.0` Slice A contract candidate passes the local automated gate; integration, public RC/stable publication, and supported-runtime SQLite acceptance remain pending.
 
 ## Disclosure process
 

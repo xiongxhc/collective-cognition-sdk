@@ -4,7 +4,9 @@ All notable changes to this experimental SDK are documented here. Versioning and
 
 ## Unreleased
 
-- Adds private package `0.10.0` with the maintained
+- The private `0.11.0` Slice A contract candidate passes the local automated gate; integration, public RC/stable publication, and supported-runtime SQLite acceptance remain pending.
+- Adds the Collective Cognition Charter `1.0.0`, exact standalone cognitive-object and cognition-event projections `0.1.0`, linked relationship and lifecycle fixtures, seven reference projection exports, eight resource subpaths, RFC 0012, and additive compatibility baseline `0.11.0` while preserving all historical versioned resources and Portable Cognition `0.1.0`.
+- Historical private package `0.10.0` added the maintained
   `collective-cognition-sdk/connectors/git/0.1.0` subpath, Cross-Connector
   Interoperability Profile `0.1.0` resources, RFC 0011, an owned reference
   exchange, Git connector guide, and additive compatibility baseline.
@@ -18,14 +20,13 @@ All notable changes to this experimental SDK are documented here. Versioning and
   scheduling, or automatic cognition. Package `0.10.0` remains private and
   unpublished; interoperability evidence is not production certification,
   does not imply endorsement, and is not an LTS commitment.
-- Records Phase 5 completion after clean independent reviews, the full
-  Linux/macOS/Windows pull-request matrix, merge, and the equivalent green
-  post-merge `main` CI matrix.
+- Preserves the completed Phase 5 connector-interoperability history and its
+  existing acceptance records.
 - Adds source-neutral Durable Cognition Workflow `0.1.0`, atomic SQLite workflow schema version `2`, the `collective-cognition-sdk/workflows/durable/0.1.0` and `collective-cognition-sdk/stores/sqlite-workflow/0.1.0` subpaths, the `collective-cognition-workflow` executable, RFC 0010, an operator guide, and additive private package `0.9.0` compatibility baseline.
 - Records fresh [read-only durable-workflow acceptance](docs/acceptance/durable-cognition-workflow-0.1.0.md) over `12` bounded canonical SourceRecords: exact commit/replay and Markdown statuses, `3` object rows, `1` event, `1` workflow receipt, neutral Evidence with `12` provenance records, `0` Decisions, `0` Principles, equal before/after source identity and SHA-256 values, and no live-vault access. Whole-branch specification, code, and security reviews are complete with no unresolved Critical, Important, or Minor findings.
 - Records the Supported Experimental workflow runtime as Node.js `>=24.14.0` with `DatabaseSync.prototype.enableDefensive`, while the root package engine remains Node.js `>=24`. Node.js `24.9.0` is a package/core compatibility lane with honest workflow and SQLite capability skips, not a full workflow runtime; `npm run example:workflow` emits one fixed `unsupported_runtime` skip summary and creates no temporary files when the capability is absent.
 - Preserves every historical root export, domain-error inventory, subpath, executable, SQLite declaration closure, and compatibility artifact; the package contains no shared `sqlite-internal` module.
-- Reports npm publication as blocked and production use as not claimed; current package `0.10.0` remains private and unpublished. The workflow CLI has no publisher, Markdown remains non-authoritative, and the workflow slice supplies no scheduler, automatic cognition, Obsidian discovery, authentication, encryption, durable outbox, or production certification.
+- Reports npm publication as blocked and production use as not claimed; current package `0.11.0` remains private and unpublished. The workflow CLI has no publisher, Markdown remains non-authoritative, and the workflow slice supplies no scheduler, automatic cognition, Obsidian discovery, authentication, encryption, durable outbox, or production certification.
 - Records historical private package `0.8.0` as the additive checked public API and Distribution Readiness Profile `0.1.0` delivery, including its read-only `collective-cognition-sdk/distribution-readiness/0.1.0` JSON subpath and RFC 0009.
 - Records historical private package `0.7.0` as the additive Runtime and Security Profile `0.1.0` delivery, including its `collective-cognition-sdk/runtime-security/0.1.0` JSON subpath.
 - Clarifies the public runtime/security boundary: the profile tells hosts what remains unimplemented, importing it does not enforce host-required controls, and conformance is not certification.

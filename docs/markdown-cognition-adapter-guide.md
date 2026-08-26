@@ -57,9 +57,10 @@ node --disable-warning=ExperimentalWarning src/markdown-cognition-cli.ts init \
   --target "/workspace/demo-team-vault/Collective Cognition"
 ```
 
-Private package `0.6.0` includes the versioned adapter export and installed
+Private package `0.6.0` introduced the versioned adapter export and installed
 `collective-cognition-markdown` executable. The source checkout command above
-remains available for repository development.
+remains available for repository development, and current private package
+`0.11.0` preserves the same Supported Experimental surface.
 
 ## Input and Projection
 
@@ -97,8 +98,9 @@ const verification = await verifyMarkdownCognitionTarget({
 });
 ```
 
-That import path is the Supported Experimental package surface in private
-package `0.6.0`. The source checkout exposes the same API from
+That import path remains a Supported Experimental package surface. It was
+introduced in private package `0.6.0` and is preserved in private package
+`0.11.0`. The source checkout exposes the same API from
 `src/markdown-cognition.ts`; do not import implementation modules in an
 installed consumer.
 
@@ -201,6 +203,13 @@ other tools can read it without Obsidian. Parsing a generated note proves a
 record round trip; it does not authorize importing human edits or treating
 Markdown as persistent cognition.
 
+The Charter and standalone cognitive-object and cognition-event schemas and
+fixtures are Normative Stable resources. They do not make this filesystem
+adapter, its CLI, generated layout, or Markdown itself normative. Adapter
+verification also does not prove host authentication, authorization, tenant or
+workspace isolation, persistence, publication, recovery, or operational
+security; those remain host responsibilities.
+
 ## What Is Verified and What Is Deferred
 
 The source checkout has deterministic profile rendering/parsing, target
@@ -212,6 +221,8 @@ ledger, or live cognition database.
 The private package `0.6.0` slice, including its export, executable,
 compatibility baseline, package allowlist, clean-consumer verification, final
 whole-branch review, and experimental GitHub prerelease delivery, is complete.
-npm publication, vault synchronization, Git automation, native
+Current private package `0.11.0` preserves that historical surface without
+claiming production readiness, adoption, certification, or LTS. npm
+publication, vault synchronization, Git automation, native
 descriptor-relative filesystem hardening, and any hosted collaboration service
 remain deferred.

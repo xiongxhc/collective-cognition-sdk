@@ -17,7 +17,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -45,7 +45,7 @@ const packageJsonUrl = new URL("../package.json", import.meta.url);
 const packageLockUrl = new URL("../package-lock.json", import.meta.url);
 const gitAttributesUrl = new URL("../.gitattributes", import.meta.url);
 const compatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.10.0/baseline.json",
+  "../spec/compatibility/0.11.0/baseline.json",
   import.meta.url,
 );
 const historicalCompatibilityBaselineUrl = new URL(
@@ -53,7 +53,7 @@ const historicalCompatibilityBaselineUrl = new URL(
   import.meta.url,
 );
 const previousCompatibilityBaselineUrl = new URL(
-  "../spec/compatibility/0.9.0/baseline.json",
+  "../spec/compatibility/0.10.0/baseline.json",
   import.meta.url,
 );
 const licenseUrl = new URL("../LICENSE", import.meta.url);
@@ -83,6 +83,12 @@ const durableWorkflowRfcUrl = new URL(
   "../rfcs/0010-durable-cognition-workflow.md",
   import.meta.url,
 );
+const phase3RfcUrl = new URL(
+  "../rfcs/0012-phase-3-charter-and-stable-package.md",
+  import.meta.url,
+);
+const securityUrl = new URL("../SECURITY.md", import.meta.url);
+const supportUrl = new URL("../SUPPORT.md", import.meta.url);
 const gitConnectorGuideUrl = new URL(
   "../docs/git-connector-guide.md",
   import.meta.url,
@@ -101,6 +107,25 @@ const interoperabilityPlanUrl = new URL(
   "../docs/superpowers/plans/2026-08-21-cross-connector-interoperability.md",
   import.meta.url,
 );
+const phase3PlanUrl = new URL(
+  "../docs/superpowers/plans/2026-08-25-phase-3-charter-conformance.md",
+  import.meta.url,
+);
+const interoperabilityResourceUrls = Object.freeze([
+  interoperabilityProfileUrl,
+  new URL(
+    "../spec/interoperability/0.1.0/source-records.jsonl",
+    import.meta.url,
+  ),
+  new URL(
+    "../spec/interoperability/0.1.0/portable-cognition.jsonl",
+    import.meta.url,
+  ),
+  new URL(
+    "../spec/interoperability/0.1.0/error-cases.jsonl",
+    import.meta.url,
+  ),
+]);
 const runtimeSecurityProfileUrl = new URL(
   "../spec/runtime-security.md",
   import.meta.url,
@@ -122,6 +147,9 @@ const hostIntegrationExampleUrl = new URL(
 );
 
 const expectedRuntimeExports = [
+  "COGNITION_EVENT_PROJECTION_VERSION",
+  "COGNITION_PROJECTION_MAX_JSON_DEPTH",
+  "COGNITIVE_OBJECT_PROJECTION_VERSION",
   "DomainError",
   "DomainErrorCode",
   "HOST_INTEGRATION_CONTRACT_VERSION",
@@ -136,6 +164,8 @@ const expectedRuntimeExports = [
   "createObject",
   "createPortableCognitionRecord",
   "createSourceRecord",
+  "deserializeCognitionEventProjection",
+  "deserializeCognitiveObjectProjection",
   "deserializeObject",
   "deserializePortableCognitionRecord",
   "deserializeSourceRecord",
@@ -150,9 +180,20 @@ const expectedRuntimeExports = [
   "serializeSourceRecord",
   "sourceRevisionKey",
   "transitionObject",
+  "validateCognitionEventProjection",
+  "validateCognitiveObjectProjection",
   "validatePortableCognitionRecord",
   "validateSourceRecord",
 ].sort();
+const expectedProjectionRuntimeExports0110 = Object.freeze([
+  "COGNITION_EVENT_PROJECTION_VERSION",
+  "COGNITION_PROJECTION_MAX_JSON_DEPTH",
+  "COGNITIVE_OBJECT_PROJECTION_VERSION",
+  "deserializeCognitionEventProjection",
+  "deserializeCognitiveObjectProjection",
+  "validateCognitionEventProjection",
+  "validateCognitiveObjectProjection",
+]);
 const expectedDurableWorkflowRuntimeExports = [
   "DURABLE_COGNITION_WORKFLOW_VERSION",
   "prepareDurableCognitionWorkflow",
@@ -269,6 +310,109 @@ const expectedGitConnectorEmittedFiles0100 = Object.freeze([
 const expectedEmittedFiles0100 = Object.freeze(
   [...expectedEmittedFiles090, ...expectedGitConnectorEmittedFiles0100].sort(),
 );
+const expectedProjectionEmittedFiles0110 = Object.freeze([
+  "dist/cognition-projections.d.ts",
+  "dist/cognition-projections.js",
+]);
+const expectedEmittedFiles0110 = Object.freeze(
+  [...expectedEmittedFiles0100, ...expectedProjectionEmittedFiles0110].sort(),
+);
+const expectedPackageFiles0110 = Object.freeze([
+  "CITATION.cff",
+  "LICENSE",
+  "NOTICE",
+  "README.md",
+  ...expectedEmittedFiles0110,
+  "package.json",
+  "rfcs/0001-universal-source-record-ingestion.md",
+  "rfcs/0002-compatibility-versioning-and-deprecation.md",
+  "rfcs/0003-portable-cognition-contract.md",
+  "rfcs/0004-host-integration-contract.md",
+  "rfcs/0005-sqlite-cognition-store.md",
+  "rfcs/0006-maintained-source-connectors.md",
+  "rfcs/0007-markdown-cognition-adapter.md",
+  "rfcs/0008-runtime-security-profile.md",
+  "rfcs/0009-public-api-and-distribution-readiness.md",
+  "rfcs/0010-durable-cognition-workflow.md",
+  "rfcs/0011-cross-connector-interoperability.md",
+  "rfcs/0012-phase-3-charter-and-stable-package.md",
+  "rfcs/README.md",
+  "spec/README.md",
+  "spec/compatibility.md",
+  "spec/compatibility/0.1.0/baseline.json",
+  "spec/compatibility/0.1.0/change-cases.jsonl",
+  "spec/compatibility/0.2.0/baseline.json",
+  "spec/compatibility/0.2.0/change-cases.jsonl",
+  "spec/compatibility/0.3.0/baseline.json",
+  "spec/compatibility/0.3.0/change-cases.jsonl",
+  "spec/compatibility/0.4.0/baseline.json",
+  "spec/compatibility/0.4.0/change-cases.jsonl",
+  "spec/compatibility/0.5.0/baseline.json",
+  "spec/compatibility/0.5.0/change-cases.jsonl",
+  "spec/compatibility/0.6.0/baseline.json",
+  "spec/compatibility/0.6.0/change-cases.jsonl",
+  "spec/compatibility/0.7.0/baseline.json",
+  "spec/compatibility/0.7.0/change-cases.jsonl",
+  "spec/compatibility/0.8.0/baseline.json",
+  "spec/compatibility/0.8.0/change-cases.jsonl",
+  "spec/compatibility/0.9.0/baseline.json",
+  "spec/compatibility/0.9.0/change-cases.jsonl",
+  "spec/compatibility/0.10.0/baseline.json",
+  "spec/compatibility/0.10.0/change-cases.jsonl",
+  "spec/compatibility/0.11.0/baseline.json",
+  "spec/compatibility/0.11.0/change-cases.jsonl",
+  "spec/collective-cognition-charter.md",
+  "spec/conformance/0.1.0/cognitive-object/invalid.jsonl",
+  "spec/conformance/0.1.0/cognitive-object/valid.jsonl",
+  "spec/conformance/0.1.0/cognition-event/invalid.jsonl",
+  "spec/conformance/0.1.0/cognition-event/lifecycle.jsonl",
+  "spec/conformance/0.1.0/cognition-event/valid.jsonl",
+  "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
+  "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
+  "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
+  "spec/conformance/0.1.0/source-record/invalid.jsonl",
+  "spec/conformance/0.1.0/source-record/valid.jsonl",
+  "spec/distribution-readiness.md",
+  "spec/distribution-readiness/0.1.0/profile.json",
+  "spec/host-integration.md",
+  "spec/interoperability.md",
+  "spec/interoperability/0.1.0/error-cases.jsonl",
+  "spec/interoperability/0.1.0/portable-cognition.jsonl",
+  "spec/interoperability/0.1.0/profile.json",
+  "spec/interoperability/0.1.0/source-records.jsonl",
+  "spec/portable-cognition.md",
+  "spec/runtime-security.md",
+  "spec/runtime-security/0.1.0/profile.json",
+  "spec/schemas/0.1.0/portable-cognition.schema.json",
+  "spec/schemas/0.1.0/source-record.schema.json",
+  "spec/schemas/0.1.0/cognition-event.schema.json",
+  "spec/schemas/0.1.0/cognitive-object.schema.json",
+  "spec/source-record.md",
+  "docs/connector-author-guide.md",
+  "docs/durable-cognition-workflow-guide.md",
+  "docs/git-connector-guide.md",
+  "docs/markdown-cognition-adapter-guide.md",
+  "docs/public-api.md",
+  "docs/acceptance/cross-connector-interoperability-0.1.0.md",
+].sort());
+const expectedPhase3ResourceDigests = Object.freeze({
+  [`collective-cognition-sdk/charter/1.0.0`]:
+    "342f88f478a82fa55fdd087f57bab50cc5e6a0818c890e74d014c261b9122004",
+  [`collective-cognition-sdk/schemas/cognitive-object/0.1.0`]:
+    "a9b89aac5bfd31f34a2b89dc5813d3572550b40b512f75bd7d562ad9fa760562",
+  [`collective-cognition-sdk/schemas/cognition-event/0.1.0`]:
+    "10ab368fb61ad35d2bab07a048d5c9bf54dd13af64bf4bb54386253a1896869c",
+  [`collective-cognition-sdk/conformance/cognitive-object/0.1.0/valid`]:
+    "5ada78820b73dc87d54b05b946641764839606f5d04d0a2f10fab2d2eba13dbe",
+  [`collective-cognition-sdk/conformance/cognitive-object/0.1.0/invalid`]:
+    "05fbba2600b9bcceb269ba0b6841bf494952858efb455e3820c97056865af5a5",
+  [`collective-cognition-sdk/conformance/cognition-event/0.1.0/valid`]:
+    "75e0eaa162344ce37181b4e51d0908805ecb19f71a1030ced21c901a64ba945f",
+  [`collective-cognition-sdk/conformance/cognition-event/0.1.0/invalid`]:
+    "b67a5484b404b48d607262d8dc4dc4b0cc90e8af09bc2637dfcbfbc16e6fef2e",
+  [`collective-cognition-sdk/conformance/cognition-event/0.1.0/lifecycle`]:
+    "a76fac5d3ce4fae1118eeae5d97f59ee67b4763cce3af2f3134278e69a2f2222",
+});
 const productionDependencyFields = Object.freeze([
   "dependencies",
   "optionalDependencies",
@@ -276,6 +420,7 @@ const productionDependencyFields = Object.freeze([
   "bundleDependencies",
   "bundledDependencies",
 ]);
+const sliceAStatus = "The private `0.11.0` Slice A contract candidate passes the local automated gate; integration, public RC/stable publication, and supported-runtime SQLite acceptance remain pending.";
 
 function emittedFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -284,11 +429,39 @@ function emittedFiles(directory) {
   });
 }
 
+function markdownFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      return path === join(repositoryRoot, "docs", "superpowers") ||
+          path === join(repositoryRoot, "docs", "acceptance")
+        ? []
+        : markdownFiles(path);
+    }
+    return path.endsWith(".md") ? [path] : [];
+  });
+}
+
 function spawnNpm(args, options) {
   return spawnSync("npm", args, {
     ...options,
     shell: process.platform === "win32",
   });
+}
+
+function packedArchivePaths(tarballPath) {
+  const listed = spawnSync("tar", ["-tzf", tarballPath], {
+    encoding: "utf8",
+  });
+  assert.equal(listed.status, 0, listed.stderr || listed.stdout);
+  return listed.stdout
+    .trim()
+    .split(/\r?\n/)
+    .map((member) => {
+      assert.match(member, /^package\//, member);
+      return member.slice("package/".length);
+    })
+    .sort();
 }
 
 function declaredProductionDependencyFields(packageMetadata) {
@@ -380,11 +553,46 @@ test("built package exposes only the source-neutral runtime API", async () => {
   assert.deepEqual(Object.keys(builtApi).sort(), expectedRuntimeExports);
 });
 
-test("package 0.10.0 exposes exact interoperability subpaths without a new executable", async () => {
+test("package 0.11.0 exposes the Charter and projection resources without a new executable", async () => {
   const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
 
-  assert.equal(packageJson.version, "0.10.0");
+  assert.equal(packageJson.version, "0.11.0");
   assert.equal(packageJson.private, true);
+  assert.equal(
+    packageJson.exports["./compatibility/0.11.0"],
+    "./spec/compatibility/0.11.0/baseline.json",
+  );
+  assert.deepEqual(
+    Object.fromEntries(
+      [
+        "./charter/1.0.0",
+        "./schemas/cognitive-object/0.1.0",
+        "./schemas/cognition-event/0.1.0",
+        "./conformance/cognitive-object/0.1.0/valid",
+        "./conformance/cognitive-object/0.1.0/invalid",
+        "./conformance/cognition-event/0.1.0/valid",
+        "./conformance/cognition-event/0.1.0/invalid",
+        "./conformance/cognition-event/0.1.0/lifecycle",
+      ].map((subpath) => [subpath, packageJson.exports[subpath]]),
+    ),
+    {
+      "./charter/1.0.0": "./spec/collective-cognition-charter.md",
+      "./schemas/cognitive-object/0.1.0":
+        "./spec/schemas/0.1.0/cognitive-object.schema.json",
+      "./schemas/cognition-event/0.1.0":
+        "./spec/schemas/0.1.0/cognition-event.schema.json",
+      "./conformance/cognitive-object/0.1.0/valid":
+        "./spec/conformance/0.1.0/cognitive-object/valid.jsonl",
+      "./conformance/cognitive-object/0.1.0/invalid":
+        "./spec/conformance/0.1.0/cognitive-object/invalid.jsonl",
+      "./conformance/cognition-event/0.1.0/valid":
+        "./spec/conformance/0.1.0/cognition-event/valid.jsonl",
+      "./conformance/cognition-event/0.1.0/invalid":
+        "./spec/conformance/0.1.0/cognition-event/invalid.jsonl",
+      "./conformance/cognition-event/0.1.0/lifecycle":
+        "./spec/conformance/0.1.0/cognition-event/lifecycle.jsonl",
+    },
+  );
   assert.deepEqual(packageJson.exports["./connectors/git/0.1.0"], {
     types: "./dist/connectors/git.d.ts",
     import: "./dist/connectors/git.js",
@@ -700,7 +908,7 @@ test("public documentation explains the source-neutral connector model", () => {
   );
   assert.match(
     rfcIndex,
-    /current package is private, unpublished `0\.10\.0`/,
+    /current package is private, unpublished `0\.11\.0`/,
   );
   assert.doesNotMatch(
     rfcIndex,
@@ -769,7 +977,7 @@ test("public documentation explains the source-neutral connector model", () => {
   assert.match(roadmap, /delivered|verified/i);
   assert.match(
     roadmap,
-    /current package `0\.10\.0` preserves (?:both|those) historical artifacts/,
+    /current package `0\.11\.0` preserves (?:both|those) historical artifacts/,
   );
   assert.doesNotMatch(
     roadmap,
@@ -830,7 +1038,7 @@ test("public documentation defines the durable workflow without upgrading readin
   const documents = [readme, roadmap, publicApi, guide, rfc];
   const combined = documents.join("\n");
 
-  assert.equal(packageJson.version, "0.10.0");
+  assert.equal(packageJson.version, "0.11.0");
   assert.equal(packageJson.private, true);
   assert.match(readme, /connector or canonical JSONL[\s\S]*explicit durable workflow request[\s\S]*atomic cognition database[\s\S]*optional event publisher[\s\S]*optional managed Markdown projection/);
   for (const document of documents) {
@@ -998,9 +1206,10 @@ test("public documentation records verified cross-connector interoperability wit
   const rfcIndex = documents[8].content;
   const profile = JSON.parse(readFileSync(interoperabilityProfileUrl, "utf8"));
   const plan = readFileSync(interoperabilityPlanUrl, "utf8");
+  const phase3Plan = readFileSync(phase3PlanUrl, "utf8");
 
-  for (const document of documents) {
-    assert.match(document.content, /0\.10\.0/, `${document.name} must identify package 0.10.0`);
+  for (const document of [documents[0], documents[2], documents[3], documents[5], documents[6]]) {
+    assert.match(document.content, /0\.11\.0/, `${document.name} must identify package 0.11.0`);
   }
 
   for (const phrase of [
@@ -1081,6 +1290,58 @@ const sourceRecordsJsonl = readFileSync(
   assert.match(plan, /Task 6 documentation and verification status:\*\* Complete\./);
   assert.match(plan, /Pull request #13/);
   assert.match(plan, /Post-merge run `32483677646`/);
+  assert.match(
+    phase3Plan,
+    /npm run example:interoperability\nnpm run example:stable-host:acceptance\nnpm run pack:check/,
+  );
+});
+
+test("public Phase 3 status records the private candidate and pending gates", () => {
+  const documents = [
+    { name: "README", url: readmeUrl },
+    { name: "CHANGELOG", url: changelogUrl },
+    { name: "roadmap", url: roadmapUrl },
+    { name: "public API", url: publicApiUrl },
+    { name: "specification index", url: specificationIndexUrl },
+    { name: "RFC index", url: rfcIndexUrl },
+    { name: "RFC 0012", url: phase3RfcUrl },
+  ];
+
+  for (const document of documents) {
+    const content = readFileSync(document.url, "utf8");
+    assert.equal(content.includes(sliceAStatus), true, document.name);
+    assert.doesNotMatch(
+      content,
+      /(?:Slice A\b (?:is|work is) complete|Slice A\b completion|complete Phase 3 Slice A\b|Slice A\b[^.\n]*(?:final-review|final review|merged?|\bCI\b|published))/i,
+      document.name,
+    );
+  }
+});
+
+test("public Markdown contains no workstation-specific absolute paths", () => {
+  const rootFiles = [
+    readmeUrl,
+    changelogUrl,
+    securityUrl,
+    supportUrl,
+    new URL("../CONTRIBUTING.md", import.meta.url),
+    new URL("../CODE_OF_CONDUCT.md", import.meta.url),
+  ].map(fileURLToPath).filter(existsSync);
+  const paths = [
+    ...rootFiles,
+    ...markdownFiles(join(repositoryRoot, "docs")),
+    ...markdownFiles(join(repositoryRoot, "spec")),
+    ...markdownFiles(join(repositoryRoot, "rfcs")),
+  ];
+  const workstationPath = /(?:\/Users\/[^/\s]+\/|\/home\/[^/\s]+\/|\/private\/tmp\/|[A-Za-z]:\\Users\\[^\\\s]+\\)/;
+
+  for (const path of new Set(paths)) {
+    assert.doesNotMatch(
+      readFileSync(path, "utf8"),
+      workstationPath,
+      relative(repositoryRoot, path),
+    );
+  }
 });
 
 test("npm package manifest and tarball expose only approved artifacts", () => {
@@ -1098,17 +1359,20 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   );
   assert.deepEqual(
     baseline.package.runtimeExports,
-    previousBaseline.package.runtimeExports,
-    "package 0.10 root runtime exports must remain identical to 0.9",
+    [
+      ...previousBaseline.package.runtimeExports,
+      ...expectedProjectionRuntimeExports0110,
+    ].sort(),
+    "package 0.11 root runtime inventory must equal the complete package 0.10 inventory plus the seven projection exports",
   );
   assert.deepEqual(
     baseline.package.typeExports,
     previousBaseline.package.typeExports,
-    "package 0.10 root type exports must remain identical to 0.9",
+    "package 0.11 root type exports must remain identical to 0.10",
   );
-  assert.equal(packageJson.version, "0.10.0");
-  assert.equal(packageLock.version, "0.10.0");
-  assert.equal(packageLock.packages[""].version, "0.10.0");
+  assert.equal(packageJson.version, "0.11.0");
+  assert.equal(packageLock.version, "0.11.0");
+  assert.equal(packageLock.packages[""].version, "0.11.0");
   assert.equal(
     packageJson.exports["./distribution-readiness/0.1.0"],
     "./spec/distribution-readiness/0.1.0/profile.json",
@@ -1139,13 +1403,25 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   });
   assert.equal(
     packageJson.scripts["test:schema"],
-    "node --test tests/schema-conformance.test.mjs tests/portable-cognition-schema.test.mjs",
+    "node --test tests/schema-conformance.test.mjs tests/portable-cognition-schema.test.mjs tests/cognition-projection-schema.test.mjs",
+  );
+  assert.match(
+    packageJson.scripts.check,
+    /node --check tests\/cognition-projection-schema\.test\.mjs/,
   );
   assert.match(packageJson.scripts["pack:check"], /npm run test:schema/);
   assert.match(packageJson.scripts.prepack, /npm run test:schema/);
   assert.equal(
     packageJson.scripts["example:host"],
     "npm run --silent build && node --disable-warning=ExperimentalWarning examples/host-integration.ts",
+  );
+  assert.equal(
+    packageJson.scripts["example:stable-host"],
+    "node --disable-warning=ExperimentalWarning examples/stable-external-host.ts",
+  );
+  assert.equal(
+    packageJson.scripts["example:stable-host:acceptance"],
+    "node --disable-warning=ExperimentalWarning --test tests/stable-external-host.test.ts",
   );
   for (const path of [
     "src/connectors/git-process-result.ts",
@@ -1194,6 +1470,8 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       "./spec/compatibility/0.9.0/baseline.json",
     "./compatibility/0.10.0":
       "./spec/compatibility/0.10.0/baseline.json",
+    "./compatibility/0.11.0":
+      "./spec/compatibility/0.11.0/baseline.json",
     "./adapters/markdown/0.1.0": {
       types: "./dist/markdown-cognition.d.ts",
       import: "./dist/markdown-cognition.js",
@@ -1244,6 +1522,21 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       "./spec/schemas/0.1.0/source-record.schema.json",
     "./schemas/portable-cognition/0.1.0":
       "./spec/schemas/0.1.0/portable-cognition.schema.json",
+    "./charter/1.0.0": "./spec/collective-cognition-charter.md",
+    "./schemas/cognitive-object/0.1.0":
+      "./spec/schemas/0.1.0/cognitive-object.schema.json",
+    "./schemas/cognition-event/0.1.0":
+      "./spec/schemas/0.1.0/cognition-event.schema.json",
+    "./conformance/cognitive-object/0.1.0/valid":
+      "./spec/conformance/0.1.0/cognitive-object/valid.jsonl",
+    "./conformance/cognitive-object/0.1.0/invalid":
+      "./spec/conformance/0.1.0/cognitive-object/invalid.jsonl",
+    "./conformance/cognition-event/0.1.0/valid":
+      "./spec/conformance/0.1.0/cognition-event/valid.jsonl",
+    "./conformance/cognition-event/0.1.0/invalid":
+      "./spec/conformance/0.1.0/cognition-event/invalid.jsonl",
+    "./conformance/cognition-event/0.1.0/lifecycle":
+      "./spec/conformance/0.1.0/cognition-event/lifecycle.jsonl",
     "./conformance/portable-cognition/0.1.0/valid":
       "./spec/conformance/0.1.0/portable-cognition/valid.jsonl",
     "./conformance/portable-cognition/0.1.0/invalid":
@@ -1280,6 +1573,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "rfcs/0009-public-api-and-distribution-readiness.md",
     "rfcs/0010-durable-cognition-workflow.md",
     "rfcs/0011-cross-connector-interoperability.md",
+    "rfcs/0012-phase-3-charter-and-stable-package.md",
     "spec/README.md",
     "spec/compatibility.md",
     "spec/compatibility/0.1.0/baseline.json",
@@ -1302,6 +1596,9 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/compatibility/0.9.0/change-cases.jsonl",
     "spec/compatibility/0.10.0/baseline.json",
     "spec/compatibility/0.10.0/change-cases.jsonl",
+    "spec/compatibility/0.11.0/baseline.json",
+    "spec/compatibility/0.11.0/change-cases.jsonl",
+    "spec/collective-cognition-charter.md",
     "spec/distribution-readiness.md",
     "spec/distribution-readiness/0.1.0/profile.json",
     "spec/host-integration.md",
@@ -1316,11 +1613,18 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "spec/runtime-security/0.1.0/profile.json",
     "spec/schemas/0.1.0/source-record.schema.json",
     "spec/schemas/0.1.0/portable-cognition.schema.json",
+    "spec/schemas/0.1.0/cognitive-object.schema.json",
+    "spec/schemas/0.1.0/cognition-event.schema.json",
     "spec/conformance/0.1.0/source-record/valid.jsonl",
     "spec/conformance/0.1.0/source-record/invalid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
     "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
+    "spec/conformance/0.1.0/cognitive-object/valid.jsonl",
+    "spec/conformance/0.1.0/cognitive-object/invalid.jsonl",
+    "spec/conformance/0.1.0/cognition-event/valid.jsonl",
+    "spec/conformance/0.1.0/cognition-event/invalid.jsonl",
+    "spec/conformance/0.1.0/cognition-event/lifecycle.jsonl",
   ]);
   assert.deepEqual(packageJson.bin, {
     "collective-cognition": "./dist/cli.js",
@@ -1344,25 +1648,20 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   );
   assert.deepEqual(
     baseline.package.emittedFiles,
-    expectedEmittedFiles0100,
-    "package 0.10 emitted inventory must match its literal allowlist",
+    expectedEmittedFiles0110,
+    "package 0.11 emitted inventory must match its literal allowlist",
   );
   assert.deepEqual(
     baseline.package.emittedFiles.filter(
-      (path) => !expectedEmittedFiles040.includes(path),
+      (path) => !expectedEmittedFiles0100.includes(path),
     ),
-    [
-      ...expectedConnectorEmittedFiles050,
-      ...expectedMarkdownEmittedFiles060,
-      ...expectedDurableWorkflowEmittedFiles090,
-      ...expectedGitConnectorEmittedFiles0100,
-    ].sort(),
-    "package 0.10 emitted additions must be exactly the approved files",
+    expectedProjectionEmittedFiles0110,
+    "package 0.11 emitted additions must be exactly the projection files",
   );
   assert.deepEqual(
     actualEmittedFiles,
-    expectedEmittedFiles0100,
-    "dist/ contents must match the independent package 0.10 allowlist",
+    expectedEmittedFiles0110,
+    "dist/ contents must match the independent package 0.11 allowlist",
   );
 
   const npmCache = mkdtempSync(join(tmpdir(), "ccsdk-npm-cache-"));
@@ -1386,81 +1685,12 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
   const packResults = JSON.parse(packed.stdout);
   assert.equal(packResults.length, 1);
   const paths = packResults[0].files.map((file) => file.path).sort();
-  const expectedBaselinePaths = [
-    "CITATION.cff",
-    "LICENSE",
-    "NOTICE",
-    "README.md",
-    ...expectedEmittedFiles0100,
-    "package.json",
-    "rfcs/0001-universal-source-record-ingestion.md",
-    "rfcs/0002-compatibility-versioning-and-deprecation.md",
-    "rfcs/0003-portable-cognition-contract.md",
-    "rfcs/0004-host-integration-contract.md",
-    "rfcs/0005-sqlite-cognition-store.md",
-    "rfcs/0006-maintained-source-connectors.md",
-    "rfcs/0007-markdown-cognition-adapter.md",
-    "rfcs/0008-runtime-security-profile.md",
-    "rfcs/0009-public-api-and-distribution-readiness.md",
-    "rfcs/0010-durable-cognition-workflow.md",
-    "rfcs/0011-cross-connector-interoperability.md",
-    "rfcs/README.md",
-    "spec/README.md",
-    "spec/compatibility.md",
-    "spec/compatibility/0.1.0/baseline.json",
-    "spec/compatibility/0.1.0/change-cases.jsonl",
-    "spec/compatibility/0.2.0/baseline.json",
-    "spec/compatibility/0.2.0/change-cases.jsonl",
-    "spec/compatibility/0.3.0/baseline.json",
-    "spec/compatibility/0.3.0/change-cases.jsonl",
-    "spec/compatibility/0.4.0/baseline.json",
-    "spec/compatibility/0.4.0/change-cases.jsonl",
-    "spec/compatibility/0.5.0/baseline.json",
-    "spec/compatibility/0.5.0/change-cases.jsonl",
-    "spec/compatibility/0.6.0/baseline.json",
-    "spec/compatibility/0.6.0/change-cases.jsonl",
-    "spec/compatibility/0.7.0/baseline.json",
-    "spec/compatibility/0.7.0/change-cases.jsonl",
-    "spec/compatibility/0.8.0/baseline.json",
-    "spec/compatibility/0.8.0/change-cases.jsonl",
-    "spec/compatibility/0.9.0/baseline.json",
-    "spec/compatibility/0.9.0/change-cases.jsonl",
-    "spec/compatibility/0.10.0/baseline.json",
-    "spec/compatibility/0.10.0/change-cases.jsonl",
-    "spec/conformance/0.1.0/portable-cognition/cognitive-loop.jsonl",
-    "spec/conformance/0.1.0/portable-cognition/invalid.jsonl",
-    "spec/conformance/0.1.0/portable-cognition/valid.jsonl",
-    "spec/conformance/0.1.0/source-record/invalid.jsonl",
-    "spec/conformance/0.1.0/source-record/valid.jsonl",
-    "spec/distribution-readiness.md",
-    "spec/distribution-readiness/0.1.0/profile.json",
-    "spec/host-integration.md",
-    "spec/interoperability.md",
-    "spec/interoperability/0.1.0/error-cases.jsonl",
-    "spec/interoperability/0.1.0/portable-cognition.jsonl",
-    "spec/interoperability/0.1.0/profile.json",
-    "spec/interoperability/0.1.0/source-records.jsonl",
-    "spec/portable-cognition.md",
-    "spec/runtime-security.md",
-    "spec/runtime-security/0.1.0/profile.json",
-    "spec/schemas/0.1.0/portable-cognition.schema.json",
-    "spec/schemas/0.1.0/source-record.schema.json",
-    "spec/source-record.md",
-  ].sort();
-  const expectedPaths = [
-    ...expectedBaselinePaths,
-    "docs/connector-author-guide.md",
-    "docs/durable-cognition-workflow-guide.md",
-    "docs/git-connector-guide.md",
-    "docs/markdown-cognition-adapter-guide.md",
-    "docs/public-api.md",
-    "docs/acceptance/cross-connector-interoperability-0.1.0.md",
-  ].sort();
+  const expectedPaths = expectedPackageFiles0110;
 
   assert.deepEqual(
     baseline.package.packageFiles,
     expectedPaths,
-    "package 0.10 compatibility inventory must match its literal allowlist",
+    "package 0.11 compatibility inventory must match its literal allowlist",
   );
   assert.deepEqual(paths, expectedPaths, "package contents must match allowlist");
   assert.equal(
@@ -1530,6 +1760,10 @@ test("license, attribution, and citation metadata remain distributable", () => {
 
 test("packed artifact installs, typechecks, imports, and exposes its executable", () => {
   const packageJson = JSON.parse(readFileSync(packageJsonUrl, "utf8"));
+  const expectedInteroperabilityResourceSha256 = interoperabilityResourceUrls.map(
+    (resourceUrl) =>
+      createHash("sha256").update(readFileSync(resourceUrl)).digest("hex"),
+  );
   const temporaryRoot = mkdtempSync(join(tmpdir(), "ccsdk-consumer-"));
   const npmCache = `${temporaryRoot}/npm-cache`;
   const packageOutput = `${temporaryRoot}/package`;
@@ -1957,6 +2191,7 @@ import {
   verifyMarkdownCognitionTarget,
 } from ${JSON.stringify(`${packageJson.name}/adapters/markdown/0.1.0`)};
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import distributionReadinessProfile from ${JSON.stringify(`${packageJson.name}/distribution-readiness/0.1.0`)} with { type: "json" };
 import profile from ${JSON.stringify(`${packageJson.name}/runtime-security/0.1.0`)} with { type: "json" };
 import {
@@ -1987,8 +2222,8 @@ const interoperabilityResourceSpecifiers = [
   ${JSON.stringify(`${packageJson.name}/interoperability/0.1.0/portable-cognition`)},
   ${JSON.stringify(`${packageJson.name}/interoperability/0.1.0/errors`)},
 ];
-const interoperabilityResourceText = interoperabilityResourceSpecifiers.map(
-  (specifier) => readFileSync(fileURLToPath(import.meta.resolve(specifier)), "utf8"),
+const interoperabilityResourceBytes = interoperabilityResourceSpecifiers.map(
+  (specifier) => readFileSync(fileURLToPath(import.meta.resolve(specifier))),
 );
 const portableSchema = JSON.parse(readFileSync(new URL(schemaUrl), "utf8"));
 const hostContract = readFileSync(new URL(contractUrl), "utf8");
@@ -2145,8 +2380,8 @@ console.log(JSON.stringify({
   gitRepositoryFormat: GIT_REPOSITORY_FORMAT,
   connectorRecordCount: teamMemoryRecords.length,
   connectorConformanceStatus: connectorConformance[0]?.status,
-  interoperabilityResourceBytes: interoperabilityResourceText.map(
-    (resource) => Buffer.byteLength(resource, "utf8"),
+  interoperabilityResourceSha256: interoperabilityResourceBytes.map(
+    (resource) => createHash("sha256").update(resource).digest("hex"),
   ),
 }));
 `,
@@ -2240,7 +2475,17 @@ try {
     assert.equal(packed.status, 0, packed.stderr);
     const packResults = JSON.parse(packed.stdout);
     assert.equal(packResults.length, 1);
+    assert.deepEqual(
+      packResults[0].files.map((file) => file.path).sort(),
+      expectedPackageFiles0110,
+      "actual npm pack result files must match the independent package 0.11 allowlist",
+    );
     const tarballPath = `${packageOutput}/${packResults[0].filename}`;
+    assert.deepEqual(
+      packedArchivePaths(tarballPath),
+      expectedPackageFiles0110,
+      "actual archive members must match the independent package 0.11 allowlist",
+    );
 
     const installed = spawnNpm(
       [
@@ -2268,6 +2513,33 @@ try {
         "utf8",
       ),
     );
+    const installedPackageRoot = join(
+      consumerRoot,
+      "node_modules",
+      packageJson.name,
+    );
+    const installedPhase3RfcPath = join(
+      installedPackageRoot,
+      "rfcs",
+      "0012-phase-3-charter-and-stable-package.md",
+    );
+    assert.equal(statSync(installedPhase3RfcPath).isFile(), true);
+    for (const documentPath of [
+      join(installedPackageRoot, "spec", "README.md"),
+      join(installedPackageRoot, "rfcs", "README.md"),
+      join(installedPackageRoot, "docs", "public-api.md"),
+    ]) {
+      const content = readFileSync(documentPath, "utf8");
+      const target = content.match(
+        /\[[^\]]*RFC 0012[^\]]*\]\(([^)]*0012-phase-3-charter-and-stable-package\.md)\)/i,
+      )?.[1];
+      assert.equal(typeof target, "string", relative(installedPackageRoot, documentPath));
+      assert.equal(
+        resolve(dirname(documentPath), target),
+        installedPhase3RfcPath,
+        pathToFileURL(documentPath).href,
+      );
+    }
     assert.deepEqual(
       declaredProductionDependencyFields(packedManifest),
       [],
@@ -2330,7 +2602,8 @@ try {
       gitRepositoryFormat: "git-repository/1",
       connectorRecordCount: 1,
       connectorConformanceStatus: "passed",
-      interoperabilityResourceBytes: [761, 3348, 4096, 1432],
+      interoperabilityResourceSha256:
+        expectedInteroperabilityResourceSha256,
     });
     assert.equal(
       sqliteReopened || sqliteRejectedWithoutMutation,
@@ -2433,7 +2706,7 @@ console.log(JSON.stringify({
         "--input-type=module",
         "--eval",
         `import { readFile } from "node:fs/promises";
-const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.10.0`)});
+const baselineUrl = import.meta.resolve(${JSON.stringify(`${packageJson.name}/compatibility/0.11.0`)});
 const baseline = JSON.parse(await readFile(new URL(baselineUrl), "utf8"));
 const changeCases = (await readFile(new URL("./change-cases.jsonl", baselineUrl), "utf8"))
   .trim()
@@ -2457,9 +2730,39 @@ console.log(JSON.stringify({
     assert.deepEqual(
       JSON.parse(importedCurrentCompatibility.stdout.trim()),
       {
-        baselineVersion: "0.10.0",
-        classifications: ["additive"],
+        baselineVersion: "0.11.0",
+        classifications: ["additive", "additive", "additive", "additive"],
       },
+    );
+
+    const resolvedPhase3Resources = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        `import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+const specifiers = ${JSON.stringify(Object.keys(expectedPhase3ResourceDigests))};
+const digests = {};
+for (const specifier of specifiers) {
+  const bytes = await readFile(new URL(import.meta.resolve(specifier)));
+  digests[specifier] = createHash("sha256").update(bytes).digest("hex");
+}
+console.log(JSON.stringify(digests));`,
+      ],
+      {
+        cwd: consumerRoot,
+        encoding: "utf8",
+      },
+    );
+    assert.equal(
+      resolvedPhase3Resources.status,
+      0,
+      resolvedPhase3Resources.stderr,
+    );
+    assert.deepEqual(
+      JSON.parse(resolvedPhase3Resources.stdout.trim()),
+      expectedPhase3ResourceDigests,
     );
 
     const executableName =

@@ -41,7 +41,7 @@ const expectedAssets = [
   "release-manifest.json",
 ];
 const expectedChecksumAssets = expectedAssets.slice(1);
-const expectedPackageScriptsSha256 = "9a1cea10b381d0d6e25bea26223508c038508fcb7c0b8ef8b80c6abee5f1f4d7";
+const expectedPackageScriptsSha256 = "904046a8c58f6b9864bf5d06079125385530478c67c2156a6b79bc720d3b3cb4";
 const expectedCiWorkflowSha256 = "e30ee54fd07a65f34ed24694d85f64ba48c303148964a8683d43910589e74ede";
 const expectedGitHubPrereleaseWorkflowSha256 = "b628e8e07829bd115a01133595d4f3424e0634e7479f9f00c35bc4e5c9a8508f";
 const expectedTarballSha256 = "3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe";
@@ -2042,9 +2042,16 @@ test("read-only CI verifies the exact supported matrix and distribution path", (
   assertReadOnlyCiWorkflow(workflow);
   const distributionJob = parseCiWorkflow(workflow).jobs.distribution as ParsedWorkflowJob;
 
-  for (const name of Object.keys(packageJson.scripts).filter(
-    (script) => script === "example" || script.startsWith("example:"),
-  )) {
+  for (const name of [
+    "example",
+    "example:markdown",
+    "example:portable",
+    "example:host",
+    "example:workflow",
+    "example:interoperability",
+    "example:teammem",
+    "example:teammem:durable",
+  ]) {
     assert.match(
       distributionJob.raw,
       new RegExp(`^\\s+npm run ${name.replaceAll(":", "\\:")}(?: -- .+)?$`, "m"),

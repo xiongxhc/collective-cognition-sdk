@@ -31,6 +31,15 @@ export {
   serializePortableCognitionRecord,
   validatePortableCognitionRecord,
 } from "./portable-cognition.ts";
+export {
+  COGNITION_EVENT_PROJECTION_VERSION,
+  COGNITION_PROJECTION_MAX_JSON_DEPTH,
+  COGNITIVE_OBJECT_PROJECTION_VERSION,
+  deserializeCognitionEventProjection,
+  deserializeCognitiveObjectProjection,
+  validateCognitionEventProjection,
+  validateCognitiveObjectProjection,
+} from "./cognition-projections.ts";
 export { evaluateAuthorization } from "./authorization.ts";
 export { transitionObject } from "./transitions.ts";
 export {

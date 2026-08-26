@@ -1,6 +1,6 @@
 # RFC 0011: Cross-Connector Interoperability
 
-**Status:** Accepted for private `0.10.0` implementation
+**Status:** Implemented and verified in private `0.10.0`; preserved in private `0.11.0`
 
 ## Decision
 
@@ -20,8 +20,8 @@ are deferred until evidence shows a need beyond two maintained connectors.
 ## Resource Boundary
 
 The maintained Git connector's exact public subpath is
-`collective-cognition-sdk/connectors/git/0.1.0`. Profile resources are planned
-for these exact file-resource subpaths:
+`collective-cognition-sdk/connectors/git/0.1.0`. The profile resources are
+packaged at these exact file-resource subpaths:
 
 - `collective-cognition-sdk/interoperability/0.1.0/profile`
 - `collective-cognition-sdk/interoperability/0.1.0/source-records`
@@ -29,9 +29,9 @@ for these exact file-resource subpaths:
 - `collective-cognition-sdk/interoperability/0.1.0/errors`
 
 These resources are UTF-8 files resolved by consumers; they are not JavaScript
-modules. Task 3 defines their normative source artifacts only. Task 5 owns
-package metadata and the export map, so this RFC does not package or export a
-resource yet.
+modules. Package tests and clean-consumer installation resolve each resource
+from the exact private tarball and compare its bytes with the normative source
+artifact.
 
 `collective-cognition-sdk-maintainers` own the reference exchange fixtures,
 profile, conformance evidence, and compatibility inventory. External connector
@@ -40,9 +40,11 @@ support, and their releases.
 
 ## Compatibility and Boundaries
 
-The private unpublished `0.10.0` change is additive with a
+The private unpublished `0.10.0` change was additive with a
 minor-before-`1.0.0` compatibility effect. It leaves the package root
 source-neutral and does not change SourceRecord or Portable Cognition schemas.
+Private package `0.11.0` preserves that connector and interoperability surface
+without changing its resource bytes.
 
 The Git connector uses a local Git executable through a bounded argument-array
 process call, but this release adds no Git CLI executable to the package. It
@@ -53,12 +55,12 @@ Decision, Principle, truth, confidence, readiness, belief, or authorization.
 
 ## Acceptance
 
-Acceptance requires both maintained connectors to pass source-specific and
+Acceptance evidence confirms both maintained connectors pass source-specific and
 generic conformance, mixed-source generic ingestion to retain source-local
 duplicate and collision behavior, explicit neutral promotion to preserve both
 provenances, and canonical SourceRecord and Portable Cognition round trips.
-Unknown valid namespaced extensions must survive exactly or reject explicitly;
-invalid extensions must produce declared stable errors without silent loss.
+Unknown valid namespaced extensions survive exactly or reject explicitly;
+invalid extensions produce declared stable errors without silent loss.
 The reference evidence uses only temporary fictional sources and does not
 certify unlisted connectors or production behavior.
 

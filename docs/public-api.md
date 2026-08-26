@@ -2,8 +2,10 @@
 
 This reference is checked against the compatibility baseline selected by the current `package.json` version. It names every exported surface that the package promises to keep visible.
 
-Current package `0.10.0` is private and unpublished. This inventory does not
+Current package `0.11.0` is private and unpublished. This inventory does not
 authorize npm publication, certify a deployment, or claim production use.
+
+The private `0.11.0` Slice A contract candidate passes the local automated gate; integration, public RC/stable publication, and supported-runtime SQLite acceptance remain pending.
 
 ## Stability
 
@@ -12,6 +14,10 @@ authorize npm publication, certify a deployment, or claim production use.
 - `Internal` means a repository path that does not appear in `exports` and has no package compatibility promise.
 - Supported Experimental is not Normative Stable.
 - source paths absent from `exports` are internal.
+
+These are the private pre-`1.0.0` maturity labels. Phase 3 Slice B still owns
+the separately reviewed stable-package policy and migration boundary; Slice A
+candidate status does not silently promote Supported Experimental runtime surfaces.
 
 ### Durable Workflow Runtime
 
@@ -56,6 +62,13 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
 - Runtime exports: `PORTABLE_COGNITION_MAX_JSON_DEPTH`, `PORTABLE_COGNITION_SCHEMA_VERSION`, `createPortableCognitionRecord`, `deserializePortableCognitionRecord`, `serializePortableCognitionRecord`, `validatePortableCognitionRecord`
 - Type exports: `CreatePortableCognitionRecordInput`, `PortableCognitionPayloadByType`, `PortableCognitionRecord`, `PortableCognitionRecordType`, `PortableDomainError`
 
+### Standalone Cognition Projections
+
+- Stability: Supported Experimental root-package reference wrappers for Normative Stable cognitive-object and cognition-event resource projections `0.1.0`; governed by [Collective Cognition Charter `1.0.0`](../spec/collective-cognition-charter.md), [Portable Cognition](../spec/portable-cognition.md), [RFC 0012](../rfcs/0012-phase-3-charter-and-stable-package.md), and [Compatibility Policy](../spec/compatibility.md).
+- Runtime exports: `COGNITIVE_OBJECT_PROJECTION_VERSION`, `COGNITION_EVENT_PROJECTION_VERSION`, `COGNITION_PROJECTION_MAX_JSON_DEPTH`, `deserializeCognitiveObjectProjection`, `deserializeCognitionEventProjection`, `validateCognitiveObjectProjection`, `validateCognitionEventProjection`
+- Type exports: none.
+- Boundary: the wrappers delegate to the immutable Portable Cognition `0.1.0` runtime. Malformed JSON reports `SERIALIZATION_ERROR`; invalid structure, depth, or semantics reports `INVALID_PORTABLE_COGNITION_RECORD`. Standalone payload depth is at most `255` containers.
+
 ### Authorization and Transitions
 
 - Stability: Supported Experimental only. Related Normative Stable Portable Cognition and Host Integration envelopes are documented separately; authorization and transition semantics remain Supported Experimental. Governed by [Portable Cognition](../spec/portable-cognition.md), [Host Integration](../spec/host-integration.md), and [Compatibility Policy](../spec/compatibility.md).
@@ -82,6 +95,15 @@ Import the root package from `collective-cognition-sdk`. The root export `.` is 
 - `./compatibility/0.8.0` — Compatibility baseline for package `0.8.0`.
 - `./compatibility/0.9.0` — Compatibility baseline for package `0.9.0`.
 - `./compatibility/0.10.0` — Compatibility baseline for package `0.10.0`.
+- `./compatibility/0.11.0` — Compatibility baseline for private package `0.11.0`.
+- `./charter/1.0.0` — Collective Cognition Charter `1.0.0` UTF-8 prose.
+- `./schemas/cognitive-object/0.1.0` — Standalone cognitive-object JSON Schema projection.
+- `./schemas/cognition-event/0.1.0` — Standalone cognition-event JSON Schema projection.
+- `./conformance/cognitive-object/0.1.0/valid` — Standalone cognitive-object valid JSONL fixtures.
+- `./conformance/cognitive-object/0.1.0/invalid` — Standalone cognitive-object invalid JSONL fixtures.
+- `./conformance/cognition-event/0.1.0/valid` — Standalone cognition-event valid JSONL fixtures.
+- `./conformance/cognition-event/0.1.0/invalid` — Standalone cognition-event invalid JSONL fixtures.
+- `./conformance/cognition-event/0.1.0/lifecycle` — Linked cognition-event lifecycle JSONL fixtures.
 - `./contracts/host-integration/0.1.0` — Host integration prose contract.
 - `./conformance/portable-cognition/0.1.0/valid` — Portable Cognition valid conformance corpus.
 - `./conformance/portable-cognition/0.1.0/invalid` — Portable Cognition invalid conformance corpus.
@@ -146,12 +168,24 @@ const sourceRecordsJsonl = readFileSync(
 );
 ```
 
+The Charter, standalone schemas, and conformance corpora use the same explicit
+file-resource pattern. For example:
+
+```ts
+import { readFile } from "node:fs/promises";
+
+const lifecycleUrl = import.meta.resolve(
+  "collective-cognition-sdk/conformance/cognition-event/0.1.0/lifecycle",
+);
+const lifecycleJsonl = await readFile(new URL(lifecycleUrl), "utf8");
+```
+
 `collective-cognition-sdk-maintainers` owns the profile fixtures, tests,
-report, and compatibility inventory. Package `0.10.0` has two maintained
+report, and compatibility inventory. Package `0.10.0` introduced two maintained
 connectors but no Git CLI, connector registry, plugin discovery or runtime,
 network connector, scheduler, or automatic cognition. The package remains
-private and unpublished; the profile does not claim production readiness,
-certification, endorsement, or LTS support.
+unchanged in current private package `0.11.0`; the profile does not claim
+production readiness, broad adoption, certification, endorsement, or LTS support.
 - `./host-conformance/0.1.0` — Host conformance checks.
   - Stability: Supported Experimental host-conformance surface; governed by [Host Integration](../spec/host-integration.md), [RFC 0004: Host Integration Contract](../rfcs/0004-host-integration-contract.md), and [Compatibility Policy](../spec/compatibility.md).
   - Runtime exports: `runCognitionHostConformance`
