@@ -1264,10 +1264,12 @@ test("root runtime and domain error inventories match exactly", () => {
   );
   assert.deepEqual(sourceTypeExports(), baseline.package.typeExports);
   assert.deepEqual(
-    baseline.package.runtimeExports.filter(
-      (name) => !previousCurrentBaseline.package.runtimeExports.includes(name),
-    ),
-    expectedProjectionRuntimeExports,
+    baseline.package.runtimeExports,
+    [
+      ...previousCurrentBaseline.package.runtimeExports,
+      ...expectedProjectionRuntimeExports,
+    ].sort(),
+    "package 0.11 root runtime inventory must equal the complete package 0.10 inventory plus the seven projection exports",
   );
   assert.deepEqual(
     baseline.package.typeExports,
@@ -1734,11 +1736,12 @@ test("public declaration entrypoint closures match exact independent digests", (
     Object.keys(entrypoints),
   );
   assert.deepEqual(
-    baseline.package.declarations.root.files.filter(
-      (path) => !previousCurrentBaseline.package.declarations.root.files.includes(path),
-    ),
-    ["dist/cognition-projections.d.ts"],
-    "package 0.11 root declaration closure must add only the projection declaration",
+    baseline.package.declarations.root.files,
+    [
+      ...previousCurrentBaseline.package.declarations.root.files,
+      "dist/cognition-projections.d.ts",
+    ].sort(),
+    "package 0.11 root declaration closure must equal the complete package 0.10 closure plus the projection declaration",
   );
   assert.deepEqual(
     baseline.package.declarations.sqlite,

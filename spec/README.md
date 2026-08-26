@@ -33,7 +33,7 @@ The historical team-memory direct-to-Evidence path was replaced. `SourceRecord` 
 ## Start Here
 
 - Review the [roadmap](https://github.com/xiongxhc/collective-cognition-sdk/blob/main/docs/ROADMAP.md) and distinguish completed phases from planned ones.
-- Run `npm test`, `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, `npm run example:markdown`, `npm run example:workflow`, `npm run example:interoperability`, `npm run example:stable-host`, and `npm run pack:check` for the complete private Slice A gate.
+- Run `npm test`, `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, `npm run example:markdown`, `npm run example:workflow`, `npm run example:interoperability`, `npm run example:stable-host:acceptance`, and `npm run pack:check` for the complete private Slice A gate. The public `npm run example:stable-host -- ...` command separately requires the explicit absolute source-record and cognition-database paths documented in the README.
 - Run `npm run example:markdown` for a self-cleaning temporary Markdown target; it does not access a vault or database.
 - Read the normative [`SourceRecord 0.1.0` contract](source-record.md) and its [`JSON Schema`](schemas/0.1.0/source-record.schema.json).
 - Read the normative [`Portable Cognition 0.1.0` contract](portable-cognition.md), its [`JSON Schema`](schemas/0.1.0/portable-cognition.schema.json), and its [conformance fixtures](conformance/0.1.0/portable-cognition/).

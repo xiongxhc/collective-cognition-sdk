@@ -412,7 +412,7 @@ Expected: PASS with the exact summary above.
 
 - [ ] **Step 5: Add syntax/example scripts and commit**
 
-Add `examples/stable-external-host.ts` and its test to `npm run check`, and add script `example:stable-host`.
+Add `examples/stable-external-host.ts` and its test to `npm run check`. Add `example:stable-host` for the explicit-path example and `example:stable-host:acceptance` for the self-contained no-argument test harness.
 
 ```bash
 git add examples/stable-external-host.ts tests/stable-external-host.test.ts package.json
@@ -501,7 +501,7 @@ npm run example:host
 npm run example:markdown
 npm run example:workflow
 npm run example:interoperability
-npm run example:stable-host
+npm run example:stable-host:acceptance
 npm run pack:check
 git diff --check
 ```

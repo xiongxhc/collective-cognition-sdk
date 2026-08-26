@@ -605,6 +605,7 @@ npm run example:markdown
 npm run example:host
 npm run example:workflow
 npm run example:interoperability
+npm run example:stable-host:acceptance
 npm run example:stable-host -- \
   --source-records /absolute/path/to/fictional-source-records.jsonl \
   --cognition-db /absolute/path/to/fictional-cognition.db
@@ -658,6 +659,11 @@ shown above. On a runtime with enforced SQLite defensive mode it reports two
 source records, six persisted/reloaded objects, three persisted/reloaded events,
 and nine portable records; local capability skips do not replace real-device
 or supported-runtime acceptance.
+
+Repository automation runs `npm run example:stable-host:acceptance` without
+arguments. That self-contained harness creates fictional temporary inputs and
+either verifies the same summary on a supported runtime or records the local
+SQLite capability skip.
 
 `collective-cognition-teammem export` writes canonical SourceRecord JSONL and
 supports `--from`, `--to`, `--person`, `--project`, `--limit`, and
