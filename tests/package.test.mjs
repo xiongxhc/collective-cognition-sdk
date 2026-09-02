@@ -1130,7 +1130,7 @@ test("development dependency security floors remain pinned", () => {
     "^26.2.0",
   );
   assert.equal(packageLock.packages["node_modules/@types/node"].version, "26.2.0");
-  assert.equal(packageLock.packages["node_modules/fast-uri"].version, "3.1.5");
+  assert.equal(packageLock.packages["node_modules/fast-uri"].version, "3.1.7");
 });
 
 test("Git connector guide documents the exact local package contract", () => {
