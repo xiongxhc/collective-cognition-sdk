@@ -159,6 +159,16 @@ const expectedPublicApiReferenceSha256 =
   "33b561fb71a43e6224d91de535a77054d45959c12a34e28205c736307dedb764";
 const expectedHistoricalPublicApiReferenceSha256 =
   "02d6732330cf2ffaeed5ae02fd809c2b7dbdee5ce77704dc81e4d21f0bc5596d";
+// Publishing `packagePolicyVersion` `1.0.0` revises these two documents after
+// immutable baseline `0.11.0` recorded them. The baseline keeps its recorded
+// digests; the working tree carries the revised ones until baseline
+// `1.0.0-rc.1` records them.
+const policy100RevisedArtifactSha256 = Object.freeze({
+  "docs/public-api.md":
+    "3367a27133cbbf003746b04b7293652e2550d349b0958302589dec4c0b581d4d",
+  "rfcs/0012-phase-3-charter-and-stable-package.md":
+    "91b751e8ae76edbf7809a817b2cd3c4823f6d92ac41df358a97cd4a23a02e1b4",
+});
 const expectedDistributionReadinessRfcSha256 =
   "967b0cc1b6584902c4d606bbdc7cf47f9801283a3f67d7a802152994dabc6da3";
 const expectedDistributionReadinessProseSha256 =
@@ -1007,7 +1017,7 @@ test("normative machine artifacts match exact digests", () => {
   );
   assert.equal(
     sha256(readFileSync(new URL("docs/public-api.md", repositoryRoot))),
-    expectedPublicApiReferenceSha256,
+    policy100RevisedArtifactSha256["docs/public-api.md"],
     "docs/public-api.md",
   );
   assert.equal(
@@ -1054,11 +1064,22 @@ test("normative machine artifacts match exact digests", () => {
     ([path, expectedDigest]) => {
       assert.equal(
         sha256(readFileSync(new URL(path, repositoryRoot))),
-        expectedDigest,
+        policy100RevisedArtifactSha256[path] ?? expectedDigest,
         path,
       );
     },
   );
+  Object.keys(policy100RevisedArtifactSha256).forEach((path) => {
+    assert.ok(
+      Object.hasOwn(baseline.normative.artifacts, path),
+      `${path} must stay a recorded baseline artifact`,
+    );
+    assert.notEqual(
+      baseline.normative.artifacts[path],
+      policy100RevisedArtifactSha256[path],
+      `${path} must keep the immutable digest baseline 0.11.0 recorded`,
+    );
+  });
 });
 
 test("normative prose matches its hash and stable rule identifiers", () => {
@@ -2008,4 +2029,286 @@ test("change cases exercise the additive package process", () => {
     readJson(currentBaselineUrl).normative.distributionReadiness.profile.packageSubpath,
     "./distribution-readiness/0.1.0",
   );
+});
+
+const compatibilityPolicyUrl = new URL(
+  "spec/compatibility.md",
+  repositoryRoot,
+);
+const stablePolicyMigrationUrl = new URL(
+  "docs/migrations/1.0.0.md",
+  repositoryRoot,
+);
+const policy010BaselineVersions = Object.freeze([
+  "0.1.0",
+  "0.2.0",
+  "0.3.0",
+  "0.4.0",
+  "0.5.0",
+  "0.6.0",
+  "0.7.0",
+  "0.8.0",
+  "0.9.0",
+  "0.10.0",
+  "0.11.0",
+]);
+const policy100StablePublicApiSubpaths = Object.freeze(["."]);
+const policy100StableIntrospectionSubpaths = Object.freeze(["./package.json"]);
+const policy100SupportedExperimentalSubpaths = Object.freeze([
+  "./adapters/markdown/0.1.0",
+  "./connector-conformance/0.1.0",
+  "./connectors/git/0.1.0",
+  "./connectors/team-memory/0.1.0",
+  "./host-conformance/0.1.0",
+  "./reference-host/0.1.0",
+  "./stores/sqlite/0.1.0",
+  "./stores/sqlite-workflow/0.1.0",
+  "./workflows/durable/0.1.0",
+]);
+const policy100StablePublicApiExecutables = Object.freeze([
+  "collective-cognition",
+]);
+const policy100SupportedExperimentalExecutables = Object.freeze([
+  "collective-cognition-markdown",
+  "collective-cognition-teammem",
+  "collective-cognition-workflow",
+]);
+const policy100Classifications = Object.freeze([
+  "stable-public-api",
+  "normative-stable",
+  "supported-experimental",
+  "stable-introspection",
+]);
+const stableSurfaceClassificationHeading =
+  "### STAB-002 — Stable Surface Classification";
+
+function policyDocument() {
+  return readFileSync(compatibilityPolicyUrl, "utf8");
+}
+
+function policySection(policy, startHeading, endHeading) {
+  const start = policy.indexOf(startHeading);
+  assert.notEqual(start, -1, `${startHeading} must exist`);
+  const end = endHeading === null ? policy.length : policy.indexOf(endHeading);
+  assert.ok(end > start, `${endHeading} must follow ${startHeading}`);
+  return policy.slice(start, end);
+}
+
+function stableSurfaceClassification(policy) {
+  const section = policySection(
+    policy,
+    stableSurfaceClassificationHeading,
+    null,
+  );
+  const opening = "```text\n";
+  const fenceStart = section.indexOf(opening);
+  assert.notEqual(
+    fenceStart,
+    -1,
+    "STAB-002 must publish a machine-readable classification block",
+  );
+  const bodyStart = fenceStart + opening.length;
+  const fenceEnd = section.indexOf("\n```", bodyStart);
+  assert.notEqual(fenceEnd, -1, "the classification block must be closed");
+
+  return section
+    .slice(bodyStart, fenceEnd)
+    .split("\n")
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      const fields = line.split(" | ");
+      assert.equal(
+        fields.length,
+        3,
+        `classification entry must name a classification, kind, and surface: ${line}`,
+      );
+      return {
+        classification: fields[0],
+        kind: fields[1],
+        surface: fields[2],
+      };
+    });
+}
+
+function sortedClassificationEntries(entries) {
+  return [...entries].sort((left, right) =>
+    `${left.kind} ${left.surface}`.localeCompare(
+      `${right.kind} ${right.surface}`,
+    ),
+  );
+}
+
+function expectedStableSurfaceClassification(baseline) {
+  const entries = [];
+  const add = (classification, kind, surfaces) => {
+    surfaces.forEach((surface) => {
+      entries.push({ classification, kind, surface });
+    });
+  };
+
+  add(
+    "stable-public-api",
+    "root-runtime-export",
+    baseline.package.runtimeExports,
+  );
+  add("stable-public-api", "root-type-export", baseline.package.typeExports);
+  add("stable-public-api", "root-error-code", baseline.package.errorCodes);
+  add("stable-public-api", "package-subpath", policy100StablePublicApiSubpaths);
+  add(
+    "stable-introspection",
+    "package-subpath",
+    policy100StableIntrospectionSubpaths,
+  );
+  add(
+    "supported-experimental",
+    "package-subpath",
+    policy100SupportedExperimentalSubpaths,
+  );
+  add(
+    "normative-stable",
+    "package-subpath",
+    Object.keys(baseline.package.metadata.exports).filter(
+      (subpath) =>
+        !policy100StablePublicApiSubpaths.includes(subpath) &&
+        !policy100StableIntrospectionSubpaths.includes(subpath) &&
+        !policy100SupportedExperimentalSubpaths.includes(subpath),
+    ),
+  );
+  add("stable-public-api", "executable", policy100StablePublicApiExecutables);
+  add(
+    "supported-experimental",
+    "executable",
+    policy100SupportedExperimentalExecutables,
+  );
+  add(
+    "stable-introspection",
+    "package-field",
+    Object.keys(baseline.package.metadata),
+  );
+
+  return sortedClassificationEntries(entries);
+}
+
+test("the stable 1.0.0 matrix classifies every package surface exactly once", () => {
+  const baseline = readJson(currentBaselineUrl);
+  const entries = stableSurfaceClassification(policyDocument());
+
+  const seen = new Set();
+  entries.forEach((entry) => {
+    const key = `${entry.kind} | ${entry.surface}`;
+    assert.equal(seen.has(key), false, `${key} must be classified exactly once`);
+    seen.add(key);
+    assert.ok(
+      policy100Classifications.includes(entry.classification),
+      `${key} has unknown classification ${entry.classification}`,
+    );
+  });
+
+  const surfacesOfKind = (kind) =>
+    sorted(
+      entries
+        .filter((entry) => entry.kind === kind)
+        .map((entry) => entry.surface),
+    );
+
+  assert.deepEqual(
+    surfacesOfKind("root-runtime-export"),
+    baseline.package.runtimeExports,
+  );
+  assert.deepEqual(
+    surfacesOfKind("root-type-export"),
+    baseline.package.typeExports,
+  );
+  assert.deepEqual(
+    surfacesOfKind("root-error-code"),
+    baseline.package.errorCodes,
+  );
+  assert.deepEqual(
+    surfacesOfKind("package-subpath"),
+    sorted(Object.keys(baseline.package.metadata.exports)),
+  );
+  assert.deepEqual(
+    surfacesOfKind("executable"),
+    sorted(Object.keys(baseline.package.metadata.bin)),
+  );
+  assert.deepEqual(
+    surfacesOfKind("package-field"),
+    sorted(Object.keys(baseline.package.metadata)),
+  );
+
+  assert.deepEqual(
+    sortedClassificationEntries(entries),
+    expectedStableSurfaceClassification(baseline),
+  );
+});
+
+test("every existing compatibility baseline still records packagePolicyVersion 0.1.0", () => {
+  policy010BaselineVersions.forEach((version) => {
+    const baseline = readJson(
+      new URL(`spec/compatibility/${version}/baseline.json`, repositoryRoot),
+    );
+    assert.equal(baseline.packagePolicyVersion, "0.1.0", version);
+  });
+});
+
+test("the policy publishes packagePolicyVersion 1.0.0 beside retained 0.1.0 rules", () => {
+  const policy = policyDocument();
+
+  assert.match(policy, /^## Policy Versions$/m);
+  assert.match(policy, /^## Policy `0\.1\.0` \(Retained\)$/m);
+  assert.match(policy, /^## Policy `1\.0\.0`$/m);
+
+  const retained = policySection(
+    policy,
+    "## Policy `0.1.0` (Retained)",
+    "## Policy `1.0.0`",
+  );
+  const stable = policySection(policy, "## Policy `1.0.0`", null);
+
+  Array.from(
+    { length: 18 },
+    (_, index) => `COMP-${String(index + 1).padStart(3, "0")}`,
+  ).forEach((ruleId) => {
+    assert.match(retained, new RegExp(`^### ${ruleId} — `, "m"), ruleId);
+  });
+  assert.match(
+    retained,
+    /Before `1\.0\.0`, a minor release MAY make a breaking Supported Experimental change only through an accepted RFC/,
+  );
+  assert.match(
+    retained,
+    /- Before `1\.0\.0`, `MINOR` MAY contain a reviewed breaking Supported Experimental change only through the full process in `COMP-003`\./,
+  );
+
+  Array.from(
+    { length: 6 },
+    (_, index) => `STAB-${String(index + 1).padStart(3, "0")}`,
+  ).forEach((ruleId) => {
+    assert.match(stable, new RegExp(`^### ${ruleId} — `, "m"), ruleId);
+  });
+  assert.match(
+    stable,
+    /`minor-before-1\.0` applies only under `packagePolicyVersion` `0\.1\.0`/,
+  );
+  assert.match(
+    stable,
+    /Supported Experimental is an operational-maturity label/,
+  );
+  assert.match(stable, /package `2\.0\.0` or a new retained versioned subpath/);
+  assert.match(
+    stable,
+    /Compatibility baseline `1\.0\.0-rc\.1` and every later baseline MUST record `packagePolicyVersion` `1\.0\.0`/,
+  );
+});
+
+test("migration guidance separates support guarantees from record meaning", () => {
+  const migration = readFileSync(stablePolicyMigrationUrl, "utf8");
+
+  assert.match(migration, /^# Migrating from package `0\.11\.0` to `1\.0\.0`$/m);
+  assert.match(migration, /support guarantees/i);
+  assert.match(
+    migration,
+    /Portable Cognition `0\.1\.0` record meaning does not change/,
+  );
+  assert.match(migration, /`packagePolicyVersion` `1\.0\.0`/);
 });
