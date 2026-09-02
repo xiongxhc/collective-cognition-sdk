@@ -246,3 +246,21 @@ jobs:
             ./node_modules/.bin/collective-cognition-teammem --version
             ./node_modules/.bin/collective-cognition-markdown --help
           )
+      - name: Verify recorded release evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          evidence_root="docs/acceptance/releases"
+          for record in "$evidence_root"/*/release-evidence.json; do
+            if [ ! -f "$record" ]; then
+              continue
+            fi
+            version="$(basename "$(dirname "$record")")"
+            asset="collective-cognition-sdk-$version-release-evidence.json"
+            download_dir="$(mktemp -d)"
+            gh release download "v$version" --pattern "$asset" --dir "$download_dir"
+            node scripts/verify-release-evidence.mjs --record "$record" --asset "$download_dir/$asset" --checksums "$evidence_root/$version/SHA256SUMS"
+            rm -rf "$download_dir"
+          done

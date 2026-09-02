@@ -3,7 +3,7 @@ name: GitHub Prerelease
 on:
   push:
     tags:
-      - "v*"
+      - "v0.6.0"
 
 permissions:
   contents: read

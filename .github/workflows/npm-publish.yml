@@ -1,0 +1,358 @@
+name: npm Release
+
+on:
+  push:
+    tags:
+      - "v1.0.0-rc.*"
+      - "v1.0.0"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Read-only release verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Check out immutable tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24.14.0"
+          cache: npm
+      - name: Validate tag and package identity
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_TYPE" = "tag"
+          package_name="$(node -p "require('./package.json').name")"
+          package_version="$(node -p "require('./package.json').version")"
+          package_private="$(node -p "require('./package.json').private === true")"
+          test "$package_name" = "collective-cognition-sdk"
+          test "$GITHUB_REF_NAME" = "v$package_version"
+          test "$package_private" = "false"
+          grep -Eq '^v1\.0\.0(-rc\.[1-9][0-9]*)?$' <<<"$GITHUB_REF_NAME"
+          git fetch --no-tags origin main
+          test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = "tag"
+          tag_commit="$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{}")"
+          test "$tag_commit" = "$GITHUB_SHA"
+          test "$tag_commit" = "$(git rev-parse origin/main)"
+          test "$GITHUB_SHA" = "$(git rev-parse origin/main)"
+      - name: Install dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --prefer-offline
+      - name: Run full SDK verification
+        run: |
+          set -euo pipefail
+          npm test
+          npx tsc --noEmit
+          npm run check
+      - name: Run examples and package checks
+        run: |
+          set -euo pipefail
+          example_root="$(mktemp -d)"
+          trap 'rm -rf "$example_root"' EXIT
+          ledger="$example_root/events.db"
+          cognition="$example_root/cognition.db"
+
+          LEDGER_PATH="$ledger" node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { DatabaseSync } from "node:sqlite";
+
+          const ledgerPath = process.env.LEDGER_PATH;
+          assert.ok(ledgerPath);
+          const database = new DatabaseSync(ledgerPath);
+          try {
+            database.exec(`
+              CREATE TABLE events (
+                id      INTEGER PRIMARY KEY,
+                person  TEXT NOT NULL,
+                project TEXT,
+                ts      TEXT NOT NULL,
+                source  TEXT NOT NULL,
+                kind    TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                refs    TEXT,
+                raw     TEXT,
+                hash    TEXT NOT NULL,
+                UNIQUE(person, source, hash)
+              );
+            `);
+            database.prepare(`
+              INSERT INTO events (
+                id, person, project, ts, source, kind, summary, refs, raw, hash
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+              1,
+              "ci-user",
+              "ci-synthetic",
+              "2026-08-02T00:00:00.000Z",
+              "ci:synthetic-event",
+              "commit",
+              "Synthetic CI distribution event.",
+              JSON.stringify({ url: "https://example.invalid/ci-synthetic" }),
+              null,
+              "ci-synthetic-hash-1",
+            );
+          } finally {
+            database.close();
+          }
+          NODE
+
+          npm run example
+          npm run example:markdown
+          npm run example:portable
+          npm run example:host
+          npm run example:workflow
+          npm run example:interoperability
+          npm run example:teammem -- "$ledger"
+          npm run example:teammem:durable -- --ledger "$ledger" --cognition-db "$cognition" --project ci-synthetic --from 2026-08-02T00:00:00.000Z --limit 1 --create
+          npm run pack:check
+      - name: Build the verified package archive
+        run: |
+          set -euo pipefail
+          staging="${{ runner.temp }}/verified-package"
+          rm -rf "$staging"
+          mkdir -p "$staging"
+          package_version="$(node -p "require('./package.json').version")"
+          archive_name="collective-cognition-sdk-$package_version.tgz"
+          npm pack --pack-destination "$staging"
+          test "$(find "$staging" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" = 1
+          test -f "$staging/$archive_name"
+          test ! -L "$staging/$archive_name"
+          node scripts/verify-package-archive.mjs --archive "$staging/$archive_name" --expected-version "$package_version"
+      - name: Record and summarize the verified archive
+        run: |
+          set -euo pipefail
+          staging="${{ runner.temp }}/verified-package"
+          package_version="$(node -p "require('./package.json').version")"
+          STAGING="$staging" PACKAGE_VERSION="$package_version" node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { spawnSync } from "node:child_process";
+          import { createHash } from "node:crypto";
+          import { readFileSync, writeFileSync } from "node:fs";
+          import { join } from "node:path";
+
+          const staging = process.env.STAGING;
+          const packageVersion = process.env.PACKAGE_VERSION;
+          const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+          assert.equal(typeof staging, "string");
+          assert.equal(typeof packageVersion, "string");
+          assert.equal(typeof summaryPath, "string");
+          const filename = `collective-cognition-sdk-${packageVersion}.tgz`;
+          const archive = join(staging, filename);
+          const bytes = readFileSync(archive);
+          const digest = createHash("sha256").update(bytes).digest("hex");
+          const listed = spawnSync("tar", ["-tzf", archive], { encoding: "utf8" });
+          assert.equal(listed.status, 0, listed.stderr);
+          const inventory = [...listed.stdout.split("\n").filter(Boolean)].sort();
+          assert.ok(inventory.length > 0);
+          const manifest = {
+            packageName: "collective-cognition-sdk",
+            packageVersion,
+            tag: process.env.GITHUB_REF_NAME,
+            commit: process.env.GITHUB_SHA,
+            filename,
+            bytes: bytes.length,
+            sha256: digest,
+            inventory,
+          };
+          writeFileSync(
+            join(staging, "archive-manifest.json"),
+            `${JSON.stringify(manifest, null, 2)}\n`,
+          );
+          writeFileSync(
+            summaryPath,
+            [
+              "## Verified package archive",
+              "",
+              `- package: collective-cognition-sdk@${packageVersion}`,
+              `- commit: ${manifest.commit}`,
+              `- filename: ${filename}`,
+              `- bytes: ${manifest.bytes}`,
+              `- sha256: ${digest}`,
+              "",
+              "### Archive inventory",
+              "",
+              ...inventory.map((entry) => `- ${entry}`),
+              "",
+            ].join("\n"),
+            { flag: "a" },
+          );
+          NODE
+      - name: Upload the verified package archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verified-package
+          path: ${{ runner.temp }}/verified-package
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
+
+  publish:
+    name: Publish the verified archive to npm
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm-production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24.14.0"
+      - name: Verify the publication toolchain and empty workspace
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = "github-hosted"
+          test -z "$(ls -A "$GITHUB_WORKSPACE")"
+          NPM_VERSION="$(npm --version)" node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+
+          const rank = (parts) =>
+            parts[0] * 1_000_000 + parts[1] * 1_000 + parts[2];
+          const observed = (process.env.NPM_VERSION ?? "").split(".").map(Number);
+          assert.equal(observed.length, 3);
+          assert.ok(observed.every((part) => Number.isInteger(part) && part >= 0));
+          assert.ok(
+            rank(observed) >= rank([11, 5, 1]),
+            "trusted publishing requires npm 11.5.1 or later",
+          );
+          NODE
+      - name: Download the verified package archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: verified-package
+          path: ${{ runner.temp }}/verified-package
+      - name: Verify the transferred package archive
+        run: |
+          set -euo pipefail
+          staging="${RUNNER_TEMP}/verified-package"
+          test "$(find "$staging" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" = 2
+          STAGING="$staging" node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { spawnSync } from "node:child_process";
+          import { createHash } from "node:crypto";
+          import { readFileSync } from "node:fs";
+          import { join } from "node:path";
+
+          const staging = process.env.STAGING;
+          assert.equal(typeof staging, "string");
+          const manifest = JSON.parse(
+            readFileSync(join(staging, "archive-manifest.json"), "utf8"),
+          );
+          assert.deepEqual(Object.keys(manifest), [
+            "packageName",
+            "packageVersion",
+            "tag",
+            "commit",
+            "filename",
+            "bytes",
+            "sha256",
+            "inventory",
+          ]);
+          assert.equal(manifest.packageName, "collective-cognition-sdk");
+          assert.match(manifest.packageVersion, /^1\.0\.0(?:-rc\.[1-9][0-9]*)?$/);
+          assert.equal(manifest.tag, process.env.GITHUB_REF_NAME);
+          assert.equal(manifest.tag, `v${manifest.packageVersion}`);
+          assert.equal(manifest.commit, process.env.GITHUB_SHA);
+          assert.equal(
+            manifest.filename,
+            `collective-cognition-sdk-${manifest.packageVersion}.tgz`,
+          );
+          const archive = join(staging, manifest.filename);
+          const bytes = readFileSync(archive);
+          assert.equal(manifest.bytes, bytes.length);
+          assert.equal(
+            manifest.sha256,
+            createHash("sha256").update(bytes).digest("hex"),
+          );
+          const listed = spawnSync("tar", ["-tzf", archive], { encoding: "utf8" });
+          assert.equal(listed.status, 0, listed.stderr);
+          const inventory = [...listed.stdout.split("\n").filter(Boolean)].sort();
+          assert.deepEqual(manifest.inventory, inventory);
+          const packed = spawnSync(
+            "tar",
+            ["-xzOf", archive, "package/package.json"],
+            { encoding: "utf8" },
+          );
+          assert.equal(packed.status, 0, packed.stderr);
+          const packedManifest = JSON.parse(packed.stdout);
+          assert.equal(packedManifest.name, "collective-cognition-sdk");
+          assert.equal(packedManifest.version, manifest.packageVersion);
+          assert.equal(packedManifest.private, undefined);
+          NODE
+      - name: Enable the bootstrap credential only when provided
+        env:
+          NPM_BOOTSTRAP_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${NPM_BOOTSTRAP_TOKEN:-}" ]; then
+            userconfig="${RUNNER_TEMP}/bootstrap-npm-userconfig"
+            printf '%s\n' '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' > "$userconfig"
+            printf 'NODE_AUTH_TOKEN=%s\n' "$NPM_BOOTSTRAP_TOKEN" >> "$GITHUB_ENV"
+            printf 'NPM_CONFIG_USERCONFIG=%s\n' "$userconfig" >> "$GITHUB_ENV"
+            printf '%s\n' "- credential: one-time bootstrap token" >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf '%s\n' "- credential: none; trusted publishing through OIDC" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Publish the verified archive
+        run: |
+          set -euo pipefail
+          staging="${RUNNER_TEMP}/verified-package"
+          package_version="$(node -p "require('$staging/archive-manifest.json').packageVersion")"
+          archive_path="$staging/collective-cognition-sdk-$package_version.tgz"
+          test -f "$archive_path"
+          cd "$staging"
+          if [ "$package_version" = "1.0.0" ]; then
+            npm publish "$archive_path" --ignore-scripts --provenance
+          else
+            npm publish "$archive_path" --ignore-scripts --provenance --tag next
+          fi
+      - name: Record the observed distribution tags
+        run: |
+          set -euo pipefail
+          staging="${RUNNER_TEMP}/verified-package"
+          package_version="$(node -p "require('$staging/archive-manifest.json').packageVersion")"
+          dist_tags="$(npm dist-tag ls collective-cognition-sdk)"
+          DIST_TAGS="$dist_tags" PACKAGE_VERSION="$package_version" node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { writeFileSync } from "node:fs";
+
+          const packageVersion = process.env.PACKAGE_VERSION;
+          const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+          assert.equal(typeof packageVersion, "string");
+          assert.equal(typeof summaryPath, "string");
+          const observed = (process.env.DIST_TAGS ?? "")
+            .split("\n")
+            .filter(Boolean)
+            .map((line) => {
+              const entry = line.match(/^([a-z][a-z0-9-]*): (\S+)$/);
+              assert.ok(entry, `unsupported distribution tag line: ${line}`);
+              return { tag: entry[1], version: entry[2] };
+            });
+          writeFileSync(
+            summaryPath,
+            [
+              "## Observed npm distribution tags",
+              "",
+              ...observed.map(({ tag, version }) => `- ${tag}: ${version}`),
+              "",
+            ].join("\n"),
+            { flag: "a" },
+          );
+          if (packageVersion !== "1.0.0") {
+            assert.equal(
+              observed.find(({ tag }) => tag === "next")?.version,
+              packageVersion,
+              "a prerelease must remain reachable through the next distribution tag",
+            );
+          }
+          NODE

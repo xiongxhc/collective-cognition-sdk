@@ -230,6 +230,15 @@ did not accept or mutate a live vault.
 SQLite remains an optional reference adapter, not a mandatory store or
 certification claim.
 
+The `v0.6.0` prerelease is the only tag that workflow accepts. Version `1.0.0`
+release candidates and the stable `1.0.0` publish to npm through a separate
+protected workflow described in the
+[npm release runbook](docs/npm-release.md). Any version
+published under `next` is a prerelease and is not the recommended install.
+Because npm does not allow removing `latest`,
+`latest` may temporarily resolve to the first release candidate until a later
+publication repoints it.
+
 This root README records post-release evidence, so it differs from the README
 embedded in the immutable `v0.6.0` tarball. Do not treat a fresh `0.6.0` pack
 from a later commit as the released artifact. Any future package artifact
