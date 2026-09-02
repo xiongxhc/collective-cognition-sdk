@@ -17,7 +17,10 @@
 - Existing versioned resources remain immutable.
 - The legacy GitHub prerelease workflow must never process a v1 tag.
 - The protected npm publish job receives a verified archive and has no repository checkout.
-- The RC release commit may not modify existing files under `src/`, `spec/schemas/`, `spec/conformance/`, or historical `spec/compatibility/` directories.
+- The RC release commit may not modify existing files under `src/`, `spec/schemas/`, `spec/conformance/`, or historical `spec/compatibility/` directories. Its complete change set is: `package.json` version/private flag/new resource exports, `package-lock.json`, the new RC baseline and profile directories, the tests that pin the private state and package version, and status prose in `README.md`, `docs/`, and `spec/`. Release Evidence Records are post-publication artifacts and are never part of it.
+- The compatibility policy is Normative Stable and `COMP-002` forbids behavior-changing in-place edits, so the post-`1.0.0` policy is published as `packagePolicyVersion` `1.0.0`; historical baselines `0.1.0` through `0.11.0` keep recording policy `0.1.0`.
+- Packaged Distribution Readiness Profiles use only the `DRP-002` closed status vocabulary (`available`, `satisfied`, `blocked`, `not-claimed`); no `pending` or other new value is introduced without a reviewed vocabulary amendment in the profile prose.
+- The two npm registry-fact experiments (trusted publisher for a not-yet-existing name; `latest` after a first-ever `--tag next` publication) depend on nothing in this plan, may start in parallel with Task 1, and must both be recorded before the Task 5 release commit is created.
 - No `collective-cognition-sdk` tag, npm publish, GitHub release, or dist-tag mutation occurs in this plan; the separately approved throwaway bootstrap experiment is the only registry side effect.
 - The tag workflow builds one archive in an unprivileged job, publishes its SHA-256 and inventory to the job summary, transfers that exact archive plus manifest, and the protected job verifies and publishes those same bytes.
 
@@ -36,9 +39,9 @@
 - Consumes: the approved stability matrix and package `0.11.0` baseline.
 - Produces: complete stable/experimental maturity classifications and post-1.0 change rules.
 
-- [ ] Write failing tests that assert every current root export, four executables, all package subpaths, twelve root error codes, and selected package fields appear exactly once in the stable matrix.
+- [ ] Write failing tests that assert every current root export, four executables, all package subpaths, twelve root error codes, and selected package fields appear exactly once in the stable matrix; that every existing baseline `0.1.0` through `0.11.0` still records `packagePolicyVersion` `0.1.0`; and that the policy document defines `packagePolicyVersion` `1.0.0` alongside the retained `0.1.0` text.
 - [ ] Run `node --test tests/compatibility.test.mjs` and verify it fails on pre-1.0 classifications.
-- [ ] Amend the policy so `minor-before-1.0` remains historical only; after `1.0.0`, an incompatible root, CLI, or existing versioned subpath change requires `2.0.0` or a new retained versioned subpath.
+- [ ] Publish the revised policy as `packagePolicyVersion` `1.0.0` in `spec/compatibility.md` without editing the `0.1.0` rules in place: `minor-before-1.0` applies only under policy `0.1.0`; from `1.0.0`, the listed surfaces are Stable Public API, Supported Experimental is an operational-maturity label that is SemVer protected, and an incompatible root, CLI, or existing versioned subpath change requires `2.0.0` or a new retained versioned subpath. Baseline `1.0.0-rc.1` and every later baseline record policy `1.0.0` (landed in Task 5).
 - [ ] Write migration guidance stating that `0.11.0` to `1.0.0` changes support guarantees, not Portable Cognition `0.1.0` record meaning.
 - [ ] Update RFC 0012 and the checked public API inventory with every root runtime/type export, all four executables, every exported subpath, both error catalogs, selected package fields, and each stable or Supported Experimental maturity classification.
 - [ ] Run `node --test tests/compatibility.test.mjs && git diff --check` and commit with `docs: define stable package compatibility`.
@@ -59,7 +62,7 @@
 - Consumes: historical immutable profile `0.1.0` and the approved prepublication/postpublication split.
 - Produces: validation rules for candidate packaged readiness profiles, release-evidence verifier, and exact-archive verifier invoked for the RC as `node scripts/verify-package-archive.mjs --archive "$first_archive" --expected-version 1.0.0-rc.1`.
 
-- [ ] Write failing tests accepting profile versions matching `^0\.2\.0-rc\.[1-9][0-9]*$`, exact package prerelease versions, `npmPublication.status === "pending"`, expected workflow identity, intended tag, and explicit non-claims.
+- [ ] Write failing tests accepting profile versions matching `^0\.2\.0-rc\.[1-9][0-9]*$`, exact package prerelease versions, an `npm-registry` channel whose status is `blocked` with a distinct accountable-human approval blocker (`DRP-002`/`DRP-003`/`DRP-005`), expected workflow identity, intended tag, and explicit non-claims; assert that a `pending` status or any other value outside the closed vocabulary is rejected.
 - [ ] In temporary directories, write synthetic candidate/stable evidence records, a byte-identical asset copy, and `SHA256SUMS`; add failing tests for the exact candidate path `docs/acceptance/releases/1.0.0-rc.1/release-evidence.json`, stable path `docs/acceptance/releases/1.0.0/release-evidence.json`, their exact asset filenames, byte equality, digest verification, replacement rejection, and `release-evidence-amendment-1.json` naming.
 - [ ] Run the focused profile test and verify RED.
 - [ ] Implement the verifier with Node `readFileSync`, `createHash("sha256")`, closed record-field validation, exact asset/repository byte comparison, and strict one-line `SHA256SUMS` parsing. Exit nonzero with stable secret-safe codes `invalid_record`, `asset_mismatch`, or `checksum_mismatch`.
@@ -85,10 +88,10 @@
 - [ ] Write failing release-readiness tests asserting the historical workflow trigger is exactly `v0.6.0`, the new workflow accepts only `v1.0.0-rc.*` and `v1.0.0`, uses a GitHub-hosted runner, npm `>=11.5.1`, `id-token: write`, environment `npm-production`, and two-job artifact transfer.
 - [ ] Assert the unprivileged job runs the complete repository gate, builds exactly one archive, writes `archive-manifest.json` containing package version, commit, filename, SHA-256, and sorted inventory, uploads both files, and appends the same digest/inventory to `$GITHUB_STEP_SUMMARY` before the protected job can start.
 - [ ] Assert the privileged job has no checkout, no dependency install, no build/test step, sets `NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}`, downloads the two-file artifact, recomputes SHA-256 and package version, and invokes `npm publish "$archive_path" --ignore-scripts --provenance --tag next` for prereleases or `npm publish "$archive_path" --ignore-scripts --provenance` only for `1.0.0`.
-- [ ] Assert a prerelease immediately runs `npm dist-tag ls collective-cognition-sdk`; if `latest` equals the just-published RC, it runs `npm dist-tag rm collective-cognition-sdk latest`, reruns the list, and fails unless `next` equals the RC and `latest` is absent or points to a stable version.
+- [ ] Assert a prerelease immediately runs `npm dist-tag ls collective-cognition-sdk`, appends the observed dist-tags to `$GITHUB_STEP_SUMMARY`, and fails unless `next` equals the just-published RC. The workflow performs no dist-tag mutation: npm does not allow removing `latest`, and on a first-ever publication there is no other version to repoint it to. If `latest` also equals the RC, that is recorded as a known temporary state for the RC Release Evidence Record; the next publication repoints `latest`.
 - [ ] Assert tag/package/main-head parity and annotated-tag checks happen before artifact construction.
 - [ ] Run the focused release-readiness test and verify RED.
-- [ ] Narrow the old workflow, add the new workflow, retain historical CI reconstruction only for commit `76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e`, add release-evidence binding checks to branch CI when version-keyed evidence directories exist, and document the protected environment/trusted-publisher/bootstrap-secret identity.
+- [ ] Narrow the old workflow, add the new workflow, retain historical CI reconstruction only for commit `76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e`, add release-evidence binding checks to branch CI when version-keyed evidence directories exist, and document the protected environment/trusted-publisher/bootstrap-secret identity. In `docs/npm-release.md` and the README release section, state that any version under `next` is a prerelease and that `latest` may temporarily equal the first RC until the next publication.
 - [ ] Run `node --disable-warning=ExperimentalWarning --test tests/release-readiness.test.ts && git diff --check` and commit with `ci: add protected npm release workflow`.
 
 ### Task 4: Private Pre-Unlock Release Gate
@@ -99,13 +102,13 @@
 - Create: `docs/acceptance/releases/bootstrap-verification.md`
 
 **Interfaces:**
-- Consumes: Tasks 1-3 and private package `0.11.0`.
-- Produces: reviewed pre-release head with no semantic changes pending.
+- Consumes: Tasks 1-3 and private package `0.11.0`. The first four steps (the npm registry-fact experiments) consume nothing from Tasks 1-3 and may run in parallel with them; only their recorded outcome is required before Task 5.
+- Produces: reviewed pre-release head with no semantic changes pending, and the recorded registry-fact outcomes that decide whether `1.0.0-rc.2` is mandatory.
 
 - [ ] Recheck `https://docs.npmjs.com/trusted-publishers/` and `https://docs.npmjs.com/cli/v11/commands/npm-dist-tag/`, set `npm_user="$(npm whoami)"`, `bootstrap_repository="collective-cognition-bootstrap-20260825"`, and `bootstrap_package="@${npm_user}/${bootstrap_repository}"`, then query `npm view "$bootstrap_package" version --json`.
 - [ ] At the explicit external-side-effect gate, create public GitHub repository `${npm_user}/${bootstrap_repository}` containing only package `${bootstrap_package}@0.0.0-bootstrap.1`, Apache-2.0 metadata, and `.github/workflows/npm-publish.yml`. Configure protected environment `npm-production`; first attempt to configure npm trusted publishing for that exact repository/workflow/environment before the package exists. If the registry refuses, add short-lived `NPM_BOOTSTRAP_TOKEN`, and let the tag workflow run `npm publish "$archive_path" --access public --tag next --provenance`; then configure trusted publishing and publish `0.0.0-bootstrap.2` through OIDC. Never unpublish either version.
-- [ ] In the throwaway workflow, run `npm dist-tag ls "$bootstrap_package"` after first publication; if `latest` points to the bootstrap RC, run `npm dist-tag rm "$bootstrap_package" latest` and record both observed states.
-- [ ] Record URLs, retrieval time, Node/npm versions, package availability, workflow identity, publication command, provenance result, initial/final dist-tags, and the resulting direct-OIDC or token-bootstrap decision in `docs/acceptance/releases/bootstrap-verification.md`.
+- [ ] In the throwaway workflow, run `npm dist-tag ls "$bootstrap_package"` after first publication and record the observed state verbatim; attempt no dist-tag mutation. After the second bootstrap publication (if any), run it again and record whether `latest` was repointed. This settles registry fact 2.
+- [ ] Record URLs, retrieval time, Node/npm versions, package availability, workflow identity, publication command, provenance result, initial/final dist-tags, the registry fact 1 outcome (direct-OIDC or token-bootstrap, which decides whether `1.0.0-rc.2` with its own baseline and profile is mandatory), and the registry fact 2 outcome (`latest` state after a first `--tag next` publication) in `docs/acceptance/releases/bootstrap-verification.md`. Task 5 may not start until both outcomes are recorded.
 - [ ] Run the complete repository gate:
 
 ```bash
@@ -154,12 +157,12 @@ Expected: all verification commands exit `0`; the secret scan prints no matches.
 - Consumes: exact ledger `PRE_RELEASE_HEAD` after Task 4 and recorded root/subpath/CLI inventories.
 - Produces: publishable package metadata and immutable candidate resources for `1.0.0-rc.1`.
 
-- [ ] Create the release branch from the ledger's exact `PRE_RELEASE_HEAD`; write failing tests expecting package `1.0.0-rc.1`, no `private` field, candidate baseline/profile exports, exact package inventory, and profile `npmPublication.status: "pending"`.
+- [ ] Create the release branch from the ledger's exact `PRE_RELEASE_HEAD`; write failing tests expecting package `1.0.0-rc.1`, no `private` field, candidate baseline/profile exports, exact package inventory, baseline `packagePolicyVersion` `1.0.0`, and a profile `npm-registry` channel that is `blocked` with each remaining prepublication blocker (registry-name confirmation, accountable-human approval) listed distinctly.
 - [ ] Verify RED on package, compatibility, and distribution profile suites.
 - [ ] In one commit, bump package/lockfile, remove the private field, add candidate baseline/change cases/profile, add package exports/files, and update only pinned-version/private-state tests and status prose.
 - [ ] Baseline the exact root exports, declarations, all historical/new subpaths, four executables, twelve root errors, eleven portable errors, package metadata, and immutable resource digests.
 - [ ] Assert `git diff "$PRE_RELEASE_HEAD" -- src spec/schemas spec/conformance` is empty. Capture the pre-release list and SHA-256 of every existing file under `spec/compatibility/`; assert all remain present and byte-identical, with only the new `1.0.0-rc.1/` directory added.
-- [ ] Assert `git diff --name-only "$PRE_RELEASE_HEAD"` contains only `package.json`, `package-lock.json`, the new RC baseline/profile directories, the three pinned test files, and the listed README/docs/spec status files.
+- [ ] Assert `git diff --name-only "$PRE_RELEASE_HEAD"` contains only `package.json`, `package-lock.json`, the new RC baseline/profile directories, the three pinned test files, and the listed README/docs/spec status files; assert nothing under `docs/acceptance/releases/` changes in this commit.
 - [ ] Run `npm test`, `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, `npm run example:markdown`, `npm run example:workflow`, `npm run example:interoperability`, `npm run example:stable-host`, `npm run pack:check`, `npm audit --audit-level=high`, the Task 4 exact secret-scan command, and `git diff --check` on the release commit.
 - [ ] Commit the complete atomic boundary with `release: prepare 1.0.0-rc.1`.
 
