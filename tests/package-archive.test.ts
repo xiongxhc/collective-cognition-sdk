@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -259,6 +260,44 @@ test("package archive verifier rejects a workstation absolute path", async () =>
   );
   assert.notEqual(rejected.status, 0);
   assert.equal(rejected.stderr.includes(workstationPath), false);
+});
+
+test("package archive verifier rejects a symbolic-link member", async () => {
+  const secret = `npm_${"y".repeat(36)}`;
+  const outsideTarget = join(workspace, "outside-the-archive.md");
+  writeFileSync(outsideTarget, `# Outside\n\nPublish with ${secret}.\n`);
+  const linkedMember = mutatedArchive("symlink-member", (packageRoot) => {
+    const declaredPath = join(packageRoot, "docs", "public-api.md");
+    rmSync(declaredPath);
+    symlinkSync(outsideTarget, declaredPath);
+  });
+  assert.deepEqual(
+    await verifyPackageArchive({
+      archivePath: linkedMember,
+      expectedVersion: packageVersion,
+    }),
+    { ok: false, error: "unsupported_member_type" },
+  );
+
+  const rejected = spawnSync(
+    process.execPath,
+    [
+      verifierPath,
+      "--archive",
+      linkedMember,
+      "--expected-version",
+      packageVersion,
+    ],
+    { encoding: "utf8" },
+  );
+  assert.notEqual(rejected.status, 0);
+  assert.equal(rejected.stdout, "");
+  assert.deepEqual(JSON.parse(rejected.stderr), {
+    ok: false,
+    error: "unsupported_member_type",
+  });
+  assert.equal(rejected.stderr.includes(secret), false);
+  assert.equal(rejected.stderr.includes(outsideTarget), false);
 });
 
 test("package archive verifier rejects a broken export", async () => {

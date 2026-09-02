@@ -395,20 +395,34 @@ const expectedPackageFiles0110 = Object.freeze([
   "docs/public-api.md",
   "docs/acceptance/cross-connector-interoperability-0.1.0.md",
 ].sort());
-// Publishing `packagePolicyVersion` `1.0.0` stops shipping this acceptance
-// document after immutable baseline `0.11.0` recorded it in the tarball
-// inventory. The repository file stays byte-identical and keeps its recorded
-// `normative.artifacts` digest; it leaves the package because it carries a
-// workstation absolute path, which package inspection forbids. The baseline
-// keeps its recorded inventory; the working tree packs the reduced one until
-// baseline `1.0.0-rc.1` records it and retires this override.
+// Publishing `packagePolicyVersion` `1.0.0` revises the tarball inventory that
+// immutable baseline `0.11.0` recorded. One acceptance document stops shipping:
+// the repository file stays byte-identical and keeps its recorded
+// `normative.artifacts` digest, but it leaves the package because it carries a
+// workstation absolute path, which package inspection forbids. Seven guides
+// start shipping so that the links the packaged `README.md`, `spec/`
+// documents, and packaged RFCs make to them resolve inside the tarball. The
+// baseline keeps its recorded inventory; the working tree packs the revised one
+// until baseline `1.0.0-rc.1` records it and retires this override.
 const policy100RemovedPackageFiles = Object.freeze([
   "docs/acceptance/cross-connector-interoperability-0.1.0.md",
 ]);
+const policy100AddedPackageFiles = Object.freeze([
+  "docs/architecture.md",
+  "docs/capabilities.md",
+  "docs/cli-reference.md",
+  "docs/compatibility-status.md",
+  "docs/migrations/1.0.0.md",
+  "docs/package-development.md",
+  "docs/team-memory-connector-guide.md",
+]);
 const expectedPolicy100PackageFiles = Object.freeze(
-  expectedPackageFiles0110.filter(
-    (path) => !policy100RemovedPackageFiles.includes(path),
-  ),
+  [
+    ...expectedPackageFiles0110.filter(
+      (path) => !policy100RemovedPackageFiles.includes(path),
+    ),
+    ...policy100AddedPackageFiles,
+  ].sort(),
 );
 
 const expectedPhase3ResourceDigests = Object.freeze({
@@ -1588,11 +1602,18 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "LICENSE",
     "NOTICE",
     "README.md",
+    "docs/architecture.md",
+    "docs/capabilities.md",
+    "docs/cli-reference.md",
+    "docs/compatibility-status.md",
     "docs/connector-author-guide.md",
     "docs/durable-cognition-workflow-guide.md",
     "docs/git-connector-guide.md",
     "docs/markdown-cognition-adapter-guide.md",
+    "docs/migrations/1.0.0.md",
+    "docs/package-development.md",
     "docs/public-api.md",
+    "docs/team-memory-connector-guide.md",
     "rfcs/README.md",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
@@ -1730,6 +1751,13 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
       `${removedPath} must stay recorded in the immutable 0.11 inventory`,
     );
   }
+  for (const addedPath of policy100AddedPackageFiles) {
+    assert.equal(
+      baseline.package.packageFiles.includes(addedPath),
+      false,
+      `${addedPath} must stay absent from the immutable 0.11 inventory`,
+    );
+  }
   assert.deepEqual(
     paths,
     expectedPolicy100PackageFiles,
@@ -1746,11 +1774,18 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
         !/^(?:src|tests|examples)\//.test(path) &&
         (
           !/^docs\//.test(path) ||
+          path === "docs/architecture.md" ||
+          path === "docs/capabilities.md" ||
+          path === "docs/cli-reference.md" ||
+          path === "docs/compatibility-status.md" ||
           path === "docs/connector-author-guide.md" ||
           path === "docs/durable-cognition-workflow-guide.md" ||
           path === "docs/git-connector-guide.md" ||
           path === "docs/markdown-cognition-adapter-guide.md" ||
-          path === "docs/public-api.md"
+          path === "docs/migrations/1.0.0.md" ||
+          path === "docs/package-development.md" ||
+          path === "docs/public-api.md" ||
+          path === "docs/team-memory-connector-guide.md"
         ) &&
         !/(?:^|\/)adapters?\//i.test(path) &&
         !/(?:git-commit|team-memory-activity|teammem-cli)/i.test(path),

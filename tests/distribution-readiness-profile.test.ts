@@ -181,7 +181,7 @@ const expectedDrpRuleMeanings = {
   "DRP-015":
     "Observed publication facts MUST live only in a separate non-packaged Release Evidence Record whose repository copy and release asset are byte-identical and digest-bound, are never replaced, and are corrected only by append-only numbered amendments.",
   "DRP-016":
-    "A release archive MUST be verified from its own bytes against the declared package contents, package version, exports, executables, and inspection rules that exclude credentials and local absolute paths before it is treated as a release candidate.",
+    "A release archive MUST be verified from its own bytes against the declared package contents, package version, exports, executables, and inspection rules that exclude credentials and local absolute paths before it is treated as a release candidate. Verification MUST install the archive with --ignore-scripts into a clean temporary consumer and execute the installed exports and executables there, so the archive's own code is exercised rather than the repository's.",
 };
 
 const candidateTopLevelKeys = [

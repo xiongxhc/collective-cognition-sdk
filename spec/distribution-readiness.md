@@ -148,7 +148,8 @@ profile. Each record uses the repository path
 `docs/acceptance/releases/<version>/release-evidence.json` and the release asset
 name `collective-cognition-sdk-<version>-release-evidence.json`. The repository
 copy and the downloaded asset MUST be byte-identical. The SHA-256 of the record
-bytes is recorded in `docs/acceptance/releases/<version>/SHA256SUMS` as one
+bytes is recorded in the GitHub release notes and in
+`docs/acceptance/releases/<version>/SHA256SUMS`, which carries one
 `<digest>  <file name>` line per record file.
 
 Each record uses a closed shape:
@@ -250,7 +251,10 @@ numbered amendments.
 A release archive MUST be verified from its own bytes against the declared
 package contents, package version, exports, executables, and inspection rules
 that exclude credentials and local absolute paths before it is treated as a
-release candidate.
+release candidate. Verification MUST install the archive with
+`--ignore-scripts` into a clean temporary consumer and execute the installed
+exports and executables there, so the archive's own code is exercised rather
+than the repository's.
 
 ## Rule-to-Check Mapping
 

@@ -5,6 +5,11 @@ per-version compatibility classification of every package release so far. The
 normative rules live in the [compatibility policy](../spec/compatibility.md) and
 [RFC 0002](../rfcs/0002-compatibility-versioning-and-deprecation.md).
 
+Every release on this page records `packagePolicyVersion` `0.1.0`; the policy
+`1.0.0` section of the [compatibility policy](../spec/compatibility.md) takes
+effect only when a compatibility baseline records `packagePolicyVersion`
+`1.0.0`.
+
 ## Stability classes
 
 - Charter `1.0.0`, SourceRecord `0.1.0`, Portable Cognition `0.1.0`, the standalone cognitive-object and cognition-event resources `0.1.0`, Host Integration `0.1.0`, Runtime and Security Profile `0.1.0`, Distribution Readiness Profile `0.1.0`, Interoperability Profile `0.1.0`, and compatibility baselines `0.1.0` through `0.11.0` are **Normative Stable** contracts.

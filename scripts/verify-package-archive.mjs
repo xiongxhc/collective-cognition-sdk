@@ -67,11 +67,30 @@ function archiveMembers(archivePath) {
     .filter((member) => member.length > 0);
 }
 
+// `readdirSync` reports entry types with `lstat` semantics, so a symbolic link
+// is neither a directory nor a file here. Every member that is not a regular
+// file makes this return `null`, which the caller reports as
+// `unsupported_member_type`. Rejecting before any read or stat keeps a link
+// from redirecting the inspection or the executable-mode check at bytes that
+// are not in the archive.
 function packagedFiles(root) {
-  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+  const collected = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
     const entryPath = join(root, entry.name);
-    return entry.isDirectory() ? packagedFiles(entryPath) : [entryPath];
-  });
+    if (entry.isDirectory()) {
+      const nested = packagedFiles(entryPath);
+      if (nested === null) {
+        return null;
+      }
+      collected.push(...nested);
+      continue;
+    }
+    if (!entry.isFile()) {
+      return null;
+    }
+    collected.push(entryPath);
+  }
+  return collected;
 }
 
 function packageRelativeExtension(path) {
@@ -339,7 +358,11 @@ function inspectArchive(workspace, archivePath, expectedVersion) {
   }
 
   const packageRoot = join(extractRoot, ARCHIVE_ROOT);
-  const files = packagedFiles(packageRoot)
+  const extractedMembers = packagedFiles(packageRoot);
+  if (extractedMembers === null) {
+    return failure("unsupported_member_type");
+  }
+  const files = extractedMembers
     .map((path) => relative(packageRoot, path).split(sep).join("/"))
     .sort();
 
