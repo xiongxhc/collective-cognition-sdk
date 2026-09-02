@@ -169,7 +169,7 @@ const policy100RevisedArtifactSha256 = Object.freeze({
   "rfcs/0012-phase-3-charter-and-stable-package.md":
     "91b751e8ae76edbf7809a817b2cd3c4823f6d92ac41df358a97cd4a23a02e1b4",
   "spec/distribution-readiness.md":
-    "8c18de6cb26f1ed6d04abfaad8f84fe4486bc5e1ea8eaa65723eb0aecf1ee6fa",
+    "ede3d4d66719dd10b512947833364da38bbfca4c897d2469dbbe0fb62cde58e7",
 });
 // The same policy revision adds the candidate-profile and release-artifact
 // rules to the distribution readiness prose after baseline `0.11.0` recorded

@@ -99,7 +99,6 @@
     "docs/git-connector-guide.md",
     "docs/markdown-cognition-adapter-guide.md",
     "docs/public-api.md",
-    "docs/acceptance/cross-connector-interoperability-0.1.0.md",
     "rfcs/README.md",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",

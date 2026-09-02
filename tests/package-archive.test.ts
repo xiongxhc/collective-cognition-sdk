@@ -235,6 +235,32 @@ test("package archive verifier rejects credential patterns in packaged text", as
   assert.equal(rejected.stderr.includes(leaked), false);
 });
 
+test("package archive verifier rejects a workstation absolute path", async () => {
+  const workstationPath = "/Users/example/.cache/runtimes/node/bin";
+  const leakedPath = mutatedArchive("workstation-path", (packageRoot) => {
+    const readmePath = join(packageRoot, "README.md");
+    writeFileSync(
+      readmePath,
+      `${readFileSync(readmePath, "utf8")}\nRun with PATH=${workstationPath}:$PATH\n`,
+    );
+  });
+  assert.deepEqual(
+    await verifyPackageArchive({
+      archivePath: leakedPath,
+      expectedVersion: packageVersion,
+    }),
+    { ok: false, error: "credential_pattern_detected" },
+  );
+
+  const rejected = spawnSync(
+    process.execPath,
+    [verifierPath, "--archive", leakedPath, "--expected-version", packageVersion],
+    { encoding: "utf8" },
+  );
+  assert.notEqual(rejected.status, 0);
+  assert.equal(rejected.stderr.includes(workstationPath), false);
+});
+
 test("package archive verifier rejects a broken export", async () => {
   const brokenExport = mutatedArchive("broken-export", (packageRoot) => {
     const indexPath = join(packageRoot, "dist", "index.js");

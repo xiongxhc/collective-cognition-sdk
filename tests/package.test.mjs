@@ -395,6 +395,22 @@ const expectedPackageFiles0110 = Object.freeze([
   "docs/public-api.md",
   "docs/acceptance/cross-connector-interoperability-0.1.0.md",
 ].sort());
+// Publishing `packagePolicyVersion` `1.0.0` stops shipping this acceptance
+// document after immutable baseline `0.11.0` recorded it in the tarball
+// inventory. The repository file stays byte-identical and keeps its recorded
+// `normative.artifacts` digest; it leaves the package because it carries a
+// workstation absolute path, which package inspection forbids. The baseline
+// keeps its recorded inventory; the working tree packs the reduced one until
+// baseline `1.0.0-rc.1` records it and retires this override.
+const policy100RemovedPackageFiles = Object.freeze([
+  "docs/acceptance/cross-connector-interoperability-0.1.0.md",
+]);
+const expectedPolicy100PackageFiles = Object.freeze(
+  expectedPackageFiles0110.filter(
+    (path) => !policy100RemovedPackageFiles.includes(path),
+  ),
+);
+
 const expectedPhase3ResourceDigests = Object.freeze({
   [`collective-cognition-sdk/charter/1.0.0`]:
     "342f88f478a82fa55fdd087f57bab50cc5e6a0818c890e74d014c261b9122004",
@@ -1577,7 +1593,6 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     "docs/git-connector-guide.md",
     "docs/markdown-cognition-adapter-guide.md",
     "docs/public-api.md",
-    "docs/acceptance/cross-connector-interoperability-0.1.0.md",
     "rfcs/README.md",
     "rfcs/0001-universal-source-record-ingestion.md",
     "rfcs/0002-compatibility-versioning-and-deprecation.md",
@@ -1709,7 +1724,17 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
     expectedPaths,
     "package 0.11 compatibility inventory must match its literal allowlist",
   );
-  assert.deepEqual(paths, expectedPaths, "package contents must match allowlist");
+  for (const removedPath of policy100RemovedPackageFiles) {
+    assert.ok(
+      baseline.package.packageFiles.includes(removedPath),
+      `${removedPath} must stay recorded in the immutable 0.11 inventory`,
+    );
+  }
+  assert.deepEqual(
+    paths,
+    expectedPolicy100PackageFiles,
+    "package contents must match the policy 1.0.0 allowlist",
+  );
   assert.equal(
     paths.includes(".gitattributes"),
     false,
@@ -1725,8 +1750,7 @@ test("npm package manifest and tarball expose only approved artifacts", () => {
           path === "docs/durable-cognition-workflow-guide.md" ||
           path === "docs/git-connector-guide.md" ||
           path === "docs/markdown-cognition-adapter-guide.md" ||
-          path === "docs/public-api.md" ||
-          path === "docs/acceptance/cross-connector-interoperability-0.1.0.md"
+          path === "docs/public-api.md"
         ) &&
         !/(?:^|\/)adapters?\//i.test(path) &&
         !/(?:git-commit|team-memory-activity|teammem-cli)/i.test(path),
@@ -2494,14 +2518,14 @@ try {
     assert.equal(packResults.length, 1);
     assert.deepEqual(
       packResults[0].files.map((file) => file.path).sort(),
-      expectedPackageFiles0110,
-      "actual npm pack result files must match the independent package 0.11 allowlist",
+      expectedPolicy100PackageFiles,
+      "actual npm pack result files must match the policy 1.0.0 allowlist",
     );
     const tarballPath = `${packageOutput}/${packResults[0].filename}`;
     assert.deepEqual(
       packedArchivePaths(tarballPath),
-      expectedPackageFiles0110,
-      "actual archive members must match the independent package 0.11 allowlist",
+      expectedPolicy100PackageFiles,
+      "actual archive members must match the policy 1.0.0 allowlist",
     );
 
     const installed = spawnNpm(

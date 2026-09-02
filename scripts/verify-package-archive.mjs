@@ -26,13 +26,17 @@ const PRIVATE_PATH_PATTERNS = [
   /^(?:src|tests|examples)\//,
   /^docs\/superpowers\//,
 ];
-const CREDENTIAL_PATTERNS = [
+// Package inspection must find no credentials and no local absolute paths. A
+// match is reported as `credential_pattern_detected` without echoing the
+// matched text.
+const INSPECTION_PATTERNS = [
   /npm_[A-Za-z0-9]{36}/,
   /gh[pousr]_[A-Za-z0-9]{36}/,
   /github_pat_[A-Za-z0-9_]{20,}/,
   /AKIA[0-9A-Z]{16}/,
   /-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----/,
   /(?:_authToken|NPM_TOKEN|NODE_AUTH_TOKEN)\s*[=:]\s*\S/,
+  /(?:\/Users|\/home)\/[^/\s]+\//,
 ];
 
 function failure(code) {
@@ -392,7 +396,7 @@ function inspectArchive(workspace, archivePath, expectedVersion) {
 
   for (const path of files) {
     const content = readFileSync(join(packageRoot, path), "utf8");
-    if (CREDENTIAL_PATTERNS.some((pattern) => pattern.test(content))) {
+    if (INSPECTION_PATTERNS.some((pattern) => pattern.test(content))) {
       return failure("credential_pattern_detected");
     }
   }

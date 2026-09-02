@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import {
-  existsSync,
   lstatSync,
   mkdtempSync,
   readFileSync,
@@ -182,7 +181,7 @@ const expectedDrpRuleMeanings = {
   "DRP-015":
     "Observed publication facts MUST live only in a separate non-packaged Release Evidence Record whose repository copy and release asset are byte-identical and digest-bound, are never replaced, and are corrected only by append-only numbered amendments.",
   "DRP-016":
-    "A release archive MUST be verified from its own bytes against the declared package contents, package version, exports, executables, and secret-exclusion rules before it is treated as a release candidate.",
+    "A release archive MUST be verified from its own bytes against the declared package contents, package version, exports, executables, and inspection rules that exclude credentials and local absolute paths before it is treated as a release candidate.",
 };
 
 const candidateTopLevelKeys = [
@@ -1056,12 +1055,10 @@ test("public API reference names every supported package surface", async () => {
 
 test("candidate distribution readiness profile pins the 0.2.0-rc.N contract", () => {
   const profile = candidateProfile();
+  // `plannedPublication` records expected identity rather than repository
+  // evidence, so validation reads no file for it and succeeds whether or not
+  // the release workflow already exists.
   assertCandidateDistributionReadinessProfile(profile);
-  assert.equal(
-    existsSync(new URL("../.github/workflows/npm-publish.yml", import.meta.url)),
-    false,
-    "the candidate contract must accept expected workflow identity before the workflow exists",
-  );
   assert.deepEqual(
     readProfile(),
     JSON.parse(readFileSync(profileUrl, "utf8")),

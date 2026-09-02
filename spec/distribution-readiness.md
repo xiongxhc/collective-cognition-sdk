@@ -248,8 +248,9 @@ numbered amendments.
 ## DRP-016
 
 A release archive MUST be verified from its own bytes against the declared
-package contents, package version, exports, executables, and secret-exclusion
-rules before it is treated as a release candidate.
+package contents, package version, exports, executables, and inspection rules
+that exclude credentials and local absolute paths before it is treated as a
+release candidate.
 
 ## Rule-to-Check Mapping
 
