@@ -17,7 +17,7 @@
 - Existing versioned resources remain immutable.
 - The legacy GitHub prerelease workflow must never process a v1 tag.
 - The protected npm publish job receives a verified archive and has no repository checkout.
-- The RC release commit may not modify existing files under `src/`, `spec/schemas/`, `spec/conformance/`, or historical `spec/compatibility/` directories. Its complete change set is: `package.json` version/private flag/new resource exports, `package-lock.json`, the new RC baseline and profile directories, the tests that pin the private state and package version, and status prose in `README.md`, `docs/`, and `spec/`. Release Evidence Records are post-publication artifacts and are never part of it.
+- The RC release commit may not modify existing files under `src/`, `spec/schemas/`, `spec/conformance/`, or historical `spec/compatibility/` directories. Its complete change set is: `package.json` version/private flag/new resource exports, `package-lock.json`, the new RC baseline and profile directories, the tests that pin the private state and package version, the `STAB-002` surface enumeration in `spec/compatibility.md` together with the `currentBaselineUrl` repoint in `tests/compatibility.test.mjs` that binds it, and status prose in `README.md`, `docs/`, and `spec/`. The `STAB-002` enumeration is in the set because it enumerates the surfaces of the compatibility baseline this same commit records. Release Evidence Records are post-publication artifacts and are never part of it.
 - The compatibility policy is Normative Stable and `COMP-002` forbids behavior-changing in-place edits, so the post-`1.0.0` policy is published as `packagePolicyVersion` `1.0.0`; historical baselines `0.1.0` through `0.11.0` keep recording policy `0.1.0`.
 - Packaged Distribution Readiness Profiles use only the `DRP-002` closed status vocabulary (`available`, `satisfied`, `blocked`, `not-claimed`); no `pending` or other new value is introduced without a reviewed vocabulary amendment in the profile prose.
 - The two npm registry-fact experiments (trusted publisher for a not-yet-existing name; `latest` after a first-ever `--tag next` publication) depend on nothing in this plan, may start in parallel with Task 1, and must both be recorded before the Task 5 release commit is created.
@@ -144,12 +144,12 @@ Expected: all verification commands exit `0`; the secret scan prints no matches.
 - Create: `spec/compatibility/1.0.0-rc.1/change-cases.jsonl`
 - Create: `spec/distribution-readiness/0.2.0-rc.1/profile.json`
 - Modify: `tests/package.test.mjs`
-- Modify: `tests/compatibility.test.mjs`
+- Modify: `tests/compatibility.test.mjs` (also repoint `currentBaselineUrl` to `1.0.0-rc.1`)
 - Modify: `tests/distribution-readiness-profile.test.ts`
 - Modify: `README.md`
 - Modify: `docs/public-api.md`
 - Modify: `docs/ROADMAP.md`
-- Modify: `spec/compatibility.md`
+- Modify: `spec/compatibility.md` (status prose and the `STAB-002` surface enumeration)
 - Modify: `spec/distribution-readiness.md`
 - Modify: `spec/README.md`
 
@@ -159,7 +159,7 @@ Expected: all verification commands exit `0`; the secret scan prints no matches.
 
 - [ ] Create the release branch from the ledger's exact `PRE_RELEASE_HEAD`; write failing tests expecting package `1.0.0-rc.1`, no `private` field, candidate baseline/profile exports, exact package inventory, baseline `packagePolicyVersion` `1.0.0`, and a profile `npm-registry` channel that is `blocked` with each remaining prepublication blocker (registry-name confirmation, accountable-human approval) listed distinctly.
 - [ ] Verify RED on package, compatibility, and distribution profile suites.
-- [ ] In one commit, bump package/lockfile, remove the private field, add candidate baseline/change cases/profile, add package exports/files, and update only pinned-version/private-state tests and status prose.
+- [ ] In one commit, bump package/lockfile, remove the private field, add candidate baseline/change cases/profile, add package exports/files, revise the `STAB-002` surface enumeration in `spec/compatibility.md` to match baseline `1.0.0-rc.1` (drop the `private` package field, classify `./compatibility/1.0.0-rc.1` and `./distribution-readiness/0.2.0-rc.1`), repoint `currentBaselineUrl` in `tests/compatibility.test.mjs` to that baseline, and update only pinned-version/private-state tests and status prose.
 - [ ] Baseline the exact root exports, declarations, all historical/new subpaths, four executables, twelve root errors, eleven portable errors, package metadata, and immutable resource digests.
 - [ ] Assert `git diff "$PRE_RELEASE_HEAD" -- src spec/schemas spec/conformance` is empty. Capture the pre-release list and SHA-256 of every existing file under `spec/compatibility/`; assert all remain present and byte-identical, with only the new `1.0.0-rc.1/` directory added.
 - [ ] Assert `git diff --name-only "$PRE_RELEASE_HEAD"` contains only `package.json`, `package-lock.json`, the new RC baseline/profile directories, the three pinned test files, and the listed README/docs/spec status files; assert nothing under `docs/acceptance/releases/` changes in this commit.

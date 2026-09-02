@@ -664,12 +664,17 @@ Before either npm publication:
 - the reviewed release commit removes the guard and changes only the approved
   release-commit change set defined in Slice B: the `package.json` version,
   private flag, and new resource exports; the new RC baseline and profile
-  directories; the tests that pin the private state and package version; and
-  the status prose in `README.md`, `docs/`, and `spec/`. Release Evidence
-  Records are post-publication artifacts and are never part of this commit.
+  directories; the tests that pin the private state and package version; the
+  `STAB-002` surface enumeration in `spec/compatibility.md`, together with the
+  `currentBaselineUrl` repoint in `tests/compatibility.test.mjs` that binds it,
+  because that enumeration lists the surfaces of the compatibility baseline
+  this same commit records; and the status prose in `README.md`, `docs/`, and
+  `spec/`. Release Evidence Records are post-publication artifacts and are
+  never part of this commit.
   A diff against the pre-release head shows new files only under
   `spec/compatibility/` and `spec/distribution-readiness/`, modifications only
-  to `package.json`, the named guard tests, and status prose, and no change to
+  to `package.json`, the named guard tests, the `STAB-002` enumeration, and
+  status prose, and no change to
   any file under `src/`, `spec/schemas/`, `spec/conformance/`, or an existing
   `spec/compatibility/<version>/` directory;
 - `npm test`, `npx tsc --noEmit`, repository syntax checks, examples, package

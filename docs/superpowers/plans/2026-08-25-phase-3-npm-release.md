@@ -86,12 +86,12 @@
 - Create: `spec/compatibility/1.0.0/change-cases.jsonl`
 - Create: `spec/distribution-readiness/0.2.0/profile.json`
 - Modify: `tests/package.test.mjs`
-- Modify: `tests/compatibility.test.mjs`
+- Modify: `tests/compatibility.test.mjs` (also repoint `currentBaselineUrl` to `1.0.0`)
 - Modify: `tests/distribution-readiness-profile.test.ts`
 - Modify: `README.md`
 - Modify: `docs/public-api.md`
 - Modify: `docs/ROADMAP.md`
-- Modify: `spec/compatibility.md`
+- Modify: `spec/compatibility.md` (status prose and the `STAB-002` surface enumeration)
 - Modify: `spec/distribution-readiness.md`
 - Modify: `spec/README.md`
 
@@ -100,7 +100,7 @@
 - Produces: stable release commit on current `main` and a local rehearsal report in this plan's ignored SDD workspace.
 
 - [ ] Write failing tests for package `1.0.0`, stable baseline/profile exports, baseline `packagePolicyVersion` `1.0.0`, a profile `npm-registry` channel that is `blocked` with each remaining prepublication blocker listed distinctly (`DRP-002` closed vocabulary, no `pending`), intended tag `v1.0.0`, and stable `latest` workflow routing.
-- [ ] In one release commit, change version/release metadata and add stable baseline/profile bytes without changing existing runtime, schemas, conformance fixtures, or historical baseline/profile bytes.
+- [ ] In one release commit, change version/release metadata and add stable baseline/profile bytes without changing existing runtime, schemas, conformance fixtures, or historical baseline/profile bytes. The `STAB-002` surface enumeration in `spec/compatibility.md` and the `currentBaselineUrl` repoint in `tests/compatibility.test.mjs` belong to this same commit, because that enumeration lists the surfaces of the compatibility baseline the commit records.
 - [ ] Capture `OIDC_RC_HEAD` from the OIDC RC tag and compare root declarations, runtime outputs, contract bytes, and every pre-existing package file; only package/release metadata and newly added stable baseline/profile bytes may differ.
 - [ ] Run `npm test`, `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, `npm run example:markdown`, `npm run example:workflow`, `npm run example:interoperability`, `npm run example:stable-host`, `npm run pack:check`, `npm audit --audit-level=high`, and `git diff --check`.
 - [ ] Set `first="$(mktemp -d)"` and `second="$(mktemp -d)"`; build twice with isolated caches using `npm pack --json --pack-destination "$first" > "$first/pack.json"` and `npm pack --json --pack-destination "$second" > "$second/pack.json"`; set `first_archive="$(find "$first" -name 'collective-cognition-sdk-1.0.0.tgz' -print -quit)"` and `second_archive="$(find "$second" -name 'collective-cognition-sdk-1.0.0.tgz' -print -quit)"`; compare SHA-256 digests, exact bytes with `cmp`, and sorted normalized unpacked path/content digests.
