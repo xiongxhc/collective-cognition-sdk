@@ -32,7 +32,7 @@
 - Consumes: committed `docs/acceptance/releases/bootstrap-verification.md`, current npm registry state, and the exact RC main commit.
 - Produces: a go/no-go release-state entry in this plan's ignored SDD ledger.
 
-- [ ] Recheck official npm documentation and compare it with the committed bootstrap record; if requirements changed, stop because the reviewed release workflow is stale.
+- [ ] Recheck official npm documentation and compare it with the committed bootstrap record, including both recorded registry-fact outcomes (trusted publisher for a not-yet-existing name; `latest` after a first `--tag next` publication); if requirements changed, stop because the reviewed release workflow is stale.
 - [ ] Run `git rev-parse origin/main`, `git status --short`, `npm view collective-cognition-sdk versions --json`, and `npm dist-tag ls collective-cognition-sdk`; record exact outputs in the SDD ledger.
 - [ ] Verify `package.json` at `origin/main` is `1.0.0-rc.1`, has no `private` field, and `.github/workflows/npm-publish.yml` at that commit matches the configured environment/workflow identity.
 - [ ] Select exactly one recorded path: direct OIDC RC1, or token-bootstrap RC1 followed by OIDC RC2.
@@ -49,7 +49,7 @@
 
 - [ ] Configure the npm trusted publisher for GitHub user `xiongxhc`, repository `collective-cognition-sdk`, workflow filename `npm-publish.yml`, environment `npm-production`, and allowed action `npm publish` when registry state permits. If direct OIDC is available, confirm no `NPM_BOOTSTRAP_TOKEN` exists, push annotated `v1.0.0-rc.1` only after its commit equals `origin/main`, wait for its unprivileged build job, download and verify `archive-manifest.json` plus the exact archive, present those bytes at the protected-environment gate, and approve the OIDC publish job.
 - [ ] If bootstrap is required, create one short-lived granular secret named exactly `NPM_BOOTSTRAP_TOKEN` in environment `npm-production`; the workflow maps it only to `NODE_AUTH_TOKEN` in the no-checkout publish job. Confirm the bootstrap path in the committed decision record, push annotated `v1.0.0-rc.1` only after its commit equals `origin/main`, wait for its unprivileged build job, download and verify `archive-manifest.json` plus the exact archive, present those bytes at the protected-environment gate, and approve the bootstrap-only publish job.
-- [ ] The protected job recomputes the manifest SHA-256 before `npm publish "$archive_path" --ignore-scripts --provenance --tag next`, then runs `npm dist-tag ls collective-cognition-sdk`; if `latest` equals the just-published RC, it immediately runs `npm dist-tag rm collective-cognition-sdk latest`, records both states, and fails unless `next` equals the RC and `latest` is absent or points to a stable version.
+- [ ] The protected job recomputes the manifest SHA-256 before `npm publish "$archive_path" --ignore-scripts --provenance --tag next`, then runs `npm dist-tag ls collective-cognition-sdk`, records the observed state, and fails unless `next` equals the RC. It performs no dist-tag mutation. If `latest` also equals the RC (first-ever publication), record it as a known temporary state for the RC Release Evidence Record; the README and release notes already state that `next` is a prerelease, and the next publication (RC2 or stable `1.0.0`) repoints `latest`.
 - [ ] If RC1 was token-published, configure trusted publishing, set publishing access to require 2FA and disallow tokens, revoke `NPM_BOOTSTRAP_TOKEN`, and prepare RC2 in one atomic release commit: bump package/lockfile to `1.0.0-rc.2`, add the three exact RC2 artifact paths above, update the three pinned tests and listed status prose, and change no runtime/schema/conformance/historical artifact bytes.
 - [ ] For RC2, run `npm test`, `npx tsc --noEmit`, `npm run check`, `npm run pack:check`, `npm audit --audit-level=high`, and `git diff --check`; independently review, merge to `main`, wait for CI, then push annotated `v1.0.0-rc.2` on exact `origin/main`.
 - [ ] For RC2, wait for the unprivileged build job, inspect the exact manifest/digest/inventory, approve only those exact bytes in the protected OIDC publish job, and verify the published version used OIDC rather than token fallback. Under the direct path, the corresponding RC1 build, approval, and publication already occurred in the first step.
@@ -70,7 +70,7 @@
 - Produces: canonical immutable evidence for every registry-published RC, with the OIDC RC identified explicitly.
 
 - [ ] Create one GitHub prerelease from each existing annotated published RC tag.
-- [ ] Generate canonical sorted JSON containing package/version, publication time, registry tarball URL and digest, npm provenance identity, dist-tags, commit, tag object, workflow run, GitHub release URL, Node/npm versions, archive inventory summary, verification commands, and non-claims.
+- [ ] Generate canonical sorted JSON containing package/version, publication time, registry tarball URL and digest, npm provenance identity, dist-tags (including any temporary `latest` state and the outcome of both registry-fact experiments), commit, tag object, workflow run, GitHub release URL, Node/npm versions, archive inventory summary, verification commands, and non-claims.
 - [ ] Attach exact bytes using `collective-cognition-sdk-1.0.0-rc.1-release-evidence.json` and, on the bootstrap path, `collective-cognition-sdk-1.0.0-rc.2-release-evidence.json`.
 - [ ] Compute each SHA-256 and publish it in release notes and `SHA256SUMS`. Always run `node scripts/verify-release-evidence.mjs --record docs/acceptance/releases/1.0.0-rc.1/release-evidence.json --asset /private/tmp/collective-cognition-sdk-1.0.0-rc.1-release-evidence.json --checksums docs/acceptance/releases/1.0.0-rc.1/SHA256SUMS`; on the bootstrap path run the corresponding exact command for `1.0.0-rc.2`.
 - [ ] Extend tests and branch CI to discover each version directory and run the verifier. Corrections use `release-evidence-amendment-1.json` while retaining original bytes.
@@ -99,7 +99,7 @@
 - Consumes: OIDC-verified RC semantics and RC evidence.
 - Produces: stable release commit on current `main` and a local rehearsal report in this plan's ignored SDD workspace.
 
-- [ ] Write failing tests for package `1.0.0`, stable baseline/profile exports, `npmPublication.status: "pending"`, intended tag `v1.0.0`, and stable `latest` workflow routing.
+- [ ] Write failing tests for package `1.0.0`, stable baseline/profile exports, baseline `packagePolicyVersion` `1.0.0`, a profile `npm-registry` channel that is `blocked` with each remaining prepublication blocker listed distinctly (`DRP-002` closed vocabulary, no `pending`), intended tag `v1.0.0`, and stable `latest` workflow routing.
 - [ ] In one release commit, change version/release metadata and add stable baseline/profile bytes without changing existing runtime, schemas, conformance fixtures, or historical baseline/profile bytes.
 - [ ] Capture `OIDC_RC_HEAD` from the OIDC RC tag and compare root declarations, runtime outputs, contract bytes, and every pre-existing package file; only package/release metadata and newly added stable baseline/profile bytes may differ.
 - [ ] Run `npm test`, `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, `npm run example:markdown`, `npm run example:workflow`, `npm run example:interoperability`, `npm run example:stable-host`, `npm run pack:check`, `npm audit --audit-level=high`, and `git diff --check`.
@@ -120,7 +120,7 @@
 - [ ] After explicit tag approval, create and push annotated tag `v1.0.0` on exact `origin/main`; do not create the tag on any other commit.
 - [ ] Wait for the unprivileged workflow build. Download `archive-manifest.json` and the archive, recompute SHA-256, inspect sorted inventory, and present those exact tag-built bytes at the separate protected-environment publication gate.
 - [ ] After explicit exact-byte publication approval, approve environment `npm-production`; the no-checkout job verifies the manifest and publishes that same archive through OIDC.
-- [ ] Verify with `npm view collective-cognition-sdk@1.0.0 --json`, `npm dist-tag ls collective-cognition-sdk`, `npm pack collective-cognition-sdk@1.0.0`, clean installation/import/CLI checks, archive/SRI comparison, and `npm audit signatures`; require `latest === 1.0.0` and record the intentional `next` state.
+- [ ] Verify with `npm view collective-cognition-sdk@1.0.0 --json`, `npm dist-tag ls collective-cognition-sdk`, `npm pack collective-cognition-sdk@1.0.0`, clean installation/import/CLI checks, archive/SRI comparison, and `npm audit signatures`; require `latest === 1.0.0`, confirm any temporary RC `latest` state recorded in the RC evidence is now resolved, and record the intentional `next` state.
 - [ ] Create the GitHub release from the existing tag only after npm verification passes.
 - [ ] If stable publication fails before npm accepts the version, diagnose without moving the tag; if npm accepted the version but verification fails, preserve all evidence and plan `1.0.1` rather than rewriting `1.0.0`.
 
@@ -143,7 +143,7 @@
 - [ ] Generate canonical stable evidence with the same closed fields as the RC record and attach exact bytes to the GitHub release.
 - [ ] Record SHA-256 in release notes and repository `SHA256SUMS`; download the asset to `/private/tmp/collective-cognition-sdk-1.0.0-release-evidence.json` and run `node scripts/verify-release-evidence.mjs --record docs/acceptance/releases/1.0.0/release-evidence.json --asset /private/tmp/collective-cognition-sdk-1.0.0-release-evidence.json --checksums docs/acceptance/releases/1.0.0/SHA256SUMS`.
 - [ ] Extend tests and CI binding checks for stable evidence and retain append-only amendment rules.
-- [ ] Update public docs from `pending` to observed publication only outside immutable packaged profile bytes; keep production certification, hosted operation, ecosystem adoption, and LTS unclaimed.
+- [ ] Update public docs from the prepublication `blocked` state to observed publication only outside immutable packaged profile bytes; keep production certification, hosted operation, ecosystem adoption, and LTS unclaimed.
 - [ ] Mark Phase 3 complete only after registry, provenance, clean-consumer, release, evidence-binding, and post-merge CI checks pass.
 - [ ] Dispatch final specification, code, security, package, and release-evidence reviews; correct repository-only issues without altering released bytes.
 - [ ] Commit the closeout evidence, push its feature branch, merge it to `main`, wait for CI, and verify local/remote main plus immutable RC/stable tags.
