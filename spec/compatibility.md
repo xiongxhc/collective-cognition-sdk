@@ -282,7 +282,7 @@ Publishing this policy version does not change any historical baseline, contract
 
 ### STAB-002 — Stable Surface Classification
 
-The classification below assigns exactly one `1.0.0` classification to every root runtime export, root type export, root `DomainErrorCode` value, declared package subpath, installed executable, and selected `package.json` metadata field recorded by the compatibility baseline. A surface MUST NOT appear more than once. A declared package surface that is absent from this list has no `1.0.0` classification and MUST NOT be treated as stable.
+The classification below assigns exactly one `1.0.0` classification to every root runtime export, root type export, root `DomainErrorCode` value, declared package subpath, installed executable, and selected package metadata field recorded by the compatibility baseline. A surface MUST NOT appear more than once. A declared package surface that is absent from this list has no `1.0.0` classification and MUST NOT be treated as stable.
 
 Each line reads `<classification> | <surface kind> | <surface>`. The classification identifiers are `stable-public-api`, `normative-stable`, `supported-experimental`, and `stable-introspection`. Baseline `1.0.0-rc.1` MUST record these identifiers and their definitions machine-readably.
 

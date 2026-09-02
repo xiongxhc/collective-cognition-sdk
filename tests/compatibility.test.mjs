@@ -165,7 +165,7 @@ const expectedHistoricalPublicApiReferenceSha256 =
 // `1.0.0-rc.1` records them.
 const policy100RevisedArtifactSha256 = Object.freeze({
   "docs/public-api.md":
-    "3367a27133cbbf003746b04b7293652e2550d349b0958302589dec4c0b581d4d",
+    "095be301c4a762f23acdbf8eaec8f39b6870f96a7b721ac3f35611614a5b97d2",
   "rfcs/0012-phase-3-charter-and-stable-package.md":
     "91b751e8ae76edbf7809a817b2cd3c4823f6d92ac41df358a97cd4a23a02e1b4",
 });

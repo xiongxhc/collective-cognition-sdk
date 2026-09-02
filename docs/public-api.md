@@ -247,8 +247,9 @@ Stable contract error codes.
 ## Selected Package Fields
 
 `./package.json` is exported for introspection only. The compatibility baseline
-records these `package.json` fields exactly, and they are the fields the
-compatibility policy covers.
+records these selected package metadata fields exactly, and they are the fields
+the compatibility policy covers. Ten are read from the manifest;
+`productionDependencyFields` is computed by the baseline.
 
 | Field | Recorded value or shape |
 | --- | --- |
@@ -262,7 +263,7 @@ compatibility policy covers.
 | `engines` | `{ "node": ">=24" }` |
 | `exports` | Every declared subpath and its condition targets. |
 | `bin` | The four installed executable names and their targets. |
-| `productionDependencyFields` | The production dependency fields present in the manifest; currently none. |
+| `productionDependencyFields` | Not a manifest field. The baseline computes it by listing which of `dependencies`, `optionalDependencies`, `peerDependencies`, `bundleDependencies`, and `bundledDependencies` the manifest declares; currently none. |
 
 ## Stable `1.0.0` Classification
 
