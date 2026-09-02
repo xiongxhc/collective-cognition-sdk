@@ -41,7 +41,7 @@ const expectedAssets = [
   "release-manifest.json",
 ];
 const expectedChecksumAssets = expectedAssets.slice(1);
-const expectedPackageScriptsSha256 = "904046a8c58f6b9864bf5d06079125385530478c67c2156a6b79bc720d3b3cb4";
+const expectedPackageScriptsSha256 = "18d577ecf55f05ce48ad02b6cab9edb615d957c127de9af01428531e49f792cd";
 const expectedCiWorkflowSha256 = "e30ee54fd07a65f34ed24694d85f64ba48c303148964a8683d43910589e74ede";
 const expectedGitHubPrereleaseWorkflowSha256 = "b628e8e07829bd115a01133595d4f3424e0634e7479f9f00c35bc4e5c9a8508f";
 const expectedTarballSha256 = "3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe";

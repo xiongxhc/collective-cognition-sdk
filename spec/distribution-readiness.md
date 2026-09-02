@@ -88,6 +88,87 @@ The profile also carries a closed set of non-claims:
 
 These non-claims are explicit boundaries, not omissions.
 
+## Candidate Profile Extension 0.2.0-rc.N
+
+Profile versions matching `0.2.0-rc.N`, where `N` is a positive integer without
+leading zeros, describe one release-candidate package artifact before
+publication. Final profile `0.2.0` describes the stable package before
+publication. Both keep every member and closed status vocabulary of profile
+`0.1.0`, supersede only the descriptive status of `0.1.0`, and never modify its
+distributed bytes.
+
+A candidate profile adds exactly three top-level members after the historical
+ones:
+
+- `supportedRuntime` — the exact `engines.node` range the described package
+  declares;
+- `supportBoundaries` — the recorded stable and experimental support
+  boundaries;
+- `plannedPublication` — the expected publication identity of an artifact that
+  is not published.
+
+The candidate top-level shape is therefore `profileVersion`,
+`describesPackageVersion`, `supportedRuntime`, `overallStatus`, `channels`,
+`gates`, `npmBlockers`, `supportBoundaries`, `plannedPublication`, and
+`nonClaims`.
+
+`supportBoundaries` is a closed array. Each entry has a unique
+`DRP-SUPPORT-NNN` identifier, a `stability` value from the closed vocabulary
+`normative-stable` and `supported-experimental`, and repository evidence paths.
+Both stability values MUST appear so the profile records the stable and the
+experimental boundary rather than one of them.
+
+`plannedPublication` is a closed object:
+
+- `registryName` — the exact package name the registry entry is expected to
+  use;
+- `provenanceMechanism` — the approved provenance mechanism,
+  `github-actions-oidc-trusted-publishing`;
+- `intendedTag` — the intended immutable annotated Git tag, which is `v`
+  followed by the described package version;
+- `workflow` — a closed object whose `path` is `.github/workflows/npm-publish.yml`
+  and whose `environment` is `npm-production`.
+
+`describesPackageVersion` MUST name one exact Semantic Versioning prerelease
+version. `plannedPublication` records intent. Its members are expected identity
+rather than repository-verified evidence, so the release workflow file is not
+required to exist while the candidate artifact remains unbuilt.
+
+A candidate profile keeps the `npm-registry` channel `blocked`, keeps
+`DRP-NPM-001` registry-name verification and `DRP-NPM-002` accountable-human
+approval as two distinct blockers, and keeps `overallStatus` `blocked`. The
+extension introduces no new status value. `pending` and every other value
+outside the closed vocabulary is rejected.
+
+## Release Evidence Record
+
+Facts that cannot exist before the package bytes are published belong to a
+separate, non-packaged Release Evidence Record rather than to a packaged
+profile. Each record uses the repository path
+`docs/acceptance/releases/<version>/release-evidence.json` and the release asset
+name `collective-cognition-sdk-<version>-release-evidence.json`. The repository
+copy and the downloaded asset MUST be byte-identical. The SHA-256 of the record
+bytes is recorded in `docs/acceptance/releases/<version>/SHA256SUMS` as one
+`<digest>  <file name>` line per record file.
+
+Each record uses a closed shape:
+
+- `evidenceRecordVersion` — the record contract version `0.1.0`;
+- `packageVersion` — the exact published version, which MUST equal the
+  directory name;
+- `registryPublication` — `publishedAt`, `archiveDigest`, and `distTags`;
+- `npmProvenance` — `identity` and `verified`;
+- `gitTag` — `name`, `tagObjectSha`, and `commitSha`;
+- `githubRelease` — `tag`, `workflowPath`, and `workflowRunId`;
+- `cleanConsumer` — `status` and `nodeVersion`.
+
+A record file is named `release-evidence.json` or
+`release-evidence-amendment-N.json`, where `N` is a positive integer without
+leading zeros. An amendment adds the closed members `amendsRecord` and
+`amendmentNumber`, references the original file, and never replaces its bytes.
+Any other record file name is a replacement rather than an amendment and is
+rejected.
+
 ## DRP-001
 
 The profile version and described package version MUST be explicit.
@@ -145,6 +226,31 @@ bytes.
 Package contents MUST include the public reference, normative prose, machine
 profile, RFC, and compatibility evidence while excluding implementation plans.
 
+## DRP-013
+
+A candidate profile MUST use a `0.2.0-rc.N` profile version and MUST describe
+one exact package prerelease version.
+
+## DRP-014
+
+A candidate profile MUST record the supported runtime, both support
+boundaries, the expected registry publication identity, the approved
+provenance mechanism, the intended immutable Git tag, and the release workflow
+identity as intent rather than repository-verified publication evidence.
+
+## DRP-015
+
+Observed publication facts MUST live only in a separate non-packaged Release
+Evidence Record whose repository copy and release asset are byte-identical and
+digest-bound, are never replaced, and are corrected only by append-only
+numbered amendments.
+
+## DRP-016
+
+A release archive MUST be verified from its own bytes against the declared
+package contents, package version, exports, executables, and secret-exclusion
+rules before it is treated as a release candidate.
+
 ## Rule-to-Check Mapping
 
 | Rule | Primary check |
@@ -161,12 +267,20 @@ profile, RFC, and compatibility evidence while excluding implementation plans.
 | DRP-010 | `tests/distribution-readiness-profile.test.ts` and `tests/package.test.mjs` verify read-only import plus the non-authority boundary. |
 | DRP-011 | `tests/compatibility.test.mjs` pins historical baselines and previously distributed artifact digests. |
 | DRP-012 | `tests/package.test.mjs` checks exact package contents and excludes `docs/superpowers/plans/`. |
+| DRP-013 | `tests/distribution-readiness-profile.test.ts` accepts `0.2.0-rc.N` candidate versions describing exact package prereleases and rejects every other version series. |
+| DRP-014 | `tests/distribution-readiness-profile.test.ts` validates the candidate runtime, support boundaries, and planned publication identity and rejects `pending` or unknown members. |
+| DRP-015 | `tests/release-evidence.test.ts` runs `scripts/verify-release-evidence.mjs` over record paths, asset names, byte identity, digests, replacement rejection, and amendment naming. |
+| DRP-016 | `tests/package-archive.test.ts` runs `scripts/verify-package-archive.mjs` over exact archive contents, package version, exports, executables, and secret exclusion. |
 
 ## Versioning and Replacement
 
 This profile is closed and versioned. A semantic change requires a new profile
 version and a new reviewed artifact. The previously distributed `0.1.0` bytes
-remain preserved as history.
+remain preserved as history. Candidate `0.2.0-rc.N` and final `0.2.0`
+are separate immutable packaged resources that supersede the descriptive status
+of `0.1.0` without rewriting it. A Release Evidence Record is never replaced;
+a correction is an append-only numbered amendment that retains and references
+the original bytes.
 
 ## Non-Authority
 

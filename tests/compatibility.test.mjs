@@ -168,7 +168,18 @@ const policy100RevisedArtifactSha256 = Object.freeze({
     "095be301c4a762f23acdbf8eaec8f39b6870f96a7b721ac3f35611614a5b97d2",
   "rfcs/0012-phase-3-charter-and-stable-package.md":
     "91b751e8ae76edbf7809a817b2cd3c4823f6d92ac41df358a97cd4a23a02e1b4",
+  "spec/distribution-readiness.md":
+    "8c18de6cb26f1ed6d04abfaad8f84fe4486bc5e1ea8eaa65723eb0aecf1ee6fa",
 });
+// The same policy revision adds the candidate-profile and release-artifact
+// rules to the distribution readiness prose after baseline `0.11.0` recorded
+// twelve identifiers.
+const policy100AddedDistributionReadinessRuleIds = Object.freeze([
+  "DRP-013",
+  "DRP-014",
+  "DRP-015",
+  "DRP-016",
+]);
 const expectedDistributionReadinessRfcSha256 =
   "967b0cc1b6584902c4d606bbdc7cf47f9801283a3f67d7a802152994dabc6da3";
 const expectedDistributionReadinessProseSha256 =
@@ -672,7 +683,7 @@ test("historical versioned resources remain byte-immutable", () => {
     .forEach(([path, expectedDigest]) => {
       assert.equal(
         sha256(readFileSync(new URL(path, repositoryRoot))),
-        expectedDigest,
+        policy100RevisedArtifactSha256[path] ?? expectedDigest,
         path,
       );
     });
@@ -1036,7 +1047,7 @@ test("normative machine artifacts match exact digests", () => {
     sha256(
       readFileSync(new URL("spec/distribution-readiness.md", repositoryRoot)),
     ),
-    expectedDistributionReadinessProseSha256,
+    policy100RevisedArtifactSha256["spec/distribution-readiness.md"],
     "spec/distribution-readiness.md",
   );
   assert.equal(
@@ -1232,7 +1243,10 @@ test("normative prose matches its hash and stable rule identifiers", () => {
   );
   assert.deepEqual(
     ruleIds("spec/distribution-readiness.md", "DRP"),
-    baseline.normative.distributionReadiness.ruleIds,
+    [
+      ...baseline.normative.distributionReadiness.ruleIds,
+      ...policy100AddedDistributionReadinessRuleIds,
+    ],
   );
   assert.deepEqual(
     distributionReadinessProfile.gates.map((gate) => gate.id),
