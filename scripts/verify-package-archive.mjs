@@ -6,7 +6,6 @@ import {
   readdirSync,
   realpathSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,7 +15,8 @@ import { pathToFileURL } from "node:url";
 const ARCHIVE_ROOT = "package";
 const ALWAYS_INCLUDED_PATHS = ["package.json", "README.md", "LICENSE", "NOTICE"];
 const ALLOWED_DIRECTORY_EXTENSIONS = new Set([".js", ".d.ts"]);
-const EXECUTABLE_MODE = 0o755;
+const EXECUTABLE_MODE_STRING = "-rwxr-xr-x";
+const VERBOSE_MODE_FIELD = /^[bcdlps-][r-][w-][xsS-][r-][w-][xsS-][r-][w-][xtT-]$/;
 const VERSION_PATTERN =
   /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?$/;
 const PRIVATE_PATH_PATTERNS = [
@@ -65,6 +65,41 @@ function archiveMembers(archivePath) {
     .split("\n")
     .map((member) => member.trim())
     .filter((member) => member.length > 0);
+}
+
+// bsdtar (macOS, Windows) and GNU tar (Ubuntu) print different column
+// layouts for `-tv`, but both start each line with a 10-character
+// `type+rwxrwxrwx` permission field and end it with the member path (a
+// symlink line ends with " -> target" instead). Reading only those two ends
+// keeps this independent of the owner/group/size/date columns in between.
+function archiveMemberModes(archivePath) {
+  const listed = run("tar", ["-tvzf", archivePath]);
+  if (listed.status !== 0) {
+    return null;
+  }
+  const modesByPath = new Map();
+  for (const rawLine of listed.stdout.split("\n")) {
+    const line = rawLine.trimEnd();
+    if (line.length === 0) {
+      continue;
+    }
+    const firstSpace = line.indexOf(" ");
+    if (firstSpace === -1) {
+      continue;
+    }
+    const modeField = line.slice(0, firstSpace);
+    if (!VERBOSE_MODE_FIELD.test(modeField)) {
+      continue;
+    }
+    const arrowIndex = line.indexOf(" -> ");
+    const pathField = arrowIndex === -1 ? line : line.slice(0, arrowIndex);
+    const lastSpace = pathField.lastIndexOf(" ");
+    if (lastSpace === -1) {
+      continue;
+    }
+    modesByPath.set(pathField.slice(lastSpace + 1), modeField);
+  }
+  return modesByPath;
 }
 
 // `readdirSync` reports entry types with `lstat` semantics, so a symbolic link
@@ -410,9 +445,32 @@ function inspectArchive(workspace, archivePath, expectedVersion) {
     }
   }
 
+  const memberModes = archiveMemberModes(archivePath);
+  if (memberModes === null) {
+    return failure("archive_unreadable");
+  }
+  // Read each CLI member's permission bits from the archive header itself
+  // (as `tar -tv` reports them) rather than from a filesystem stat of the
+  // extracted tree: extraction on win32 cannot carry POSIX permission bits
+  // at all, which made every archive fail here regardless of its content.
+  //
+  // The exact "-rwxr-xr-x" comparison still only applies off win32. A tar
+  // header's mode is whatever `npm pack` wrote from `fs.statSync` at pack
+  // time, and on win32 libuv's stat implementation never sets an execute
+  // bit for any file (see libuv src/win/fs.c fs__stat_assign_statbuf) no
+  // matter what a prior chmod call asked for, so a freshly built archive on
+  // win32 can never legitimately carry "-rwxr-xr-x" in its header either.
+  // tests/package.test.mjs makes the same exception for the equivalent
+  // pack-manifest executable-mode assertion. This still enforces that the
+  // member exists and is a regular file (not a directory, symlink, or other
+  // non-regular type) on every platform.
   for (const target of Object.values(manifest.bin)) {
-    const executablePath = join(packageRoot, packageRelativeTarget(target));
-    if ((statSync(executablePath).mode & 0o777) !== EXECUTABLE_MODE) {
+    const memberPath = `${ARCHIVE_ROOT}/${packageRelativeTarget(target)}`;
+    const modeField = memberModes.get(memberPath);
+    if (modeField === undefined || modeField[0] !== "-") {
+      return failure("executable_mode_invalid");
+    }
+    if (process.platform !== "win32" && modeField !== EXECUTABLE_MODE_STRING) {
       return failure("executable_mode_invalid");
     }
   }

@@ -189,13 +189,26 @@ test("package archive verifier rejects a non-executable installed CLI", async ()
   const nonExecutable = mutatedArchive("non-executable-cli", (packageRoot) => {
     chmodSync(join(packageRoot, "dist", "workflow-cli.js"), 0o644);
   });
-  assert.deepEqual(
-    await verifyPackageArchive({
-      archivePath: nonExecutable,
-      expectedVersion: packageVersion,
-    }),
-    { ok: false, error: "executable_mode_invalid" },
-  );
+  const result = await verifyPackageArchive({
+    archivePath: nonExecutable,
+    expectedVersion: packageVersion,
+  });
+  if (process.platform === "win32") {
+    // win32 cannot represent POSIX permission bits: chmod() there only
+    // toggles the read-only attribute, and the archive header mode that
+    // `tar` reports (which the verifier now reads instead of the extracted
+    // filesystem) comes from `fs.statSync()` at pack time, which never
+    // reports an execute bit for a regular file on win32 regardless of the
+    // requested mode. A freshly built archive therefore cannot carry a
+    // meaningfully different header for this mutation on win32, matching
+    // the exception tests/package.test.mjs already makes for the
+    // equivalent pack-manifest executable-mode assertion. The verifier
+    // still enforces member presence and regular-file type on win32 (see
+    // scripts/verify-package-archive.mjs), just not the exact mode string.
+    assert.deepEqual(result, { ok: true, packageVersion });
+  } else {
+    assert.deepEqual(result, { ok: false, error: "executable_mode_invalid" });
+  }
 });
 
 test("package archive verifier rejects credential patterns in packaged text", async () => {
