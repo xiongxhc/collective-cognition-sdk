@@ -7,6 +7,7 @@ import {
   readdirSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -289,6 +290,8 @@ process.stdout.write("resolved\\n");
   return run(process.execPath, [probePath], { cwd: consumerRoot }).status === 0;
 }
 
+// Only used to confirm npm generated the shim; the shim itself is never
+// executed (see runInstalledCli below).
 function installedExecutable(consumerRoot, name) {
   return join(
     consumerRoot,
@@ -296,6 +299,48 @@ function installedExecutable(consumerRoot, name) {
     ".bin",
     process.platform === "win32" ? `${name}.cmd` : name,
   );
+}
+
+// The `node_modules/.bin` shims are `.cmd` files on win32, which Node
+// refuses to spawn without a shell. Reading `bin` back from the installed
+// package's own package.json and running each target directly under this
+// process's `node` sidesteps the shim (and any shell) entirely, uniformly
+// across platforms.
+function installedBinTargets(installedPackageRoot) {
+  let installedManifest;
+  try {
+    installedManifest = JSON.parse(
+      readFileSync(join(installedPackageRoot, "package.json"), "utf8"),
+    );
+  } catch {
+    return null;
+  }
+  if (
+    typeof installedManifest.bin !== "object" ||
+    installedManifest.bin === null
+  ) {
+    return null;
+  }
+  const targets = new Map();
+  for (const [name, target] of Object.entries(installedManifest.bin)) {
+    if (typeof target !== "string") {
+      return null;
+    }
+    targets.set(name, join(installedPackageRoot, packageRelativeTarget(target)));
+  }
+  return targets;
+}
+
+function runInstalledCli(consumerRoot, binTargets, name, args, options) {
+  const targetPath = binTargets.get(name);
+  if (
+    targetPath === undefined ||
+    !existsSync(installedExecutable(consumerRoot, name)) ||
+    !(statSync(targetPath, { throwIfNoEntry: false })?.isFile() ?? false)
+  ) {
+    return { status: 1, stdout: "", stderr: "" };
+  }
+  return run(process.execPath, [targetPath, ...args], options);
 }
 
 function firstFixtureLine(installedPackageRoot, ...segments) {
@@ -318,6 +363,10 @@ function firstJsonLine(text) {
 
 function executeInstalledExecutables(consumerRoot, manifest) {
   const installedPackageRoot = join(consumerRoot, "node_modules", manifest.name);
+  const binTargets = installedBinTargets(installedPackageRoot);
+  if (binTargets === null) {
+    return false;
+  }
 
   const sourceRecord = firstFixtureLine(
     installedPackageRoot,
@@ -330,8 +379,10 @@ function executeInstalledExecutables(consumerRoot, manifest) {
   if (sourceRecord === undefined) {
     return false;
   }
-  const validated = run(
-    installedExecutable(consumerRoot, "collective-cognition"),
+  const validated = runInstalledCli(
+    consumerRoot,
+    binTargets,
+    "collective-cognition",
     ["validate", "--input", "-", "--format", "jsonl"],
     { cwd: consumerRoot, input: `${sourceRecord}\n` },
   );
@@ -339,8 +390,10 @@ function executeInstalledExecutables(consumerRoot, manifest) {
     return false;
   }
 
-  const teamMemoryHelp = run(
-    installedExecutable(consumerRoot, "collective-cognition-teammem"),
+  const teamMemoryHelp = runInstalledCli(
+    consumerRoot,
+    binTargets,
+    "collective-cognition-teammem",
     ["--help"],
     { cwd: consumerRoot },
   );
@@ -365,10 +418,6 @@ function executeInstalledExecutables(consumerRoot, manifest) {
     return false;
   }
   writeFileSync(markdownInput, `${portableRecord}\n`);
-  const markdownExecutable = installedExecutable(
-    consumerRoot,
-    "collective-cognition-markdown",
-  );
   const markdownSteps = [
     ["init", "--target", markdownTarget],
     ["project", "--input", markdownInput, "--target", markdownTarget],
@@ -376,7 +425,13 @@ function executeInstalledExecutables(consumerRoot, manifest) {
   ];
   let markdownVerification;
   for (const args of markdownSteps) {
-    markdownVerification = run(markdownExecutable, args, { cwd: consumerRoot });
+    markdownVerification = runInstalledCli(
+      consumerRoot,
+      binTargets,
+      "collective-cognition-markdown",
+      args,
+      { cwd: consumerRoot },
+    );
     if (markdownVerification.status !== 0) {
       return false;
     }
@@ -385,8 +440,10 @@ function executeInstalledExecutables(consumerRoot, manifest) {
     return false;
   }
 
-  const workflowRejection = run(
-    installedExecutable(consumerRoot, "collective-cognition-workflow"),
+  const workflowRejection = runInstalledCli(
+    consumerRoot,
+    binTargets,
+    "collective-cognition-workflow",
     [],
     { cwd: consumerRoot },
   );
