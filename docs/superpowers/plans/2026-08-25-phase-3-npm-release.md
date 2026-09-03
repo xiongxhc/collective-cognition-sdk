@@ -49,7 +49,7 @@
 
 - [ ] Configure the npm trusted publisher for GitHub user `xiongxhc`, repository `collective-cognition-sdk`, workflow filename `npm-publish.yml`, environment `npm-production`, and allowed action `npm publish` when registry state permits. If direct OIDC is available, confirm no `NPM_BOOTSTRAP_TOKEN` exists, push annotated `v1.0.0-rc.1` only after its commit equals `origin/main`, wait for its unprivileged build job, download and verify `archive-manifest.json` plus the exact archive, present those bytes at the protected-environment gate, and approve the OIDC publish job.
 - [ ] If bootstrap is required, create one short-lived granular secret named exactly `NPM_BOOTSTRAP_TOKEN` in environment `npm-production`; the workflow maps it only to `NODE_AUTH_TOKEN` in the no-checkout publish job. Confirm the bootstrap path in the committed decision record, push annotated `v1.0.0-rc.1` only after its commit equals `origin/main`, wait for its unprivileged build job, download and verify `archive-manifest.json` plus the exact archive, present those bytes at the protected-environment gate, and approve the bootstrap-only publish job.
-- [ ] The protected job recomputes the manifest SHA-256 before `npm publish "$archive_path" --ignore-scripts --provenance --tag next`, then runs `npm dist-tag ls collective-cognition-sdk`, records the observed state, and fails unless `next` equals the RC. It performs no dist-tag mutation. If `latest` also equals the RC (first-ever publication), record it as a known temporary state for the RC Release Evidence Record; the README and release notes already state that `next` is a prerelease, and the next publication (RC2 or stable `1.0.0`) repoints `latest`.
+- [ ] The protected job recomputes the manifest SHA-256 before `npm publish "$archive_path" --ignore-scripts --provenance --tag next`, then runs `npm dist-tag ls collective-cognition-sdk`, records the observed state, and fails unless `next` equals the RC. It performs no dist-tag mutation. If `latest` also equals the RC (first-ever publication), record it as a known temporary state for the RC Release Evidence Record; the README and release notes already state that `next` is a prerelease, and only stable `1.0.0`, published without `--tag`, repoints `latest` — further `--tag next` candidates (including RC2) leave it unchanged.
 - [ ] If RC1 was token-published, configure trusted publishing, set publishing access to require 2FA and disallow tokens, revoke `NPM_BOOTSTRAP_TOKEN`, and prepare RC2 in one atomic release commit: bump package/lockfile to `1.0.0-rc.2`, add the three exact RC2 artifact paths above, update the three pinned tests and listed status prose, and change no runtime/schema/conformance/historical artifact bytes.
 - [ ] For RC2, run `npm test`, `npx tsc --noEmit`, `npm run check`, `npm run pack:check`, `npm audit --audit-level=high`, and `git diff --check`; independently review, merge to `main`, wait for CI, then push annotated `v1.0.0-rc.2` on exact `origin/main`.
 - [ ] For RC2, wait for the unprivileged build job, inspect the exact manifest/digest/inventory, approve only those exact bytes in the protected OIDC publish job, and verify the published version used OIDC rather than token fallback. Under the direct path, the corresponding RC1 build, approval, and publication already occurred in the first step.
@@ -86,12 +86,12 @@
 - Create: `spec/compatibility/1.0.0/change-cases.jsonl`
 - Create: `spec/distribution-readiness/0.2.0/profile.json`
 - Modify: `tests/package.test.mjs`
-- Modify: `tests/compatibility.test.mjs`
+- Modify: `tests/compatibility.test.mjs` (also repoint `currentBaselineUrl` to `1.0.0`)
 - Modify: `tests/distribution-readiness-profile.test.ts`
 - Modify: `README.md`
 - Modify: `docs/public-api.md`
 - Modify: `docs/ROADMAP.md`
-- Modify: `spec/compatibility.md`
+- Modify: `spec/compatibility.md` (status prose and the `STAB-002` surface enumeration)
 - Modify: `spec/distribution-readiness.md`
 - Modify: `spec/README.md`
 
@@ -100,7 +100,7 @@
 - Produces: stable release commit on current `main` and a local rehearsal report in this plan's ignored SDD workspace.
 
 - [ ] Write failing tests for package `1.0.0`, stable baseline/profile exports, baseline `packagePolicyVersion` `1.0.0`, a profile `npm-registry` channel that is `blocked` with each remaining prepublication blocker listed distinctly (`DRP-002` closed vocabulary, no `pending`), intended tag `v1.0.0`, and stable `latest` workflow routing.
-- [ ] In one release commit, change version/release metadata and add stable baseline/profile bytes without changing existing runtime, schemas, conformance fixtures, or historical baseline/profile bytes.
+- [ ] In one release commit, change version/release metadata and add stable baseline/profile bytes without changing existing runtime, schemas, conformance fixtures, or historical baseline/profile bytes. The `STAB-002` surface enumeration in `spec/compatibility.md` and the `currentBaselineUrl` repoint in `tests/compatibility.test.mjs` belong to this same commit, because that enumeration lists the surfaces of the compatibility baseline the commit records.
 - [ ] Capture `OIDC_RC_HEAD` from the OIDC RC tag and compare root declarations, runtime outputs, contract bytes, and every pre-existing package file; only package/release metadata and newly added stable baseline/profile bytes may differ.
 - [ ] Run `npm test`, `npx tsc --noEmit`, `npm run check`, `npm run example`, `npm run example:portable`, `npm run example:host`, `npm run example:markdown`, `npm run example:workflow`, `npm run example:interoperability`, `npm run example:stable-host`, `npm run pack:check`, `npm audit --audit-level=high`, and `git diff --check`.
 - [ ] Set `first="$(mktemp -d)"` and `second="$(mktemp -d)"`; build twice with isolated caches using `npm pack --json --pack-destination "$first" > "$first/pack.json"` and `npm pack --json --pack-destination "$second" > "$second/pack.json"`; set `first_archive="$(find "$first" -name 'collective-cognition-sdk-1.0.0.tgz' -print -quit)"` and `second_archive="$(find "$second" -name 'collective-cognition-sdk-1.0.0.tgz' -print -quit)"`; compare SHA-256 digests, exact bytes with `cmp`, and sorted normalized unpacked path/content digests.

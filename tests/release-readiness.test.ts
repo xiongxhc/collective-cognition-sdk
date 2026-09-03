@@ -30,6 +30,9 @@ const ciWorkflow = fileURLToPath(
 const githubPrereleaseWorkflow = fileURLToPath(
   new URL("../.github/workflows/github-prerelease.yml", import.meta.url),
 );
+const npmPublishWorkflow = fileURLToPath(
+  new URL("../.github/workflows/npm-publish.yml", import.meta.url),
+);
 const githubReleaseConfig = fileURLToPath(
   new URL("../.github/release.yml", import.meta.url),
 );
@@ -41,11 +44,17 @@ const expectedAssets = [
   "release-manifest.json",
 ];
 const expectedChecksumAssets = expectedAssets.slice(1);
-const expectedPackageScriptsSha256 = "904046a8c58f6b9864bf5d06079125385530478c67c2156a6b79bc720d3b3cb4";
-const expectedCiWorkflowSha256 = "e30ee54fd07a65f34ed24694d85f64ba48c303148964a8683d43910589e74ede";
-const expectedGitHubPrereleaseWorkflowSha256 = "b628e8e07829bd115a01133595d4f3424e0634e7479f9f00c35bc4e5c9a8508f";
+const expectedPackageScriptsSha256 = "18d577ecf55f05ce48ad02b6cab9edb615d957c127de9af01428531e49f792cd";
+const expectedCiWorkflowSha256 = "2cf0a16e790263a4e3120c8995dea0ef6bc08f97b461589e8218ad568bbfa4eb";
+const expectedGitHubPrereleaseWorkflowSha256 = "fff3cc213f30a4c6d5746edcd7462d5c2efd57b4d32411022e699d6fdc64bc68";
+const expectedNpmPublishWorkflowSha256 = "d24a2bdb52e50afd1a6fe865d5d412965c83c1de08102d9a1e4b48f511df1320";
 const expectedTarballSha256 = "3b50ebaa83e0a025ba49aaf81099e8de805e35e2c177a76beb4b985b575a9efe";
 const expectedReleaseCommit = "76f289b7f1514f4bc490d0de6dbffbb61a4c9f0e";
+const expectedHistoricalPrereleaseTag = "v0.6.0";
+const expectedNpmReleaseTags = ["v1.0.0-rc.*", "v1.0.0"];
+const expectedNpmReleaseEnvironment = "npm-production";
+const expectedNpmReleaseArtifact = "verified-package";
+const expectedReleaseEvidenceRoot = "docs/acceptance/releases";
 const releasedPackageName = "collective-cognition-sdk";
 const releasedPackageExports = [
   ".",
@@ -544,6 +553,54 @@ function parseCiWorkflow(workflow: string): ParsedCiWorkflow {
   };
 }
 
+function parseNamedJobs(
+  yaml: string,
+  expectedJobNames: readonly string[],
+): Readonly<Record<string, ParsedWorkflowJob>> {
+  const lines = yaml.split("\n");
+  const jobsIndex = lines.indexOf("jobs:");
+  assert.notEqual(jobsIndex, -1, "workflow jobs must exist");
+  const headers = lines.flatMap((line, index) => {
+    if (index <= jobsIndex) {
+      return [];
+    }
+    const header = line.match(/^ {2}([a-z0-9_-]+):$/);
+    return header ? [{ index, name: header[1] as string }] : [];
+  });
+  assert.deepEqual(headers.map(({ name }) => name), [...expectedJobNames]);
+
+  const jobs: Record<string, ParsedWorkflowJob> = {};
+  for (const [position, header] of headers.entries()) {
+    const end = headers[position + 1]?.index ?? lines.length;
+    const jobLines = lines.slice(header.index, end);
+    const properties: Record<string, string> = {};
+    let permissions: Readonly<Record<string, string>> | string | undefined;
+    let steps: ParsedWorkflowStep[] = [];
+    for (let index = 1; index < jobLines.length; index += 1) {
+      const line = jobLines[index] as string;
+      if (indentation(line) !== 4 || !line.trim()) {
+        continue;
+      }
+      const property = line.match(/^ {4}([a-z0-9_-]+):\s*(.*?)\s*$/);
+      assert.ok(property, `unsupported ${header.name} job property: ${line}`);
+      if (property[1] === "steps") {
+        steps = parseWorkflowSteps(jobLines, index, jobLines.length);
+      } else if (property[1] === "permissions") {
+        permissions = nestedMapping(jobLines, index, 6);
+      } else {
+        properties[property[1] as string] = yamlScalar(property[2] as string);
+      }
+    }
+    jobs[header.name] = {
+      properties,
+      ...(permissions === undefined ? {} : { permissions }),
+      steps,
+      raw: jobLines.join("\n"),
+    };
+  }
+  return jobs;
+}
+
 function requiredStep(job: ParsedWorkflowJob, name: string): ParsedWorkflowStep {
   const matches = job.steps.filter((step) => step.properties.name === name);
   assert.equal(matches.length, 1, `workflow step ${name} must exist exactly once`);
@@ -798,6 +855,34 @@ function assertReadOnlyCiWorkflow(workflow: string): void {
     2,
   );
   assert.match(releasedArtifactStep.run ?? "", /sha256sum -c SHA256SUMS/);
+
+  const evidenceStep = assertUnconditional(
+    distributionJob,
+    "Verify recorded release evidence",
+    ["name", "env", "run"],
+  );
+  assert.ok(
+    distributionJob.steps.indexOf(releasedArtifactStep) <
+      distributionJob.steps.indexOf(evidenceStep),
+  );
+  assert.deepEqual(Object.keys(evidenceStep.properties), ["name", "env", "run"]);
+  assert.match(evidenceStep.raw, /^ {10}GH_TOKEN: \$\{\{ github\.token \}\}$/m);
+  assert.match(evidenceStep.raw, /^ {10}GH_REPO: \$\{\{ github\.repository \}\}$/m);
+  assert.deepEqual(shellControlLines(evidenceStep), [
+    "set -euo pipefail",
+    `evidence_root="${expectedReleaseEvidenceRoot}"`,
+    'for record in "$evidence_root"/*/release-evidence.json; do',
+    'if [ ! -f "$record" ]; then',
+    "continue",
+    "fi",
+    'version="$(basename "$(dirname "$record")")"',
+    'asset="collective-cognition-sdk-$version-release-evidence.json"',
+    'download_dir="$(mktemp -d)"',
+    'gh release download "v$version" --pattern "$asset" --dir "$download_dir"',
+    'node scripts/verify-release-evidence.mjs --record "$record" --asset "$download_dir/$asset" --checksums "$evidence_root/$version/SHA256SUMS"',
+    'rm -rf "$download_dir"',
+    "done",
+  ]);
 }
 
 function assertGitHubPrereleaseWorkflow(workflow: string): void {
@@ -842,50 +927,15 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
     [
       "  push:",
       "    tags:",
-      '      - "v*"',
+      `      - "${expectedHistoricalPrereleaseTag}"`,
     ],
+    "the historical prerelease workflow must only process the immutable v0.6.0 tag",
   );
   assertReadOnlyPermissions(nestedMapping(lines, permissionsIndex, 2), "workflow");
 
-  const jobHeaders = lines.flatMap((line, index) => {
-    if (index <= jobsIndex) {
-      return [];
-    }
-    const match = line.match(/^ {2}([a-z0-9_-]+):$/);
-    return match ? [{ index, name: match[1] as string }] : [];
-  });
-  assert.deepEqual(jobHeaders.map(({ name }) => name), ["verify", "publish"]);
-  const parseJob = (position: number): ParsedWorkflowJob => {
-    const header = jobHeaders[position] as { readonly index: number; readonly name: string };
-    const end = jobHeaders[position + 1]?.index ?? lines.length;
-    const jobLines = lines.slice(header.index, end);
-    const properties: Record<string, string> = {};
-    let permissions: Readonly<Record<string, string>> | string | undefined;
-    let steps: ParsedWorkflowStep[] = [];
-    for (let index = 1; index < jobLines.length; index += 1) {
-      const line = jobLines[index] as string;
-      if (indentation(line) !== 4 || !line.trim()) {
-        continue;
-      }
-      const property = line.match(/^ {4}([a-z0-9_-]+):\s*(.*?)\s*$/);
-      assert.ok(property, `unsupported ${header.name} job property: ${line}`);
-      if (property[1] === "steps") {
-        steps = parseWorkflowSteps(jobLines, index, jobLines.length);
-      } else if (property[1] === "permissions") {
-        permissions = nestedMapping(jobLines, index, 6);
-      } else {
-        properties[property[1] as string] = yamlScalar(property[2] as string);
-      }
-    }
-    return {
-      properties,
-      ...(permissions === undefined ? {} : { permissions }),
-      steps,
-      raw: jobLines.join("\n"),
-    };
-  };
-  const job = parseJob(0);
-  const publishJob = parseJob(1);
+  const parsedJobs = parseNamedJobs(yaml, ["verify", "publish"]);
+  const job = parsedJobs.verify as ParsedWorkflowJob;
+  const publishJob = parsedJobs.publish as ParsedWorkflowJob;
   const steps = job.steps;
   const publishSteps = publishJob.steps;
   assert.deepEqual(job.properties, {
@@ -1181,6 +1231,453 @@ function assertGitHubPrereleaseWorkflow(workflow: string): void {
   assert.match(inventory.run ?? "", /assert\.equal\(Array\.isArray\(release\.assets\), true\);/);
   assert.match(inventory.run ?? "", /assert\.equal\(new Set\(names\)\.size, names\.length\);/);
   assert.match(inventory.run ?? "", /assert\.deepEqual\(\[\.\.\.names\]\.sort\(\), expectedNames\);/);
+}
+
+const forbiddenNpmReleaseVerbs =
+  /\bnpm\s+(?:dist-tag\s+(?:add|rm|set)|deprecate|unpublish|access|owner|team|org|hook|star|unstar|profile|token|login|adduser|logout|whoami)\b/;
+
+function assertNpmPublishWorkflow(workflow: string): void {
+  const yaml = workflow
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("#"))
+    .join("\n");
+  const lines = yaml.split("\n");
+  const topLevelKeys = lines.flatMap((line) => {
+    if (indentation(line) !== 0 || !line.trim()) {
+      return [];
+    }
+    const entry = line.match(/^([a-z0-9_-]+):/);
+    return entry ? [entry[1] as string] : [];
+  });
+
+  assert.deepEqual(
+    topLevelKeys,
+    ["name", "on", "permissions", "jobs"],
+    "workflow top-level structure must remain closed",
+  );
+  assert.doesNotMatch(workflow, /\t/, "workflow indentation must not use tabs");
+  assert.doesNotMatch(
+    yaml,
+    /(?:^|[\s:[{,])\*[A-Za-z_][A-Za-z0-9_-]*/m,
+    "workflow must not use YAML aliases",
+  );
+  assert.doesNotMatch(
+    yaml,
+    /\bworkflow_dispatch\b/,
+    "the release workflow must not accept manual dispatch",
+  );
+  assert.doesNotMatch(
+    yaml,
+    /\bgit\s+(?:tag|push)\b|\/git\/refs\b/i,
+    "the release workflow must not move git references",
+  );
+  assert.doesNotMatch(
+    yaml,
+    forbiddenNpmReleaseVerbs,
+    "the release workflow must not mutate registry state",
+  );
+  assert.doesNotMatch(
+    yaml,
+    /\bNPM_TOKEN\b/,
+    "the release workflow must not reference a long-lived NPM_TOKEN",
+  );
+  assert.doesNotMatch(
+    yaml,
+    /^\s*packages:\s*['"]?write['"]?\s*$/mi,
+    "the release workflow must not request package write permission",
+  );
+  assert.doesNotMatch(
+    yaml,
+    /\bnpm_config_registry\b|(?:^|\s)--registry(?:=|\s)/i,
+    "the release workflow must not redirect the npm registry",
+  );
+  assert.doesNotMatch(
+    yaml,
+    /^\s*NODE_AUTH_TOKEN:\s*\$\{\{/m,
+    "the bootstrap credential must not be mapped unconditionally",
+  );
+  assert.deepEqual(
+    [...new Set([...yaml.matchAll(/\/\/[a-z0-9.-]+\/:_authToken/gi)].map((match) => match[0]))],
+    ["//registry.npmjs.org/:_authToken"],
+    "the release workflow must only authenticate against the public npm registry",
+  );
+
+  const onIndex = lines.indexOf("on:");
+  const permissionsIndex = lines.indexOf("permissions:");
+  assert.notEqual(onIndex, -1);
+  assert.notEqual(permissionsIndex, -1);
+  assert.deepEqual(
+    lines.slice(onIndex + 1, permissionsIndex).filter((line) => line.trim()),
+    [
+      "  push:",
+      "    tags:",
+      ...expectedNpmReleaseTags.map((tag) => `      - "${tag}"`),
+    ],
+    "the npm release workflow must only accept v1.0.0 release candidates and v1.0.0",
+  );
+  assertReadOnlyPermissions(nestedMapping(lines, permissionsIndex, 2), "workflow");
+
+  const jobs = parseNamedJobs(yaml, ["verify", "publish"]);
+  const verifyJob = jobs.verify as ParsedWorkflowJob;
+  const publishJob = jobs.publish as ParsedWorkflowJob;
+  assert.deepEqual(
+    verifyJob.properties,
+    {
+      name: "Read-only release verification",
+      "runs-on": "ubuntu-latest",
+      "timeout-minutes": "45",
+    },
+    "verify job identity must remain closed",
+  );
+  assertReadOnlyPermissions(
+    verifyJob.permissions as Readonly<Record<string, string>>,
+    "verify job",
+  );
+  assert.deepEqual(
+    publishJob.properties,
+    {
+      name: "Publish the verified archive to npm",
+      needs: "verify",
+      "runs-on": "ubuntu-latest",
+      "timeout-minutes": "15",
+      environment: expectedNpmReleaseEnvironment,
+    },
+    "publish job identity must remain closed",
+  );
+  assert.deepEqual(
+    publishJob.permissions,
+    {
+      contents: "read",
+      "id-token": "write",
+    },
+    "publish job permissions must remain read plus id-token write",
+  );
+
+  const actionReferences = [...verifyJob.steps, ...publishJob.steps].flatMap((step) =>
+    step.properties.uses === undefined ? [] : [step.properties.uses]
+  );
+  assert.deepEqual(
+    actionReferences,
+    [
+      "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+      "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+      "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+    ],
+    "pinned action references must remain closed",
+  );
+  for (const reference of actionReferences) {
+    assert.match(reference, /^actions\/[a-z0-9_-]+@[0-9a-f]{40}$/);
+  }
+
+  assert.doesNotMatch(
+    publishJob.raw,
+    /actions\/checkout/,
+    "the privileged job must not check out the repository",
+  );
+  assert.doesNotMatch(
+    publishJob.raw,
+    /\bnpm (?:ci|install|test|run|pack)\b/,
+    "the privileged job must not run repository package commands",
+  );
+  assert.doesNotMatch(
+    publishJob.raw,
+    /\bnpx\b/,
+    "the privileged job must not run repository package commands",
+  );
+  assert.doesNotMatch(
+    publishJob.raw,
+    /node_modules|scripts\/|(?:^|\s)git\s/m,
+    "the privileged job must not reference repository code",
+  );
+  assert.deepEqual(
+    [...publishJob.raw.matchAll(/[^\s"']*package\.json/g)].map((match) => match[0]),
+    ["package/package.json"],
+    "the privileged job must only read the packed archive manifest",
+  );
+
+  const checkout = assertUnconditional(verifyJob, "Check out immutable tag");
+  assert.match(
+    checkout.raw,
+    /^ {10}fetch-depth: 0$/m,
+    "the release gate must check out full history",
+  );
+  assert.match(
+    checkout.raw,
+    /^ {10}persist-credentials: false$/m,
+    "the release gate must not persist checkout credentials",
+  );
+  const setup = assertUnconditional(verifyJob, "Set up Node.js");
+  assert.match(
+    setup.raw,
+    /^ {10}node-version: "24\.14\.0"$/m,
+    "the release gate must pin the verified Node.js version",
+  );
+  assert.match(setup.raw, /^ {10}cache: npm$/m);
+
+  const validate = assertUnconditional(verifyJob, "Validate tag and package identity");
+  assert.deepEqual(shellControlLines(validate), [
+    "set -euo pipefail",
+    'test "$GITHUB_REF_TYPE" = "tag"',
+    'package_name="$(node -p "require(\'./package.json\').name")"',
+    'package_version="$(node -p "require(\'./package.json\').version")"',
+    'package_private="$(node -p "require(\'./package.json\').private === true")"',
+    'test "$package_name" = "collective-cognition-sdk"',
+    'test "$GITHUB_REF_NAME" = "v$package_version"',
+    'test "$package_private" = "false"',
+    "grep -Eq '^v1\\.0\\.0(-rc\\.[1-9][0-9]*)?$' <<<\"$GITHUB_REF_NAME\"",
+    "git fetch --no-tags origin main",
+    'test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = "tag"',
+    'tag_commit="$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{}")"',
+    'test "$tag_commit" = "$GITHUB_SHA"',
+    'test "$tag_commit" = "$(git rev-parse origin/main)"',
+    'test "$GITHUB_SHA" = "$(git rev-parse origin/main)"',
+  ], "tag and package identity checks must remain closed");
+
+  const install = assertUnconditional(
+    verifyJob,
+    "Install dependencies without lifecycle scripts",
+  );
+  assert.equal(
+    install.run,
+    "npm ci --ignore-scripts --prefer-offline",
+    "the release gate must install without lifecycle scripts",
+  );
+  assert.ok(verifyJob.steps.indexOf(validate) < verifyJob.steps.indexOf(install));
+
+  const fullVerification = assertUnconditional(verifyJob, "Run full SDK verification");
+  assert.deepEqual(commandLines(fullVerification), [
+    "set -euo pipefail",
+    "npm test",
+    "npx tsc --noEmit",
+    "npm run check",
+  ], "the release gate must run the complete repository verification");
+  assert.ok(verifyJob.steps.indexOf(install) < verifyJob.steps.indexOf(fullVerification));
+
+  const ciDistributionJob = parseCiWorkflow(readFileSync(ciWorkflow, "utf8"))
+    .jobs.distribution as ParsedWorkflowJob;
+  const examples = assertUnconditional(verifyJob, "Run examples and package checks");
+  assert.ok(verifyJob.steps.indexOf(fullVerification) < verifyJob.steps.indexOf(examples));
+  assert.equal(
+    normalizedVerificationBody(examples),
+    normalizedVerificationBody(requiredStep(
+      ciDistributionJob,
+      "Run examples and package checks",
+    )),
+    "the release gate must run the same examples and package checks as branch CI",
+  );
+
+  const build = assertUnconditional(verifyJob, "Build the verified package archive");
+  assert.ok(verifyJob.steps.indexOf(examples) < verifyJob.steps.indexOf(build));
+  assert.deepEqual(shellControlLines(build), [
+    "set -euo pipefail",
+    'staging="${{ runner.temp }}/verified-package"',
+    'rm -rf "$staging"',
+    'mkdir -p "$staging"',
+    'package_version="$(node -p "require(\'./package.json\').version")"',
+    'archive_name="collective-cognition-sdk-$package_version.tgz"',
+    'npm pack --pack-destination "$staging"',
+    "test \"$(find \"$staging\" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')\" = 1",
+    'test -f "$staging/$archive_name"',
+    'test ! -L "$staging/$archive_name"',
+    'node scripts/verify-package-archive.mjs --archive "$staging/$archive_name" --expected-version "$package_version"',
+  ], "archive construction must remain closed");
+  assert.equal(
+    [...(build.run ?? "").matchAll(/\bnpm pack\b/g)].length,
+    1,
+    "the release gate must build exactly one archive",
+  );
+
+  const archiveManifest = assertUnconditional(
+    verifyJob,
+    "Record and summarize the verified archive",
+  );
+  assert.ok(verifyJob.steps.indexOf(build) < verifyJob.steps.indexOf(archiveManifest));
+  for (const fragment of [
+    "const summaryPath = process.env.GITHUB_STEP_SUMMARY;",
+    "const filename = `collective-cognition-sdk-${packageVersion}.tgz`;",
+    'const digest = createHash("sha256").update(bytes).digest("hex");',
+    'const listed = spawnSync("tar", ["-tzf", archive], { encoding: "utf8" });',
+    'const inventory = [...listed.stdout.split("\\n").filter(Boolean)].sort();',
+    'packageName: "collective-cognition-sdk",',
+    "tag: process.env.GITHUB_REF_NAME,",
+    "commit: process.env.GITHUB_SHA,",
+    "bytes: bytes.length,",
+    "sha256: digest,",
+    "inventory,",
+    'join(staging, "archive-manifest.json"),',
+    "`- sha256: ${digest}`,",
+    "...inventory.map((entry) => `- ${entry}`),",
+  ]) {
+    assert.equal(
+      (archiveManifest.run ?? "").includes(fragment),
+      true,
+      `missing archive manifest fragment: ${fragment}`,
+    );
+  }
+
+  const upload = assertUnconditional(verifyJob, "Upload the verified package archive");
+  assert.equal(
+    verifyJob.steps.at(-1)?.properties.name,
+    "Upload the verified package archive",
+  );
+  assert.ok(verifyJob.steps.indexOf(archiveManifest) < verifyJob.steps.indexOf(upload));
+  assert.match(
+    upload.raw,
+    new RegExp(`^ {10}name: ${expectedNpmReleaseArtifact}$`, "m"),
+    "the verified archive artifact name must remain closed",
+  );
+  assert.match(upload.raw, /^ {10}path: \$\{\{ runner\.temp \}\}\/verified-package$/m);
+  assert.match(
+    upload.raw,
+    /^ {10}if-no-files-found: error$/m,
+    "a missing verified archive must fail the upload",
+  );
+  assert.match(upload.raw, /^ {10}overwrite: true$/m);
+  assert.match(upload.raw, /^ {10}retention-days: 1$/m);
+
+  const publishSetup = assertUnconditional(publishJob, "Set up Node.js");
+  assert.match(publishSetup.raw, /^ {10}node-version: "24\.14\.0"$/m);
+  assert.doesNotMatch(publishSetup.raw, /cache/);
+
+  const toolchain = assertUnconditional(
+    publishJob,
+    "Verify the publication toolchain and empty workspace",
+  );
+  assert.deepEqual(shellControlLines(toolchain), [
+    "set -euo pipefail",
+    'test "$RUNNER_ENVIRONMENT" = "github-hosted"',
+    'test -z "$(ls -A "$GITHUB_WORKSPACE")"',
+    "NPM_VERSION=\"$(npm --version)\" node --input-type=module <<'NODE'",
+  ], "publication toolchain checks must remain closed");
+  assert.match(
+    toolchain.run ?? "",
+    /rank\(observed\) >= rank\(\[11, 5, 1\]\)/,
+    "trusted publishing must require npm 11.5.1 or later",
+  );
+
+  const download = assertUnconditional(publishJob, "Download the verified package archive");
+  assert.ok(publishJob.steps.indexOf(toolchain) < publishJob.steps.indexOf(download));
+  assert.match(
+    download.raw,
+    new RegExp(`^ {10}name: ${expectedNpmReleaseArtifact}$`, "m"),
+    "the verified archive artifact name must remain closed",
+  );
+  assert.match(download.raw, /^ {10}path: \$\{\{ runner\.temp \}\}\/verified-package$/m);
+
+  const transferred = assertUnconditional(publishJob, "Verify the transferred package archive");
+  assert.ok(publishJob.steps.indexOf(download) < publishJob.steps.indexOf(transferred));
+  for (const fragment of [
+    "test \"$(find \"$staging\" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')\" = 2",
+    'readFileSync(join(staging, "archive-manifest.json"), "utf8"),',
+    'assert.equal(manifest.packageName, "collective-cognition-sdk");',
+    "assert.match(manifest.packageVersion, /^1\\.0\\.0(?:-rc\\.[1-9][0-9]*)?$/);",
+    "assert.equal(manifest.tag, process.env.GITHUB_REF_NAME);",
+    "assert.equal(manifest.commit, process.env.GITHUB_SHA);",
+    "assert.equal(manifest.bytes, bytes.length);",
+    'createHash("sha256").update(bytes).digest("hex"),',
+    "assert.deepEqual(manifest.inventory, inventory);",
+    "assert.equal(packedManifest.version, manifest.packageVersion);",
+    "assert.equal(packedManifest.private, undefined);",
+  ]) {
+    assert.equal(
+      (transferred.run ?? "").includes(fragment),
+      true,
+      `missing transferred archive fragment: ${fragment}`,
+    );
+  }
+
+  const credential = assertUnconditional(
+    publishJob,
+    "Enable the bootstrap credential only when provided",
+    ["name", "env", "run"],
+  );
+  assert.ok(publishJob.steps.indexOf(transferred) < publishJob.steps.indexOf(credential));
+  assert.deepEqual(Object.keys(credential.properties), ["name", "env", "run"]);
+  assert.match(
+    credential.raw,
+    /^ {10}NPM_BOOTSTRAP_TOKEN: \$\{\{ secrets\.NPM_BOOTSTRAP_TOKEN \}\}$/m,
+    "the bootstrap credential must reach only its guarded step",
+  );
+  assert.match(
+    credential.run ?? "",
+    /^if \[ -n "\$\{NPM_BOOTSTRAP_TOKEN:-\}" \]; then$/m,
+    "the bootstrap credential must be mapped only when it is non-empty",
+  );
+  assert.match(
+    credential.run ?? "",
+    /^ {2}printf 'NODE_AUTH_TOKEN=%s\\n' "\$NPM_BOOTSTRAP_TOKEN" >> "\$GITHUB_ENV"$/m,
+    "the bootstrap credential must be mapped only when it is non-empty",
+  );
+  assert.match(
+    credential.run ?? "",
+    /^ {2}printf 'NPM_CONFIG_USERCONFIG=%s\\n' "\$userconfig" >> "\$GITHUB_ENV"$/m,
+    "the bootstrap credential must be mapped only when it is non-empty",
+  );
+  assert.equal(
+    [...publishJob.raw.matchAll(/NODE_AUTH_TOKEN/g)].length,
+    2,
+    "the bootstrap credential must only exist inside its guarded step",
+  );
+  assert.equal(
+    [...credential.raw.matchAll(/NODE_AUTH_TOKEN/g)].length,
+    2,
+    "the bootstrap credential must only exist inside its guarded step",
+  );
+
+  const publish = assertUnconditional(publishJob, "Publish the verified archive");
+  assert.ok(publishJob.steps.indexOf(credential) < publishJob.steps.indexOf(publish));
+  assert.deepEqual(shellControlLines(publish), [
+    "set -euo pipefail",
+    'staging="${RUNNER_TEMP}/verified-package"',
+    'package_version="$(node -p "require(\'$staging/archive-manifest.json\').packageVersion")"',
+    'archive_path="$staging/collective-cognition-sdk-$package_version.tgz"',
+    'test -f "$archive_path"',
+    'cd "$staging"',
+    'if [ "$package_version" = "1.0.0" ]; then',
+    'npm publish "$archive_path" --ignore-scripts --provenance',
+    "else",
+    'npm publish "$archive_path" --ignore-scripts --provenance --tag next',
+    "fi",
+  ], "publication commands must remain closed");
+  assert.equal(
+    [...(yaml.matchAll(/\bnpm publish\b/g))].length,
+    2,
+    "the release workflow must publish through exactly the two reviewed commands",
+  );
+
+  const distributionTags = assertUnconditional(
+    publishJob,
+    "Record the observed distribution tags",
+  );
+  assert.ok(publishJob.steps.indexOf(publish) < publishJob.steps.indexOf(distributionTags));
+  assert.equal(
+    publishJob.steps.at(-1)?.properties.name,
+    "Record the observed distribution tags",
+  );
+  assert.match(
+    distributionTags.run ?? "",
+    /^dist_tags="\$\(npm dist-tag ls collective-cognition-sdk\)"$/m,
+    "the release workflow must observe distribution tags without mutating them",
+  );
+  assert.equal(
+    [...(yaml.matchAll(/\bnpm dist-tag\b/g))].length,
+    1,
+    "the release workflow must read distribution tags exactly once",
+  );
+  for (const fragment of [
+    '"## Observed npm distribution tags",',
+    "...observed.map(({ tag, version }) => `- ${tag}: ${version}`),",
+    'if (packageVersion !== "1.0.0") {',
+    'observed.find(({ tag }) => tag === "next")?.version,',
+  ]) {
+    assert.equal(
+      (distributionTags.run ?? "").includes(fragment),
+      true,
+      `missing distribution tag fragment: ${fragment}`,
+    );
+  }
 }
 
 function assertGitHubReleaseConfig(config: string): void {
@@ -1872,10 +2369,12 @@ test("reviewed release text uses repository-enforced LF normalization", () => {
     ".gitattributes",
     ".github/workflows/ci.yml",
     ".github/workflows/github-prerelease.yml",
+    ".github/workflows/npm-publish.yml",
     "package.json",
     "README.md",
     "docs/durable-cognition-workflow-guide.md",
     "docs/github-prerelease.md",
+    "docs/npm-release.md",
     "docs/public-api.md",
     "docs/ROADMAP.md",
     "rfcs/README.md",
@@ -2125,6 +2624,22 @@ test("CI policy scanner rejects unsafe workflow and package mutations", () => {
       "npm ci --ignore-scripts --prefer-offline",
       "npm ci --ignore-scripts",
     ),
+    workflow.replace(
+      '          gh release download "v$version" --pattern "$asset" --dir "$download_dir"\n',
+      "",
+    ),
+    workflow.replace(
+      '          node scripts/verify-release-evidence.mjs --record "$record" --asset "$download_dir/$asset" --checksums "$evidence_root/$version/SHA256SUMS"\n',
+      "",
+    ),
+    workflow.replace(
+      `evidence_root="${expectedReleaseEvidenceRoot}"`,
+      'evidence_root="docs/acceptance"',
+    ),
+    workflow.replace(
+      "      - name: Verify recorded release evidence\n",
+      "      - name: Verify recorded release evidence\n        if: ${{ false }}\n",
+    ),
   ];
 
   for (const [index, unsafeWorkflow] of unsafeWorkflows.entries()) {
@@ -2291,7 +2806,14 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
     "printf registry=https://example.invalid/ > .npmrc",
   ];
   const unsafeWorkflows = [
-    workflow.replace('      - "v*"', '      - "release-*"'),
+    workflow.replace(
+      `      - "${expectedHistoricalPrereleaseTag}"`,
+      '      - "v*"',
+    ),
+    workflow.replace(
+      `      - "${expectedHistoricalPrereleaseTag}"`,
+      '      - "v1.0.0-rc.1"',
+    ),
     workflow.replace("permissions:\n", "on:\n  workflow_dispatch:\n\npermissions:\n"),
     workflow.replace("permissions:\n  contents: read", "permissions:\n  contents: write"),
     workflow.replace(
@@ -2500,6 +3022,389 @@ test("prerelease policy rejects unsafe workflow and release mutations", () => {
       `closed package script contract must reject wrapper mutation: ${command}`,
     );
   }
+});
+
+test("protected npm release workflow isolates trusted publication from repository code", () => {
+  assert.equal(
+    existsSync(npmPublishWorkflow),
+    true,
+    ".github/workflows/npm-publish.yml must exist",
+  );
+
+  const workflow = readReviewedWorkflow(
+    npmPublishWorkflow,
+    expectedNpmPublishWorkflowSha256,
+  );
+  assertNpmPublishWorkflow(workflow);
+
+  const verifyIndex = workflow.indexOf("  verify:\n");
+  const publishIndex = workflow.indexOf("  publish:\n");
+  assert.notEqual(verifyIndex, -1);
+  assert.ok(publishIndex > verifyIndex);
+  const publishJob = workflow.slice(publishIndex);
+  assert.match(publishJob, /^    environment: npm-production$/m);
+  assert.match(publishJob, /^    needs: verify$/m);
+  assert.match(publishJob, /^    permissions:\n      contents: read\n      id-token: write$/m);
+});
+
+test("npm release policy rejects unsafe publication mutations", () => {
+  const workflow = readReviewedWorkflow(
+    npmPublishWorkflow,
+    expectedNpmPublishWorkflowSha256,
+  );
+  const addStepControl = (name: string, control: string): string => workflow.replace(
+    `      - name: ${name}\n`,
+    `      - name: ${name}\n        ${control}\n`,
+  );
+  const controlledSteps = [
+    "Validate tag and package identity",
+    "Run full SDK verification",
+    "Run examples and package checks",
+    "Build the verified package archive",
+    "Record and summarize the verified archive",
+    "Upload the verified package archive",
+    "Verify the publication toolchain and empty workspace",
+    "Download the verified package archive",
+    "Verify the transferred package archive",
+    "Enable the bootstrap credential only when provided",
+    "Publish the verified archive",
+    "Record the observed distribution tags",
+  ];
+  const injectShellLine = (line: string): string => workflow.replace(
+    "          npm run check\n",
+    `          npm run check\n          ${line}\n`,
+  );
+  const unsupportedControl = /uses unsupported control (?:if|continue-on-error)/;
+  const closedTrigger =
+    /must only accept v1\.0\.0 release candidates and v1\.0\.0/;
+  const unsafeWorkflows: readonly (readonly [string, RegExp])[] = [
+    [workflow.replace('      - "v1.0.0-rc.*"', '      - "v*"'), closedTrigger],
+    [workflow.replace('      - "v1.0.0"', '      - "v0.6.0"'), closedTrigger],
+    [
+      workflow.replace("permissions:\n", "on:\n  workflow_dispatch:\n\npermissions:\n"),
+      /top-level structure must remain closed/,
+    ],
+    [
+      workflow.replace("  push:\n    tags:\n", "  workflow_dispatch:\n  push:\n    tags:\n"),
+      /must not accept manual dispatch/,
+    ],
+    [
+      workflow.replace("permissions:\n  contents: read", "permissions:\n  contents: write"),
+      /workflow permissions must be read-only/,
+    ],
+    [
+      workflow.replace(
+        "    permissions:\n      contents: read\n    steps:",
+        "    permissions:\n      contents: write\n    steps:",
+      ),
+      /verify job permissions must be read-only/,
+    ],
+    [
+      workflow.replace("    environment: npm-production\n", ""),
+      /publish job identity must remain closed/,
+    ],
+    [
+      workflow.replace("    environment: npm-production", "    environment: staging"),
+      /publish job identity must remain closed/,
+    ],
+    [
+      workflow.replace("      id-token: write\n", ""),
+      /publish job permissions must remain read plus id-token write/,
+    ],
+    [
+      workflow.replace("    needs: verify", "    needs: missing"),
+      /publish job identity must remain closed/,
+    ],
+    [
+      workflow.replace(
+        "    name: Read-only release verification\n    runs-on: ubuntu-latest",
+        "    name: Read-only release verification\n    runs-on: self-hosted",
+      ),
+      /verify job identity must remain closed/,
+    ],
+    [
+      workflow.replace("          fetch-depth: 0", "          fetch-depth: 1"),
+      /must check out full history/,
+    ],
+    [
+      workflow.replace(
+        "          persist-credentials: false",
+        "          persist-credentials: true",
+      ),
+      /must not persist checkout credentials/,
+    ],
+    [
+      workflow.replace('node-version: "24.14.0"', 'node-version: "24"'),
+      /must pin the verified Node\.js version/,
+    ],
+    [
+      workflow.replace(
+        "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+        "actions/download-artifact@v4",
+      ),
+      /pinned action references must remain closed/,
+    ],
+    [
+      workflow.replace(
+        "      - name: Download the verified package archive\n",
+        "      - name: Check out repository\n        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n      - name: Download the verified package archive\n",
+      ),
+      /pinned action references must remain closed/,
+    ],
+    [
+      workflow.replace(
+        "      - name: Publish the verified archive\n",
+        "      - name: Install dependencies\n        run: npm ci --ignore-scripts\n      - name: Publish the verified archive\n",
+      ),
+      /privileged job must not run repository package commands/,
+    ],
+    [
+      workflow.replace(
+        "      - name: Publish the verified archive\n        run: |\n",
+        "      - name: Publish the verified archive\n        env:\n          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}\n        run: |\n",
+      ),
+      /bootstrap credential must not be mapped unconditionally/,
+    ],
+    [
+      workflow.replace('if [ -n "${NPM_BOOTSTRAP_TOKEN:-}" ]; then', "if true; then"),
+      /bootstrap credential must be mapped only when it is non-empty/,
+    ],
+    [
+      workflow.replace(
+        '            printf \'NPM_CONFIG_USERCONFIG=%s\\n\' "$userconfig" >> "$GITHUB_ENV"\n',
+        "",
+      ),
+      /bootstrap credential must be mapped only when it is non-empty/,
+    ],
+    [
+      workflow.replace(
+        '          node scripts/verify-package-archive.mjs --archive "$staging/$archive_name" --expected-version "$package_version"\n',
+        "",
+      ),
+      /archive construction must remain closed/,
+    ],
+    [
+      workflow.replace(
+        '          npm pack --pack-destination "$staging"\n',
+        '          npm pack --pack-destination "$staging"\n          npm pack --pack-destination "$staging"\n',
+      ),
+      /archive construction must remain closed/,
+    ],
+    [
+      workflow.replace(
+        'npm publish "$archive_path" --ignore-scripts --provenance --tag next',
+        'npm publish "$archive_path" --provenance --tag next',
+      ),
+      /publication commands must remain closed/,
+    ],
+    [
+      workflow.replace(
+        'npm publish "$archive_path" --ignore-scripts --provenance\n',
+        'npm publish "$archive_path" --ignore-scripts\n',
+      ),
+      /publication commands must remain closed/,
+    ],
+    [
+      workflow.replace(
+        " --ignore-scripts --provenance --tag next",
+        " --ignore-scripts --provenance",
+      ),
+      /publication commands must remain closed/,
+    ],
+    [
+      workflow.replace(
+        'dist_tags="$(npm dist-tag ls collective-cognition-sdk)"',
+        "npm dist-tag add collective-cognition-sdk@1.0.0 latest",
+      ),
+      /must not mutate registry state/,
+    ],
+    [
+      workflow.replace(
+        '              observed.find(({ tag }) => tag === "next")?.version,\n',
+        "",
+      ),
+      /missing distribution tag fragment/,
+    ],
+    [
+      workflow.replace(
+        '            createHash("sha256").update(bytes).digest("hex"),\n',
+        "",
+      ),
+      /missing transferred archive fragment/,
+    ],
+    [
+      workflow.replace(
+        "          assert.equal(manifest.commit, process.env.GITHUB_SHA);\n",
+        "",
+      ),
+      /missing transferred archive fragment/,
+    ],
+    [
+      workflow.replace(
+        "          assert.equal(packedManifest.private, undefined);\n",
+        "",
+      ),
+      /missing transferred archive fragment/,
+    ],
+    [
+      workflow.replace(
+        "test \"$(find \"$staging\" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')\" = 2",
+        "test \"$(find \"$staging\" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')\" = 3",
+      ),
+      /missing transferred archive fragment/,
+    ],
+    [
+      workflow.replace("rank(observed) >= rank([11, 5, 1])", "rank(observed) >= rank([11, 0, 0])"),
+      /must require npm 11\.5\.1 or later/,
+    ],
+    [
+      workflow.replace('test "$RUNNER_ENVIRONMENT" = "github-hosted"\n', ""),
+      /publication toolchain checks must remain closed/,
+    ],
+    [
+      workflow.replace("          npm run example:interoperability\n", ""),
+      /must run the same examples and package checks as branch CI/,
+    ],
+    [
+      workflow.replace("          npm run check\n", ""),
+      /must run the complete repository verification/,
+    ],
+    [
+      workflow.replace("          name: verified-package", "          name: release-package"),
+      /verified archive artifact name must remain closed/,
+    ],
+    [
+      workflow.replace("          if-no-files-found: error\n", ""),
+      /missing verified archive must fail the upload/,
+    ],
+    [
+      workflow.replace(
+        '          package_private="$(node -p "require(\'./package.json\').private === true")"\n',
+        "",
+      ),
+      /tag and package identity checks must remain closed/,
+    ],
+    [
+      workflow.replace(
+        "run: npm ci --ignore-scripts --prefer-offline",
+        "run: npm ci --ignore-scripts",
+      ),
+      /must install without lifecycle scripts/,
+    ],
+    [injectShellLine("git tag --force v1.0.0"), /must not move git references/],
+    [injectShellLine("echo \"$NPM_TOKEN\""), /must not reference a long-lived NPM_TOKEN/],
+    [
+      injectShellLine("npm ci --registry=https://example.invalid/"),
+      /must not redirect the npm registry/,
+    ],
+    [
+      injectShellLine("printf '//example.invalid/:_authToken=synthetic'"),
+      /must only authenticate against the public npm registry/,
+    ],
+    [
+      injectShellLine("npm deprecate collective-cognition-sdk@1.0.0 stale"),
+      /must not mutate registry state/,
+    ],
+    [
+      injectShellLine("npm unpublish collective-cognition-sdk@1.0.0"),
+      /must not mutate registry state/,
+    ],
+    [
+      injectShellLine("npm access set status=public collective-cognition-sdk"),
+      /must not mutate registry state/,
+    ],
+    [
+      workflow.replace(
+        "      id-token: write\n",
+        "      id-token: write\n      packages: write\n",
+      ),
+      /must not request package write permission/,
+    ],
+    ...controlledSteps.flatMap((name) => [
+      [addStepControl(name, "if: ${{ false }}"), unsupportedControl] as const,
+      [addStepControl(name, "continue-on-error: true"), unsupportedControl] as const,
+    ]),
+  ];
+
+  assert.doesNotThrow(() => assertNpmPublishWorkflow(workflow));
+
+  for (const [index, [unsafeWorkflow, rule]] of unsafeWorkflows.entries()) {
+    assert.notEqual(unsafeWorkflow, workflow, `mutation ${index} must change the workflow`);
+    const mutationEvidence = unsafeWorkflow
+      .split("\n")
+      .find((line) => !workflow.includes(line)) ?? "deletion-only mutation";
+    let thrown: unknown;
+    try {
+      assertNpmPublishWorkflow(unsafeWorkflow);
+    } catch (error) {
+      thrown = error;
+    }
+    assert.ok(
+      thrown instanceof Error,
+      `unsafe npm release workflow mutation ${index} must be rejected: ${mutationEvidence}`,
+    );
+    assert.match(
+      (thrown as Error).message,
+      rule,
+      `npm release workflow mutation ${index} must be rejected by ${rule}, not by an unrelated rule: ${mutationEvidence}`,
+    );
+  }
+});
+
+test("public documentation records the protected npm release path", () => {
+  const readDocumentation = (path: string): string => {
+    const file = join(repositoryRoot, path);
+    assert.equal(existsSync(file), true, `${path} must exist`);
+    return readFileSync(file, "utf8");
+  };
+  const readme = readDocumentation("README.md");
+  const prereleaseRunbook = readDocumentation("docs/github-prerelease.md");
+  const releaseRunbook = readDocumentation("docs/npm-release.md");
+
+  assert.match(readme, /\[npm release runbook\]\(docs\/npm-release\.md\)/);
+  assert.match(readme, /published under `next` is a prerelease/);
+  assert.match(
+    readme,
+    /`latest` may temporarily resolve to the first release candidate/,
+  );
+  assert.match(
+    prereleaseRunbook,
+    /applies only to the immutable `v0\.6\.0` prerelease/,
+  );
+  assert.match(prereleaseRunbook, /\[npm release runbook\]\(npm-release\.md\)/);
+
+  assert.match(releaseRunbook, /\.github\/workflows\/npm-publish\.yml/);
+  assert.match(releaseRunbook, new RegExp(`\`${expectedNpmReleaseEnvironment}\``));
+  assert.match(releaseRunbook, /`NPM_BOOTSTRAP_TOKEN`/);
+  assert.match(releaseRunbook, /revoked/);
+  assert.match(releaseRunbook, /npm CLI `11\.5\.1` or later/);
+  assert.match(releaseRunbook, /`id-token: write`/);
+  assert.match(releaseRunbook, /GitHub-hosted runners/);
+  assert.match(
+    releaseRunbook,
+    /npm publish "\$archive_path" --ignore-scripts --provenance --tag next/,
+  );
+  assert.match(
+    releaseRunbook,
+    /^npm publish "\$archive_path" --ignore-scripts --provenance$/m,
+  );
+  assert.match(releaseRunbook, /npm dist-tag ls collective-cognition-sdk/);
+  assert.match(releaseRunbook, /published under `next` is a prerelease/);
+  assert.match(
+    releaseRunbook,
+    /`latest` may temporarily resolve to the first release candidate/,
+  );
+  assert.match(releaseRunbook, /never moved, retagged, or overwritten/);
+  assert.match(releaseRunbook, /npm does not allow removing `latest`/);
+  assert.match(releaseRunbook, new RegExp(`${expectedReleaseEvidenceRoot}/`));
+  assert.match(releaseRunbook, /scripts\/verify-release-evidence\.mjs/);
+  assert.match(releaseRunbook, /scripts\/verify-package-archive\.mjs/);
+  assert.match(releaseRunbook, /prepack/);
+  assert.doesNotMatch(
+    releaseRunbook,
+    /\b(?:is|are|was|were)\s+(?:production[- ]ready|npm published)\b/i,
+  );
+  assert.doesNotMatch(releaseRunbook, /npm dist-tag (?:add|rm|set)\b/);
 });
 
 test("public documentation records the observed GitHub prerelease boundary", () => {

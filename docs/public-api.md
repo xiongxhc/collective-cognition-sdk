@@ -15,9 +15,12 @@ The private, unpublished `0.11.0` Slice A is integrated on `main` at merge commi
 - Supported Experimental is not Normative Stable.
 - source paths absent from `exports` are internal.
 
-These are the private pre-`1.0.0` maturity labels. Phase 3 Slice B still owns
-the separately reviewed stable-package policy and migration boundary; Slice A
-candidate status does not silently promote Supported Experimental runtime surfaces.
+These are the private pre-`1.0.0` maturity labels that `packagePolicyVersion`
+`0.1.0` defines. The stable boundary is published separately as
+`packagePolicyVersion` `1.0.0` and is summarized in Stable `1.0.0`
+Classification below. It takes effect only when a compatibility baseline records
+that policy version, so no Supported Experimental `0.11.0` surface is promoted
+here.
 
 ### Durable Workflow Runtime
 
@@ -214,6 +217,85 @@ production readiness, broad adoption, certification, endorsement, or LTS support
 - `collective-cognition-teammem` — Supported Experimental team-memory export CLI; governed by [docs/connector-author-guide](../docs/connector-author-guide.md) and [RFC 0006: Maintained Source Connectors](../rfcs/0006-maintained-source-connectors.md).
 - `collective-cognition-markdown` — Supported Experimental Markdown cognition projection CLI; governed by [docs/markdown-cognition-adapter-guide](../docs/markdown-cognition-adapter-guide.md) and [RFC 0007: Markdown Cognition Adapter](../rfcs/0007-markdown-cognition-adapter.md).
 - `collective-cognition-workflow` — Supported Experimental closed durable workflow CLI; governed by the [Durable Cognition Workflow Guide](durable-cognition-workflow-guide.md) and [RFC 0010: Durable Cognition Workflow](../rfcs/0010-durable-cognition-workflow.md). It has no publisher option.
+
+## Error Catalogs
+
+The root catalog and the Portable Cognition allowlist are separate. Root
+`DomainErrorCode` has twelve values. The immutable Portable Cognition `0.1.0`
+allowlist has eleven; `INVALID_HOST_INTEGRATION_REQUEST` is root-only and never
+appears in a portable record.
+
+| Code | Root `DomainErrorCode` | Portable Cognition `0.1.0` |
+| --- | --- | --- |
+| `AUTHORIZATION_DENIED` | yes | yes |
+| `CONFIRMATION_REQUIRED` | yes | yes |
+| `INGESTION_LIMIT_EXCEEDED` | yes | yes |
+| `INVALID_HOST_INTEGRATION_REQUEST` | yes | no |
+| `INVALID_OBJECT` | yes | yes |
+| `INVALID_PORTABLE_COGNITION_RECORD` | yes | yes |
+| `INVALID_RELATIONSHIP` | yes | yes |
+| `INVALID_SOURCE_RECORD` | yes | yes |
+| `INVALID_TRANSITION` | yes | yes |
+| `PROMOTION_FAILED` | yes | yes |
+| `SERIALIZATION_ERROR` | yes | yes |
+| `SOURCE_REVISION_COLLISION` | yes | yes |
+
+`INVALID_HOST_INTEGRATION_REQUEST`, `INVALID_PORTABLE_COGNITION_RECORD`,
+`INVALID_SOURCE_RECORD`, and `SOURCE_REVISION_COLLISION` are the Normative
+Stable contract error codes.
+
+## Selected Package Fields
+
+`./package.json` is exported for introspection only. The compatibility baseline
+records these selected package metadata fields exactly, and they are the fields
+the compatibility policy covers. Ten are read from the manifest;
+`productionDependencyFields` is computed by the baseline.
+
+| Field | Recorded value or shape |
+| --- | --- |
+| `name` | `collective-cognition-sdk` |
+| `version` | The installable package version, currently `0.11.0`. |
+| `private` | `true` while the package is unpublished. |
+| `type` | `module` |
+| `main` | `./dist/index.js` |
+| `types` | `./dist/index.d.ts` |
+| `license` | `Apache-2.0` |
+| `engines` | `{ "node": ">=24" }` |
+| `exports` | Every declared subpath and its condition targets. |
+| `bin` | The four installed executable names and their targets. |
+| `productionDependencyFields` | Not a manifest field. The baseline computes it by listing which of `dependencies`, `optionalDependencies`, `peerDependencies`, `bundleDependencies`, and `bundledDependencies` the manifest declares; currently none. |
+
+## Stable `1.0.0` Classification
+
+Package `0.11.0` is governed by `packagePolicyVersion` `0.1.0`, so the labels in
+the sections above are its pre-`1.0.0` maturity labels. Policy `1.0.0` of the
+[Compatibility Policy](../spec/compatibility.md) publishes the classification
+that applies from compatibility baseline `1.0.0-rc.1` onward, and its `STAB-002`
+classification names every surface individually. The groups are:
+
+| Surface group | `1.0.0` classification |
+| --- | --- |
+| The thirty-seven root runtime exports and seventy-four root type exports above | Stable Public API |
+| The twelve root `DomainErrorCode` values | Stable Public API |
+| The `.` root export | Stable Public API |
+| `collective-cognition` | Stable Public API |
+| The thirty-one versioned normative resource subpaths above | Normative Stable |
+| `./adapters/markdown/0.1.0`, `./connector-conformance/0.1.0`, `./connectors/team-memory/0.1.0`, `./connectors/git/0.1.0`, `./host-conformance/0.1.0`, `./reference-host/0.1.0`, `./stores/sqlite/0.1.0`, `./stores/sqlite-workflow/0.1.0`, `./workflows/durable/0.1.0` | Supported Experimental maturity, SemVer protected |
+| `collective-cognition-teammem`, `collective-cognition-markdown`, `collective-cognition-workflow` | Supported Experimental maturity, SemVer protected |
+| `./package.json` and the selected package fields above | Stable introspection surface |
+| Repository source, tests, examples, generated file paths, and unexported modules | Internal |
+
+Under policy `1.0.0`, Supported Experimental is an operational-maturity label
+that is SemVer protected. It does not certify host dependencies, behavior, or
+production suitability, and it is not permission to break a package `1.x`
+consumer. An incompatible change to a root export, to the generic executable, or
+to an existing versioned subpath requires package `2.0.0` or a new retained
+versioned subpath.
+
+This classification takes effect when a baseline records
+`packagePolicyVersion` `1.0.0`. It does not promote any `0.11.0` surface today,
+authorize an npm publication, or claim production readiness. See
+[Migrating from package `0.11.0` to `1.0.0`](migrations/1.0.0.md).
 
 ## Not Public API
 

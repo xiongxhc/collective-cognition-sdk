@@ -1,5 +1,9 @@
 # GitHub Prerelease Runbook
 
+This maintainer runbook applies only to the immutable `v0.6.0` prerelease. The
+workflow it describes accepts no other tag, and `1.0.0` release candidates and
+the stable `1.0.0` follow the [npm release runbook](npm-release.md) instead.
+
 This maintainer runbook prepares and verifies the experimental GitHub
 prerelease for private, unpublished package `0.6.0`. It does not authorize npm
 publication, remove `"private": true`, or treat a command for a future release

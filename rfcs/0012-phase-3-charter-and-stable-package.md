@@ -43,6 +43,47 @@ The root twelve-code `DomainErrorCode` catalog remains distinct from Portable
 Cognition's immutable eleven-code portable error allowlist. The host-only
 `INVALID_HOST_INTEGRATION_REQUEST` remains root-only.
 
+## Compatibility Policy Version `1.0.0`
+
+The stability matrix changes the compatibility policy itself. `spec/compatibility.md`
+is Normative Stable, and `COMP-002` forbids a behavior-changing in-place edit to
+a Normative Stable resource, so the revision is published through the policy's
+existing version mechanism rather than as an unversioned amendment. Every
+compatibility baseline records a `packagePolicyVersion`. The revised rules are
+published as `packagePolicyVersion` `1.0.0` in a delimited section of the same
+document, the policy `0.1.0` rules are retained unedited beside them, and
+baselines `0.1.0` through `0.11.0` keep recording policy `0.1.0`. The rules that
+governed those releases therefore remain recoverable from the immutable
+baselines and from this RFC.
+
+Compatibility baseline `1.0.0-rc.1` and every later baseline record
+`packagePolicyVersion` `1.0.0`.
+
+### Stable `1.0.0` classification
+
+| Surface | `1.0.0` classification | Compatibility rule |
+| --- | --- | --- |
+| The thirty-seven root runtime exports and seventy-four root type exports recorded by the baseline | Stable Public API | Removal or an incompatible behavior or type change requires package `2.0.0`. |
+| The twelve-code root `DomainErrorCode` catalog | Stable Public API | Removal or changed meaning requires package `2.0.0`; the immutable eleven-code Portable Cognition allowlist stays separate. |
+| The `.` root export and the generic `collective-cognition` executable | Stable Public API | Command names, machine-readable success output, diagnostics, and exit behavior are SemVer protected. |
+| The thirty-one versioned normative resource subpaths: Charter, contracts, schemas, conformance fixtures, profiles, and compatibility baselines | Normative Stable | Published versioned bytes and meanings are immutable; a changed contract uses a new resource version. |
+| `./adapters/markdown/0.1.0`, `./connector-conformance/0.1.0`, `./connectors/team-memory/0.1.0`, `./connectors/git/0.1.0`, `./host-conformance/0.1.0`, `./reference-host/0.1.0`, `./stores/sqlite/0.1.0`, `./stores/sqlite-workflow/0.1.0`, `./workflows/durable/0.1.0` | Supported Experimental maturity, SemVer protected | Existing versioned subpaths remain import-compatible through package `1.x`; an incompatible replacement uses a new versioned subpath or package `2.0.0`. |
+| `collective-cognition-teammem`, `collective-cognition-markdown`, and `collective-cognition-workflow` | Supported Experimental maturity, SemVer protected | Installed names and documented behavior remain compatible through package `1.x`; an incompatible replacement requires package `2.0.0`. |
+| The `./package.json` export and the eleven selected package metadata fields | Stable introspection surface | Baseline-selected fields follow the compatibility policy. |
+| Repository source, tests, examples, generated file paths, and unexported modules | Internal | No compatibility promise. |
+
+`STAB-002` of the policy names every one of those surfaces individually, so each
+root export, error code, subpath, executable, and selected package field carries
+exactly one classification. `STAB-003` redefines Supported Experimental as an
+operational-maturity label that is SemVer protected from `1.0.0` onward.
+`STAB-004` requires package `2.0.0` or a new retained versioned subpath for an
+incompatible root, CLI, or existing-subpath change. `STAB-005` withdraws
+`minor-before-1.0`, which applies only under policy `0.1.0`.
+
+Consumer guidance is in [Migrating from package `0.11.0` to `1.0.0`](../docs/migrations/1.0.0.md).
+The move changes support guarantees only. Portable Cognition `0.1.0` record
+meaning, and every other immutable contract, is unchanged.
+
 ## Release Sequence
 
 1. Slice A adds the Charter, standalone projections, fixtures, conformance

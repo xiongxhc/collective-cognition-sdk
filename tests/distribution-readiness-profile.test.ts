@@ -174,7 +174,62 @@ const expectedDrpRuleMeanings = {
     "Profile replacement MUST use a new version and preserve previously distributed bytes.",
   "DRP-012":
     "Package contents MUST include the public reference, normative prose, machine profile, RFC, and compatibility evidence while excluding implementation plans.",
+  "DRP-013":
+    "A candidate profile MUST use a 0.2.0-rc.N profile version and MUST describe one exact package prerelease version.",
+  "DRP-014":
+    "A candidate profile MUST record the supported runtime, both support boundaries, the expected registry publication identity, the approved provenance mechanism, the intended immutable Git tag, and the release workflow identity as intent rather than repository-verified publication evidence.",
+  "DRP-015":
+    "Observed publication facts MUST live only in a separate non-packaged Release Evidence Record whose repository copy and release asset are byte-identical and digest-bound, are never replaced, and are corrected only by append-only numbered amendments.",
+  "DRP-016":
+    "A release archive MUST be verified from its own bytes against the declared package contents, package version, exports, executables, and inspection rules that exclude credentials and local absolute paths before it is treated as a release candidate. Verification MUST install the archive with --ignore-scripts into a clean temporary consumer and execute the installed exports and executables there, so the archive's own code is exercised rather than the repository's.",
 };
+
+const candidateTopLevelKeys = [
+  "profileVersion",
+  "describesPackageVersion",
+  "supportedRuntime",
+  "overallStatus",
+  "channels",
+  "gates",
+  "npmBlockers",
+  "supportBoundaries",
+  "plannedPublication",
+  "nonClaims",
+];
+
+const candidateProfileVersionPattern = /^0\.2\.0-rc\.[1-9][0-9]*$/;
+const exactPrereleaseVersionPattern =
+  /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*$/;
+const allowedSupportStabilities = [
+  "normative-stable",
+  "supported-experimental",
+];
+const expectedCandidateRegistryName = "collective-cognition-sdk";
+const expectedCandidateProvenanceMechanism =
+  "github-actions-oidc-trusted-publishing";
+const expectedCandidateWorkflow = {
+  path: ".github/workflows/npm-publish.yml",
+  environment: "npm-production",
+};
+const expectedMandatoryCandidateGates = {
+  "DRP-GATE-001": "satisfied",
+  "DRP-GATE-002": "satisfied",
+  "DRP-GATE-003": "blocked",
+  "DRP-GATE-004": "blocked",
+  "DRP-GATE-005": "not-claimed",
+};
+const expectedSupportBoundaries = [
+  {
+    id: "DRP-SUPPORT-001",
+    stability: "normative-stable",
+    evidence: ["spec/compatibility.md", "spec/compatibility/0.11.0/baseline.json"],
+  },
+  {
+    id: "DRP-SUPPORT-002",
+    stability: "supported-experimental",
+    evidence: ["docs/public-api.md", "spec/compatibility.md"],
+  },
+];
 
 const allowedOverallStatuses = ["ready", "blocked", "not-claimed"];
 const allowedChannelStatuses = ["available", "blocked", "not-claimed"];
@@ -309,68 +364,19 @@ function assertRepositoryEvidencePath(evidencePath: unknown, label: string): ass
   assert.ok(stats.isFile(), `${label} must resolve to an existing repository file`);
 }
 
-function assertDistributionReadinessProfile(
-  profile: Record<string, unknown>,
-  expectedVersions = {
-    profileVersion: "0.1.0",
-    describesPackageVersion: "0.8.0",
-  },
+function assertUniqueIds(
+  entries: Array<Record<string, unknown>>,
+  label: string,
 ): void {
-  assert.deepEqual(
-    Object.keys(profile),
-    allowedTopLevelKeys,
-    "profile top-level keys must match the closed vocabulary",
-  );
-
-  assertSingleLineText(profile.profileVersion, "profileVersion");
-  assertSingleLineText(
-    profile.describesPackageVersion,
-    "describesPackageVersion",
-  );
-  assert.match(profile.profileVersion, semanticVersionPattern);
-  assert.match(profile.describesPackageVersion, semanticVersionPattern);
-  assert.equal(profile.profileVersion, expectedVersions.profileVersion);
   assert.equal(
-    profile.describesPackageVersion,
-    expectedVersions.describesPackageVersion,
+    new Set(entries.map((entry) => entry.id)).size,
+    entries.length,
+    `${label} IDs must be unique`,
   );
-  assert.equal(profile.overallStatus, "blocked");
-  assert.ok(
-    allowedOverallStatuses.includes(profile.overallStatus as (typeof allowedOverallStatuses)[number]),
-    "overallStatus must use the closed vocabulary",
-  );
+}
 
-  assert.ok(Array.isArray(profile.channels), "channels must be an array");
-  assert.ok(Array.isArray(profile.gates), "gates must be an array");
-  assert.ok(Array.isArray(profile.npmBlockers), "npmBlockers must be an array");
-  assert.ok(Array.isArray(profile.nonClaims), "nonClaims must be an array");
-
-  const channels = profile.channels as Array<Record<string, unknown>>;
-  const gates = profile.gates as Array<Record<string, unknown>>;
-  const npmBlockers = profile.npmBlockers as Array<Record<string, unknown>>;
-  const nonClaims = profile.nonClaims as Array<Record<string, unknown>>;
-
-  assert.equal(
-    new Set(channels.map((channel) => channel.id)).size,
-    channels.length,
-    "channel IDs must be unique",
-  );
-  assert.equal(
-    new Set(gates.map((gate) => gate.id)).size,
-    gates.length,
-    "gate IDs must be unique",
-  );
-  assert.equal(
-    new Set(npmBlockers.map((blocker) => blocker.id)).size,
-    npmBlockers.length,
-    "npm blocker IDs must be unique",
-  );
-  assert.equal(
-    new Set(nonClaims.map((nonClaim) => nonClaim.id)).size,
-    nonClaims.length,
-    "non-claim IDs must be unique",
-  );
-
+function assertChannelEntries(channels: Array<Record<string, unknown>>): void {
+  assertUniqueIds(channels, "channel");
   for (const channel of channels) {
     assert.deepEqual(
       Object.keys(channel),
@@ -425,7 +431,10 @@ function assertDistributionReadinessProfile(
       );
     }
   }
+}
 
+function assertGateEntries(gates: Array<Record<string, unknown>>): void {
+  assertUniqueIds(gates, "gate");
   for (const gate of gates) {
     assert.deepEqual(Object.keys(gate), ["id", "status", "rationale", "evidence"]);
     assertSingleLineText(gate.id, "gate.id");
@@ -445,7 +454,12 @@ function assertDistributionReadinessProfile(
       assertRepositoryEvidencePath(evidencePath, `${gate.id}.evidence`);
     }
   }
+}
 
+function assertNpmBlockerEntries(
+  npmBlockers: Array<Record<string, unknown>>,
+  ): void {
+  assertUniqueIds(npmBlockers, "npm blocker");
   for (const blocker of npmBlockers) {
     assert.deepEqual(Object.keys(blocker), ["id", "status", "rationale", "evidence"]);
     assertSingleLineText(blocker.id, "npmBlocker.id");
@@ -466,7 +480,12 @@ function assertDistributionReadinessProfile(
       assertRepositoryEvidencePath(evidencePath, `${blocker.id}.evidence`);
     }
   }
+}
 
+function assertNonClaimEntries(
+  nonClaims: Array<Record<string, unknown>>,
+  ): void {
+  assertUniqueIds(nonClaims, "non-claim");
   for (const nonClaim of nonClaims) {
     assert.deepEqual(Object.keys(nonClaim), ["id", "status", "statement"]);
     assertSingleLineText(nonClaim.id, "nonClaim.id");
@@ -489,6 +508,53 @@ function assertDistributionReadinessProfile(
   }
 
   assert.equal(new Set(nonClaims.map((nonClaim) => nonClaim.statement)).size, nonClaims.length);
+}
+
+function assertDistributionReadinessProfile(
+  profile: Record<string, unknown>,
+  expectedVersions = {
+    profileVersion: "0.1.0",
+    describesPackageVersion: "0.8.0",
+  },
+): void {
+  assert.deepEqual(
+    Object.keys(profile),
+    allowedTopLevelKeys,
+    "profile top-level keys must match the closed vocabulary",
+  );
+
+  assertSingleLineText(profile.profileVersion, "profileVersion");
+  assertSingleLineText(
+    profile.describesPackageVersion,
+    "describesPackageVersion",
+  );
+  assert.match(profile.profileVersion, semanticVersionPattern);
+  assert.match(profile.describesPackageVersion, semanticVersionPattern);
+  assert.equal(profile.profileVersion, expectedVersions.profileVersion);
+  assert.equal(
+    profile.describesPackageVersion,
+    expectedVersions.describesPackageVersion,
+  );
+  assert.equal(profile.overallStatus, "blocked");
+  assert.ok(
+    allowedOverallStatuses.includes(profile.overallStatus as (typeof allowedOverallStatuses)[number]),
+    "overallStatus must use the closed vocabulary",
+  );
+
+  assert.ok(Array.isArray(profile.channels), "channels must be an array");
+  assert.ok(Array.isArray(profile.gates), "gates must be an array");
+  assert.ok(Array.isArray(profile.npmBlockers), "npmBlockers must be an array");
+  assert.ok(Array.isArray(profile.nonClaims), "nonClaims must be an array");
+
+  const channels = profile.channels as Array<Record<string, unknown>>;
+  const gates = profile.gates as Array<Record<string, unknown>>;
+  const npmBlockers = profile.npmBlockers as Array<Record<string, unknown>>;
+  const nonClaims = profile.nonClaims as Array<Record<string, unknown>>;
+
+  assertChannelEntries(channels);
+  assertGateEntries(gates);
+  assertNpmBlockerEntries(npmBlockers);
+  assertNonClaimEntries(nonClaims);
 
   for (const path of [
     "package.json",
@@ -537,6 +603,205 @@ function assertDistributionReadinessProfile(
       statement: nonClaim.statement,
     })),
     expectedNonClaims,
+  );
+}
+
+function readPackageEngineRange(): string {
+  const packageMetadata = JSON.parse(readFileSync(packageJsonUrl, "utf8")) as {
+    engines: { node: string };
+  };
+  return packageMetadata.engines.node;
+}
+
+function candidateProfile(): Record<string, unknown> {
+  const historical = readProfile();
+
+  return {
+    profileVersion: "0.2.0-rc.1",
+    describesPackageVersion: "1.0.0-rc.1",
+    supportedRuntime: readPackageEngineRange(),
+    overallStatus: "blocked",
+    channels: structuredClone(historical.channels),
+    gates: structuredClone(historical.gates),
+    npmBlockers: structuredClone(historical.npmBlockers),
+    supportBoundaries: structuredClone(expectedSupportBoundaries),
+    plannedPublication: {
+      registryName: expectedCandidateRegistryName,
+      provenanceMechanism: expectedCandidateProvenanceMechanism,
+      intendedTag: "v1.0.0-rc.1",
+      workflow: { ...expectedCandidateWorkflow },
+    },
+    nonClaims: structuredClone(historical.nonClaims),
+  };
+}
+
+function assertCandidateDistributionReadinessProfile(
+  profile: Record<string, unknown>,
+  expectedVersions = {
+    profileVersion: "0.2.0-rc.1",
+    describesPackageVersion: "1.0.0-rc.1",
+  },
+): void {
+  assert.deepEqual(
+    Object.keys(profile),
+    candidateTopLevelKeys,
+    "candidate profile top-level keys must match the closed candidate vocabulary",
+  );
+
+  assertSingleLineText(profile.profileVersion, "profileVersion");
+  assertSingleLineText(
+    profile.describesPackageVersion,
+    "describesPackageVersion",
+  );
+  assertSingleLineText(profile.supportedRuntime, "supportedRuntime");
+
+  assert.ok(
+    candidateProfileVersionPattern.test(profile.profileVersion),
+    "candidate profileVersion must match 0.2.0-rc.N",
+  );
+  assert.equal(profile.profileVersion, expectedVersions.profileVersion);
+  assert.ok(
+    semanticVersionPattern.test(profile.describesPackageVersion) &&
+      exactPrereleaseVersionPattern.test(profile.describesPackageVersion),
+    "candidate describesPackageVersion must be one exact package prerelease version",
+  );
+  assert.equal(
+    profile.describesPackageVersion,
+    expectedVersions.describesPackageVersion,
+  );
+  assert.equal(
+    profile.supportedRuntime,
+    readPackageEngineRange(),
+    "supportedRuntime must equal the declared engines.node range",
+  );
+
+  assert.ok(
+    allowedOverallStatuses.includes(
+      profile.overallStatus as (typeof allowedOverallStatuses)[number],
+    ),
+    "overallStatus must use the closed vocabulary",
+  );
+  assert.equal(
+    profile.overallStatus,
+    "blocked",
+    "candidate overallStatus must remain blocked",
+  );
+
+  for (const member of [
+    "channels",
+    "gates",
+    "npmBlockers",
+    "supportBoundaries",
+    "nonClaims",
+  ]) {
+    assert.ok(Array.isArray(profile[member]), `${member} must be an array`);
+  }
+
+  const channels = profile.channels as Array<Record<string, unknown>>;
+  const gates = profile.gates as Array<Record<string, unknown>>;
+  const npmBlockers = profile.npmBlockers as Array<Record<string, unknown>>;
+  const supportBoundaries = profile.supportBoundaries as Array<
+    Record<string, unknown>
+  >;
+  const nonClaims = profile.nonClaims as Array<Record<string, unknown>>;
+
+  assertChannelEntries(channels);
+  assertGateEntries(gates);
+  assertNpmBlockerEntries(npmBlockers);
+  assertNonClaimEntries(nonClaims);
+
+  const npmChannel = channels.find((channel) => channel.id === "npm-registry");
+  assert.ok(npmChannel, "candidate profile must report the npm-registry channel");
+  assert.equal(
+    npmChannel.status,
+    "blocked",
+    "candidate npm-registry channel must remain blocked",
+  );
+
+  assert.deepEqual(
+    npmBlockers.map((blocker) => blocker.id),
+    ["DRP-NPM-001", "DRP-NPM-002"],
+    "candidate profile must keep the registry-name and accountable-human blockers distinct",
+  );
+
+  assert.deepEqual(
+    Object.fromEntries(gates.map((gate) => [gate.id, gate.status])),
+    expectedMandatoryCandidateGates,
+    "candidate gates must keep the approved gate statuses",
+  );
+
+  assertUniqueIds(supportBoundaries, "support boundary");
+  for (const boundary of supportBoundaries) {
+    assert.deepEqual(Object.keys(boundary), ["id", "stability", "evidence"]);
+    assertSingleLineText(boundary.id, "supportBoundary.id");
+    assert.match(boundary.id, /^DRP-SUPPORT-\d{3}$/);
+    assert.ok(
+      allowedSupportStabilities.includes(
+        boundary.stability as (typeof allowedSupportStabilities)[number],
+      ),
+      `${boundary.id}.stability must be recognized`,
+    );
+    assert.ok(
+      Array.isArray(boundary.evidence),
+      `${boundary.id}.evidence must be an array`,
+    );
+    assert.notEqual(
+      boundary.evidence.length,
+      0,
+      `${boundary.id}.evidence must not be empty`,
+    );
+    for (const evidencePath of boundary.evidence as Array<unknown>) {
+      assertRepositoryEvidencePath(evidencePath, `${boundary.id}.evidence`);
+    }
+  }
+  assert.deepEqual(
+    [...new Set(supportBoundaries.map((boundary) => boundary.stability))].sort(),
+    allowedSupportStabilities,
+    "candidate support boundaries must record the stable and the experimental boundary",
+  );
+
+  const plannedPublication = profile.plannedPublication as Record<
+    string,
+    unknown
+  >;
+  assert.deepEqual(
+    Object.keys(plannedPublication),
+    ["registryName", "provenanceMechanism", "intendedTag", "workflow"],
+    "plannedPublication members must match the closed candidate vocabulary",
+  );
+  assertSingleLineText(
+    plannedPublication.registryName,
+    "plannedPublication.registryName",
+  );
+  assert.equal(
+    plannedPublication.registryName,
+    expectedCandidateRegistryName,
+    "plannedPublication.registryName must name the expected registry entry",
+  );
+  assert.equal(
+    plannedPublication.provenanceMechanism,
+    expectedCandidateProvenanceMechanism,
+    "plannedPublication.provenanceMechanism must name the approved mechanism",
+  );
+  assert.equal(
+    plannedPublication.intendedTag,
+    `v${profile.describesPackageVersion}`,
+    "plannedPublication.intendedTag must be the intended immutable tag for the described version",
+  );
+  assert.deepEqual(
+    plannedPublication.workflow,
+    expectedCandidateWorkflow,
+    "plannedPublication.workflow must name the expected release workflow identity",
+  );
+
+  assert.deepEqual(
+    nonClaims.map((nonClaim) => ({
+      id: nonClaim.id,
+      status: nonClaim.status,
+      statement: nonClaim.statement,
+    })),
+    expectedNonClaims,
+    "candidate profile must keep the explicit non-claims",
   );
 }
 
@@ -786,4 +1051,215 @@ test("public API reference names every supported package surface", async () => {
       sectionName,
     );
   }
+});
+
+test("candidate distribution readiness profile pins the 0.2.0-rc.N contract", () => {
+  const profile = candidateProfile();
+  // `plannedPublication` records expected identity rather than repository
+  // evidence, so validation reads no file for it and succeeds whether or not
+  // the release workflow already exists.
+  assertCandidateDistributionReadinessProfile(profile);
+  assert.deepEqual(
+    readProfile(),
+    JSON.parse(readFileSync(profileUrl, "utf8")),
+    "the historical profile bytes must stay unchanged",
+  );
+});
+
+test("candidate profile rejects non-candidate profile versions", () => {
+  for (const profileVersion of ["0.2.0", "0.2.0-rc.0", "0.2.0-rc.01", "0.3.0-rc.1"]) {
+    const profile = candidateProfile();
+    profile.profileVersion = profileVersion;
+    assert.throws(
+      () =>
+        assertCandidateDistributionReadinessProfile(profile, {
+          profileVersion,
+          describesPackageVersion: "1.0.0-rc.1",
+        }),
+      /candidate profileVersion must match 0\.2\.0-rc\.N/,
+      profileVersion,
+    );
+  }
+});
+
+test("candidate profile requires one exact package prerelease version", () => {
+  for (const describesPackageVersion of ["1.0.0", "1.0", "1.0.0+build.1"]) {
+    const profile = candidateProfile();
+    profile.describesPackageVersion = describesPackageVersion;
+    profile.plannedPublication = {
+      ...(profile.plannedPublication as Record<string, unknown>),
+      intendedTag: `v${describesPackageVersion}`,
+    };
+    assert.throws(
+      () =>
+        assertCandidateDistributionReadinessProfile(profile, {
+          profileVersion: "0.2.0-rc.1",
+          describesPackageVersion,
+        }),
+      /candidate describesPackageVersion must be one exact package prerelease version/,
+      describesPackageVersion,
+    );
+  }
+});
+
+test("candidate profile rejects a pending status anywhere in the closed vocabulary", () => {
+  const overallPending = candidateProfile();
+  overallPending.overallStatus = "pending";
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(overallPending),
+    /overallStatus must use the closed vocabulary/,
+  );
+
+  const channelPending = candidateProfile();
+  (channelPending.channels as Array<Record<string, unknown>>)[2]!.status = "pending";
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(channelPending),
+    /npm-registry\.status must be recognized/,
+  );
+
+  const gatePending = candidateProfile();
+  (gatePending.gates as Array<Record<string, unknown>>)[2]!.status = "pending";
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(gatePending),
+    /DRP-GATE-003\.status must be recognized/,
+  );
+
+  const blockerPending = candidateProfile();
+  (blockerPending.npmBlockers as Array<Record<string, unknown>>)[0]!.status = "pending";
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(blockerPending),
+    /DRP-NPM-001\.status must remain blocked/,
+  );
+
+  const boundaryPending = candidateProfile();
+  (boundaryPending.supportBoundaries as Array<Record<string, unknown>>)[0]!.stability =
+    "pending";
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(boundaryPending),
+    /DRP-SUPPORT-001\.stability must be recognized/,
+  );
+});
+
+test("candidate profile rejects unknown and missing top-level members", () => {
+  const extended = candidateProfile();
+  extended.registryPublication = { publishedAt: "2026-09-02T00:00:00.000Z" };
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(extended),
+    /candidate profile top-level keys must match the closed candidate vocabulary/,
+  );
+
+  const reduced = candidateProfile();
+  delete reduced.plannedPublication;
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(reduced),
+    /candidate profile top-level keys must match the closed candidate vocabulary/,
+  );
+
+  const extendedPublication = candidateProfile();
+  extendedPublication.plannedPublication = {
+    ...(extendedPublication.plannedPublication as Record<string, unknown>),
+    publishedAt: "2026-09-02T00:00:00.000Z",
+  };
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(extendedPublication),
+    /plannedPublication members must match the closed candidate vocabulary/,
+  );
+});
+
+test("candidate profile keeps npm publication blocked with distinct blockers", () => {
+  const availableChannel = candidateProfile();
+  (availableChannel.channels as Array<Record<string, unknown>>)[2]!.status = "available";
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(availableChannel),
+    /candidate npm-registry channel must remain blocked/,
+  );
+
+  const mergedBlockers = candidateProfile();
+  mergedBlockers.npmBlockers = [
+    (mergedBlockers.npmBlockers as Array<Record<string, unknown>>)[0]!,
+  ];
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(mergedBlockers),
+    /candidate profile must keep the registry-name and accountable-human blockers distinct/,
+  );
+
+  const approvedGate = candidateProfile();
+  (approvedGate.gates as Array<Record<string, unknown>>)[3]!.status = "satisfied";
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(approvedGate),
+    /candidate gates must keep the approved gate statuses/,
+  );
+});
+
+test("candidate profile pins the expected publication identity", () => {
+  const wrongRegistry = candidateProfile();
+  (wrongRegistry.plannedPublication as Record<string, unknown>).registryName =
+    "collective-cognition";
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(wrongRegistry),
+    /plannedPublication\.registryName must name the expected registry entry/,
+  );
+
+  const wrongProvenance = candidateProfile();
+  (wrongProvenance.plannedPublication as Record<string, unknown>).provenanceMechanism =
+    "manual-token-publish";
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(wrongProvenance),
+    /plannedPublication\.provenanceMechanism must name the approved mechanism/,
+  );
+
+  const wrongTag = candidateProfile();
+  (wrongTag.plannedPublication as Record<string, unknown>).intendedTag = "v1.0.0";
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(wrongTag),
+    /plannedPublication\.intendedTag must be the intended immutable tag for the described version/,
+  );
+
+  for (const workflow of [
+    { path: ".github/workflows/ci.yml", environment: "npm-production" },
+    { path: ".github/workflows/npm-publish.yml", environment: "production" },
+  ]) {
+    const wrongWorkflow = candidateProfile();
+    (wrongWorkflow.plannedPublication as Record<string, unknown>).workflow = workflow;
+    assert.throws(
+      () => assertCandidateDistributionReadinessProfile(wrongWorkflow),
+      /plannedPublication\.workflow must name the expected release workflow identity/,
+      JSON.stringify(workflow),
+    );
+  }
+});
+
+test("candidate profile records both support boundaries and the declared runtime", () => {
+  const stableOnly = candidateProfile();
+  stableOnly.supportBoundaries = [
+    (stableOnly.supportBoundaries as Array<Record<string, unknown>>)[0]!,
+  ];
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(stableOnly),
+    /candidate support boundaries must record the stable and the experimental boundary/,
+  );
+
+  const missingEvidence = candidateProfile();
+  (missingEvidence.supportBoundaries as Array<Record<string, unknown>>)[1]!.evidence = [
+    "docs/does-not-exist.md",
+  ];
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(missingEvidence),
+    /DRP-SUPPORT-002\.evidence must resolve to an existing repository file/,
+  );
+
+  const wrongRuntime = candidateProfile();
+  wrongRuntime.supportedRuntime = ">=20";
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(wrongRuntime),
+    /supportedRuntime must equal the declared engines\.node range/,
+  );
+});
+
+test("historical profile 0.1.0 stays outside the candidate contract", () => {
+  assert.throws(
+    () => assertCandidateDistributionReadinessProfile(readProfile()),
+    /candidate profile top-level keys must match the closed candidate vocabulary/,
+  );
+  assertDistributionReadinessProfile(readProfile());
 });
