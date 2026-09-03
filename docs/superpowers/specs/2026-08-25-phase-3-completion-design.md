@@ -555,10 +555,11 @@ candidate (with its own permanent baseline and profile) exists:
    point: npm does not allow removing the `latest` tag, and with a single
    published version there is nothing to repoint it to. The condition is
    recorded in the RC Release Evidence Record as a known temporary state, the
-   README and release notes state that the `next` version is a prerelease, and
-   the next publication (the following candidate or stable `1.0.0`) repoints
-   `latest`, with the stable verification step confirming the final dist-tag
-   state.
+   README and release notes state that the `next` version is a prerelease and
+   that `latest` may point at the first release candidate until `1.0.0` is
+   published, and stable `1.0.0`, published without `--tag`, repoints
+   `latest`; further `--tag next` release candidates leave it unchanged, with
+   the stable verification step confirming the final dist-tag state.
 
 Ordering within the slice:
 

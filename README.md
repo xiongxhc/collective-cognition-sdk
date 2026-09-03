@@ -32,6 +32,14 @@ downloaded GitHub tarball locally; npm registry publication remains forbidden.
 
 The private, unpublished `0.11.0` Slice A is integrated on `main` at merge commit `669b3ed3a30cccee098730fe6cf558bc37e18ac5` via PR #15; its PR checks all passed. Post-merge CI run `32950251966` passed all eight jobs, including Node `24.14.0` Ubuntu job `98119822963`, which passed "runs a fictional external host through an explicit source fixture and SQLite target". This records supported-runtime CI acceptance only; real-device acceptance, public RC/stable publication, npm OIDC/bootstrap work, production readiness, adoption, certification, SLA, and LTS remain pending or unclaimed.
 
+Slice B Tasks 1-3 are delivered and final-reviewed on branch
+`feature/phase-3-stable-package-candidate`, and the npm registry bootstrap
+experiment described in the [npm release runbook](docs/npm-release.md) is
+complete, proving trusted-publisher OIDC publication end to end on a
+throwaway package. The `1.0.0-rc.1` release commit, the merge to `main`, and
+all of Slice C remain open; see the [roadmap](docs/ROADMAP.md) for the
+complete pre-unlock evidence.
+
 The [roadmap](docs/ROADMAP.md) holds phase status and verification evidence,
 including
 completed adapter ecosystem foundations with Durable Cognition Workflow `0.1.0` final-review verified.
@@ -236,8 +244,9 @@ protected workflow described in the
 [npm release runbook](docs/npm-release.md). Any version
 published under `next` is a prerelease and is not the recommended install.
 Because npm does not allow removing `latest`,
-`latest` may temporarily resolve to the first release candidate until a later
-publication repoints it.
+`latest` may temporarily resolve to the first release candidate. Only the
+stable `1.0.0` publish, made without `--tag`, repoints it; further `next`
+release candidates leave it unchanged.
 
 This root README records post-release evidence, so it differs from the README
 embedded in the immutable `v0.6.0` tarball. Do not treat a fresh `0.6.0` pack

@@ -119,8 +119,9 @@ resolves to the version just published. The workflow performs no distribution
 tag mutation. npm does not allow removing `latest`, and on a first-ever
 publication there is no other version to repoint it to, so
 `latest` may temporarily resolve to the first release candidate. Record that as
-a known temporary state in the candidate's Release Evidence Record; a later
-publication repoints `latest`.
+a known temporary state in the candidate's Release Evidence Record. Only
+stable `1.0.0`, published without `--tag`, repoints `latest`; further
+`--tag next` release candidates leave it unchanged.
 
 ## Immutability
 
