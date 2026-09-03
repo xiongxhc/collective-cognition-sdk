@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -9,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { extname, join, relative, sep } from "node:path";
+import { dirname, extname, join, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const ARCHIVE_ROOT = "package";
@@ -43,17 +44,42 @@ function failure(code) {
   return { ok: false, error: code };
 }
 
-function npmCommand() {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
-}
-
 function run(command, args, options = {}) {
   return spawnSync(command, args, {
     encoding: "utf8",
     ...options,
     env: { ...process.env, NODE_NO_WARNINGS: "1", ...options.env },
-    shell: process.platform === "win32",
   });
+}
+
+// Node's own `spawnSync(..., { shell: true })` with an args array logs a
+// DEP0190 deprecation warning to *this* process's stderr the first time it
+// runs (not the child's, and not suppressible via the child's env), which
+// broke the verifier CLI's single-line-JSON-on-stderr contract on win32.
+// `tar` is resolved directly off PATH on every platform instead (Windows
+// runners ship tar.exe), and npm is invoked by running its own JS entry
+// point under this process's `node`, so no shell is ever needed here.
+function npmCliEntry() {
+  const binDir = dirname(process.execPath);
+  const candidate =
+    process.platform === "win32"
+      ? join(binDir, "node_modules", "npm", "bin", "npm-cli.js")
+      : join(binDir, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js");
+  return existsSync(candidate) ? candidate : null;
+}
+
+function runNpm(args, options) {
+  const cliEntry = npmCliEntry();
+  if (cliEntry !== null) {
+    return run(process.execPath, [cliEntry, ...args], options);
+  }
+  if (process.platform === "win32") {
+    // No npm-cli.js found next to this node, and spawning `npm.cmd`
+    // directly would need either a shell or Windows' own .cmd handling for
+    // an *unknown* npm install layout. Fail closed rather than guess.
+    return { status: 1, stdout: "", stderr: "" };
+  }
+  return run("npm", args, options);
 }
 
 function archiveMembers(archivePath) {
@@ -497,8 +523,7 @@ function inspectArchive(workspace, archivePath, expectedVersion) {
       2,
     )}\n`,
   );
-  const installed = run(
-    npmCommand(),
+  const installed = runNpm(
     [
       "install",
       archivePath,

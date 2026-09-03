@@ -104,6 +104,22 @@ function mutatedArchive(
   return archivePath;
 }
 
+// The verifier's stderr contract is exactly one line of JSON on failure.
+// Surfacing the raw text in the assertion failure message (rather than
+// letting `JSON.parse` throw its own generic SyntaxError) makes the next
+// contract violation diagnosable straight from a CI log, without a round
+// trip to reproduce it locally.
+function parseJsonOrThrowWithStderr(stderr: string): unknown {
+  try {
+    return JSON.parse(stderr);
+  } catch (cause) {
+    throw new Error(
+      `verifier stderr was not exactly one line of JSON: ${JSON.stringify(stderr)}`,
+      { cause },
+    );
+  }
+}
+
 test("package archive verifier accepts one deliberately valid local tarball", async () => {
   assert.deepEqual(
     await verifyPackageArchive({
@@ -241,10 +257,10 @@ test("package archive verifier rejects credential patterns in packaged text", as
   );
   assert.notEqual(rejected.status, 0);
   assert.equal(rejected.stdout, "");
-  assert.deepEqual(JSON.parse(rejected.stderr), {
-    ok: false,
-    error: "credential_pattern_detected",
-  });
+  assert.deepEqual(
+    parseJsonOrThrowWithStderr(rejected.stderr),
+    { ok: false, error: "credential_pattern_detected" },
+  );
   assert.equal(rejected.stderr.includes(secret), false);
   assert.equal(rejected.stderr.includes(leaked), false);
 });
@@ -305,10 +321,10 @@ test("package archive verifier rejects a symbolic-link member", async () => {
   );
   assert.notEqual(rejected.status, 0);
   assert.equal(rejected.stdout, "");
-  assert.deepEqual(JSON.parse(rejected.stderr), {
-    ok: false,
-    error: "unsupported_member_type",
-  });
+  assert.deepEqual(
+    parseJsonOrThrowWithStderr(rejected.stderr),
+    { ok: false, error: "unsupported_member_type" },
+  );
   assert.equal(rejected.stderr.includes(secret), false);
   assert.equal(rejected.stderr.includes(outsideTarget), false);
 });
