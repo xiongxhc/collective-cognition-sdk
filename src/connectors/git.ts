@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
-import { isAbsolute } from "node:path";
+import { dirname, isAbsolute } from "node:path";
 
 import { createSourceRecord } from "../source-records.ts";
 import { isUnicodeScalarString } from "../types.ts";
@@ -108,6 +108,9 @@ const executionEnvironmentFields = [
 ] as const;
 
 function inheritedEnvironmentValue(name: string): string | undefined {
+  if (process.platform !== "win32") {
+    return process.env[name];
+  }
   const inheritedName = Object.keys(process.env).find(
     (candidate) => candidate.toLowerCase() === name.toLowerCase(),
   );
@@ -124,6 +127,7 @@ const gitEnvironment: Readonly<NodeJS.ProcessEnv> = Object.freeze({
   GIT_CONFIG_GLOBAL: "/dev/null",
   GIT_CONFIG_NOSYSTEM: "1",
   GIT_NO_LAZY_FETCH: "1",
+  GIT_NO_REPLACE_OBJECTS: "1",
   GIT_OPTIONAL_LOCKS: "0",
   GIT_TERMINAL_PROMPT: "0",
   LANG: "C",
@@ -265,7 +269,7 @@ function runGit(
 ): Buffer {
   const result = spawnSync("git", ["-C", repositoryPath, ...args], {
     encoding: null,
-    env: gitEnvironment,
+    env: { ...gitEnvironment, GIT_CEILING_DIRECTORIES: dirname(repositoryPath) },
     input,
     maxBuffer: failure.outputLimit,
     shell: false,
@@ -489,18 +493,21 @@ export function readGitCommitSourceRecords(
     throw connectorError("target_unavailable", "open");
   }
 
-  runGit(
+  const pathToRepositoryRoot = runGit(
     validatedOptions.repositoryPath,
-    ["rev-parse", "--git-dir"],
+    ["rev-parse", "--show-cdup"],
     {
       code: "incompatible_repository",
       stage: "open",
       outputLimit: GIT_HISTORY_MAX_BYTES,
     },
   );
+  if (pathToRepositoryRoot.toString("utf8").trim().length > 0) {
+    throw connectorError("incompatible_repository", "open");
+  }
   const localConfig = runGit(
     validatedOptions.repositoryPath,
-    ["config", "--local", "--null", "--list"],
+    ["config", "--null", "--list"],
     { code: "read_failed", stage: "open", outputLimit: GIT_HISTORY_MAX_BYTES },
   );
   if (partialOrPromisorRepository(localConfig)) {
@@ -561,6 +568,11 @@ export function readGitCommitSourceRecords(
     selectedCommitIds,
     objectId,
   );
+  for (const [commitIndex, commit] of commits.entries()) {
+    if (commitIndex > 0 && commit.parents[0] !== commits[commitIndex - 1].commitId) {
+      throw connectorError("invalid_commit", "history", { commitIndex });
+    }
+  }
   try {
     return Object.freeze(commits.map((commit) => mapCommit(commit, validatedOptions)));
   } catch (error) {

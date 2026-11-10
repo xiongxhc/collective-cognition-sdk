@@ -252,6 +252,9 @@ function environmentWith(
 }
 
 function inheritedEnvironmentValue(name: string): string | undefined {
+  if (process.platform !== "win32") {
+    return process.env[name];
+  }
   const inheritedName = Object.keys(process.env).find(
     (candidate) => candidate.toLowerCase() === name.toLowerCase(),
   );
@@ -394,6 +397,56 @@ test("reads a first-parent Git window into immutable neutral SourceRecords", () 
     assert.equal(Object.isFrozen(records), true);
     assert.equal(records[1]?.observedAt, "2026-08-20T10:00:00.000Z");
     assert.equal(latestContent.summary, "Merge side history");
+  } finally {
+    removeGitFixture(fixture.directory);
+  }
+});
+
+test("reads original commit objects even when replace refs exist", () => {
+  const fixture = createGitFixture();
+  try {
+    const tree = runGit(fixture.repositoryPath, ["rev-parse", `${fixture.commits.main}^{tree}`]).trim();
+    const forged = writeCommitObject(fixture.repositoryPath, [
+      `tree ${tree}`,
+      `parent ${fixture.commits.root}`,
+      "author Forged Author <forged@fictional.example> 1787220000 +0000",
+      "committer Forged Author <forged@fictional.example> 1787220000 +0000",
+      "",
+      "Forged replacement",
+      "",
+    ].join("\n"));
+    runGit(fixture.repositoryPath, ["replace", fixture.commits.main, forged]);
+
+    const records = readGitCommitSourceRecords(connectorOptions(fixture, {
+      tipCommitId: fixture.commits.main,
+      limit: 1,
+    }));
+    const content = records[0]?.content as {
+      readonly author: { readonly name: string };
+      readonly summary: string;
+    };
+    assert.equal(records[0]?.revisionId, fixture.commits.main);
+    assert.equal(content.author.name, "Zoë Fictional");
+    assert.notEqual(content.summary, "Forged replacement");
+  } finally {
+    removeGitFixture(fixture.directory);
+  }
+});
+
+test("rejects a first-parent window that grafts rewrite", () => {
+  const fixture = createGitFixture();
+  try {
+    mkdirSync(join(fixture.repositoryPath, ".git", "info"), { recursive: true });
+    writeFileSync(
+      join(fixture.repositoryPath, ".git", "info", "grafts"),
+      `${fixture.commits.merge} ${fixture.commits.root}\n`,
+    );
+    assertGitConnectorError(
+      () => readGitCommitSourceRecords(connectorOptions(fixture)),
+      "invalid_commit",
+      "history",
+      { commitIndex: 1 },
+    );
   } finally {
     removeGitFixture(fixture.directory);
   }
@@ -604,7 +657,7 @@ test("passes only a closed deterministic environment to Git children", {
         "const fs = require('node:fs');",
         `fs.writeFileSync(${JSON.stringify(capturePath)}, JSON.stringify(process.env));`,
         "const [, , command, ...rest] = process.argv.slice(2);",
-        "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
+        "if (command === 'rev-parse' && rest[0] === '--show-cdup') process.stdout.write('\\n');",
         "else if (command === 'config') process.stdout.write('');",
         "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
         "else if (command === 'cat-file' && rest[0] === '-e') process.exit(0);",
@@ -650,7 +703,9 @@ test("passes only a closed deterministic environment to Git children", {
     const expected: Record<string, string> = {
       GIT_CONFIG_GLOBAL: "/dev/null",
       GIT_CONFIG_NOSYSTEM: "1",
+      GIT_CEILING_DIRECTORIES: fixture.directory,
       GIT_NO_LAZY_FETCH: "1",
+      GIT_NO_REPLACE_OBJECTS: "1",
       GIT_OPTIONAL_LOCKS: "0",
       GIT_TERMINAL_PROMPT: "0",
       LANG: "C",
@@ -693,7 +748,7 @@ test("rejects a rev-list whose newest object differs from the exact tip", {
       shimDirectory,
       [
         "const [, , command, ...rest] = process.argv.slice(2);",
-        "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
+        "if (command === 'rev-parse' && rest[0] === '--show-cdup') process.stdout.write('\\n');",
         "else if (command === 'config') process.stdout.write('');",
         "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
         "else if (command === 'cat-file' && rest[0] === '-e') process.exit(0);",
@@ -856,6 +911,16 @@ test("reports unavailable targets and incompatible repositories with fixed diagn
       "open",
     );
     assert.equal(incompatible.message, "Git repository is incompatible.");
+
+    const nestedDirectory = join(fixture.repositoryPath, "nested");
+    mkdirSync(nestedDirectory);
+    for (const repositoryPath of [nestedDirectory, `${nestedDirectory}/.`]) {
+      assertGitConnectorError(
+        () => readGitCommitSourceRecords(connectorOptions(fixture, { repositoryPath })),
+        "incompatible_repository",
+        "open",
+      );
+    }
   } finally {
     removeGitFixture(fixture.directory);
   }
@@ -970,11 +1035,22 @@ test("rejects partial and promisor repositories without changing their state", (
     { key: "remote.origin.promisor", label: "one", value: "1" },
     { label: "valueless" },
     { key: "remote.dotted.name.promisor", label: "dotted remote", value: "true" },
+    { label: "included" },
+    { label: "worktree" },
   ];
   for (const configuration of configurations) {
     const fixture = createGitFixture();
     try {
-      if (configuration.key === undefined) {
+      if (configuration.label === "included") {
+        writeFileSync(
+          join(fixture.repositoryPath, ".git", "promisor.cfg"),
+          "[remote \"origin\"]\n\tpromisor = true\n",
+        );
+        runGit(fixture.repositoryPath, ["config", "include.path", "promisor.cfg"]);
+      } else if (configuration.label === "worktree") {
+        runGit(fixture.repositoryPath, ["config", "extensions.worktreeConfig", "true"]);
+        runGit(fixture.repositoryPath, ["config", "--worktree", "remote.origin.promisor", "true"]);
+      } else if (configuration.key === undefined) {
         const configPath = join(fixture.repositoryPath, ".git", "config");
         writeFileSync(
           configPath,
@@ -1087,7 +1163,7 @@ test("bounds POSIX Git execution failures at the tip probe", {
       failureDirectory,
       [
         "const [, , command, ...rest] = process.argv.slice(2);",
-        "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
+        "if (command === 'rev-parse' && rest[0] === '--show-cdup') process.stdout.write('\\n');",
         "else if (command === 'config') process.exit(1);",
         "else process.exit(1);",
       ].join("\n"),
@@ -1102,7 +1178,7 @@ test("bounds POSIX Git execution failures at the tip probe", {
       timeoutDirectory,
       [
         "const [, , command, ...rest] = process.argv.slice(2);",
-        "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
+        "if (command === 'rev-parse' && rest[0] === '--show-cdup') process.stdout.write('\\n');",
         "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
         "else if (command === 'config') process.stdout.write('');",
         "else if (command === 'cat-file' && (rest[0] === '-e' || rest[0] === '-t')) { process.on('SIGTERM', () => {}); setInterval(() => {}, 1_000); }",
@@ -1122,7 +1198,7 @@ test("bounds POSIX Git execution failures at the tip probe", {
       overflowDirectory,
       [
         "const [, , command, ...rest] = process.argv.slice(2);",
-        "if (command === 'rev-parse' && rest[0] === '--git-dir') process.stdout.write('.git\\n');",
+        "if (command === 'rev-parse' && rest[0] === '--show-cdup') process.stdout.write('\\n');",
         "else if (command === 'rev-parse' && rest[0] === '--show-object-format') process.stdout.write('sha1\\n');",
         "else if (command === 'config') process.stdout.write('');",
         "else if (command === 'cat-file' && (rest[0] === '-e' || rest[0] === '-t')) process.stderr.write('x'.repeat(128 * 1024 + 1));",
