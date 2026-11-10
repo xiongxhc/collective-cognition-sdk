@@ -209,10 +209,13 @@ test("deserializers retain malformed JSON as a serialization error", () => {
     deserializeCognitiveObjectProjection,
     deserializeCognitionEventProjection,
   ]) {
-    assert.throws(
-      () => deserialize("{"),
-      (error: unknown) => assertCode(error, DomainErrorCode.SERIALIZATION_ERROR),
-    );
+    for (const text of ["{", '1,"x":2', '{} , "recordType":"cognition-event"']) {
+      assert.throws(
+        () => deserialize(text),
+        (error: unknown) => assertCode(error, DomainErrorCode.SERIALIZATION_ERROR),
+        text,
+      );
+    }
   }
 });
 
@@ -234,6 +237,12 @@ test("standalone depth profile accepts 255 and rejects 256 containers", () => {
   assert.equal(maximumContainerDepth(invalidObject?.payload), 256);
   assert.equal(maximumContainerDepth(invalidEvent?.payload), 256);
   assert.doesNotThrow(() => validateCognitiveObjectProjection(validObject));
+  assert.doesNotThrow(() => deserializeCognitiveObjectProjection(JSON.stringify(validObject)));
+  assert.throws(
+    () => deserializeCognitiveObjectProjection(JSON.stringify(invalidObject?.payload)),
+    (error: unknown) =>
+      assertCode(error, DomainErrorCode.INVALID_PORTABLE_COGNITION_RECORD),
+  );
   assert.throws(
     () => validateCognitiveObjectProjection(invalidObject?.payload),
     (error: unknown) =>

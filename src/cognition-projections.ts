@@ -1,6 +1,8 @@
+import { DomainError, DomainErrorCode } from "./errors.ts";
 import type { CognitionEvent } from "./events.ts";
+import { JsonTextProfileError, parseProfiledJson } from "./json-text.ts";
 import {
-  deserializePortableCognitionRecord,
+  createPortableCognitionRecord,
   validatePortableCognitionRecord,
 } from "./portable-cognition.ts";
 import type { PortableCognitionRecord } from "./portable-cognition.ts";
@@ -21,6 +23,28 @@ function wrapProjection(
   } as PortableCognitionRecord;
 }
 
+function deserializeProjection(
+  recordType: "cognitive-object" | "cognition-event",
+  text: string,
+): unknown {
+  let payload: unknown;
+  try {
+    payload = parseProfiledJson(text);
+  } catch (error) {
+    if (error instanceof JsonTextProfileError) {
+      throw new DomainError(
+        DomainErrorCode.INVALID_PORTABLE_COGNITION_RECORD,
+        "Serialized Portable Cognition record violates the JSON interoperability profile.",
+      );
+    }
+    throw new DomainError(
+      DomainErrorCode.SERIALIZATION_ERROR,
+      "Serialized Portable Cognition record is not valid JSON.",
+    );
+  }
+  return createPortableCognitionRecord(wrapProjection(recordType, payload)).payload;
+}
+
 export function validateCognitiveObjectProjection(
   value: unknown,
 ): asserts value is CognitiveObject {
@@ -28,9 +52,7 @@ export function validateCognitiveObjectProjection(
 }
 
 export function deserializeCognitiveObjectProjection(text: string): CognitiveObject {
-  const envelopeText = `{"schemaVersion":"0.1.0","recordType":"cognitive-object","payload":${text}}`;
-  return deserializePortableCognitionRecord(envelopeText)
-    .payload as CognitiveObject;
+  return deserializeProjection("cognitive-object", text) as CognitiveObject;
 }
 
 export function validateCognitionEventProjection(
@@ -40,7 +62,5 @@ export function validateCognitionEventProjection(
 }
 
 export function deserializeCognitionEventProjection(text: string): CognitionEvent {
-  const envelopeText = `{"schemaVersion":"0.1.0","recordType":"cognition-event","payload":${text}}`;
-  return deserializePortableCognitionRecord(envelopeText)
-    .payload as CognitionEvent;
+  return deserializeProjection("cognition-event", text) as CognitionEvent;
 }
